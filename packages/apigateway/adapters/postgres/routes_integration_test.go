@@ -96,7 +96,7 @@ func tagActivityRegion(t *testing.T, tx pgx.Tx, activityID, regionID int64) {
 	}
 }
 
-// TestIntegration_MapEndpoints exercises GetRouteTile + GetRouteRegionSummary
+// TestIntegration_MapEndpoints exercises GetMapTile + GetMapRegionSummary
 // against real PostGIS (ST_AsMVT / ST_Intersects / ST_Extent), which the
 // fake-querier unit tests can't validate.
 //
@@ -119,9 +119,9 @@ func TestIntegration_MapEndpoints(t *testing.T) {
 			insertRoutedActivity(t, tx, 5001, "test-user")
 			tagActivityRegion(t, tx, 5001, regionID)
 
-			got, err := repo.GetRouteRegionSummary(ctx, "test-user")
+			got, err := repo.GetMapRegionSummary(ctx, "test-user")
 			if err != nil {
-				t.Fatalf("GetRouteRegionSummary: %v", err)
+				t.Fatalf("GetMapRegionSummary: %v", err)
 			}
 			if len(got) != 1 {
 				t.Fatalf("want 1 region, got %d", len(got))
@@ -147,9 +147,9 @@ func TestIntegration_MapEndpoints(t *testing.T) {
 			insertRoutedActivity(t, tx, 6001, "other-user")
 			tagActivityRegion(t, tx, 6001, theirs)
 
-			got, err := repo.GetRouteRegionSummary(ctx, "test-user")
+			got, err := repo.GetMapRegionSummary(ctx, "test-user")
 			if err != nil {
-				t.Fatalf("GetRouteRegionSummary: %v", err)
+				t.Fatalf("GetMapRegionSummary: %v", err)
 			}
 			if len(got) != 1 || got[0].RegionID != mine {
 				t.Errorf("user isolation broken: %+v", got)
@@ -164,18 +164,18 @@ func TestIntegration_MapEndpoints(t *testing.T) {
 			tagActivityRegion(t, tx, 5001, regionID)
 
 			// z1 tile (0,0) = NW hemisphere — covers the route.
-			covering, err := repo.GetRouteTile(ctx, "test-user", 1, 0, 0)
+			covering, err := repo.GetMapTile(ctx, "test-user", 1, 0, 0)
 			if err != nil {
-				t.Fatalf("GetRouteTile covering: %v", err)
+				t.Fatalf("GetMapTile covering: %v", err)
 			}
 			if len(covering) == 0 {
 				t.Error("expected non-empty MVT for the covering tile")
 			}
 
 			// z1 tile (1,0) = NE hemisphere — no features.
-			far, err := repo.GetRouteTile(ctx, "test-user", 1, 1, 0)
+			far, err := repo.GetMapTile(ctx, "test-user", 1, 1, 0)
 			if err != nil {
-				t.Fatalf("GetRouteTile far: %v", err)
+				t.Fatalf("GetMapTile far: %v", err)
 			}
 			if len(far) != 0 {
 				t.Errorf("expected empty MVT for a far tile, got %d bytes", len(far))
@@ -196,9 +196,9 @@ func TestIntegration_MapEndpoints(t *testing.T) {
 
 			// Low zoom (< lineMinZoom=8) → grid-binned density points layer.
 			lx, ly := tileXY(midLng, midLat, 2)
-			low, err := repo.GetRouteTile(ctx, "test-user", 2, lx, ly)
+			low, err := repo.GetMapTile(ctx, "test-user", 2, lx, ly)
 			if err != nil {
-				t.Fatalf("GetRouteTile low-zoom: %v", err)
+				t.Fatalf("GetMapTile low-zoom: %v", err)
 			}
 			if !bytes.Contains(low, []byte("route_points")) {
 				t.Errorf("low-zoom tile should carry the 'route_points' layer; got %d bytes", len(low))
@@ -209,9 +209,9 @@ func TestIntegration_MapEndpoints(t *testing.T) {
 
 			// High zoom (>= lineMinZoom) → simplified line layer.
 			hx, hy := tileXY(midLng, midLat, 10)
-			high, err := repo.GetRouteTile(ctx, "test-user", 10, hx, hy)
+			high, err := repo.GetMapTile(ctx, "test-user", 10, hx, hy)
 			if err != nil {
-				t.Fatalf("GetRouteTile high-zoom: %v", err)
+				t.Fatalf("GetMapTile high-zoom: %v", err)
 			}
 			if !bytes.Contains(high, []byte("routes")) {
 				t.Errorf("high-zoom tile should carry the 'routes' line layer; got %d bytes", len(high))
@@ -228,9 +228,9 @@ func TestIntegration_MapEndpoints(t *testing.T) {
 			// activity_regions filter must keep it out of the tile.
 			insertRoutedActivity(t, tx, 5002, "test-user")
 
-			tile, err := repo.GetRouteTile(ctx, "test-user", 1, 0, 0)
+			tile, err := repo.GetMapTile(ctx, "test-user", 1, 0, 0)
 			if err != nil {
-				t.Fatalf("GetRouteTile: %v", err)
+				t.Fatalf("GetMapTile: %v", err)
 			}
 			if len(tile) != 0 {
 				t.Errorf("untagged activity must be excluded; got %d bytes", len(tile))

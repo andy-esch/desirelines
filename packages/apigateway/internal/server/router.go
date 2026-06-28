@@ -56,9 +56,8 @@ type AuthenticatedRoutes struct {
 	GetMetadata     http.HandlerFunc
 	GetMetrics      http.HandlerFunc
 	GetSource       http.HandlerFunc
-	GetRoutes       http.HandlerFunc
-	GetRouteTile    http.HandlerFunc // GET /activities/map/tiles/{z}/{x}/{y}
-	GetRouteRegions http.HandlerFunc // GET /activities/map/regions
+	GetMapTile      http.HandlerFunc // GET /activities/map/tiles/{z}/{x}/{y}
+	GetMapRegions   http.HandlerFunc // GET /activities/map/regions
 	GetMapDataset   http.HandlerFunc // GET /activities/map/dataset
 	ListActivities  http.HandlerFunc
 	GetActivityByID http.HandlerFunc
@@ -100,8 +99,6 @@ func IsTileRequest(r *http.Request) bool {
 // hugeParam: PublicRoutes/AuthenticatedRoutes are passed by value intentionally —
 // NewRouter runs once at the composition root (startup), never on a hot path, so
 // copying a handful of func pointers is fine.
-//
-//nolint:gocritic // hugeParam — see note above; one-time startup wiring.
 func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, logger *slog.Logger) chi.Router {
 	r := chi.NewRouter()
 
@@ -157,21 +154,17 @@ func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, 
 			r.Get("/activities/{year}/metrics", auth.GetMetrics)
 			r.Get("/activities/{year}/source", auth.GetSource)
 
-			// Route art endpoint (must be registered before {id} to avoid chi matching "routes" as an ID)
-			r.Get("/activities/routes", auth.GetRoutes)
 			// Map subsystem: per-region viewport summary + MVT vector tiles.
-			// Grouped under /map so it's decoupled from the (eventually retiring)
-			// /routes art endpoint and has room to grow (tiles.json, etc.).
-			r.Get("/activities/map/regions", auth.GetRouteRegions)
+			r.Get("/activities/map/regions", auth.GetMapRegions)
 			// The tile route gets its OWN limiter (bursty profile) scoped here,
 			// INSIDE the /v1 group — so it runs after the root CORSMiddleware and a
 			// tile 429 carries CORS headers (surfaces truthfully), with no reorder
 			// of the shared chain. The global limiter skips this path (IsTileRequest).
 			if cfg.TileRateLimiter != nil {
 				r.With(cfg.TileRateLimiter.Middleware).
-					Get("/activities/map/tiles/{z}/{x}/{y}", auth.GetRouteTile)
+					Get("/activities/map/tiles/{z}/{x}/{y}", auth.GetMapTile)
 			} else {
-				r.Get("/activities/map/tiles/{z}/{x}/{y}", auth.GetRouteTile)
+				r.Get("/activities/map/tiles/{z}/{x}/{y}", auth.GetMapTile)
 			}
 			// Full geo-bearing dataset (scalars + region tags + optional bbox)
 			// for the client-side cross-filter model. Single response, no pagination.

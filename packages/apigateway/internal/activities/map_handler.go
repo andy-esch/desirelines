@@ -12,12 +12,12 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// routesDBTimeout is the timeout for the spatial routes/map queries (route art,
-// MVT tiles, region summary), which are heavier than typical queries due to their
-// PostGIS operations: ST_Translate/ST_Simplify (route art + zoom-simplified tile
-// lines), ST_AsMVTGeom/ST_AsMVT + ST_Intersects (tiles), ST_SnapToGrid/ST_Centroid
-// (the low-zoom tile density binning), and ST_Extent (region summary).
-const routesDBTimeout = 30 * time.Second
+// mapDBTimeout is the timeout for the spatial map queries (MVT tiles, region
+// summary, dataset), which are heavier than typical queries due to their PostGIS
+// operations: ST_Simplify (zoom-simplified tile lines), ST_AsMVTGeom/ST_AsMVT +
+// ST_Intersects (tiles), ST_SnapToGrid/ST_Centroid (the low-zoom tile density
+// binning), and ST_Extent (region summary).
+const mapDBTimeout = 30 * time.Second
 
 // mapCacheControl is the cache policy for the routes-map endpoints. It overrides
 // the auth group's no-store default: tiles and region summaries are stable per
@@ -30,47 +30,6 @@ const maxTileZoom = 22
 
 // mvtContentType is the IANA media type for Mapbox Vector Tiles.
 const mvtContentType = "application/vnd.mapbox-vector-tile"
-
-// HandleRoutes serves normalized route geometries for the abstract art visualization.
-// GET /activities/routes?limit=500
-func (h *Handler) HandleRoutes(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.getUserID(w, r)
-	if !ok {
-		return
-	}
-
-	limit := repository.DefaultRoutesLimit
-	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
-		parsed, err := strconv.Atoi(limitStr)
-		if err != nil || parsed < 1 || parsed > repository.MaxRoutesLimit {
-			h.writeError(w, r, http.StatusBadRequest, "Invalid 'limit' (must be 1-"+strconv.Itoa(repository.MaxRoutesLimit)+")")
-			return
-		}
-		limit = parsed
-	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), routesDBTimeout)
-	defer cancel()
-
-	routes, err := h.repo.GetNormalizedRoutes(ctx, userID, limit)
-	if err != nil {
-		h.logger.Error("Database query failed", "error", err, "operation", "get_normalized_routes")
-		h.writeError(w, r, http.StatusInternalServerError, errMsgInternalServerError)
-		return
-	}
-
-	// Map raw Strava sport types to category names
-	for i := range routes {
-		routes[i].Sport = h.sportConfig.GetCategoryForStravaType(routes[i].Sport)
-	}
-
-	resp := repository.RoutesResponse{
-		Routes: routes,
-	}
-
-	w.Header().Set("Cache-Control", mapCacheControl)
-	server.RespondJSON(w, http.StatusOK, resp, h.logger)
-}
 
 // parseTileCoords parses and validates the z/x/y path params.
 // Writes a 400 and returns ok=false on invalid or out-of-range coordinates.
@@ -91,11 +50,11 @@ func (h *Handler) parseTileCoords(w http.ResponseWriter, r *http.Request) (z, x,
 	return z, x, y, true
 }
 
-// HandleRouteTile serves a Mapbox Vector Tile of the user's geo-bearing routes.
+// HandleMapTile serves a Mapbox Vector Tile of the user's geo-bearing routes.
 // Virtual/indoor activities (no region tags) are excluded. An empty-but-valid
 // tile is returned for tiles with no features (never a 404).
 // GET /activities/map/tiles/{z}/{x}/{y}
-func (h *Handler) HandleRouteTile(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleMapTile(w http.ResponseWriter, r *http.Request) {
 	userID, ok := h.getUserID(w, r)
 	if !ok {
 		return
@@ -106,12 +65,12 @@ func (h *Handler) HandleRouteTile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), routesDBTimeout)
+	ctx, cancel := context.WithTimeout(r.Context(), mapDBTimeout)
 	defer cancel()
 
-	tile, err := h.repo.GetRouteTile(ctx, userID, z, x, y)
+	tile, err := h.repo.GetMapTile(ctx, userID, z, x, y)
 	if err != nil {
-		h.logger.Error("Database query failed", "error", err, "operation", "get_route_tile")
+		h.logger.Error("Database query failed", "error", err, "operation", "get_map_tile")
 		h.writeError(w, r, http.StatusInternalServerError, errMsgInternalServerError)
 		return
 	}
@@ -120,7 +79,7 @@ func (h *Handler) HandleRouteTile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", mapCacheControl)
 	w.WriteHeader(http.StatusOK)
 	if _, werr := w.Write(tile); werr != nil {
-		h.logger.Error("Failed to write tile response", "error", werr, "operation", "get_route_tile")
+		h.logger.Error("Failed to write tile response", "error", werr, "operation", "get_map_tile")
 	}
 }
 
@@ -163,21 +122,21 @@ func pickDefaultViewport(regions []repository.RegionSummary) *repository.RegionS
 	return &regions[best]
 }
 
-// HandleRouteRegions serves per-region activity counts and bounding boxes so the
+// HandleMapRegions serves per-region activity counts and bounding boxes so the
 // frontend can default the map viewport to the densest region.
 // GET /activities/map/regions
-func (h *Handler) HandleRouteRegions(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleMapRegions(w http.ResponseWriter, r *http.Request) {
 	userID, ok := h.getUserID(w, r)
 	if !ok {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), routesDBTimeout)
+	ctx, cancel := context.WithTimeout(r.Context(), mapDBTimeout)
 	defer cancel()
 
-	regions, err := h.repo.GetRouteRegionSummary(ctx, userID)
+	regions, err := h.repo.GetMapRegionSummary(ctx, userID)
 	if err != nil {
-		h.logger.Error("Database query failed", "error", err, "operation", "get_route_regions")
+		h.logger.Error("Database query failed", "error", err, "operation", "get_map_regions")
 		h.writeError(w, r, http.StatusInternalServerError, errMsgInternalServerError)
 		return
 	}
@@ -203,7 +162,7 @@ func (h *Handler) HandleMapDataset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), routesDBTimeout)
+	ctx, cancel := context.WithTimeout(r.Context(), mapDBTimeout)
 	defer cancel()
 
 	activities, err := h.repo.GetMapDataset(ctx, userID)

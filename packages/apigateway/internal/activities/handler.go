@@ -8,7 +8,6 @@
 //   - GET /activities/{year}/source?sports=X,Y,Z - Daily summaries (multi-sport)
 //   - GET /activities - Paginated activity list
 //   - GET /activities/{id} - Single activity by ID
-//   - GET /activities/routes - Route geometry for the abstract art canvas
 //   - GET /activities/map/regions - Per-region activity summary (map viewport)
 //   - GET /activities/map/tiles/{z}/{x}/{y} - Activity routes as Mapbox Vector Tiles
 //

@@ -208,39 +208,6 @@ paths:
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 
-  /v1/activities/routes:
-    get:
-      tags: [Activities]
-      summary: Get normalized route geometries
-      description: Returns activity routes centered at (0,0) for abstract art visualization
-      operationId: getRoutes
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: limit
-          in: query
-          description: Maximum number of routes to return
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 1000
-            default: 500
-      responses:
-        '200':
-          description: List of normalized routes
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/NormalizedRoute'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
-
   /v1/activities/map/regions:
     get:
       tags: [Activities]
@@ -249,7 +216,7 @@ paths:
         Returns each region the user has activities in, with the activity count
         and the region's bounding box, sorted by count descending so the client
         can default the routes-map viewport to the densest region.
-      operationId: getRouteRegions
+      operationId: getMapRegions
       security:
         - bearerAuth: []
       responses:
@@ -296,7 +263,7 @@ paths:
 
         sport is the raw Strava sport_type (the client maps it to the app sport
         category). maxzoom is 14; the client overzooms beyond it.
-      operationId: getRouteTile
+      operationId: getMapTile
       security:
         - bearerAuth: []
       parameters:
@@ -768,39 +735,6 @@ components:
         activities:
           type: integer
           description: Cumulative activity count
-
-    NormalizedRoute:
-      type: object
-      required: [activityId, name, sport, distance, date, coords]
-      properties:
-        activityId:
-          type: integer
-          format: int64
-          description: Strava activity ID
-        name:
-          type: string
-          description: Activity name
-        sport:
-          type: string
-          description: >-
-            Categorized sport. See `GET /v1/sports/config` for the full
-            list of categories.
-        distance:
-          type: number
-          format: double
-          description: Distance in meters
-        date:
-          type: string
-          format: date
-          description: Activity date (YYYY-MM-DD)
-        coords:
-          type: array
-          description: Route coordinates centered at (0,0)
-          items:
-            type: array
-            items:
-              type: number
-              format: double
 
     RegionSummary:
       type: object

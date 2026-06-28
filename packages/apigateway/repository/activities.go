@@ -57,24 +57,19 @@ type ActivityRepository interface {
 	// Used by: GET /activities
 	ListActivities(ctx context.Context, filter ActivityListFilter) (*activitiesv1.ListActivitiesResponse, error)
 
-	// GetNormalizedRoutes returns activity routes with coordinates centered at (0,0).
-	// Each route's start point is translated to the origin for overlaid visualization.
-	// Used by: GET /activities/routes
-	GetNormalizedRoutes(ctx context.Context, userID string, limit int) ([]NormalizedRoute, error)
-
-	// GetRouteTile returns a Mapbox Vector Tile (ST_AsMVT bytes) of the user's
+	// GetMapTile returns a Mapbox Vector Tile (ST_AsMVT bytes) of the user's
 	// activity routes for the given z/x/y, in real-world coordinates. Includes
 	// only geo-bearing activities (those with >=1 region tag), so virtual/indoor
 	// activities are excluded. Returns an empty tile (not an error) when the tile
 	// has no features.
 	// Used by: GET /activities/map/tiles/{z}/{x}/{y}
-	GetRouteTile(ctx context.Context, userID string, z, x, y int) ([]byte, error)
+	GetMapTile(ctx context.Context, userID string, z, x, y int) ([]byte, error)
 
-	// GetRouteRegionSummary returns each region the user has activities in, with
+	// GetMapRegionSummary returns each region the user has activities in, with
 	// the activity count and the region's bounding box, sorted by count desc so
 	// the client can default the map viewport to the densest region.
 	// Used by: GET /activities/map/regions
-	GetRouteRegionSummary(ctx context.Context, userID string) ([]RegionSummary, error)
+	GetMapRegionSummary(ctx context.Context, userID string) ([]RegionSummary, error)
 
 	// GetMapDataset returns every geo-bearing activity (>=1 activity_regions row)
 	// with scalar attributes, its aggregated region tag ids, and an optional
