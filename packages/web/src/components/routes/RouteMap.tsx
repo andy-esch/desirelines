@@ -325,7 +325,11 @@ export default function RouteMap({
         !isInternalUrl &&
         (err?.status === 401 || err?.status === 403) &&
         typeof err?.url === "string" &&
-        err.url.includes("/styles/");
+        err.url.includes("/styles/") &&
+        // Sprites live under the style path too (…/styles/v1/.../sprite.json);
+        // exclude them so a sprite 401/403 degrades gracefully (missing icons)
+        // instead of condemning the whole map.
+        !err.url.includes("/sprite");
       if (isStyleAuthFailure) {
         setStatus((s) => (s === "ready" ? s : "error"));
       }
@@ -395,6 +399,9 @@ export default function RouteMap({
   const onMapLoad = useCallback(() => {
     mapRef.current?.resize();
     setStatus("ready");
+    // A genuine load clears the retry budget so a later transient failure in the
+    // same session starts fresh rather than inheriting an elevated count.
+    setRetries(0);
     syncZoomView();
   }, [syncZoomView]);
 

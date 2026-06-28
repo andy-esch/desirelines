@@ -521,12 +521,29 @@ describe("RouteMap load + error UX", () => {
     expect(screen.queryByRole("button", { name: /try again/i })).not.toBeInTheDocument();
   });
 
-  it("ignores a non-style external 401/403 (sub-resource degrades gracefully)", () => {
+  it("ignores a non-style external 401/403 on a glyph (sub-resource degrades gracefully)", () => {
     renderMap();
-    // A 403 on a glyph/sprite — not the style document — must not condemn the map.
+    // A 403 on a font/glyph (under /fonts/, no /styles/) must not condemn the map.
     act(() =>
       h.captured.onError!({
         error: { status: 403, url: "https://api.mapbox.com/fonts/v1/mapbox/DIN%20Pro" },
+      })
+    );
+
+    expect(screen.queryByRole("button", { name: /try again/i })).not.toBeInTheDocument();
+    expect(screen.getByText("Loading map…")).toBeInTheDocument(); // still loading, not errored
+  });
+
+  it("ignores a sprite 401/403 even though its URL contains /styles/", () => {
+    renderMap();
+    // Sprites are nested under the style path (…/styles/v1/.../sprite.json) but are a
+    // sub-resource — a 403 here must degrade gracefully, not condemn the whole map.
+    act(() =>
+      h.captured.onError!({
+        error: {
+          status: 403,
+          url: "https://api.mapbox.com/styles/v1/mapbox/dark-v11/sprite.json",
+        },
       })
     );
 
