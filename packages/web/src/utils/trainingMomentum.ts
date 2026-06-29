@@ -174,13 +174,7 @@ export function calculateTrainingMomentum(
  * Training momentum levels based on weekly percentage change
  */
 export type MomentumLevel =
-  | "significantly-up"
-  | "up"
-  | "steady"
-  | "down"
-  | "significantly-down"
-  | "stale"
-  | null;
+  "significantly-up" | "up" | "steady" | "down" | "significantly-down" | "stale" | null;
 
 /**
  * Categorizes training momentum into discrete levels
