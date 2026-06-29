@@ -161,8 +161,7 @@ describe("traceparent request interceptor", () => {
 
   const traceparentOf = (config: InternalAxiosRequestConfig | undefined) =>
     (config?.headers as unknown as Record<string, unknown> | undefined)?.traceparent as
-      | string
-      | undefined;
+      string | undefined;
 
   it("attaches a well-formed traceparent to internal requests", async () => {
     const seen = captureAdapter();
