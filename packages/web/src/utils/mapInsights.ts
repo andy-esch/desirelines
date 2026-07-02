@@ -88,6 +88,10 @@ export interface WeeklyVolumeRow {
 export function weeklyVolume(activities: MapActivity[]): WeeklyVolumeRow[] {
   const byWeek = new Map<string, WeeklyVolumeRow>();
   for (const a of activities) {
+    // Skip rows with a missing / short start date (protojson omits an empty
+    // start_date_local, defaulted to "") — otherwise ymdToDay("") falls back to
+    // the epoch and buckets the activity into a phantom 1969 week.
+    if (a.startDateLocal.length < 10) continue;
     const ws = weekStartYmd(a.startDateLocal);
     const row = byWeek.get(ws) ?? {
       weekStart: ws,
@@ -175,6 +179,9 @@ export interface CumulativePoint {
 export function cumulativeDistance(activities: MapActivity[]): CumulativePoint[] {
   const byDay = new Map<string, number>();
   for (const a of activities) {
+    // Skip dateless rows (defaulted "" start_date_local) — else `.slice(0, 10)`
+    // yields a "" key that sorts first as a phantom leading cumulative point.
+    if (a.startDateLocal.length < 10) continue;
     const d = a.startDateLocal.slice(0, 10);
     byDay.set(d, (byDay.get(d) ?? 0) + (a.distanceMeters ?? 0));
   }

@@ -15,7 +15,11 @@ const int64ToNumber = z.union([z.number(), z.string()]).transform((v, ctx) => {
   if (typeof v === "number") {
     if (Number.isFinite(v)) return v;
   } else if (/^-?\d+$/.test(v.trim())) {
-    return Number(v);
+    // Reject values beyond 2^53−1: they pass the regex but `Number(v)` silently
+    // rounds them, so an out-of-range int64 must fail loudly like other drift
+    // rather than coerce to an id that never matches the tile.
+    const n = Number(v);
+    if (Number.isSafeInteger(n)) return n;
   }
   ctx.addIssue({
     code: "custom",

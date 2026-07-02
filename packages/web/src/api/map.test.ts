@@ -249,6 +249,19 @@ describe("fetchMapDataset", () => {
     await expect(fetchMapDataset()).rejects.toThrow("throwApiError:fetchMapDataset");
   });
 
+  it("rejects an out-of-2^53 int64 string rather than silently rounding it", async () => {
+    // "9007199254740993" (2^53 + 1) passes the digit regex but `Number(...)` rounds
+    // it to 9007199254740992, an id that would never match the tile — so the safe-
+    // integer guard must fail loudly instead of coercing to a rounded value.
+    mockGet.mockResolvedValue({
+      data: {
+        activities: [{ activityId: "9007199254740993", startDateLocal: "2026-05-01T08:00:00" }],
+      },
+    });
+
+    await expect(fetchMapDataset()).rejects.toThrow("throwApiError:fetchMapDataset");
+  });
+
   it("rejects a malformed regionId rather than silently dropping a NaN", async () => {
     mockGet.mockResolvedValue({
       data: {
