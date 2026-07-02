@@ -62,6 +62,49 @@ const LargeUserAvatar = () => (
   </div>
 );
 
+interface PreferenceSelectProps {
+  inputId?: string | undefined;
+  descriptionId?: string | undefined;
+  value: string;
+  field: keyof Preferences;
+  options: readonly { value: string; label: string }[];
+  width: string;
+  disabled: boolean;
+  onPreferenceChange: (field: keyof Preferences, value: string | number) => Promise<void>;
+}
+
+/**
+ * A single labelled preference dropdown used in the Display settings section.
+ */
+function PreferenceSelect({
+  inputId,
+  descriptionId,
+  value,
+  field,
+  options,
+  width,
+  disabled,
+  onPreferenceChange,
+}: PreferenceSelectProps) {
+  return (
+    <select
+      id={inputId}
+      className="form-select form-select-sm"
+      value={value}
+      onChange={(e) => void onPreferenceChange(field, e.target.value)}
+      disabled={disabled}
+      aria-describedby={descriptionId}
+      style={{ width }}
+    >
+      {options.map((opt) => (
+        <option key={opt.value} value={opt.value}>
+          {opt.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 export default function SettingsPage() {
   const { user, loading: authLoading, signOut } = useAuth();
   const { displayName, loading: profileLoading } = useUserProfile();
@@ -195,61 +238,46 @@ export default function SettingsPage() {
       >
         <SettingRow label="Distance Unit" description="Used for all distance measurements">
           {(descriptionId, inputId) => (
-            <select
-              id={inputId}
-              className="form-select form-select-sm"
+            <PreferenceSelect
+              inputId={inputId}
+              descriptionId={descriptionId}
               value={currentPrefs.distanceUnit || "miles"}
-              onChange={(e) => void handlePreferenceChange("distanceUnit", e.target.value)}
+              field="distanceUnit"
+              options={DISTANCE_UNIT_OPTIONS}
+              width="150px"
               disabled={isSaving}
-              aria-describedby={descriptionId}
-              style={{ width: "150px" }}
-            >
-              {DISTANCE_UNIT_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+              onPreferenceChange={handlePreferenceChange}
+            />
           )}
         </SettingRow>
 
         <SettingRow label="Elevation Unit" description="Used for elevation gain measurements">
           {(descriptionId, inputId) => (
-            <select
-              id={inputId}
-              className="form-select form-select-sm"
+            <PreferenceSelect
+              inputId={inputId}
+              descriptionId={descriptionId}
               value={currentPrefs.elevationUnit || "feet"}
-              onChange={(e) => void handlePreferenceChange("elevationUnit", e.target.value)}
+              field="elevationUnit"
+              options={ELEVATION_UNIT_OPTIONS}
+              width="150px"
               disabled={isSaving}
-              aria-describedby={descriptionId}
-              style={{ width: "150px" }}
-            >
-              {ELEVATION_UNIT_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+              onPreferenceChange={handlePreferenceChange}
+            />
           )}
         </SettingRow>
 
         <SettingRow label="Timezone" description={`Browser timezone: ${browserTimezone}`}>
           {(descriptionId, inputId) => (
-            <select
-              id={inputId}
-              className="form-select form-select-sm"
+            <PreferenceSelect
+              inputId={inputId}
+              descriptionId={descriptionId}
               value={currentPrefs.timezone || ""}
-              onChange={(e) => void handlePreferenceChange("timezone", e.target.value)}
+              field="timezone"
+              options={COMMON_TIMEZONES}
+              width="200px"
               disabled={isSaving}
-              aria-describedby={descriptionId}
-              style={{ width: "200px" }}
-            >
-              {COMMON_TIMEZONES.map((tz) => (
-                <option key={tz.value} value={tz.value}>
-                  {tz.label}
-                </option>
-              ))}
-            </select>
+              onPreferenceChange={handlePreferenceChange}
+            />
           )}
         </SettingRow>
       </SettingsSection>
