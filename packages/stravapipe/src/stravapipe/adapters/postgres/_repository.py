@@ -9,7 +9,7 @@ import logging
 from typing import Any, Final, cast
 
 from sqlalchemy import text
-from sqlalchemy.engine import CursorResult
+from sqlalchemy.engine import CursorResult, Result
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -70,6 +70,10 @@ _ACTIVITY_UPSERT_SET_SQL: Final[str] = ", ".join(
     if col not in _ACTIVITY_INSERT_ONLY_COLUMNS
 )
 
+_DELETE_ACTIVITY_REGIONS_SQL: Final[str] = (
+    "DELETE FROM desirelines.activity_regions WHERE activity_id = :activity_id"
+)
+
 
 def _activity_write_params(activity: StandardActivity, now: datetime) -> dict[str, Any]:
     """Bind params for a full activity write (``insert`` / ``upsert``).
@@ -98,6 +102,16 @@ def _activity_write_params(activity: StandardActivity, now: datetime) -> dict[st
         "created_at": now,
         "updated_at": now,
     }
+
+
+def _rowcount(result: Result[Any]) -> int:
+    """Return the number of rows a DML statement affected.
+
+    ``Session.execute`` is typed ``Result[Any]``, but for DML the runtime
+    value is ``CursorResult`` — which is where ``rowcount`` lives.
+    """
+    rowcount = cast(CursorResult[Any], result).rowcount
+    return rowcount if rowcount is not None else 0
 
 
 class SqlAlchemyActivityRepository(ActivityRepository):
@@ -216,10 +230,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             Number of region rows written (0 if the activity has no route).
         """
         self._session.execute(
-            text(
-                "DELETE FROM desirelines.activity_regions "
-                "WHERE activity_id = :activity_id"
-            ),
+            text(_DELETE_ACTIVITY_REGIONS_SQL),
             {"activity_id": activity_id},
         )
 
@@ -280,17 +291,12 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         Used when an activity becomes virtual/indoor on an enriched UPDATE so it
         stops appearing on the map (zero region rows = non-geographic).
         """
-        result = cast(
-            CursorResult[Any],
+        return _rowcount(
             self._session.execute(
-                text(
-                    "DELETE FROM desirelines.activity_regions "
-                    "WHERE activity_id = :activity_id"
-                ),
+                text(_DELETE_ACTIVITY_REGIONS_SQL),
                 {"activity_id": activity_id},
-            ),
+            )
         )
-        return result.rowcount if result.rowcount is not None else 0
 
     def exists(self, activity_id: int) -> bool:
         """Check if activity exists in database.
@@ -398,9 +404,4 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             DELETE FROM desirelines.activities
             WHERE user_id = :user_id
         """)
-        # Session.execute() is typed as Result[Any], but for DML the runtime
-        # value is CursorResult — that's where rowcount lives.
-        result = cast(
-            CursorResult[Any], self._session.execute(query, {"user_id": user_id})
-        )
-        return result.rowcount if result.rowcount is not None else 0
+        return _rowcount(self._session.execute(query, {"user_id": user_id}))
