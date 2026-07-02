@@ -53,6 +53,7 @@ go_workspace_members := "packages/apigateway packages/dispatcher packages/shared
 # Run Go tests (default: go test, use --pants for Pants)
 go-test +args='':
     #!/usr/bin/env bash
+    set -euo pipefail
     if [[ " {{args}} " == *" --pants "* ]]; then
         echo "👖 Running Go tests with Pants..."
         pants test packages/dispatcher:: packages/apigateway:: packages/shared::
@@ -151,6 +152,7 @@ go-tidy-fix:
 # Format Go code (default: go fmt, use --pants for Pants)
 go-format +args='':
     #!/usr/bin/env bash
+    set -euo pipefail
     if [[ " {{args}} " == *" --pants "* ]]; then
         echo "👖 Formatting Go with Pants..."
         pants fmt packages/dispatcher:: packages/apigateway:: packages/shared::
