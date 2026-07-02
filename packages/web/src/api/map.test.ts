@@ -262,6 +262,26 @@ describe("fetchMapDataset", () => {
     await expect(fetchMapDataset()).rejects.toThrow("throwApiError:fetchMapDataset");
   });
 
+  it("rejects a non-integer JSON-number id (the apigateway may send numbers, not just strings)", async () => {
+    // The number branch must enforce the same clean-int64 contract as the string
+    // branch — a fractional id (1.5) is drift, not a valid activity id.
+    mockGet.mockResolvedValue({
+      data: { activities: [{ activityId: 1.5, startDateLocal: "2026-05-01T08:00:00" }] },
+    });
+
+    await expect(fetchMapDataset()).rejects.toThrow("throwApiError:fetchMapDataset");
+  });
+
+  it("rejects an out-of-2^53 JSON-number id rather than accepting a rounded value", async () => {
+    // 2**53 (9007199254740992) is finite but not a safe integer — beyond this,
+    // JSON numbers can no longer represent every int64, so it must fail loudly.
+    mockGet.mockResolvedValue({
+      data: { activities: [{ activityId: 2 ** 53, startDateLocal: "2026-05-01T08:00:00" }] },
+    });
+
+    await expect(fetchMapDataset()).rejects.toThrow("throwApiError:fetchMapDataset");
+  });
+
   it("rejects a malformed regionId rather than silently dropping a NaN", async () => {
     mockGet.mockResolvedValue({
       data: {

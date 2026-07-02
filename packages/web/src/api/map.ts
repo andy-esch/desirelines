@@ -12,15 +12,13 @@ import type { MapActivity as WireMapActivity } from "../types/generated/activiti
  * rather than coerce to garbage.
  */
 const int64ToNumber = z.union([z.number(), z.string()]).transform((v, ctx) => {
-  if (typeof v === "number") {
-    if (Number.isFinite(v)) return v;
-  } else if (/^-?\d+$/.test(v.trim())) {
-    // Reject values beyond 2^53−1: they pass the regex but `Number(v)` silently
-    // rounds them, so an out-of-range int64 must fail loudly like other drift
-    // rather than coerce to an id that never matches the tile.
-    const n = Number(v);
-    if (Number.isSafeInteger(n)) return n;
-  }
+  // Single safe-integer guard for BOTH wire forms: a JSON number is taken as-is, a
+  // numeric string is parsed only after the digit shape-check. `Number.isSafeInteger`
+  // then rejects everything that isn't a clean int64 within ±(2^53−1) — a non-integer
+  // number (e.g. 1.5), an out-of-range value that would silently round to an id the
+  // tile never matches, or a NaN from a malformed/empty string — so drift fails loudly.
+  const n = typeof v === "number" ? v : /^-?\d+$/.test(v.trim()) ? Number(v) : NaN;
+  if (Number.isSafeInteger(n)) return n;
   ctx.addIssue({
     code: "custom",
     message: `expected an int64 (numeric string or number), got ${JSON.stringify(v)}`,
