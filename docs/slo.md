@@ -5,9 +5,13 @@ burn-rate alerts. Read [`docs/architecture/observability.md`](architecture/obser
 first if you want the underlying instrumentation context; this doc
 assumes the metrics it references already exist.
 
-> **Status:** initial draft 2026-05-10. Targets are starter values
-> deliberately set near the achievable baseline; tighten after a
-> month of observed data.
+> **Status:** deployed 2026-05. SLOs 1/2/4/5 are live as
+> `google_monitoring_slo` in `slos.tf` (dev) with fast/slow burn-rate
+> alert pairs; fast-burn alerting was validated end-to-end 2026-05-11
+> (see [Implementation status](#implementation-status)). SLO 3 (data
+> freshness) is not yet wired — pending a `webhook/end_to_end.duration`
+> data window to calibrate its threshold. Targets remain near the
+> achievable baseline; retighten after ~a month of observed data.
 
 ## Concepts (skim if new)
 
