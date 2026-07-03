@@ -53,9 +53,10 @@ go_workspace_members := "packages/apigateway packages/dispatcher packages/shared
 # Run Go tests (default: go test, use --pants for Pants)
 go-test +args='':
     #!/usr/bin/env bash
+    set -euo pipefail
     if [[ " {{args}} " == *" --pants "* ]]; then
         echo "👖 Running Go tests with Pants..."
-        pants test packages/dispatcher:: packages/apigateway::
+        pants test packages/dispatcher:: packages/apigateway:: packages/shared::
     else
         echo "🐹 Running Go tests with native go (fast)..."
         echo "   Testing dispatcher..."
@@ -63,6 +64,8 @@ go-test +args='':
         (cd packages/dispatcher && go test -v ./... {{args}})
         echo "   Testing apigateway..."
         (cd packages/apigateway && go test -v ./... {{args}})
+        echo "   Testing shared..."
+        (cd packages/shared && go test -v ./... {{args}})
     fi
 
 # Run Go linter (default: golangci-lint + lintpub, use --pants for Pants)
@@ -149,14 +152,16 @@ go-tidy-fix:
 # Format Go code (default: go fmt, use --pants for Pants)
 go-format +args='':
     #!/usr/bin/env bash
+    set -euo pipefail
     if [[ " {{args}} " == *" --pants "* ]]; then
         echo "👖 Formatting Go with Pants..."
-        pants fmt packages/dispatcher:: packages/apigateway::
+        pants fmt packages/dispatcher:: packages/apigateway:: packages/shared::
     else
         echo "🐹 Formatting Go with native go fmt (fast)..."
         # Execute in a subshell (...) to isolate directory changes
         (cd packages/dispatcher && go fmt ./...)
         (cd packages/apigateway && go fmt ./...)
+        (cd packages/shared && go fmt ./...)
     fi
 
 # Generate the BQ activities .proto file from the BigQuery JSON schema.

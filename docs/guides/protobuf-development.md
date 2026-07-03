@@ -185,13 +185,18 @@ response.activities.forEach((a: ActivitySummary) => {
 
 **Python (stravapipe):**
 
-```python
-from stravapipe.types.generated import activities_pb2
+`activities.proto` is Go/TS-only — it is **not** generated for Python
+(see [Proto Consumers by File](#proto-consumers-by-file) below).
+stravapipe consumes the `webhook` and `sports_metrics` protos instead:
 
-activity = activities_pb2.Activity(
-    id=123,
-    name="Morning Run",
-    sport_type="Run",
+```python
+from stravapipe.types.generated import webhook_pb2
+
+event = webhook_pb2.WebhookEvent(
+    object_id=123,
+    owner_id=456,
+    subscription_id=1,
+    event_time=1719792000,
 )
 ```
 
