@@ -88,6 +88,25 @@ describe("mapInsights", () => {
     ]);
   });
 
+  it("drops dateless activities instead of bucketing them into a phantom 1969 point", () => {
+    // A defaulted "" start_date_local would fall back to the epoch: a 1969-12-29
+    // week bar in weeklyVolume and a ""-keyed point that sorts first in
+    // cumulativeDistance. Both aggregations must skip the row entirely.
+    const data = [
+      act({ activityId: 1, startDateLocal: "", distanceMeters: 9_000 }),
+      act({ activityId: 2, startDateLocal: "2026-05-04T08:00:00", distanceMeters: 10_000 }),
+    ];
+
+    const weeks = weeklyVolume(data);
+    expect(weeks.map((w) => w.weekStart)).toEqual(["2026-05-04"]); // no 1969 bar
+    expect(weeks[0]!.distanceMeters).toBe(10_000); // dateless 9k excluded
+    expect(weeks[0]!.count).toBe(1);
+
+    expect(cumulativeDistance(data)).toEqual([
+      { date: "2026-05-04", cumulativeMeters: 10_000 }, // no leading "" point
+    ]);
+  });
+
   it("bins distances into nice-width buckets", () => {
     const data = [
       act({ activityId: 1, distanceMeters: 1_000 }),
