@@ -88,8 +88,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		// Extract token from Authorization header
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
-			m.logger.Warn("Auth: Authentication failed", "reason", "missing_header")
-			apierrors.WriteError(w, r, apierrors.ErrUnauthorized, m.logger)
+			m.rejectUnauthorized(w, r, "missing_header")
 			return
 		}
 
@@ -99,8 +98,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		// network round-trip.
 		parts := strings.SplitN(authHeader, " ", 2)
 		if len(parts) != 2 || parts[0] != "Bearer" || strings.TrimSpace(parts[1]) == "" {
-			m.logger.Warn("Auth: Authentication failed", "reason", "invalid_header_format")
-			apierrors.WriteError(w, r, apierrors.ErrUnauthorized, m.logger)
+			m.rejectUnauthorized(w, r, "invalid_header_format")
 			return
 		}
 
@@ -115,8 +113,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		done(err)
 		spanDone(err)
 		if err != nil {
-			m.logger.Warn("Auth: Authentication failed", "reason", "token_verification_failed", "error", err)
-			apierrors.WriteError(w, r, apierrors.ErrUnauthorized, m.logger)
+			m.rejectUnauthorized(w, r, "token_verification_failed", "error", err)
 			return
 		}
 
@@ -136,4 +133,12 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		m.logger.Debug("Auth: Request authorized successfully", "uid", token.UID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+// rejectUnauthorized logs an authentication failure with the given reason
+// code (plus any extra structured attrs, e.g. "error", err) and writes a 401
+// response. Callers must return immediately after invoking it.
+func (m *AuthMiddleware) rejectUnauthorized(w http.ResponseWriter, r *http.Request, reason string, attrs ...any) {
+	m.logger.Warn("Auth: Authentication failed", append([]any{"reason", reason}, attrs...)...)
+	apierrors.WriteError(w, r, apierrors.ErrUnauthorized, m.logger)
 }

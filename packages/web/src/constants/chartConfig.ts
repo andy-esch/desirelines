@@ -52,28 +52,6 @@ export const CHART_CONFIG = {
     },
   },
 
-  /** Tooltip styling */
-  tooltip: {
-    contentStyle: {
-      backgroundColor: "var(--color-chart-tooltip-bg)",
-      border: "1px solid var(--color-chart-tooltip-border)",
-      borderRadius: "6px",
-      padding: "12px 16px",
-      boxShadow: "0 4px 12px var(--color-surface-shadow)",
-    },
-    labelStyle: {
-      color: "var(--color-chart-tooltip-text)",
-      fontWeight: "bold",
-      marginBottom: "8px",
-      fontSize: "13px",
-    },
-    itemStyle: {
-      color: "var(--color-chart-tooltip-muted)",
-      padding: "4px 0",
-      fontSize: "12px",
-    },
-  },
-
   /** Animation settings */
   animation: {
     duration: 400,

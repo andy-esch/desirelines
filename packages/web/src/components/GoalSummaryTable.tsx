@@ -98,6 +98,14 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
   // Sort goals by value for display
   const sortedGoals = [...goals].sort((a, b) => a.value - b.value);
 
+  // Danger state per goal, computed once: row cells look it up by id and the
+  // warning banner reuses the aggregate instead of recomputing the pace check.
+  const dangerousGoals = isLoading
+    ? []
+    : sortedGoals.filter((g) => isPaceDangerous(calculateDailyPaceNeeded(g.value)));
+  const dangerousGoalIds = new Set(dangerousGoals.map((g) => g.id));
+  const hasDangerousGoals = dangerousGoals.length > 0;
+
   return (
     <div className="card glass-panel mb-8">
       <div className="card-header">
@@ -123,7 +131,7 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
                 const remaining = isLoading ? 0 : Math.max(0, goal.value - currentValue);
                 const paceNeeded = isLoading ? 0 : calculateDailyPaceNeeded(goal.value);
                 const status = isLoading ? "Loading..." : getStatusContent(goal.value);
-                const isDangerous = !isLoading && isPaceDangerous(paceNeeded);
+                const isDangerous = dangerousGoalIds.has(goal.id);
 
                 // Find the original index in the unsorted goals array to get the correct color
                 const originalIndex = goals.findIndex((g) => g.id === goal.id);
@@ -218,24 +226,23 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
         </div>
 
         {/* Warning banner - only if dangerous goals exist and data is loaded */}
-        {!isLoading &&
-          sortedGoals.some((g) => isPaceDangerous(calculateDailyPaceNeeded(g.value))) && (
-            <div className="alert alert-warning mt-6 mb-0" role="alert">
-              <small>
-                <strong>
-                  <WarningIcon size={12} className="inline mr-1" aria-hidden="true" />
-                  Warning:
-                </strong>{" "}
-                Goals marked with{" "}
-                <WarningIcon size={12} className="inline mx-0.5" aria-hidden="true" /> require a
-                pace exceeding{" "}
-                <strong>
-                  {dangerThreshold} {unit}/day
-                </strong>
-                , which may be unsustainable. Consider adjusting your targets.
-              </small>
-            </div>
-          )}
+        {hasDangerousGoals && (
+          <div className="alert alert-warning mt-6 mb-0" role="alert">
+            <small>
+              <strong>
+                <WarningIcon size={12} className="inline mr-1" aria-hidden="true" />
+                Warning:
+              </strong>{" "}
+              Goals marked with{" "}
+              <WarningIcon size={12} className="inline mx-0.5" aria-hidden="true" /> require a pace
+              exceeding{" "}
+              <strong>
+                {dangerThreshold} {unit}/day
+              </strong>
+              , which may be unsustainable. Consider adjusting your targets.
+            </small>
+          </div>
+        )}
 
         {yearContext.shouldShowPacing && (
           <p className="text-slate-light mt-2 mb-0">

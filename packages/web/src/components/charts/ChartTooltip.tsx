@@ -1,3 +1,5 @@
+import { formatChartAxisDate } from "../../utils/dateUtils";
+
 export interface ChartTooltipProps {
   /** Whether the tooltip is active (hovered) */
   active?: boolean;
@@ -43,12 +45,8 @@ export const ChartTooltip = ({
 }: ChartTooltipProps) => {
   if (!active || !payload || payload.length === 0) return null;
 
-  const date = new Date(label as string);
-  const formattedDate = new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  }).format(date);
+  const formattedDate =
+    typeof label === "number" ? formatChartAxisDate(label) : String(label ?? "");
 
   // Find actual value and goal values from payload
   const actualEntry = payload.find((p) => p.dataKey === "actual" || p.name?.includes("Data"));

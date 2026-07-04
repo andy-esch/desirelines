@@ -66,26 +66,13 @@ type Handler struct {
 // Returns an error if FrontendURL or RedirectURI are not valid URLs.
 // When RequireHTTPS is true (any non-local environment), both must use HTTPS.
 func NewHandler(cfg *HandlerConfig) (*Handler, error) {
-	frontendURL, err := url.Parse(cfg.FrontendURL)
+	frontendURL, err := validateExternalURL("frontend URL", cfg.FrontendURL, cfg.RequireHTTPS, "would leak Firebase token")
 	if err != nil {
-		return nil, fmt.Errorf("invalid frontend URL %q: %w", cfg.FrontendURL, err)
-	}
-	if frontendURL.Scheme == "" || frontendURL.Host == "" {
-		return nil, fmt.Errorf("frontend URL %q must have scheme and host", cfg.FrontendURL)
-	}
-	if cfg.RequireHTTPS && frontendURL.Scheme != "https" {
-		return nil, fmt.Errorf("frontend URL %q must use HTTPS in production (would leak Firebase token)", cfg.FrontendURL)
+		return nil, err
 	}
 
-	redirectURL, err := url.Parse(cfg.RedirectURI)
-	if err != nil {
-		return nil, fmt.Errorf("invalid redirect URI %q: %w", cfg.RedirectURI, err)
-	}
-	if redirectURL.Scheme == "" || redirectURL.Host == "" {
-		return nil, fmt.Errorf("redirect URI %q must have scheme and host", cfg.RedirectURI)
-	}
-	if cfg.RequireHTTPS && redirectURL.Scheme != "https" {
-		return nil, fmt.Errorf("redirect URI %q must use HTTPS in production (would leak authorization code)", cfg.RedirectURI)
+	if _, err = validateExternalURL("redirect URI", cfg.RedirectURI, cfg.RequireHTTPS, "would leak authorization code"); err != nil {
+		return nil, err
 	}
 
 	return &Handler{
@@ -99,6 +86,24 @@ func NewHandler(cfg *HandlerConfig) (*Handler, error) {
 		redirectURI: cfg.RedirectURI,
 		logger:      cfg.Logger,
 	}, nil
+}
+
+// validateExternalURL parses raw and verifies it is an absolute URL (scheme
+// and host present). When requireHTTPS is true it additionally requires an
+// https scheme, embedding leakReason in the error so the operator sees what a
+// plaintext URL would expose. Returns the parsed URL for callers that need it.
+func validateExternalURL(label, raw string, requireHTTPS bool, leakReason string) (*url.URL, error) {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return nil, fmt.Errorf("invalid %s %q: %w", label, raw, err)
+	}
+	if u.Scheme == "" || u.Host == "" {
+		return nil, fmt.Errorf("%s %q must have scheme and host", label, raw)
+	}
+	if requireHTTPS && u.Scheme != "https" {
+		return nil, fmt.Errorf("%s %q must use HTTPS in production (%s)", label, raw, leakReason)
+	}
+	return u, nil
 }
 
 // HandleInitiate handles GET /auth/strava.

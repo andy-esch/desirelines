@@ -71,15 +71,10 @@ type Handler struct {
 
 // NewHandler creates a new activities handler with default timeout.
 func NewHandler(repo repository.ActivityRepository, sportConfig *config.SportConfig, logger *slog.Logger) *Handler {
-	return NewHandlerWithTimeout(repo, sportConfig, logger, DefaultDBTimeout)
-}
-
-// NewHandlerWithTimeout creates a new activities handler with custom timeout.
-func NewHandlerWithTimeout(repo repository.ActivityRepository, sportConfig *config.SportConfig, logger *slog.Logger, dbTimeout time.Duration) *Handler {
 	return &Handler{
 		repo:        repo,
 		sportConfig: sportConfig,
-		dbTimeout:   dbTimeout,
+		dbTimeout:   DefaultDBTimeout,
 		logger:      logger,
 	}
 }
