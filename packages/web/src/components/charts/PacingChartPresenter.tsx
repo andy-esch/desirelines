@@ -39,7 +39,7 @@ import { formatChartAxisDate } from "../../utils/dateUtils";
 // ============================================================================
 
 /** Configuration for the danger zone (zone of unachievability) */
-interface DangerZoneConfig {
+export interface DangerZoneConfig {
   /** Whether to show the danger zone */
   show: boolean;
   /** Y-value threshold where danger zone starts */

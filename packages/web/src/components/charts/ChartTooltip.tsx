@@ -45,7 +45,8 @@ export const ChartTooltip = ({
 }: ChartTooltipProps) => {
   if (!active || !payload || payload.length === 0) return null;
 
-  const formattedDate = formatChartAxisDate(label as number);
+  const formattedDate =
+    typeof label === "number" ? formatChartAxisDate(label) : String(label ?? "");
 
   // Find actual value and goal values from payload
   const actualEntry = payload.find((p) => p.dataKey === "actual" || p.name?.includes("Data"));
