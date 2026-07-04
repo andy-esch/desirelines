@@ -14,6 +14,12 @@ import {
 } from "../icons";
 import { useTheme } from "../../contexts/ThemeContext";
 
+// Focusable menu items for arrow-key navigation: enabled buttons/links and
+// anything explicitly tab-focusable. Shared by the querySelector (first item)
+// and querySelectorAll (all items) navigation handlers below.
+const MENU_ITEM_SELECTOR =
+  'button:not(:disabled), a:not(:disabled), [tabindex]:not([tabindex="-1"])';
+
 interface AccountDropdownProps {
   user: User | null;
   loading?: boolean;
@@ -98,11 +104,13 @@ export function AccountDropdown({
       if (event.key === "Escape") {
         setIsOpen(false);
         triggerRef.current?.focus();
-      } else if (event.key === "ArrowDown" && isOpen) {
+      } else if (event.key === "ArrowDown" && isOpen && event.target === triggerRef.current) {
+        // Only "arrow into the menu" from the trigger. Without the target guard
+        // this also fires as ArrowDown bubbles up from a focused menu item (see
+        // handleMenuKeyDown, which doesn't stopPropagation), resetting focus to
+        // the first item and making it impossible to navigate past it.
         event.preventDefault();
-        const firstItem = menuRef.current?.querySelector<HTMLElement>(
-          'button:not(:disabled), a:not(:disabled), [tabindex]:not([tabindex="-1"])'
-        );
+        const firstItem = menuRef.current?.querySelector<HTMLElement>(MENU_ITEM_SELECTOR);
         firstItem?.focus();
       }
     },
@@ -111,11 +119,7 @@ export function AccountDropdown({
 
   // Handle menu item keyboard navigation
   const handleMenuKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
-    const items = Array.from(
-      event.currentTarget.querySelectorAll<HTMLElement>(
-        'button:not(:disabled), a:not(:disabled), [tabindex]:not([tabindex="-1"])'
-      )
-    );
+    const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>(MENU_ITEM_SELECTOR));
     const currentIndex = items.indexOf(event.target as HTMLElement);
 
     if (event.key === "ArrowDown") {
@@ -132,10 +136,13 @@ export function AccountDropdown({
     }
   }, []);
 
-  const handleSignIn = async () => {
+  // Sign-in and sign-out share the same choreography: flag the pending state,
+  // run the parent-provided auth action, close the menu on success, and always
+  // clear the pending flag. Errors are surfaced by the parent, so swallow here.
+  const runAuthAction = async (action: () => Promise<void>) => {
     setActionLoading(true);
     try {
-      await onSignIn();
+      await action();
       setIsOpen(false);
     } catch {
       // Error handled by parent
@@ -144,17 +151,8 @@ export function AccountDropdown({
     }
   };
 
-  const handleSignOut = async () => {
-    setActionLoading(true);
-    try {
-      await onSignOut();
-      setIsOpen(false);
-    } catch {
-      // Error handled by parent
-    } finally {
-      setActionLoading(false);
-    }
-  };
+  const handleSignIn = () => runAuthAction(onSignIn);
+  const handleSignOut = () => runAuthAction(onSignOut);
 
   const handleSettingsClick = () => {
     setIsOpen(false);
