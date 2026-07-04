@@ -2,7 +2,10 @@
 
 Ported from Go: packages/dispatcher/adapters/firestore/token_store.go
 
-Reads and writes Strava OAuth tokens stored at:
+This Python store only reads and deletes tokens; the Go dispatcher owns token
+refresh/writes, so there is no write path here.
+
+Reads and deletes Strava OAuth tokens stored at:
     users/{athleteID}/private/strava_tokens
 
 Document schema (shared with Go dispatcher and apigateway):
@@ -15,13 +18,12 @@ Document schema (shared with Go dispatcher and apigateway):
 """
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 import logging
 
 from google.cloud.firestore_v1 import Client as FirestoreClient
 from google.cloud.firestore_v1.base_document import DocumentSnapshot
 from google.cloud.firestore_v1.document import DocumentReference
-from google.cloud.firestore_v1.transaction import Transaction, transactional
 
 from stravapipe.exceptions import StravaPipeError
 
@@ -105,73 +107,6 @@ class FirestoreTokenStore:
             athlete_id,
         )
         return tokens
-
-    def write_tokens_if_unmodified(
-        self,
-        athlete_id: str,
-        tokens: TokenData,
-        expected_last_refreshed: datetime,
-    ) -> bool:
-        """Atomically write tokens only if last_refreshed matches expected value.
-
-        Uses a Firestore transaction for optimistic concurrency — if another
-        process refreshed tokens since we read them, the write is rejected.
-
-        Args:
-            athlete_id: Strava athlete ID
-            tokens: New token data to write
-            expected_last_refreshed: The last_refreshed value we read earlier
-
-        Returns:
-            True if written successfully, False if conflict detected.
-        """
-        ref = self._tokens_ref(athlete_id)
-        now = datetime.now(tz=UTC)
-
-        @transactional
-        def update_in_transaction(transaction: Transaction) -> bool:
-            snapshot = ref.get(transaction=transaction)
-            if not snapshot.exists:
-                raise TokenNotFoundError(athlete_id)
-
-            current = TokenData.from_doc(snapshot)
-            if current.last_refreshed != expected_last_refreshed:
-                return False  # Conflict — another process already refreshed
-
-            transaction.update(
-                ref,
-                {
-                    "access_token": tokens.access_token,
-                    "refresh_token": tokens.refresh_token,
-                    "expires_at": tokens.expires_at,
-                    "last_refreshed": now,
-                },
-            )
-            return True
-
-        try:
-            txn = self._client.transaction()
-            # @transactional returns Any; the inner function returns bool.
-            result: bool = update_in_transaction(txn)
-        except TokenNotFoundError:
-            raise
-        except Exception:
-            logger.exception(
-                "Failed to write tokens for athlete %s",
-                athlete_id,
-            )
-            raise
-        if result:
-            logger.info(
-                "Updated tokens for athlete %s in Firestore",
-                athlete_id,
-            )
-        else:
-            logger.warning(
-                "Token write conflict for athlete %s — another process refreshed first",
-                athlete_id,
-            )
-        return result
 
     def delete_tokens(self, athlete_id: str) -> None:
         """Delete Strava tokens for the given athlete.

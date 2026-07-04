@@ -64,8 +64,8 @@ class ActivityNotFoundError(StravaApiError):
             message: Optional custom error message. If not provided, uses default.
         """
         error_message = message or f"Activity {activity_id} not found"
+        # StravaApiError.__init__ already stores activity_id.
         super().__init__(error_message, activity_id=activity_id)
-        self.activity_id = activity_id
 
 
 class BigQueryError(StravaPipeError):

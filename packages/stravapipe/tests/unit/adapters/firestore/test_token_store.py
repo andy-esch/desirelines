@@ -1,7 +1,7 @@
 """Unit tests for FirestoreTokenStore."""
 
 from datetime import UTC, datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -127,108 +127,6 @@ class TestGetTokens:
         mock_firestore_client.collection.return_value.document.return_value.collection.return_value.document.assert_called_with(
             TOKENS_DOCUMENT
         )
-
-
-# ============================================================
-# FirestoreTokenStore.write_tokens_if_unmodified
-# ============================================================
-
-
-class TestWriteTokensIfUnmodified:
-    @patch("stravapipe.adapters.firestore.token_store.transactional")
-    def test_writes_when_last_refreshed_matches(
-        self, mock_transactional, store, mock_firestore_client
-    ):
-        expected_last_refreshed = datetime(2025, 3, 1, 12, 0, 0, tzinfo=UTC)
-        current_data = _sample_token_data()
-        current_data["last_refreshed"] = expected_last_refreshed
-
-        new_tokens = TokenData(
-            access_token="new_access",
-            refresh_token="new_refresh",
-            expires_at=1800000000,
-            scopes="activity:read_all",
-            connected_at=current_data["connected_at"],
-            last_refreshed=expected_last_refreshed,
-        )
-
-        # Make @transactional pass through: call the wrapped fn with a mock txn
-        snapshot = _make_doc_snapshot(current_data)
-        _ref_mock(mock_firestore_client).get.return_value = snapshot
-
-        def passthrough_transactional(fn):
-            mock_txn_callable = MagicMock()
-            mock_txn_callable.side_effect = fn
-            return mock_txn_callable
-
-        mock_transactional.side_effect = passthrough_transactional
-
-        result = store.write_tokens_if_unmodified(
-            "12345", new_tokens, expected_last_refreshed
-        )
-        assert result is True
-
-    @patch("stravapipe.adapters.firestore.token_store.transactional")
-    def test_rejects_on_conflict(
-        self, mock_transactional, store, mock_firestore_client
-    ):
-        stale_last_refreshed = datetime(2025, 2, 1, tzinfo=UTC)
-        current_data = _sample_token_data()
-        current_data["last_refreshed"] = datetime(2025, 3, 1, 12, 0, 0, tzinfo=UTC)
-
-        new_tokens = TokenData(
-            access_token="new_access",
-            refresh_token="new_refresh",
-            expires_at=1800000000,
-            scopes="activity:read_all",
-            connected_at=current_data["connected_at"],
-            last_refreshed=stale_last_refreshed,
-        )
-
-        snapshot = _make_doc_snapshot(current_data)
-        _ref_mock(mock_firestore_client).get.return_value = snapshot
-
-        def passthrough_transactional(fn):
-            mock_txn_callable = MagicMock()
-            mock_txn_callable.side_effect = fn
-            return mock_txn_callable
-
-        mock_transactional.side_effect = passthrough_transactional
-
-        result = store.write_tokens_if_unmodified(
-            "12345", new_tokens, stale_last_refreshed
-        )
-        assert result is False
-
-    @patch("stravapipe.adapters.firestore.token_store.transactional")
-    def test_raises_token_not_found_in_transaction(
-        self, mock_transactional, store, mock_firestore_client
-    ):
-        new_tokens = TokenData(
-            access_token="a",
-            refresh_token="r",
-            expires_at=0,
-            scopes="",
-            connected_at=datetime.now(tz=UTC),
-            last_refreshed=datetime.now(tz=UTC),
-        )
-
-        snapshot = _make_doc_snapshot(None, exists=False)
-        _ref_mock(mock_firestore_client).get.return_value = snapshot
-
-        def passthrough_transactional(fn):
-            mock_txn_callable = MagicMock()
-            mock_txn_callable.side_effect = fn
-            return mock_txn_callable
-
-        mock_transactional.side_effect = passthrough_transactional
-
-        with pytest.raises(TokenNotFoundError):
-            store.write_tokens_if_unmodified(
-                "99999",
-                new_tokens,
-                datetime.now(tz=UTC),
-            )
 
 
 # ============================================================

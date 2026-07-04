@@ -9,7 +9,7 @@ Activity data is now provided inline in the enriched event from the dispatcher
 """
 
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import AbstractContextManager, asynccontextmanager
 import time
 from typing import Any
 
@@ -48,6 +48,32 @@ from stravapipe.shared.tracing import (
 from stravapipe.types.generated import webhook_pb2 as pb
 
 logger = setup_logging(__name__)
+
+
+def _pg_span(
+    tracer: Tracer | None,
+    name: str,
+    verb: str,
+    activity_id: int,
+) -> AbstractContextManager[None]:
+    """Open a postgres span with this module's shared ``db.*`` attributes.
+
+    Every postgres call site here tags its span with the same invariants —
+    ``db.system=postgresql``, ``db.name=desirelines``, and the activity_id —
+    varying only the span name and SQL verb. Centralizing the ``db_attributes``
+    call keeps those three constants in one place (mirrors ``_try_delete_step``
+    in ``deletion_service_app.py``).
+    """
+    return record_span(
+        tracer,
+        name,
+        db_attributes(
+            "postgresql",
+            "desirelines",
+            verb,
+            {"desirelines.activity_id": activity_id},
+        ),
+    )
 
 
 def _is_virtual(activity: StandardActivity) -> bool:
@@ -279,16 +305,7 @@ async def _handle_create(
     # long routes, which is why it gets its own span.
     uow = SqlAlchemyUnitOfWork(session_factory, tracer=tracer)
     with (
-        record_span(
-            tracer,
-            "postgres.insert",
-            db_attributes(
-                "postgresql",
-                "desirelines",
-                "INSERT",
-                {"desirelines.activity_id": activity_id},
-            ),
-        ),
+        _pg_span(tracer, "postgres.insert", "INSERT", activity_id),
         record_duration(pg_histogram, {"operation": "insert"}),
         uow,
     ):
@@ -298,16 +315,7 @@ async def _handle_create(
         # Recording on the same `postgres/operation.duration` histogram with
         # a sub-operation label lets the SLO task alert on it independently.
         with (
-            record_span(
-                tracer,
-                "postgres.activities.insert",
-                db_attributes(
-                    "postgresql",
-                    "desirelines",
-                    "INSERT",
-                    {"desirelines.activity_id": activity_id},
-                ),
-            ),
+            _pg_span(tracer, "postgres.activities.insert", "INSERT", activity_id),
             record_duration(pg_histogram, {"operation": "activities_insert"}),
         ):
             inserted = uow.activities.insert(activity)
@@ -320,15 +328,8 @@ async def _handle_create(
             ):
                 geojson = decode_polyline_to_geojson(activity.map.polyline)
             if geojson:
-                with record_span(
-                    tracer,
-                    "postgres.activities.insert_route",
-                    db_attributes(
-                        "postgresql",
-                        "desirelines",
-                        "INSERT",
-                        {"desirelines.activity_id": activity_id},
-                    ),
+                with _pg_span(
+                    tracer, "postgres.activities.insert_route", "INSERT", activity_id
                 ):
                     uow.activities.insert_route(activity.id, geojson)
 
@@ -337,15 +338,8 @@ async def _handle_create(
                 # absent, so they stay untagged and surface in the complementary
                 # view. Runs in the same transaction as the route insert.
                 if not _is_virtual(activity):
-                    with record_span(
-                        tracer,
-                        "postgres.activities.tag_regions",
-                        db_attributes(
-                            "postgresql",
-                            "desirelines",
-                            "INSERT",
-                            {"desirelines.activity_id": activity_id},
-                        ),
+                    with _pg_span(
+                        tracer, "postgres.activities.tag_regions", "INSERT", activity_id
                     ):
                         uow.activities.tag_activity_regions(activity.id)
             else:
@@ -411,16 +405,7 @@ def _handle_update_enriched(
 
     uow = SqlAlchemyUnitOfWork(session_factory, tracer=tracer)
     with (
-        record_span(
-            tracer,
-            "postgres.upsert",
-            db_attributes(
-                "postgresql",
-                "desirelines",
-                "UPDATE",
-                {"desirelines.activity_id": activity_id},
-            ),
-        ),
+        _pg_span(tracer, "postgres.upsert", "UPDATE", activity_id),
         record_duration(pg_histogram, {"operation": "upsert"}),
         uow,
     ):
@@ -434,27 +419,13 @@ def _handle_update_enriched(
         # re-typed to a real sport will tag to the `earth` fallback — rare; a
         # later re-sync/backfill corrects it.)
         if _is_virtual(activity):
-            with record_span(
-                tracer,
-                "postgres.activities.clear_regions",
-                db_attributes(
-                    "postgresql",
-                    "desirelines",
-                    "DELETE",
-                    {"desirelines.activity_id": activity_id},
-                ),
+            with _pg_span(
+                tracer, "postgres.activities.clear_regions", "DELETE", activity_id
             ):
                 uow.activities.clear_activity_regions(activity_id)
         else:
-            with record_span(
-                tracer,
-                "postgres.activities.tag_regions",
-                db_attributes(
-                    "postgresql",
-                    "desirelines",
-                    "INSERT",
-                    {"desirelines.activity_id": activity_id},
-                ),
+            with _pg_span(
+                tracer, "postgres.activities.tag_regions", "INSERT", activity_id
             ):
                 uow.activities.tag_activity_regions(activity_id)
 
@@ -534,16 +505,7 @@ async def _handle_update(
 
     uow = SqlAlchemyUnitOfWork(session_factory, tracer=tracer)
     with (
-        record_span(
-            tracer,
-            "postgres.update_metadata",
-            db_attributes(
-                "postgresql",
-                "desirelines",
-                "UPDATE",
-                {"desirelines.activity_id": activity_id},
-            ),
-        ),
+        _pg_span(tracer, "postgres.update_metadata", "UPDATE", activity_id),
         record_duration(pg_histogram, {"operation": "update_metadata"}),
         uow,
     ):
@@ -595,16 +557,7 @@ async def _handle_delete(
     uow = SqlAlchemyUnitOfWork(session_factory, tracer=tracer)
 
     with (
-        record_span(
-            tracer,
-            "postgres.delete",
-            db_attributes(
-                "postgresql",
-                "desirelines",
-                "DELETE",
-                {"desirelines.activity_id": activity_id},
-            ),
-        ),
+        _pg_span(tracer, "postgres.delete", "DELETE", activity_id),
         record_duration(pg_histogram, {"operation": "delete"}),
         uow,
     ):
