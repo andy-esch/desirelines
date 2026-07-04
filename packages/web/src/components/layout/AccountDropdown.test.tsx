@@ -58,6 +58,34 @@ describe("AccountDropdown", () => {
     });
   });
 
+  it("ArrowDown on a focused menu item moves to the next item, not back to the first", () => {
+    // Regression: the outer wrapper's ArrowDown handler used to fire for every
+    // ArrowDown while open (the event bubbles up from the menu), resetting focus
+    // to the first item — so you could never navigate past it. The handler is now
+    // gated to the trigger, so intra-menu ArrowDown is owned solely by the menu.
+    const onSignIn = vi.fn().mockResolvedValue(undefined);
+    const onSignOut = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <AccountDropdown user={{ uid: "abc" } as never} onSignIn={onSignIn} onSignOut={onSignOut} />
+    );
+
+    openMenu();
+    const items = screen.getAllByRole("menuitem");
+    expect(items.length).toBeGreaterThanOrEqual(3);
+
+    const secondToLast = items.at(-2);
+    const last = items.at(-1);
+    if (!secondToLast || !last) throw new Error("expected at least two menu items");
+
+    secondToLast.focus();
+    fireEvent.keyDown(secondToLast, { key: "ArrowDown" });
+
+    // Fixed: advances to the next (last) item. Buggy: would reset to items[0].
+    expect(document.activeElement).toBe(last);
+    expect(document.activeElement).not.toBe(items[0]);
+  });
+
   it("closes the menu after a successful sign-out", async () => {
     const onSignIn = vi.fn().mockResolvedValue(undefined);
     const onSignOut = vi.fn().mockResolvedValue(undefined);

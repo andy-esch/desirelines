@@ -104,7 +104,11 @@ export function AccountDropdown({
       if (event.key === "Escape") {
         setIsOpen(false);
         triggerRef.current?.focus();
-      } else if (event.key === "ArrowDown" && isOpen) {
+      } else if (event.key === "ArrowDown" && isOpen && event.target === triggerRef.current) {
+        // Only "arrow into the menu" from the trigger. Without the target guard
+        // this also fires as ArrowDown bubbles up from a focused menu item (see
+        // handleMenuKeyDown, which doesn't stopPropagation), resetting focus to
+        // the first item and making it impossible to navigate past it.
         event.preventDefault();
         const firstItem = menuRef.current?.querySelector<HTMLElement>(MENU_ITEM_SELECTOR);
         firstItem?.focus();
