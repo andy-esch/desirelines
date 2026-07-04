@@ -13,6 +13,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+import requests
 from requests_mock import Mocker
 
 from stravapipe.adapters.strava._repositories import (
@@ -36,6 +37,7 @@ from stravapipe.exceptions import (
     StravaRateLimitError,
     StravaTokenError,
 )
+from stravapipe.retry import MAX_RETRY_AFTER_SECONDS
 
 
 @pytest.fixture
@@ -116,11 +118,16 @@ class TestStravaTokenRepo:
                 token_repo.refresh()
 
     def test_failed_request_non_401(self, token_repo, api_config):
-        with Mocker() as m:
+        with Mocker() as m, patch("stravapipe.retry.time.sleep"):
             m.post(api_config.token_url, status_code=500, text="Server Error")
 
-            with pytest.raises(StravaApiError):
+            with pytest.raises(StravaApiError) as exc_info:
                 token_repo.refresh()
+
+            # A 5xx on the token endpoint now actually retries inside the
+            # decorator before the domain exception surfaces (H1).
+            assert not isinstance(exc_info.value, StravaTokenError)
+            assert m.call_count == api_config.token_retry_attempts
 
 
 class TestStravaTokenManager:
@@ -168,11 +175,16 @@ class TestStravaApiClient:
 
     def test_get_activity_api_error(self, api_client, api_config):
         activity_id = 12345678987654321
-        with Mocker() as m:
+        with Mocker() as m, patch("stravapipe.retry.time.sleep"):
             endpoint = f"{api_config.api_base_url}/activities/{activity_id}"
             m.get(endpoint, status_code=500, text="Server Error")
-            with pytest.raises(StravaApiError):
+            with pytest.raises(StravaApiError) as exc_info:
                 api_client.get_activity(activity_id)
+
+            # H1: a transient 5xx now retries inside the decorator
+            # (activity_retry_attempts) before surfacing as StravaApiError.
+            assert exc_info.value.status_code == 500
+            assert m.call_count == api_config.activity_retry_attempts
 
     def test_get_activity_401_refresh_and_retry_succeeds(
         self, token_manager_with_token, api_config, activity_json
@@ -215,6 +227,52 @@ class TestStravaApiClient:
             with pytest.raises(StravaTokenError):
                 api_client.get_activity(activity_id)
 
+    def test_get_activity_429_raises_rate_limit_error(self, api_client, api_config):
+        """A live 429 exhausts retries and surfaces StravaRateLimitError.
+
+        This drives the full path from the client entrypoint (not the
+        decorator in isolation), so it proves ``raise_for_status()`` now
+        feeds 429s into ``retry_on_failure`` and that PR #768's
+        ``_parse_retry_after`` is exercised on a real 429 (the parsed
+        ``Retry-After`` flows into both the sleep and the raised exception).
+        """
+        activity_id = 12345678987654321
+        with Mocker() as m, patch("stravapipe.retry.time.sleep") as mock_sleep:
+            endpoint = f"{api_config.api_base_url}/activities/{activity_id}"
+            m.get(endpoint, status_code=429, headers={"Retry-After": "5"})
+
+            with pytest.raises(StravaRateLimitError) as exc_info:
+                api_client.get_activity(activity_id)
+
+            # Every attempt hit the 429 before exhaustion.
+            assert m.call_count == api_config.activity_retry_attempts
+            # Parsed Retry-After drove the backoff (not the 60s default)...
+            mock_sleep.assert_called_with(5)
+            # ...and is reported on the exception.
+            assert exc_info.value.retry_after == 5
+
+    def test_get_activity_429_retry_after_is_clamped(self, api_client, api_config):
+        """A far-future Retry-After is clamped to the ceiling for the sleep.
+
+        The server's raw requested delay is still reported on the exception,
+        but ``time.sleep`` is bounded so a spec-valid header can't pin a
+        worker for hours.
+        """
+        activity_id = 12345678987654321
+        with Mocker() as m, patch("stravapipe.retry.time.sleep") as mock_sleep:
+            endpoint = f"{api_config.api_base_url}/activities/{activity_id}"
+            m.get(endpoint, status_code=429, headers={"Retry-After": "100000"})
+
+            with pytest.raises(StravaRateLimitError) as exc_info:
+                api_client.get_activity(activity_id)
+
+            # Every sleep is clamped to the ceiling, never the raw value.
+            assert mock_sleep.call_args_list  # at least one backoff happened
+            for call in mock_sleep.call_args_list:
+                assert call.args[0] == MAX_RETRY_AFTER_SECONDS
+            # The exception still carries the server's raw requested delay.
+            assert exc_info.value.retry_after == 100000
+
 
 class TestStravaActivitiesRepo:
     def test_read_activity_by_id(self, activities_repo, activity_json, api_config):
@@ -236,6 +294,24 @@ class TestStravaActivitiesRepo:
             resp = activities_repo.read_activity_by_id(activity_id)
 
         assert isinstance(resp, DetailedStravaActivity)
+
+    def test_read_activity_by_id_500_retries_then_raises(
+        self, activities_repo, api_config
+    ):
+        """Behavioral (from the repo entrypoint): a 5xx retries N times.
+
+        Exercises ``read_activity_by_id`` with the HTTP layer mocked so the
+        retry is proven end-to-end, not just at the decorator boundary.
+        """
+        activity_id = 12345678987654321
+        endpoint = f"{api_config.api_base_url}/activities/{activity_id}"
+        with Mocker() as m, patch("stravapipe.retry.time.sleep"):
+            m.get(endpoint, status_code=500, text="Server Error")
+
+            with pytest.raises(StravaApiError):
+                activities_repo.read_activity_by_id(activity_id)
+
+            assert m.call_count == api_config.activity_retry_attempts
 
 
 class TestStravaActivitiesRepoIntegration:
@@ -428,6 +504,45 @@ class TestStravaApiClientListActivities:
         assert len(result) == 1
         assert token_manager_with_token._current_access_token == "new_token"
 
+    def test_list_activities_500_raises_strava_api_error(self, api_client, api_config):
+        """M1: a 5xx on the list endpoint raises a domain exception.
+
+        Before this fix ``list_activities`` called a bare
+        ``resp.raise_for_status()``, leaking ``requests.HTTPError`` across
+        the adapter boundary. It must now surface ``StravaApiError`` — and
+        never a raw ``requests`` exception.
+        """
+        endpoint = f"{api_config.api_base_url}{self.LIST_PATH}"
+        with Mocker() as m, patch("stravapipe.retry.time.sleep"):
+            m.get(endpoint, status_code=500, text="Server Error")
+
+            with pytest.raises(StravaApiError) as exc_info:
+                api_client.list_activities(before=1700000000, after=1690000000, page=1)
+
+            # Domain exception, not a leaked requests.HTTPError (M1).
+            assert not isinstance(exc_info.value, requests.exceptions.HTTPError)
+            assert exc_info.value.status_code == 500
+            # H1: the transient 5xx retried inside the decorator first.
+            assert m.call_count == api_config.activity_retry_attempts
+
+    def test_list_activities_401_after_refresh_raises_token_error(
+        self, token_manager_with_token, api_config
+    ):
+        """A persistent 401 on the list path surfaces StravaTokenError.
+
+        Confirms the shared error translation (M1) preserves the 401 →
+        refresh-once → StravaTokenError contract on the list path too.
+        """
+        client = StravaApiClient(token_manager_with_token, api_config)
+        endpoint = f"{api_config.api_base_url}{self.LIST_PATH}"
+
+        with Mocker() as m:
+            m.get(endpoint, status_code=401)
+            m.post(api_config.token_url, json={"access_token": "new_token"})
+
+            with pytest.raises(StravaTokenError):
+                client.list_activities(before=1700000000, after=1690000000, page=1)
+
 
 # =============================================================================
 # StravaActivitiesRepo - read_standard_activity_by_id tests
@@ -524,6 +639,27 @@ class TestStravaActivitiesRepoByYear:
 
         assert result == []
 
+    def test_read_activities_by_year_500_retries_then_raises(
+        self, activities_repo, api_config
+    ):
+        """Behavioral (from the repo entrypoint): a 5xx mid-list retries.
+
+        Drives ``read_activities_by_year`` — the backfill entrypoint — with
+        the HTTP layer mocked, so it catches the exact regression the
+        decorator-in-isolation unit tests missed: without ``raise_for_status``
+        the 5xx never reached ``retry_on_failure`` and the year was discarded
+        on the first transient blip.
+        """
+        endpoint = f"{api_config.api_base_url}{self.LIST_PATH}"
+        with Mocker() as m, patch("stravapipe.retry.time.sleep"):
+            m.get(endpoint, status_code=500, text="Server Error")
+
+            with pytest.raises(StravaApiError):
+                activities_repo.read_activities_by_year(2025)
+
+            # The list call retried the transient 5xx N times before failing.
+            assert m.call_count == api_config.activity_retry_attempts
+
 
 class TestStravaCircuitBreaker:
     """Circuit-breaker behavior on the shared Strava breaker.
@@ -604,7 +740,14 @@ class TestStravaCircuitBreaker:
         test by orders of magnitude.
         """
         breaker = create_strava_breaker(fail_max=5, reset_timeout=60)
-        client = self._build_client(token_manager_with_token, api_config, breaker)
+        # Pin activity_retry_attempts=1 so each get_activity makes exactly one
+        # HTTP call. `_fetch` now raises on 5xx (H1), so with the default 3
+        # attempts each failing get_activity would consume three responses and
+        # the fixed response list below would no longer line up 1:1 with
+        # breaker failures. One attempt keeps this test about breaker
+        # recovery, not retry counting (that's covered elsewhere).
+        cfg = api_config._replace(activity_retry_attempts=1)
+        client = self._build_client(token_manager_with_token, cfg, breaker)
         activity_id = activity_json["id"]
 
         with (
@@ -613,11 +756,8 @@ class TestStravaCircuitBreaker:
             patch("stravapipe.retry.random.uniform", side_effect=lambda _a, _b: 0),
         ):
             endpoint = f"{api_config.api_base_url}/activities/{activity_id}"
-            # `_fetch` returns the requests.Response without raising on
-            # 5xx, so @retry_on_failure never sees an exception — each
-            # get_activity makes exactly ONE HTTP call, not three. 5
-            # breaker failures = 5 hits at 500; the 6th hit is the
-            # half-open probe and returns 200.
+            # With one attempt per call, 5 breaker failures = 5 hits at 500;
+            # the 6th hit is the half-open probe and returns 200.
             down = {"status_code": 500, "text": "Server Error"}
             up = {"json": activity_json, "status_code": 200}
             m.get(endpoint, [down] * 5 + [up])

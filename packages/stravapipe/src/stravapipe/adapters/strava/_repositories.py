@@ -194,20 +194,28 @@ class StravaTokenRepo(ReadStravaToken):
                 "refresh_token": self._tokens.refresh_token,
                 "grant_type": "refresh_token",
             }
-            return requests.post(
+            resp = requests.post(
                 url=self._api_config.token_url,
                 data=payload,
                 timeout=self._api_config.request_timeout,
             )
+            # Raise INSIDE the retried scope so @retry_on_failure sees 5xx/429
+            # and can retry them (a bare returned Response never triggers a
+            # retry). 401 is re-raised immediately by the decorator; 429
+            # exhaustion surfaces as StravaRateLimitError.
+            resp.raise_for_status()
+            return resp
 
-        resp = _refresh()
-
-        if not resp.ok:
-            if resp.status_code == HTTP_UNAUTHORIZED:
+        try:
+            resp = _refresh()
+        except requests.exceptions.HTTPError as exc:
+            status_code = exc.response.status_code if exc.response is not None else None
+            if status_code == HTTP_UNAUTHORIZED:
                 raise StravaTokenError(
-                    "Token refresh failed - check credentials", resp.status_code
-                )
-            raise StravaApiError(f"Token refresh failed: {resp.text}", resp.status_code)
+                    "Token refresh failed - check credentials", status_code
+                ) from exc
+            body = exc.response.text if exc.response is not None else str(exc)
+            raise StravaApiError(f"Token refresh failed: {body}", status_code) from exc
 
         access_token = resp.json()["access_token"]
         logger.info(
@@ -360,17 +368,22 @@ class StravaApiClient:
         )
         def _fetch() -> requests.Response:
             endpoint = f"{self._api_config.api_base_url}/activities/{activity_id}"
-            return requests.get(
+            resp = requests.get(
                 url=endpoint,
                 headers=self._get_headers(),
                 timeout=self._api_config.request_timeout,
             )
+            # Raise INSIDE the retried scope so @retry_on_failure sees 5xx/429.
+            # 4xx (404/401) is re-raised immediately; 5xx is retried then
+            # re-raised; 429 exhaustion surfaces as StravaRateLimitError.
+            resp.raise_for_status()
+            return resp
 
-        resp = _fetch()
-
-        if not resp.ok:
+        try:
+            resp = _fetch()
+        except requests.exceptions.HTTPError as exc:
             return self._handle_error_response(
-                resp,
+                exc,
                 activity_id=activity_id,
                 token_refresh_count=_token_refresh_count,
                 retry_func=lambda count: self._get_activity_with_retry(
@@ -435,7 +448,7 @@ class StravaApiClient:
         )
         def _fetch() -> requests.Response:
             endpoint = f"{self._api_config.api_base_url}/athlete/activities"
-            return requests.get(
+            resp = requests.get(
                 url=endpoint,
                 headers=self._get_headers(),
                 params={
@@ -446,63 +459,74 @@ class StravaApiClient:
                 },
                 timeout=self._api_config.request_timeout,
             )
+            # Raise INSIDE the retried scope so @retry_on_failure sees 5xx/429.
+            resp.raise_for_status()
+            return resp
 
-        resp = _fetch()
-
-        if not resp.ok:
-            # Handle 401 with retry
-            if (
-                resp.status_code == HTTP_UNAUTHORIZED
-                and _token_refresh_count < self._MAX_TOKEN_REFRESH_RETRIES
-            ):
-                logger.warning(
-                    "Got 401 listing activities, refreshing token and retrying "
-                    "(attempt %d/%d)...",
-                    _token_refresh_count + 1,
-                    self._MAX_TOKEN_REFRESH_RETRIES,
-                    extra={
-                        "operation": "list_activities",
-                        "page": page,
-                        "action": "token_refresh_retry",
-                        "token_refresh_attempt": _token_refresh_count + 1,
-                        "max_token_refresh_retries": self._MAX_TOKEN_REFRESH_RETRIES,
-                    },
-                )
-                self._token_manager.refresh()
-                return self._list_activities_with_retry(
+        try:
+            resp = _fetch()
+        except requests.exceptions.HTTPError as exc:
+            # Route list failures through the SAME domain-exception translation
+            # as get_activity (M1) — a bare raise_for_status() here leaked
+            # requests.HTTPError across the adapter boundary. activity_id=None
+            # since the list endpoint isn't tied to a single activity.
+            return self._handle_error_response(
+                exc,
+                activity_id=None,
+                token_refresh_count=_token_refresh_count,
+                retry_func=lambda count: self._list_activities_with_retry(
                     before=before,
                     after=after,
                     page=page,
                     per_page=per_page,
-                    _token_refresh_count=_token_refresh_count + 1,
-                )
-            resp.raise_for_status()
+                    _token_refresh_count=count,
+                ),
+            )
 
         data: list[dict[str, Any]] = resp.json()
         return data
 
-    def _handle_error_response(
+    def _handle_error_response[T](
         self,
-        resp: requests.Response,
+        exc: requests.exceptions.HTTPError,
         *,
-        activity_id: int,
         token_refresh_count: int,
-        retry_func: Callable[[int], dict[str, Any]],
-    ) -> dict[str, Any]:
-        """Handle error responses with 401 retry and exception translation."""
-        # Handle 401: refresh token and retry
+        retry_func: Callable[[int], T],
+        activity_id: int | None = None,
+    ) -> T:
+        """Translate a caught ``HTTPError`` into a domain exception.
+
+        Because each ``_fetch`` now calls ``raise_for_status()`` inside the
+        retried scope, a 4xx/5xx no longer returns a ``Response`` to inspect —
+        it raises. This handler keys off the caught exception's status code
+        instead of ``resp.ok``. Shared by ``get_activity`` and
+        ``list_activities``; ``activity_id`` is ``None`` on the list path.
+
+        Mapping (preserved exactly):
+        - 401 → refresh token and retry once via ``retry_func``; a second 401
+          (``token_refresh_count`` exhausted) → ``StravaTokenError``.
+        - 404 → ``ActivityNotFoundError`` (single-activity path only; a 404
+          has no meaning for the list endpoint, so it falls through to
+          ``StravaApiError`` when ``activity_id is None``).
+        - anything else (5xx that survived retry, other 4xx) → ``StravaApiError``.
+
+        A 429 never reaches here: the retry decorator surfaces it as
+        ``StravaRateLimitError`` (not an ``HTTPError``), so it propagates past
+        this handler and keeps the circuit-breaker ``exclude`` contract intact.
+        """
+        status_code = exc.response.status_code if exc.response is not None else None
+
+        # Handle 401: refresh token and retry (once).
         if (
-            resp.status_code == HTTP_UNAUTHORIZED
+            status_code == HTTP_UNAUTHORIZED
             and token_refresh_count < self._MAX_TOKEN_REFRESH_RETRIES
         ):
             logger.warning(
-                "Got 401 for activity %s, refreshing token and retrying "
-                "(attempt %d/%d)...",
-                activity_id,
+                "Got 401 from Strava, refreshing token and retrying (attempt %d/%d)...",
                 token_refresh_count + 1,
                 self._MAX_TOKEN_REFRESH_RETRIES,
                 extra={
-                    "operation": "fetch_activity",
+                    "operation": "strava_api_call",
                     "activity_id": activity_id,
                     "action": "token_refresh_retry",
                     "token_refresh_attempt": token_refresh_count + 1,
@@ -512,32 +536,33 @@ class StravaApiClient:
             self._token_manager.refresh()
             return retry_func(token_refresh_count + 1)
 
-        # Log and raise appropriate exception
+        # Log and raise appropriate exception.
         logger.error(
-            "Failed to fetch activity %s: %s",
+            "Strava API call failed (status=%s, activity_id=%s)",
+            status_code,
             activity_id,
-            resp.status_code,
             extra={
-                "operation": "fetch_activity",
+                "operation": "strava_api_call",
                 "activity_id": activity_id,
-                "status_code": resp.status_code,
+                "status_code": status_code,
                 "error_type": "api_error",
             },
         )
 
-        if resp.status_code == HTTP_NOT_FOUND:
-            raise ActivityNotFoundError(activity_id)
-        if resp.status_code == HTTP_UNAUTHORIZED:
+        if status_code == HTTP_NOT_FOUND and activity_id is not None:
+            raise ActivityNotFoundError(activity_id) from exc
+        if status_code == HTTP_UNAUTHORIZED:
             raise StravaTokenError(
                 f"Access token expired after {token_refresh_count} refresh attempts",
-                resp.status_code,
+                status_code,
                 activity_id,
-            )
+            ) from exc
+        body = exc.response.text if exc.response is not None else str(exc)
         raise StravaApiError(
-            f"Failed to fetch activity {activity_id}: {resp.text}",
-            resp.status_code,
+            f"Strava API call failed ({status_code}): {body}",
+            status_code,
             activity_id,
-        )
+        ) from exc
 
 
 # =============================================================================
