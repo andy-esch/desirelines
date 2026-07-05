@@ -256,6 +256,7 @@ resolution for custom metrics).
 |---|---|---|---|
 | `webhook/events` | dispatcher, bq-inserter, postgres-writer | `aspect_type`, `object_type` | Webhook events processed |
 | `webhook/owner_check` | dispatcher | `result=allowed\|stray\|orphan\|error` | Allowlist outcomes |
+| `ratelimit/rejected` | apigateway, dispatcher | `reason=over_limit\|map_full`, `limiter=default\|auth\|tile\|dispatcher` | Requests rejected (429) by the per-IP rate limiter. `over_limit` = the IP's token bucket is empty; `map_full` = the per-IP client map is at `MaxClients`. Rejections short-circuit before `HTTPRequestLoggerWithMetrics`, so this counter (not the request-duration histogram) is the app-level signal for rate-limiting. |
 
 ### Gauges
 

@@ -131,6 +131,14 @@ func (l *Limiter) recordRejected(ctx context.Context, reason string) {
 	))
 }
 
+// reject writes the standard 429 response: the Retry-After header, the
+// desirelines.io/ratelimit/rejected metric (by reason), and the JSON error body.
+func (l *Limiter) reject(w http.ResponseWriter, r *http.Request, retryAfter, reason string) {
+	w.Header().Set("Retry-After", retryAfter)
+	l.recordRejected(r.Context(), reason)
+	apierrors.WriteError(w, r, apierrors.ErrRateLimited, l.logger)
+}
+
 // Middleware returns chi-compatible middleware that rejects requests exceeding the rate limit.
 // It expects gcplog.CloudRunRealIP to have already run so that r.RemoteAddr contains the real client IP.
 func (l *Limiter) Middleware(next http.Handler) http.Handler {
@@ -146,9 +154,7 @@ func (l *Limiter) Middleware(next http.Handler) http.Handler {
 
 		limiter := l.getLimiter(ip)
 		if limiter == nil {
-			l.recordRejected(r.Context(), "map_full")
-			w.Header().Set("Retry-After", "60")
-			apierrors.WriteError(w, r, apierrors.ErrRateLimited, l.logger)
+			l.reject(w, r, "60", "map_full")
 			return
 		}
 
@@ -179,9 +185,7 @@ func (l *Limiter) Middleware(next http.Handler) http.Handler {
 			retryAfter = fmt.Sprintf("%.0f", seconds)
 		}
 
-		w.Header().Set("Retry-After", retryAfter)
-		l.recordRejected(r.Context(), "over_limit")
-		apierrors.WriteError(w, r, apierrors.ErrRateLimited, l.logger)
+		l.reject(w, r, retryAfter, "over_limit")
 	})
 }
 
