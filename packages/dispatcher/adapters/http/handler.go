@@ -157,6 +157,11 @@ func (h *Handler) RegisterRoutes() http.Handler {
 	r.Use(chiMiddleware.RequestID)
 	r.Use(gcplog.BridgeRequestID)
 	r.Use(gcplog.CloudRunRealIP)
+	// WithCloudTraceContext before the rate limiter so a 429 rejection's logs still
+	// carry the trace + request-id correlation. The limiter stays before
+	// HTTPRequestLoggerWithMetrics below, so a fast reject still never pollutes the
+	// latency histogram.
+	r.Use(gcplog.WithCloudTraceContext)
 	if h.rateLimiter != nil {
 		// 429 rejections short-circuit here, before HTTPRequestLoggerWithMetrics —
 		// by design, so a fast reject doesn't pollute the latency histogram. The
@@ -164,7 +169,6 @@ func (h *Handler) RegisterRoutes() http.Handler {
 		// counter instead.
 		r.Use(h.rateLimiter.Middleware)
 	}
-	r.Use(gcplog.WithCloudTraceContext)
 	r.Use(sharedotel.StampRequestID)
 	r.Use(gcplog.HTTPRequestLoggerWithMetrics(h.logger, h.httpHistogram))
 	r.Use(chiMiddleware.Recoverer)

@@ -92,6 +92,12 @@ type Limiter struct {
 // New creates a Limiter and starts a background goroutine that removes stale entries.
 // The cleanup goroutine stops when ctx is canceled.
 func New(ctx context.Context, cfg *Config, logger *slog.Logger) *Limiter {
+	// cfg is required (a nil-deref here is a clear fail-fast for a misconfigured
+	// caller); the project's linter forbids an explicit panic and an error return
+	// would ripple through every composition root. Default a missing logger.
+	if logger == nil {
+		logger = slog.Default()
+	}
 	l := &Limiter{
 		clients:    make(map[string]*entry),
 		rate:       rate.Limit(cfg.Rate),

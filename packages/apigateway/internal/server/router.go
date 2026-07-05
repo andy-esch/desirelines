@@ -106,10 +106,14 @@ func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, 
 	r.Use(chiMiddleware.RequestID)
 	r.Use(gcplog.BridgeRequestID)
 	r.Use(gcplog.CloudRunRealIP)
+	// WithCloudTraceContext before the global rate limiter so a 429 rejection's
+	// logs still carry trace + request-id correlation. The limiter stays before
+	// HTTPRequestLoggerWithMetrics below, preserving the latency-histogram hygiene.
+	// (The auth/tile limiters run in their sub-groups below, already after this.)
+	r.Use(gcplog.WithCloudTraceContext)
 	if cfg.RateLimiter != nil {
 		r.Use(cfg.RateLimiter.Middleware)
 	}
-	r.Use(gcplog.WithCloudTraceContext)
 	r.Use(otel.SpanNameFromChiRoute)
 	r.Use(otel.StampRequestID)
 	// Stamp X-Trace-Id on every response so the frontend can correlate a

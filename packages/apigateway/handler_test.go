@@ -193,10 +193,10 @@ func TestTileRateLimitScopingAndCORS(t *testing.T) {
 	defer cancel()
 
 	// Tile limiter that always rejects (burst 0) so we can assert the 429 path.
-	tileLimiter := ratelimit.New(ctx, ratelimit.Config{Rate: 0.001, Burst: 0}, logger)
+	tileLimiter := ratelimit.New(ctx, &ratelimit.Config{Rate: 0.001, Burst: 0}, logger)
 	// Global limiter that never rejects but skips tiles — mirrors prod wiring, so
 	// this also proves the global Skip hook routes tiles to the tile limiter.
-	globalLimiter := ratelimit.New(ctx, ratelimit.Config{
+	globalLimiter := ratelimit.New(ctx, &ratelimit.Config{
 		Rate: 1000, Burst: 1000, Skip: server.IsTileRequest,
 	}, logger)
 
