@@ -113,10 +113,13 @@ def create_strava_breaker(
     or a 429 quota exceeded. If a transient failure on the token
     endpoint (a 503 from Strava's OAuth side, a connection reset)
     were ever wrapped as ``StravaTokenError``, the breaker would
-    silently miss the outage. The current call sites in
-    ``StravaTokenRepo._do_refresh`` honor this: 401 → ``StravaTokenError``,
-    everything else → ``StravaApiError`` (or the original ``requests``
-    exception), both of which count as breaker failures.
+    silently miss the outage. Both call sites honor this:
+    ``StravaTokenRepo._do_refresh`` maps 401 → ``StravaTokenError`` and
+    everything else (5xx, network) → ``StravaApiError``; the activity path's
+    ``_handle_error_response`` maps 404 → ``ActivityNotFoundError``, 401 →
+    ``StravaTokenError``, 429 → ``StravaRateLimitError`` (all excluded), and
+    5xx / network → ``StravaApiError`` (counted). So only permanent per-user
+    signals ever carry an excluded type.
     """
     return pybreaker.CircuitBreaker(
         fail_max=fail_max,
@@ -208,7 +211,7 @@ class StravaTokenRepo(ReadStravaToken):
 
         try:
             resp = _refresh()
-        except requests.exceptions.HTTPError as exc:
+        except requests.exceptions.RequestException as exc:
             status_code = exc.response.status_code if exc.response is not None else None
             if status_code == HTTP_UNAUTHORIZED:
                 raise StravaTokenError(
@@ -381,7 +384,7 @@ class StravaApiClient:
 
         try:
             resp = _fetch()
-        except requests.exceptions.HTTPError as exc:
+        except requests.exceptions.RequestException as exc:
             return self._handle_error_response(
                 exc,
                 activity_id=activity_id,
@@ -465,7 +468,7 @@ class StravaApiClient:
 
         try:
             resp = _fetch()
-        except requests.exceptions.HTTPError as exc:
+        except requests.exceptions.RequestException as exc:
             # Route list failures through the SAME domain-exception translation
             # as get_activity (M1) — a bare raise_for_status() here leaked
             # requests.HTTPError across the adapter boundary. activity_id=None
@@ -488,19 +491,23 @@ class StravaApiClient:
 
     def _handle_error_response[T](
         self,
-        exc: requests.exceptions.HTTPError,
+        exc: requests.exceptions.RequestException,
         *,
         token_refresh_count: int,
         retry_func: Callable[[int], T],
         activity_id: int | None = None,
     ) -> T:
-        """Translate a caught ``HTTPError`` into a domain exception.
+        """Translate a caught ``RequestException`` into a domain exception.
 
         Because each ``_fetch`` now calls ``raise_for_status()`` inside the
         retried scope, a 4xx/5xx no longer returns a ``Response`` to inspect —
-        it raises. This handler keys off the caught exception's status code
-        instead of ``resp.ok``. Shared by ``get_activity`` and
-        ``list_activities``; ``activity_id`` is ``None`` on the list path.
+        it raises. This handler keys off the caught exception's status code,
+        which is ``None`` when the request never received an HTTP response (a
+        ``ConnectionError``/``Timeout`` that survived retries). Catching the
+        ``RequestException`` base — not just ``HTTPError`` — ensures no raw
+        ``requests`` exception leaks across the adapter boundary. Shared by
+        ``get_activity`` and ``list_activities``; ``activity_id`` is ``None``
+        on the list path.
 
         Mapping (preserved exactly):
         - 401 → refresh token and retry once via ``retry_func``; a second 401
@@ -508,11 +515,14 @@ class StravaApiClient:
         - 404 → ``ActivityNotFoundError`` (single-activity path only; a 404
           has no meaning for the list endpoint, so it falls through to
           ``StravaApiError`` when ``activity_id is None``).
-        - anything else (5xx that survived retry, other 4xx) → ``StravaApiError``.
+        - anything else — a 5xx that survived retry, another 4xx, or a network
+          error with no response (status ``None``) → ``StravaApiError``, which
+          counts as a breaker failure.
 
         A 429 never reaches here: the retry decorator surfaces it as
-        ``StravaRateLimitError`` (not an ``HTTPError``), so it propagates past
-        this handler and keeps the circuit-breaker ``exclude`` contract intact.
+        ``StravaRateLimitError`` (not a ``RequestException``), so it propagates
+        past this handler and keeps the circuit-breaker ``exclude`` contract
+        intact.
         """
         status_code = exc.response.status_code if exc.response is not None else None
 

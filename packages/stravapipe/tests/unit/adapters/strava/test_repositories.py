@@ -313,6 +313,27 @@ class TestStravaActivitiesRepo:
 
             assert m.call_count == api_config.activity_retry_attempts
 
+    def test_connection_error_translates_to_domain_error_not_leaked(
+        self, activities_repo, api_config
+    ):
+        """A network error that survives retries is translated to a domain
+        exception, never leaked as a raw ``requests`` exception across the
+        adapter boundary. This is what catching ``RequestException`` (not just
+        ``HTTPError``) covers — a ``ConnectionError``/``Timeout`` has no HTTP
+        response, so it maps to ``StravaApiError`` with ``status_code`` None.
+        """
+        activity_id = 12345678987654321
+        endpoint = f"{api_config.api_base_url}/activities/{activity_id}"
+        with Mocker() as m, patch("stravapipe.retry.time.sleep"):
+            m.get(endpoint, exc=requests.exceptions.ConnectionError("boom"))
+
+            with pytest.raises(StravaApiError) as exc_info:
+                activities_repo.read_activity_by_id(activity_id)
+
+        # Not a leaked requests exception; no HTTP response → status None.
+        assert not isinstance(exc_info.value, requests.exceptions.RequestException)
+        assert exc_info.value.status_code is None
+
 
 class TestStravaActivitiesRepoIntegration:
     """Integration tests using the full factory-created repo."""
