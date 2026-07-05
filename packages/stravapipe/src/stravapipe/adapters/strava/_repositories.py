@@ -99,11 +99,15 @@ def create_strava_breaker(
     *,
     fail_max: int = _BREAKER_FAILURE_THRESHOLD,
     reset_timeout: int = _BREAKER_RESET_TIMEOUT_SECONDS,
+    name: str = "strava-api",
 ) -> pybreaker.CircuitBreaker:
     """Build a Strava circuit breaker.
 
     ``fail_max`` / ``reset_timeout`` are parameterized so tests can use
-    short values; production callers should rely on the defaults. The
+    short values; production callers should rely on the defaults. ``name``
+    labels the breaker in ``_BreakerLogger`` output — the factory gives the
+    token and activities breakers distinct names so a state-change log shows
+    which one tripped. The
     ``exclude`` list captures per-request signals that should NOT count
     toward Strava-side health — 404 (per-activity), 401 (per-user
     token), 429 (per-user rate limit). Everything else (5xx, network,
@@ -129,7 +133,7 @@ def create_strava_breaker(
         reset_timeout=reset_timeout,
         exclude=[ActivityNotFoundError, StravaTokenError, StravaRateLimitError],
         listeners=[_BreakerLogger()],
-        name="strava-api",
+        name=name,
     )
 
 
@@ -700,8 +704,8 @@ def create_strava_activities_repo(
     # trip the other; separate breakers also mean a token fault surfacing during
     # an activity 401-refresh (a breaker call nested inside the activity breaker
     # call) counts once on the token breaker, not twice on a shared one.
-    token_breaker = create_strava_breaker()
-    activities_breaker = create_strava_breaker()
+    token_breaker = create_strava_breaker(name="strava-token")
+    activities_breaker = create_strava_breaker(name="strava-activities")
 
     # Build the dependency chain
     token_repo = StravaTokenRepo(tokens, config, breaker=token_breaker)

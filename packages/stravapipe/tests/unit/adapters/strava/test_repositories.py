@@ -832,6 +832,11 @@ class TestStravaCircuitBreaker:
         activities_breaker = repo._client._breaker
         token_breaker = repo._client._token_manager._token_repo._breaker
         assert activities_breaker is not token_breaker
+        # Distinct names so a _BreakerLogger state-change log shows which tripped.
+        assert {token_breaker.name, activities_breaker.name} == {
+            "strava-token",
+            "strava-activities",
+        }
 
     def test_token_fault_during_401_refresh_counts_once_per_breaker(
         self, tokenset_with_access, api_config
