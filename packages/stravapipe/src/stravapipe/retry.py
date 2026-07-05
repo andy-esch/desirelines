@@ -26,6 +26,11 @@ HTTP_INTERNAL_SERVER_ERROR = 500
 # Fallback wait (seconds) when ``Retry-After`` is absent or unparseable.
 DEFAULT_RETRY_AFTER_SECONDS = 60
 
+# Upper bound (seconds) on how long a single 429 backoff may block. RFC 7231
+# permits ``Retry-After`` to be an arbitrarily far-future HTTP-date; without a
+# ceiling a spec-valid header could pin a worker for hours. 900s = 15 min.
+MAX_RETRY_AFTER_SECONDS = 900
+
 
 def _parse_retry_after(
     header_value: str | None, *, default: int = DEFAULT_RETRY_AFTER_SECONDS
@@ -150,9 +155,12 @@ def retry_on_failure(
                                     "attempts",
                                     retry_after=retry_after,
                                 ) from e
+                            # Cap the wait so a spec-valid but far-future
+                            # ``Retry-After`` can't block a worker indefinitely.
+                            sleep_seconds = min(retry_after, MAX_RETRY_AFTER_SECONDS)
                             logger.warning(
                                 "Rate limited, waiting %s seconds (attempt %d/%d)",
-                                retry_after,
+                                sleep_seconds,
                                 attempt + 1,
                                 max_attempts,
                                 extra={
@@ -160,15 +168,16 @@ def retry_on_failure(
                                     "attempt": attempt + 1,
                                     "max_attempts": max_attempts,
                                     "retry_after_seconds": retry_after,
+                                    "sleep_seconds": sleep_seconds,
                                     "status_code": status_code,
                                 },
                             )
                             _add_retry_event(
                                 attempt + 1,
-                                float(retry_after),
+                                float(sleep_seconds),
                                 status_code=status_code,
                             )
-                            time.sleep(retry_after)
+                            time.sleep(sleep_seconds)
                             continue
 
                         # Don't retry on client errors (except rate limiting)
