@@ -3,7 +3,7 @@
 Tests the layered architecture:
 - StravaTokenRepo: Token refresh via OAuth API
 - StravaTokenManager: Token state management
-- StravaApiClient: HTTP calls with 401 retry
+- StravaApiClient: HTTP calls with retry (5xx/429/network) + 401 refresh + error translation
 - StravaActivitiesRepo: Domain model conversion
 """
 
@@ -127,6 +127,28 @@ class TestStravaTokenRepo:
             # A 5xx on the token endpoint now actually retries inside the
             # decorator before the domain exception surfaces (H1).
             assert not isinstance(exc_info.value, StravaTokenError)
+            assert m.call_count == api_config.token_retry_attempts
+
+    def test_failed_request_429_raises_rate_limit_error(self, token_repo, api_config):
+        """A 429 on the token endpoint surfaces as StravaRateLimitError.
+
+        The retry decorator honors ``Retry-After`` and, on exhaustion, raises
+        ``StravaRateLimitError`` — which is *not* a ``StravaTokenError``/
+        ``StravaApiError``, so the breaker excludes it as a per-user rate-limit
+        signal instead of counting a token-endpoint 429 as a Strava outage.
+        """
+        with Mocker() as m, patch("stravapipe.retry.time.sleep"):
+            m.post(
+                api_config.token_url,
+                status_code=429,
+                headers={"Retry-After": "5"},
+                text="Too Many Requests",
+            )
+
+            with pytest.raises(StravaRateLimitError) as exc_info:
+                token_repo.refresh()
+
+            assert exc_info.value.retry_after == 5
             assert m.call_count == api_config.token_retry_attempts
 
 

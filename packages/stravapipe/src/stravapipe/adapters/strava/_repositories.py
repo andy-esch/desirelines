@@ -6,7 +6,7 @@ This module provides a layered architecture for Strava API access:
            ↓
     StravaTokenManager   - Manages token state + thread-safety
            ↓
-    StravaApiClient      - HTTP calls, 401 retry, error translation
+    StravaApiClient      - HTTP calls, retry (5xx/429/network) + 401 refresh, error translation
            ↓
     StravaActivitiesRepo - Domain model conversion
 
@@ -363,7 +363,12 @@ class StravaApiClient:
     def _get_activity_with_retry(
         self, activity_id: int, *, _token_refresh_count: int
     ) -> dict[str, Any]:
-        """Internal: fetch activity with 401 retry logic."""
+        """Internal: fetch one activity.
+
+        Retries 5xx/429/network via ``@retry_on_failure`` (429 honoring
+        ``Retry-After``), refreshes the token once on 401, and translates any
+        surviving error to a domain exception via ``_handle_error_response``.
+        """
 
         @retry_on_failure(
             max_attempts=self._api_config.activity_retry_attempts,
@@ -443,7 +448,12 @@ class StravaApiClient:
         per_page: int,
         _token_refresh_count: int,
     ) -> list[dict[str, Any]]:
-        """Internal: list activities with 401 retry logic."""
+        """Internal: list one page of activities.
+
+        Retries 5xx/429/network via ``@retry_on_failure`` (429 honoring
+        ``Retry-After``), refreshes the token once on 401, and translates any
+        surviving error to a domain exception via ``_handle_error_response``.
+        """
 
         @retry_on_failure(
             max_attempts=self._api_config.activity_retry_attempts,
