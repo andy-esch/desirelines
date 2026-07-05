@@ -294,10 +294,12 @@ func initDependencies(ctx context.Context, cfg *config.Config, log *slog.Logger,
 	// traffic is bursty by nature (a slippy-map viewport pulls many tiles at once),
 	// so without this skip a normal pan/zoom would blow past burst 20 and 429.
 	// Tiles get their own limiter (8c) tuned for that profile.
-	deps.rateLimiter = ratelimit.New(ctx, ratelimit.Config{
+	deps.rateLimiter = ratelimit.New(ctx, &ratelimit.Config{
 		Rate:  10,
 		Burst: 20,
 		Skip:  server.IsTileRequest,
+		Name:  "default",
+		Meter: meter,
 	}, log)
 
 	// 8b. Initialize auth-scoped rate limiter. /auth/* endpoints are the most
@@ -306,9 +308,11 @@ func initDependencies(ctx context.Context, cfg *config.Config, log *slog.Logger,
 	// 10/min per IP is well above any legitimate pattern and well below probing
 	// rates. Hard-coded for now since it's not security-load-bearing; revisit if
 	// tuning becomes a thing.
-	deps.authRateLimiter = ratelimit.New(ctx, ratelimit.Config{
+	deps.authRateLimiter = ratelimit.New(ctx, &ratelimit.Config{
 		Rate:  10.0 / 60.0, // 10 per minute
 		Burst: 5,           // allow a small burst for retries
+		Name:  "auth",
+		Meter: meter,
 	}, log)
 
 	// 8c. Tile rate limiter. The MVT tile route has a different request profile
@@ -320,9 +324,11 @@ func initDependencies(ctx context.Context, cfg *config.Config, log *slog.Logger,
 	// Decision (see planning task): rate-limit rather than HTTP-cache for now — the
 	// /v1 group sets NoCacheHeaders, so tile caching warrants its own deliberate
 	// pass later; this fix is purely the limiter mismatch.
-	deps.tileRateLimiter = ratelimit.New(ctx, ratelimit.Config{
+	deps.tileRateLimiter = ratelimit.New(ctx, &ratelimit.Config{
 		Rate:  30,  // sustained tiles/sec per IP — far above human pan/zoom
 		Burst: 150, // absorbs a full zoomed-out viewport's tile fan-out
+		Name:  "tile",
+		Meter: meter,
 	}, log)
 
 	// 9. Initialize PostgreSQL repository (required dependency)
