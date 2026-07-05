@@ -819,19 +819,46 @@ class TestStravaCircuitBreaker:
             assert result["id"] == activity_id
             assert breaker.current_state == "closed"
 
-    def test_shared_breaker_across_token_and_api_paths(
+    def test_factory_wires_separate_breakers_for_token_and_api(
         self, tokenset_with_access, api_config
     ):
-        """Failures at the token endpoint trip the same breaker the API uses.
+        """The factory gives the token and activity paths independent breakers.
 
-        Verifies the factory wires one breaker into both StravaTokenRepo
-        and StravaApiClient — an outage on either endpoint short-circuits
-        both paths.
+        Previously one breaker was shared across both; now each Strava endpoint
+        domain (OAuth token vs activities) gets its own, so an outage on one
+        doesn't fail-fast the other.
         """
-        breaker = create_strava_breaker(fail_max=2, reset_timeout=60)
-        repo = create_strava_activities_repo(
-            tokenset_with_access, api_config, breaker=breaker
+        repo = create_strava_activities_repo(tokenset_with_access, api_config)
+        activities_breaker = repo._client._breaker
+        token_breaker = repo._client._token_manager._token_repo._breaker
+        assert activities_breaker is not token_breaker
+        # Distinct names so a _BreakerLogger state-change log shows which tripped.
+        assert {token_breaker.name, activities_breaker.name} == {
+            "strava-token",
+            "strava-activities",
+        }
+
+    def test_token_fault_during_401_refresh_counts_once_per_breaker(
+        self, tokenset_with_access, api_config
+    ):
+        """A token fault during an activity 401-refresh counts once per breaker.
+
+        The token refresh is a breaker call nested inside the activity breaker
+        call. With separate breakers the token 5xx counts once on the token
+        breaker and the failed activity call counts once on the activities
+        breaker — so a single ``get_activity`` leaves both ``fail_max=2``
+        breakers closed. A shared breaker would have counted the token fault
+        twice and already be open.
+        """
+        token_breaker = create_strava_breaker(fail_max=2, reset_timeout=60)
+        activities_breaker = create_strava_breaker(fail_max=2, reset_timeout=60)
+        token_repo = StravaTokenRepo(
+            tokens=tokenset_with_access, api_config=api_config, breaker=token_breaker
         )
+        token_manager = StravaTokenManager(
+            token_repo, tokenset_with_access.access_token
+        )
+        client = StravaApiClient(token_manager, api_config, breaker=activities_breaker)
         activity_id = 33333
 
         with (
@@ -839,23 +866,26 @@ class TestStravaCircuitBreaker:
             patch("stravapipe.retry.time.sleep"),
             patch("stravapipe.retry.random.uniform", side_effect=lambda _a, _b: 0),
         ):
-            endpoint = f"{api_config.api_base_url}/activities/{activity_id}"
-            # Two API failures trip the (fail_max=2) breaker.
-            m.get(endpoint, status_code=500, text="Server Error")
-            for _ in range(2):
-                with pytest.raises(StravaApiError):
-                    repo.read_activity_by_id(activity_id)
-            assert breaker.current_state == "open"
-
-            # Token refresh through the SAME breaker also fail-fasts.
-            m.post(api_config.token_url, json={"access_token": "x"})
-            token_repo = StravaTokenRepo(
-                tokens=tokenset_with_access, api_config=api_config, breaker=breaker
+            # Activity 401 triggers a token refresh; the token endpoint is down.
+            m.get(
+                f"{api_config.api_base_url}/activities/{activity_id}",
+                status_code=401,
+                text="Unauthorized",
             )
-            with pytest.raises(StravaApiError) as exc_info:
-                token_repo.refresh()
-            assert exc_info.value.status_code == 503
-            assert "circuit breaker open" in str(exc_info.value)
+            m.post(api_config.token_url, status_code=503, text="oauth down")
+
+            with pytest.raises(StravaApiError):
+                client.get_activity(activity_id)
+
+            # One call: each breaker counted exactly one failure (still closed).
+            assert token_breaker.current_state == "closed"
+            assert activities_breaker.current_state == "closed"
+
+            # A second identical call reaches fail_max=2 on each.
+            with pytest.raises(StravaApiError):
+                client.get_activity(activity_id)
+            assert token_breaker.current_state == "open"
+            assert activities_breaker.current_state == "open"
 
     def test_token_endpoint_5xx_counts_as_failure(self, tokenset, api_config):
         """A 5xx on /oauth/token must count toward the breaker.

@@ -10,12 +10,15 @@ This module provides a layered architecture for Strava API access:
            ↓
     StravaActivitiesRepo - Domain model conversion
 
-A single ``pybreaker.CircuitBreaker`` is shared across ``StravaTokenRepo``
-and ``StravaApiClient`` — outbound traffic to Strava goes through one
-breaker so an outage trips it once and fails-fast for every concurrent
-caller until the dependency recovers. The breaker wraps the retry loop
-(not vice versa) per Microsoft's combined-pattern guidance; matches the
-Go side in ``packages/dispatcher/adapters/strava/client.go``.
+``StravaTokenRepo`` and ``StravaApiClient`` each get their own
+``pybreaker.CircuitBreaker``: the OAuth-token and activities endpoints are
+distinct Strava subsystems that fail independently, so an outage on one must
+not fail-fast the other. Separate breakers also mean a token fault surfacing
+during an activity 401-refresh — the token refresh is a breaker call nested
+inside the activity breaker call — counts once on the token breaker rather
+than twice on a shared one. Each breaker wraps the retry loop (not vice versa)
+per Microsoft's combined-pattern guidance; matches the Go side in
+``packages/dispatcher/adapters/strava/client.go``.
 """
 
 from collections.abc import Callable, Sequence
@@ -96,11 +99,15 @@ def create_strava_breaker(
     *,
     fail_max: int = _BREAKER_FAILURE_THRESHOLD,
     reset_timeout: int = _BREAKER_RESET_TIMEOUT_SECONDS,
+    name: str = "strava-api",
 ) -> pybreaker.CircuitBreaker:
-    """Build the shared Strava circuit breaker.
+    """Build a Strava circuit breaker.
 
     ``fail_max`` / ``reset_timeout`` are parameterized so tests can use
-    short values; production callers should rely on the defaults. The
+    short values; production callers should rely on the defaults. ``name``
+    labels the breaker in ``_BreakerLogger`` output — the factory gives the
+    token and activities breakers distinct names so a state-change log shows
+    which one tripped. The
     ``exclude`` list captures per-request signals that should NOT count
     toward Strava-side health — 404 (per-activity), 401 (per-user
     token), 429 (per-user rate limit). Everything else (5xx, network,
@@ -126,7 +133,7 @@ def create_strava_breaker(
         reset_timeout=reset_timeout,
         exclude=[ActivityNotFoundError, StravaTokenError, StravaRateLimitError],
         listeners=[_BreakerLogger()],
-        name="strava-api",
+        name=name,
     )
 
 
@@ -677,7 +684,6 @@ class StravaActivitiesRepo(ReadDetailedActivities, ReadStandardActivities):
 def create_strava_activities_repo(
     tokens: StravaTokenSet,
     api_config: StravaApiConfig | None = None,
-    breaker: pybreaker.CircuitBreaker | None = None,
 ) -> StravaActivitiesRepo:
     """Create a fully-wired StravaActivitiesRepo.
 
@@ -688,23 +694,22 @@ def create_strava_activities_repo(
         tokens: Strava OAuth tokens (client_id, client_secret, refresh_token,
                 and optionally access_token)
         api_config: Optional API configuration (URLs, timeouts, retry settings)
-        breaker: Optional circuit breaker. Defaults to a fresh shared
-            instance — production code generally wants the default since
-            each composition root creates a long-lived repo and the
-            breaker state should live for the process lifetime. Tests
-            can pass a breaker with a short ``reset_timeout``.
 
     Returns:
         Configured StravaActivitiesRepo ready for use
     """
     config = api_config or StravaApiConfig()
-    # One breaker shared across the token-refresh and API-call paths
-    # so an outage trips it once for the entire Strava dependency.
-    shared_breaker = breaker if breaker is not None else create_strava_breaker()
+    # Separate breakers per Strava endpoint domain. The OAuth-token and the
+    # activities endpoints fail independently, so an outage on one shouldn't
+    # trip the other; separate breakers also mean a token fault surfacing during
+    # an activity 401-refresh (a breaker call nested inside the activity breaker
+    # call) counts once on the token breaker, not twice on a shared one.
+    token_breaker = create_strava_breaker(name="strava-token")
+    activities_breaker = create_strava_breaker(name="strava-activities")
 
     # Build the dependency chain
-    token_repo = StravaTokenRepo(tokens, config, breaker=shared_breaker)
+    token_repo = StravaTokenRepo(tokens, config, breaker=token_breaker)
     token_manager = StravaTokenManager(token_repo, tokens.access_token)
-    api_client = StravaApiClient(token_manager, config, breaker=shared_breaker)
+    api_client = StravaApiClient(token_manager, config, breaker=activities_breaker)
 
     return StravaActivitiesRepo(api_client)
