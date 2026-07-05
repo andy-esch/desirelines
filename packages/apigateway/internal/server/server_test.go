@@ -410,7 +410,7 @@ func TestNewRouter_AuthRateLimiterScopedToAuth(t *testing.T) {
 	auth := &mockAuthMiddleware{}
 
 	// Auth limiter: 1 req/s, burst 1 — second hit in quick succession is rejected.
-	authLimiter := ratelimit.New(ctx, ratelimit.Config{
+	authLimiter := ratelimit.New(ctx, &ratelimit.Config{
 		Rate:            1,
 		Burst:           1,
 		CleanupInterval: time.Hour,
@@ -418,7 +418,7 @@ func TestNewRouter_AuthRateLimiterScopedToAuth(t *testing.T) {
 	}, logger)
 
 	// Global limiter: high rate so it doesn't interfere with the test.
-	globalLimiter := ratelimit.New(ctx, ratelimit.Config{
+	globalLimiter := ratelimit.New(ctx, &ratelimit.Config{
 		Rate:            1000,
 		Burst:           1000,
 		CleanupInterval: time.Hour,

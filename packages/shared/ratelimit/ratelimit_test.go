@@ -11,12 +11,15 @@ import (
 
 	"github.com/andy-esch/desirelines/packages/shared/apierrors"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
+	"go.opentelemetry.io/otel/attribute"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
 
 const testRemoteAddr = "1.2.3.4:1234"
 
 func newTestLimiter(ctx context.Context, rate float64, burst int) *Limiter {
-	return New(ctx, Config{
+	return New(ctx, &Config{
 		Rate:            rate,
 		Burst:           burst,
 		CleanupInterval: time.Hour, // effectively disabled for most tests
@@ -101,12 +104,86 @@ func TestOverLimit(t *testing.T) {
 	}
 }
 
+// rejectedCountsByReason collects the desirelines.io/ratelimit/rejected counter
+// and returns its datapoints keyed by the "reason" attribute.
+func rejectedCountsByReason(t *testing.T, reader sdkmetric.Reader) map[string]int64 {
+	t.Helper()
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("collect metrics: %v", err)
+	}
+	counts := map[string]int64{}
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if m.Name != "desirelines.io/ratelimit/rejected" {
+				continue
+			}
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			if !ok {
+				t.Fatalf("metric %s: unexpected data type %T", m.Name, m.Data)
+			}
+			for _, dp := range sum.DataPoints {
+				reason, _ := dp.Attributes.Value(attribute.Key("reason"))
+				counts[reason.AsString()] += dp.Value
+			}
+		}
+	}
+	return counts
+}
+
+func TestRejectionCounter(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+
+	// Burst=1, MaxClients=1: the first IP fills the only map slot and consumes its
+	// single token; a second request from it is over_limit; a new IP is map_full.
+	l := New(ctx, &Config{
+		Rate:            0.001,
+		Burst:           1,
+		MaxClients:      1,
+		CleanupInterval: time.Hour,
+		TTL:             time.Hour,
+		Name:            "test",
+		Meter:           provider.Meter("test"),
+	}, gcplog.NewNoOpLogger())
+	handler := l.Middleware(okHandler())
+
+	send := func(remoteAddr string) int {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.RemoteAddr = remoteAddr
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		return w.Code
+	}
+
+	if code := send("1.1.1.1:1"); code != http.StatusOK {
+		t.Fatalf("first request: got %d, want 200", code)
+	}
+	if code := send("1.1.1.1:2"); code != http.StatusTooManyRequests {
+		t.Fatalf("over-limit request: got %d, want 429", code)
+	}
+	if code := send("2.2.2.2:1"); code != http.StatusTooManyRequests {
+		t.Fatalf("map-full request: got %d, want 429", code)
+	}
+
+	counts := rejectedCountsByReason(t, reader)
+	if counts["over_limit"] < 1 {
+		t.Errorf("over_limit count = %d, want >= 1", counts["over_limit"])
+	}
+	if counts["map_full"] < 1 {
+		t.Errorf("map_full count = %d, want >= 1", counts["map_full"])
+	}
+}
+
 func TestSkipBypassesLimiting(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	// Rate ~0 so the bucket never refills; Skip exempts the "/tiles/" prefix.
-	l := New(ctx, Config{
+	l := New(ctx, &Config{
 		Rate:            0.001,
 		Burst:           1,
 		CleanupInterval: time.Hour,
@@ -207,7 +284,7 @@ func TestStaleCleanup(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	l := New(ctx, Config{
+	l := New(ctx, &Config{
 		Rate:            10,
 		Burst:           10,
 		CleanupInterval: time.Hour, // won't fire automatically
@@ -235,7 +312,7 @@ func TestStaleCleanup(t *testing.T) {
 func TestCleanupStopsOnCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	_ = New(ctx, Config{
+	_ = New(ctx, &Config{
 		Rate:            10,
 		Burst:           10,
 		CleanupInterval: time.Millisecond,
@@ -272,7 +349,7 @@ func TestMaxClients(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	l := New(ctx, Config{
+	l := New(ctx, &Config{
 		Rate:            10,
 		Burst:           10,
 		MaxClients:      2,

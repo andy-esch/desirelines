@@ -158,6 +158,10 @@ func (h *Handler) RegisterRoutes() http.Handler {
 	r.Use(gcplog.BridgeRequestID)
 	r.Use(gcplog.CloudRunRealIP)
 	if h.rateLimiter != nil {
+		// 429 rejections short-circuit here, before HTTPRequestLoggerWithMetrics —
+		// by design, so a fast reject doesn't pollute the latency histogram. The
+		// limiter self-reports rejections via its desirelines.io/ratelimit/rejected
+		// counter instead.
 		r.Use(h.rateLimiter.Middleware)
 	}
 	r.Use(gcplog.WithCloudTraceContext)

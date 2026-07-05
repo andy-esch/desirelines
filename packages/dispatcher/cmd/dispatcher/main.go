@@ -248,9 +248,17 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 	// Rate limiter: 5 req/s, burst 10 (Strava sends a few events/day normally)
 	// Uses Background context (not startupCtx) because the cleanup goroutine must
 	// run for the lifetime of the process — startupCtx is canceled after 10s.
-	rateLimiter := ratelimit.New(context.Background(), ratelimit.Config{
+	rateLimiter := ratelimit.New(context.Background(), &ratelimit.Config{
 		Rate:  5,
 		Burst: 10,
+		Name:  "dispatcher",
+		Meter: meter,
+		// Exempt liveness/health probes so GCP uptime checks + Cloud Run probes
+		// (every ~60s, from many regional IPs) never consume rate-limit tokens.
+		// Mirrors requestLogger's probe-path exclusion.
+		Skip: func(r *http.Request) bool {
+			return r.URL.Path == "/health" || (r.Method == http.MethodHead && r.URL.Path == "/")
+		},
 	}, log)
 
 	handler := httpadapter.NewHandler(publisher, deauthPublisher, secretProvider, stravaClient, tokenStore, allowChecker, log, &httpadapter.HandlerConfig{

@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/andy-esch/desirelines/packages/shared/apierrors"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	"golang.org/x/time/rate"
 )
 
@@ -36,23 +38,30 @@ type Config struct {
 	// exempt a route class with a different request profile — e.g. bursty MVT
 	// map tiles — from a limiter without restructuring the middleware chain.
 	Skip func(*http.Request) bool
+	// Name labels this limiter in the desirelines.io/ratelimit/rejected metric
+	// (the "limiter" attribute), so a process running several limiters — e.g. the
+	// apigateway's default/auth/tile — can tell which one is rejecting.
+	Name string
+	// Meter, when non-nil, is used to create the rejection counter. When nil the
+	// limiter simply doesn't emit the metric (tests, or callers without OTel).
+	Meter metric.Meter
 }
 
-func (c Config) maxClients() int {
+func (c *Config) maxClients() int {
 	if c.MaxClients > 0 {
 		return c.MaxClients
 	}
 	return defaultMaxClients
 }
 
-func (c Config) cleanupInterval() time.Duration {
+func (c *Config) cleanupInterval() time.Duration {
 	if c.CleanupInterval > 0 {
 		return c.CleanupInterval
 	}
 	return time.Minute
 }
 
-func (c Config) ttl() time.Duration {
+func (c *Config) ttl() time.Duration {
 	if c.TTL > 0 {
 		return c.TTL
 	}
@@ -76,11 +85,19 @@ type Limiter struct {
 	ttl        time.Duration
 	skip       func(*http.Request) bool
 	logger     *slog.Logger
+	name       string
+	rejected   metric.Int64Counter
 }
 
 // New creates a Limiter and starts a background goroutine that removes stale entries.
 // The cleanup goroutine stops when ctx is canceled.
-func New(ctx context.Context, cfg Config, logger *slog.Logger) *Limiter {
+func New(ctx context.Context, cfg *Config, logger *slog.Logger) *Limiter {
+	// cfg is required (a nil-deref here is a clear fail-fast for a misconfigured
+	// caller); the project's linter forbids an explicit panic and an error return
+	// would ripple through every composition root. Default a missing logger.
+	if logger == nil {
+		logger = slog.Default()
+	}
 	l := &Limiter{
 		clients:    make(map[string]*entry),
 		rate:       rate.Limit(cfg.Rate),
@@ -89,10 +106,43 @@ func New(ctx context.Context, cfg Config, logger *slog.Logger) *Limiter {
 		ttl:        cfg.ttl(),
 		skip:       cfg.Skip,
 		logger:     logger,
+		name:       cfg.Name,
+	}
+	if cfg.Meter != nil {
+		counter, err := cfg.Meter.Int64Counter(
+			"desirelines.io/ratelimit/rejected",
+			metric.WithDescription("Requests rejected by the rate limiter, by reason (over_limit|map_full) and limiter"),
+		)
+		if err != nil {
+			logger.Warn("Failed to create ratelimit.rejected counter; rejections won't be metered", "error", err)
+		} else {
+			l.rejected = counter
+		}
 	}
 
 	go l.cleanup(ctx, cfg.cleanupInterval())
 	return l
+}
+
+// recordRejected increments the rejection counter (a no-op when no Meter was
+// configured). reason is "over_limit" (the IP's token bucket is empty) or
+// "map_full" (the per-IP client map is at capacity).
+func (l *Limiter) recordRejected(ctx context.Context, reason string) {
+	if l.rejected == nil {
+		return
+	}
+	l.rejected.Add(ctx, 1, metric.WithAttributes(
+		attribute.String("reason", reason),
+		attribute.String("limiter", l.name),
+	))
+}
+
+// reject writes the standard 429 response: the Retry-After header, the
+// desirelines.io/ratelimit/rejected metric (by reason), and the JSON error body.
+func (l *Limiter) reject(w http.ResponseWriter, r *http.Request, retryAfter, reason string) {
+	w.Header().Set("Retry-After", retryAfter)
+	l.recordRejected(r.Context(), reason)
+	apierrors.WriteError(w, r, apierrors.ErrRateLimited, l.logger)
 }
 
 // Middleware returns chi-compatible middleware that rejects requests exceeding the rate limit.
@@ -110,11 +160,16 @@ func (l *Limiter) Middleware(next http.Handler) http.Handler {
 
 		limiter := l.getLimiter(ip)
 		if limiter == nil {
-			w.Header().Set("Retry-After", "60")
-			apierrors.WriteError(w, r, apierrors.ErrRateLimited, l.logger)
+			l.reject(w, r, "60", "map_full")
 			return
 		}
 
+		// Reserve()+Cancel()-on-reject is how we read Delay() (for the Retry-After
+		// header) while emulating Allow(). Per x/time/rate, Cancel() only fully
+		// restores the token if no other Reserve/Allow ran on this limiter since —
+		// so under same-IP concurrency the accounting is best-effort (marginally
+		// stricter than the configured rate). Accepted: we need Delay(), which
+		// Allow() doesn't expose.
 		reservation := limiter.Reserve()
 		delay := reservation.Delay()
 		if delay == 0 {
@@ -136,8 +191,7 @@ func (l *Limiter) Middleware(next http.Handler) http.Handler {
 			retryAfter = fmt.Sprintf("%.0f", seconds)
 		}
 
-		w.Header().Set("Retry-After", retryAfter)
-		apierrors.WriteError(w, r, apierrors.ErrRateLimited, l.logger)
+		l.reject(w, r, retryAfter, "over_limit")
 	})
 }
 
@@ -150,7 +204,12 @@ func (l *Limiter) getLimiter(ip string) *rate.Limiter {
 	e, ok := l.clients[ip]
 	if !ok {
 		if len(l.clients) >= l.maxClients {
-			l.logger.Warn("Rate limiter client map full, rejecting new IP",
+			// Debug, not Warn: this fires once per request from every new IP while
+			// the map is full — i.e. it amplifies exactly during the IP-rotation
+			// flood the cap defends against. The alertable signal is the
+			// desirelines.io/ratelimit/rejected counter (reason="map_full"); the
+			// per-IP detail stays at Debug.
+			l.logger.Debug("Rate limiter client map full, rejecting new IP",
 				"ip", ip, "max_clients", l.maxClients)
 			return nil
 		}
