@@ -381,6 +381,26 @@ describe("RouteMap 401 recovery", () => {
 
     expect(refreshAuthToken).not.toHaveBeenCalled();
   });
+
+  it("caps the refresh loop and surfaces an error when a refreshed token keeps 401ing", async () => {
+    const refreshAuthToken = vi.fn().mockResolvedValue(undefined);
+    renderMap({ refreshAuthToken });
+
+    // Each cycle: internal 401 → refresh resolves → source remounts → still 401.
+    // Fire more cycles than the cap; drain the promise chain between them so each
+    // 401 sees a cleared `refreshingRef` (a genuine new cycle, not the debounce).
+    for (let i = 0; i < 5; i++) {
+      await act(async () => {
+        h.captured.onError!({ error: { status: 401, url: A_TILE } });
+        await new Promise((r) => setTimeout(r, 0));
+      });
+    }
+
+    // Bounded at MAX_AUTH_REFRESHES (3) — not one refresh per 401 forever...
+    expect(refreshAuthToken).toHaveBeenCalledTimes(3);
+    // ...and the failure is surfaced (retryable overlay) instead of blanking tiles.
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+  });
 });
 
 describe("RouteMap viewport fitting", () => {

@@ -98,6 +98,35 @@ describe("buildSportColorExpression", () => {
     }
   });
 
+  it("covers every raw sport_type declared in the registry (nothing silently greys out)", () => {
+    // Coverage guard: with a color for every category, EVERY raw stravaType the
+    // registry declares must land a `match` case. A raw type left uncovered falls to
+    // the grey fallback on the map only — silent, and invisible off the map.
+    const config = makeConfig({
+      cycling: { stravaTypes: ["Ride", "VirtualRide", "MountainBikeRide", "GravelRide"] },
+      running: { stravaTypes: ["Run", "TrailRun", "VirtualRun"] },
+      walking: { stravaTypes: ["Walk", "Hike"] },
+    });
+    const colors = { cycling: CYCLING, running: RUNNING, walking: "rgb(0, 255, 0)" };
+
+    const arr = buildSportColorExpression(config, colors, FALLBACK) as unknown[];
+
+    // Collect the labels (even positions in the label/color pairs), flattening the
+    // grouped-array labels into individual raw types.
+    const pairs = arr.slice(2, -1);
+    const covered = new Set<string>();
+    for (let i = 0; i < pairs.length; i += 2) {
+      const label = pairs[i];
+      if (Array.isArray(label)) label.forEach((l) => covered.add(l as string));
+      else covered.add(label as string);
+    }
+
+    const declared = Object.values(config.sportCategories).flatMap((c) => c.stravaTypes);
+    for (const rawType of declared) {
+      expect(covered.has(rawType)).toBe(true);
+    }
+  });
+
   it("de-duplicates a raw type that appears under multiple categories", () => {
     const config = makeConfig({
       cycling: { stravaTypes: ["Ride"] },

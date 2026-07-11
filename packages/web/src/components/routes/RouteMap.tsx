@@ -79,6 +79,18 @@ const MAP_LOAD_TIMEOUT_MS = 15_000;
 const MAX_RETRIES = 2;
 
 /**
+ * Bound the internal-401 → token-refresh → tile-remount recovery. A refreshed token
+ * that still 401s (auth genuinely broken, not merely stale) would otherwise loop
+ * forever — refresh → remount `<Source>` → 401 → refresh … — blanking tiles each
+ * cycle. After this many consecutive refresh cycles we stop and surface the
+ * retryable error instead. The counter resets on a full (re)mount (`onMapLoad`) and
+ * after a quiet gap: a 401 this long after the previous one is a fresh incident, not
+ * the same loop, so it gets a new budget.
+ */
+const MAX_AUTH_REFRESHES = 3;
+const AUTH_REFRESH_RESET_MS = 30_000;
+
+/**
  * Flat mercator, not GL JS v3's default globe: a routes map needs no globe, and the
  * globe path is heavier on WebGL2 — a common cause of blank/grey maps on iOS WebKit.
  * Module-level constant so react-map-gl doesn't re-diff/re-apply it every render.
@@ -254,6 +266,11 @@ export default function RouteMap({
   // needs because it won't retry tiles stuck in the "errored" state on its own.
   const [reloadNonce, setReloadNonce] = useState(0);
   const refreshingRef = useRef(false);
+  // Consecutive 401→refresh cycles + when the last one fired — bounds the recovery
+  // loop (see MAX_AUTH_REFRESHES). Refs, not state: read/updated inside the Mapbox
+  // error callback, and they must not trigger a re-render.
+  const authRefreshCountRef = useRef(0);
+  const lastAuthErrorAtRef = useRef(0);
 
   // Map lifecycle for the load/error UX. `status` drives the loading spinner and
   // the retryable failure overlay; `remountKey` recreates the whole <Map> on retry
@@ -294,6 +311,27 @@ export default function RouteMap({
       const isInternalUrl = err?.url === undefined || isInternalRequest(err.url, apiBaseUrl);
       const isInternal401 = err?.status === 401 && isInternalUrl;
       if (isInternal401 && !refreshingRef.current) {
+        // A 401 well after the previous one is a fresh incident, not the same loop —
+        // give it a new refresh budget.
+        const now = Date.now();
+        if (now - lastAuthErrorAtRef.current > AUTH_REFRESH_RESET_MS) {
+          authRefreshCountRef.current = 0;
+        }
+        lastAuthErrorAtRef.current = now;
+
+        if (authRefreshCountRef.current >= MAX_AUTH_REFRESHES) {
+          // Refreshed tokens keep 401ing → auth is genuinely broken; stop looping
+          // (each cycle blanks tiles) and surface the retryable error. Guarded so it
+          // never condemns an already-rendered map — a working basemap with missing
+          // route tiles beats replacing it with an error overlay.
+          logger.error(
+            `[RouteMap] internal tile 401 persists after ${MAX_AUTH_REFRESHES} refreshes; giving up`
+          );
+          setStatus((s) => (s === "ready" ? s : "error"));
+          return;
+        }
+
+        authRefreshCountRef.current += 1;
         refreshingRef.current = true;
         void refreshAuthTokenRef
           .current()
@@ -393,8 +431,10 @@ export default function RouteMap({
     mapRef.current?.resize();
     setStatus("ready");
     // A genuine load clears the retry budget so a later transient failure in the
-    // same session starts fresh rather than inheriting an elevated count.
+    // same session starts fresh rather than inheriting an elevated count. Same for
+    // the 401-refresh budget: a full (re)mount is a clean slate.
     setRetries(0);
+    authRefreshCountRef.current = 0;
     syncZoomView();
   }, [syncZoomView]);
 
