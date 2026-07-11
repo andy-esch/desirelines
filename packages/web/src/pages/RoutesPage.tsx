@@ -31,6 +31,7 @@ import { useRefreshMapData } from "../hooks/useRefreshMapData";
 import MapLoadingState from "../components/routes/MapLoadingState";
 import type { SportOption } from "../components/routes/MapFilterControls";
 import type { SelectedRoute } from "../components/routes/RouteMap";
+import { useCameraController } from "../hooks/useCameraController";
 import type { MapActivity } from "../api/map";
 
 // Lazy-loaded so `mapbox-gl` (and its CSS) ship in their own async chunk and
@@ -190,18 +191,20 @@ export default function RoutesPage() {
   // activity list. A map click sets it with a click point; a list-row click sets it
   // from the route's bbox centroid (and frames the route, see requestFit).
   const [selected, setSelected] = useState<SelectedRoute | null>(null);
-  // Imperative "frame this bbox" requests (list-row + region select) — a bumped
-  // nonce so re-selecting the same target re-fits.
-  const [fitTo, setFitTo] = useState<{
-    bbox: [number, number, number, number];
-    nonce: number;
-  } | null>(null);
-  const fitNonceRef = useRef(0);
-  const requestFit = useCallback((bbox?: number[]) => {
-    if (bbox && bbox.length === 4) {
-      setFitTo({ bbox: bbox as [number, number, number, number], nonce: ++fitNonceRef.current });
-    }
-  }, []);
+  // The camera is owned by useCameraController: every framing (deep-link, list-row,
+  // region select, and the default region on load) flows through its `requestFit`,
+  // so RouteMap is a pure executor of the returned `fitTo`. Precedence — an explicit
+  // target beats the default region — is enforced inside the hook via
+  // `hasExplicitTarget`, which is why a late-resolving region can't clobber a
+  // deep-linked activity.
+  const { fitTo, requestFit } = useCameraController({
+    defaultViewport,
+    // "Owns the camera" means a *framable* target: a selected activity with real
+    // coordinates (its bbox centre — `lng` is unset for a geometry-less activity)
+    // or a region filter. A non-framable selection must NOT suppress the default
+    // region fit, else the map would sit unframed at the world view.
+    hasExplicitTarget: selected?.lng !== undefined || routeFilters.filters.regionId !== null,
+  });
 
   // Apply the deep-link focus once the dataset has the activity: open its popup
   // (anchored at the route's bbox center, since there's no click point) and frame

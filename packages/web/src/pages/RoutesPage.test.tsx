@@ -354,6 +354,48 @@ describe("RoutesPage", () => {
     expect(screen.getByText(/Map is unavailable/)).toBeInTheDocument();
   });
 
+  // The page is the single camera decider: it computes the `fitTo` command RouteMap
+  // executes. These lock the precedence (explicit target > default region) that the
+  // deep-link-from-a-pin flow depends on.
+  describe("camera framing (fitTo)", () => {
+    it("does not issue a fit on mount when the region is already known", async () => {
+      // defaultViewport is present at mount → RouteMap's initialViewState frames it,
+      // so the parent must NOT also issue a fitTo (that would double-fit / animate).
+      await renderWithRouter(<RoutesPage />);
+      await screen.findByTestId("route-map");
+
+      expect(lastMapProps().fitTo ?? null).toBeNull();
+    });
+
+    // (The default-region fit on async resolve is unit-tested in
+    // useCameraController.test — it needs a mid-mount hook-value change that the
+    // router-backed page test can't easily drive.)
+
+    it("frames a deep-linked activity via fitTo, not the default region", async () => {
+      const activity: MapActivity = {
+        activityId: 12345,
+        name: "Deep-linked Ride",
+        sport: "cycling",
+        distanceMeters: 30_000,
+        movingTime: 3_600,
+        startDateLocal: "2026-05-01T08:00:00",
+        regionIds: [],
+        // Deliberately different from `viewport.bbox` so the assertion proves the
+        // activity — not the default region — won the camera.
+        bbox: [-73.99, 40.7, -73.95, 40.75],
+      };
+      mockUseMapDataset.mockReturnValue({ activities: [activity], isLoading: false, error: null });
+
+      await renderWithRouter(<RoutesPage />, { route: "/?activity=12345" });
+      await screen.findByTestId("route-map");
+
+      await waitFor(() => {
+        const fit = lastMapProps().fitTo as { bbox: number[] } | null;
+        expect(fit?.bbox).toEqual(activity.bbox);
+      });
+    });
+  });
+
   describe("mobile drawer coordination", () => {
     const activity: MapActivity = {
       activityId: 1,

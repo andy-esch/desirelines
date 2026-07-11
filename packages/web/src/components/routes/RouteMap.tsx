@@ -13,6 +13,7 @@ import type { MapActivity, RegionSummary } from "../../api/map";
 import { isInternalRequest } from "../../api/url";
 import { logger } from "../../lib/logger";
 import { useIsMobile } from "../../hooks/useIsMobile";
+import type { FitRequest } from "../../hooks/useCameraController";
 import { ExternalLinkIcon } from "../ui/ExternalLinkIcon";
 import { Button } from "../ui/button";
 import MapLoadingState from "./MapLoadingState";
@@ -49,6 +50,11 @@ const LIGHT_STYLE = "mapbox://styles/mapbox/light-v11";
 const FIT_PADDING = 40;
 /** Cap fit zoom so a degenerate (single-point) bbox doesn't zoom to the moon. */
 const MAX_FIT_ZOOM = 14;
+/**
+ * Shared framing (padding + max zoom) for every camera fit — mount's
+ * `initialViewState` and both imperative fits — so they can't drift apart.
+ */
+const FIT_BOUNDS_OPTIONS = { padding: FIT_PADDING, maxZoom: MAX_FIT_ZOOM } as const;
 
 /**
  * If the map hasn't emitted `load` within this window we assume it's wedged
@@ -151,15 +157,6 @@ export interface SelectedRoute {
   lat?: number;
 }
 
-/**
- * An imperative request to frame a bbox (e.g. a list-row or region selection).
- * `nonce` changes per request so re-selecting the same target re-fits.
- */
-export interface FitRequest {
-  bbox: [number, number, number, number];
-  nonce: number;
-}
-
 export interface RouteMapProps {
   /** Public, URL-restricted Mapbox pk.* token. */
   accessToken: string;
@@ -180,7 +177,8 @@ export interface RouteMapProps {
    * than going blank.
    */
   filter?: FilterSpecification | null;
-  /** Region to fit on load; null falls back to a world view. */
+  /** Region framed at mount via `initialViewState` (null → world view). Only the
+   *  first frame; later default-region fits arrive through `fitTo` from the parent. */
   defaultViewport: RegionSummary | null;
   isDark: boolean;
   /** Display unit for the click popover's distance. */
@@ -250,11 +248,6 @@ export default function RouteMap({
     getAuthTokenRef.current = getAuthToken;
     refreshAuthTokenRef.current = refreshAuthToken;
   });
-
-  // regionId of the viewport we've already fitted, so background query refetches
-  // (new object, same region) don't snap the map back over the user's pan/zoom.
-  // Seeded with the initial viewport's id since `initialViewState` fits it on mount.
-  const fittedRegionIdRef = useRef<number | null>(defaultViewport?.regionId ?? null);
 
   // Bumped to force a clean tile re-fetch after a token refresh: remounting the
   // <Source> (via key) does removeSource/addSource under the hood, which Mapbox
@@ -463,16 +456,21 @@ export default function RouteMap({
 
   const closePopup = useCallback(() => onSelect(null), [onSelect]);
 
-  // Frame a requested bbox (list-row / region selection). Guarded by nonce so it
-  // fits once per request, not on every re-render.
+  // ── Camera control ──────────────────────────────────────────────────────────
+  // The camera has a single imperative driver: `fitTo`, a nonce-stamped bbox
+  // command from the parent (RoutesPage). RouteMap just executes it — every framing
+  // decision (deep-linked activity, list-row, region select, AND the default region
+  // on load) is made upstream in one place, so there's no competing-fit race or
+  // suppression state to keep in sync here. `initialViewState` frames the region
+  // already known at mount so first paint isn't a world view. Nonce-guarded so a
+  // given request fits once, not on every re-render.
   const fittedNonceRef = useRef<number | null>(null);
   useEffect(() => {
     if (!fitTo || fittedNonceRef.current === fitTo.nonce) return;
     fittedNonceRef.current = fitTo.nonce;
     mapRef.current?.fitBounds(bboxToBounds(fitTo.bbox), {
-      padding: FIT_PADDING,
-      maxZoom: MAX_FIT_ZOOM,
-      duration: 600,
+      ...FIT_BOUNDS_OPTIONS,
+      duration: fitTo.duration,
     });
   }, [fitTo]);
 
@@ -485,22 +483,6 @@ export default function RouteMap({
     const ids = [hoveredId, selected?.id ?? null].filter((id): id is number => id !== null);
     return ["in", ["get", "activity_id"], ["literal", ids]] as FilterSpecification;
   }, [hoveredId, selected]);
-
-  // Fit the default viewport when it genuinely changes region. `initialViewState`
-  // already fit the region present at mount (recorded in fittedRegionIdRef), so a
-  // background query refetch — same regionId, new object — is skipped, preserving
-  // the user's pan/zoom.
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !defaultViewport) return;
-    if (fittedRegionIdRef.current === defaultViewport.regionId) return;
-    fittedRegionIdRef.current = defaultViewport.regionId;
-    map.fitBounds(bboxToBounds(defaultViewport.bbox), {
-      padding: FIT_PADDING,
-      maxZoom: MAX_FIT_ZOOM,
-      duration: 0,
-    });
-  }, [defaultViewport]);
 
   return (
     // role/aria on a wrapper (react-map-gl owns the inner container div). Size with
@@ -520,7 +502,7 @@ export default function RouteMap({
           defaultViewport
             ? {
                 bounds: bboxToBounds(defaultViewport.bbox),
-                fitBoundsOptions: { padding: FIT_PADDING, maxZoom: MAX_FIT_ZOOM },
+                fitBoundsOptions: FIT_BOUNDS_OPTIONS,
               }
             : { longitude: 0, latitude: 20, zoom: 1 }
         }
