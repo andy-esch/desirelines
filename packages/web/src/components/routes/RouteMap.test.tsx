@@ -408,8 +408,6 @@ describe("RouteMap viewport fitting", () => {
     activityCount: 1,
     bbox: [0, 0, 1, 1],
   };
-  const regionB: RegionSummary = { ...regionA, regionId: 2, bbox: [2, 2, 3, 3] };
-
   it("fits the initial region via initialViewState, not a re-fit on mount", () => {
     render(<RouteMap {...baseProps} defaultViewport={regionA} />);
 
@@ -423,20 +421,60 @@ describe("RouteMap viewport fitting", () => {
     expect(h.captured.fitBoundsCalls.length).toBe(0);
   });
 
-  it("fits when the viewport resolves but not again on a same-region refetch", () => {
-    const { rerender } = render(<RouteMap {...baseProps} defaultViewport={null} />);
-    expect(h.captured.fitBoundsCalls.length).toBe(0); // world view via initialViewState
+  it("executes a fitTo command, framing its bbox with the requested duration", () => {
+    // RouteMap is a pure executor now: it frames whatever bbox the parent hands it,
+    // at the parent's requested ease (0 = load-time frame, 600 = gesture).
+    render(
+      <RouteMap
+        {...baseProps}
+        defaultViewport={null}
+        fitTo={{ bbox: [10, 10, 11, 11], nonce: 1, duration: 600 }}
+      />
+    );
+    expect(h.captured.fitBoundsCalls.length).toBe(1);
+    const [bounds, opts] = h.captured.fitBoundsCalls[0] as [unknown, { duration: number }];
+    expect(bounds).toEqual([
+      [10, 10],
+      [11, 11],
+    ]);
+    expect(opts.duration).toBe(600);
+  });
 
-    rerender(<RouteMap {...baseProps} defaultViewport={regionA} />);
-    expect(h.captured.fitBoundsCalls.length).toBe(1); // first resolve → fit
-
-    // Background query refetch: new object, same regionId → no disruptive re-fit.
-    rerender(<RouteMap {...baseProps} defaultViewport={{ ...regionA }} />);
+  it("re-fits only when the fitTo nonce changes (idempotent per request)", () => {
+    const { rerender } = render(
+      <RouteMap
+        {...baseProps}
+        defaultViewport={null}
+        fitTo={{ bbox: [10, 10, 11, 11], nonce: 1, duration: 0 }}
+      />
+    );
     expect(h.captured.fitBoundsCalls.length).toBe(1);
 
-    // A genuine region change does fit again.
-    rerender(<RouteMap {...baseProps} defaultViewport={regionB} />);
+    // Same nonce, new object identity (a background re-render) → no re-fit.
+    rerender(
+      <RouteMap
+        {...baseProps}
+        defaultViewport={null}
+        fitTo={{ bbox: [10, 10, 11, 11], nonce: 1, duration: 0 }}
+      />
+    );
+    expect(h.captured.fitBoundsCalls.length).toBe(1);
+
+    // Bumped nonce (a fresh request, even re-framing the same target) → re-fits.
+    rerender(
+      <RouteMap
+        {...baseProps}
+        defaultViewport={null}
+        fitTo={{ bbox: [20, 20, 21, 21], nonce: 2, duration: 600 }}
+      />
+    );
     expect(h.captured.fitBoundsCalls.length).toBe(2);
+    const [bounds, opts] = h.captured.fitBoundsCalls[1] as [unknown, { duration: number }];
+    expect(bounds).toEqual([
+      [20, 20],
+      [21, 21],
+    ]);
+    expect(opts.duration).toBe(600);
   });
 });
 
