@@ -19,8 +19,11 @@ const h = vi.hoisted(() => {
     resizeCalls: 0,
     initialViewState: undefined as Record<string, unknown> | undefined,
     mapStyle: undefined as string | undefined,
-    interactiveLayerIds: undefined as string[] | undefined,
     fitBoundsCalls: [] as unknown[],
+    // Manual hit-testing: `queryResult` is what queryRenderedFeatures returns (set
+    // per test), `queryCalls` captures its args (point + { layers }).
+    queryResult: [] as unknown[],
+    queryCalls: [] as unknown[][],
     featureStateCalls: [] as { feature: unknown; state: unknown }[],
     sources: [] as Record<string, unknown>[],
     layers: [] as Record<string, unknown>[],
@@ -44,9 +47,12 @@ vi.mock("react-map-gl/mapbox", async () => {
     h.captured.projection = props.projection;
     h.captured.initialViewState = props.initialViewState as Record<string, unknown>;
     h.captured.mapStyle = props.mapStyle as string;
-    h.captured.interactiveLayerIds = props.interactiveLayerIds as string[];
     React.useImperativeHandle(ref, () => ({
       fitBounds: (...args: unknown[]) => h.captured.fitBoundsCalls.push(args),
+      queryRenderedFeatures: (...args: unknown[]) => {
+        h.captured.queryCalls.push(args);
+        return h.captured.queryResult;
+      },
       setFeatureState: (feature: unknown, state: unknown) =>
         h.captured.featureStateCalls.push({ feature, state }),
       resize: () => {
@@ -93,8 +99,9 @@ function resetCaptured() {
   h.captured.resizeCalls = 0;
   h.captured.initialViewState = undefined;
   h.captured.mapStyle = undefined;
-  h.captured.interactiveLayerIds = undefined;
   h.captured.fitBoundsCalls.length = 0;
+  h.captured.queryResult = [];
+  h.captured.queryCalls.length = 0;
   h.captured.featureStateCalls.length = 0;
   h.captured.sources.length = 0;
   h.captured.layers.length = 0;
@@ -201,9 +208,6 @@ describe("RouteMap layer setup", () => {
       -1,
       ["get", "activity_count"],
     ]);
-    // The dots are not interactive (overview only — not in the cross-filter).
-    // Interactivity is on the fat invisible hit layer, not the thin visible line.
-    expect(h.captured.interactiveLayerIds).toEqual(["routes-lines-hit"]);
   });
 
   it("themes the basemap and passes the color expression to the line layer", () => {
@@ -234,21 +238,46 @@ describe("RouteMap layer setup", () => {
 });
 
 describe("RouteMap interactivity (hover + click popover)", () => {
+  // Deferred rAF: capture the queued frame and run it via `flushRaf`, so the
+  // coalescing (schedule once, apply the latest point) is observable — and so the
+  // hover read applies at a controlled time (a synchronous stub would misorder the
+  // ref assignment against the callback, which only works because real rAF is async).
+  let rafCb: FrameRequestCallback | null = null;
+  const flushRaf = () => {
+    const cb = rafCb;
+    rafCb = null;
+    cb?.(0);
+  };
   beforeEach(() => {
     resetCaptured();
     vi.clearAllMocks();
+    rafCb = null;
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      rafCb = cb;
+      return 1;
+    });
+    vi.stubGlobal("cancelAnimationFrame", () => {
+      rafCb = null;
+    });
   });
+  afterEach(() => vi.unstubAllGlobals());
 
-  const feature = (id: number, props: Record<string, unknown> = {}) => ({
-    features: [
+  const EVT = { point: { x: 1, y: 1 }, lngLat: { lng: -74, lat: 40.7 } };
+  // Stage the hit-test result the handler will read, and return the pointer event.
+  const over = (id: number, props: Record<string, unknown> = {}) => {
+    h.captured.queryResult = [
       { id, properties: { name: "Morning Ride", distance: 45000, date: "2026-05-01", ...props } },
-    ],
-    lngLat: { lng: -74, lat: 40.7 },
-  });
+    ];
+    return EVT;
+  };
 
-  it("routes interactivity through the fat invisible hit layer (touch-friendly)", () => {
+  it("hit-tests only the fat invisible hit layer (touch-friendly)", () => {
     renderMap();
-    expect(h.captured.interactiveLayerIds).toEqual(["routes-lines-hit"]);
+    // A pointer read scopes queryRenderedFeatures to the hit layer alone.
+    act(() => h.captured.onMouseMove!(EVT));
+    act(() => flushRaf());
+    expect(h.captured.queryCalls.at(-1)?.[1]).toEqual({ layers: ["routes-lines-hit"] });
+
     // The hit layer is transparent, wide, and carries the cross-filter so only
     // visible routes are selectable.
     const filter = ["in", ["get", "activity_id"], ["literal", [5]]] as never;
@@ -261,16 +290,33 @@ describe("RouteMap interactivity (hover + click popover)", () => {
     expect(paint["line-width"]).toBeGreaterThan(10);
   });
 
+  it("coalesces rapid mousemoves into one hit-test per animation frame", () => {
+    renderMap();
+    // Three moves before the frame runs → one scheduled query, applied at the latest
+    // point (the whole point of the rAF throttle on a dense map).
+    act(() => {
+      h.captured.onMouseMove!({ point: { x: 1, y: 1 }, lngLat: { lng: 0, lat: 0 } });
+      h.captured.onMouseMove!({ point: { x: 2, y: 2 }, lngLat: { lng: 0, lat: 0 } });
+      h.captured.onMouseMove!({ point: { x: 3, y: 3 }, lngLat: { lng: 0, lat: 0 } });
+    });
+    expect(h.captured.queryCalls.length).toBe(0); // nothing until the frame runs
+    act(() => flushRaf());
+    expect(h.captured.queryCalls.length).toBe(1); // one query for the whole burst
+    expect(h.captured.queryCalls[0]?.[0]).toEqual([3, 3]); // latest point [x, y]
+  });
+
   it("highlights the hovered route via the highlight layer filter (not feature-state)", () => {
     renderMap();
     // Base layer never carries feature-state in its paint (that breaks rendering).
     expect(JSON.stringify(baseLayer()!.paint)).not.toContain("feature-state");
 
-    act(() => h.captured.onMouseMove!(feature(101)));
+    act(() => h.captured.onMouseMove!(over(101)));
+    act(() => flushRaf());
     expect(highlightLayer()!.filter).toEqual(["in", ["get", "activity_id"], ["literal", [101]]]);
 
     // Moving to another route highlights only that one.
-    act(() => h.captured.onMouseMove!(feature(202)));
+    act(() => h.captured.onMouseMove!(over(202)));
+    act(() => flushRaf());
     expect(highlightLayer()!.filter).toEqual(["in", ["get", "activity_id"], ["literal", [202]]]);
 
     // Leaving clears the highlight.
@@ -281,7 +327,7 @@ describe("RouteMap interactivity (hover + click popover)", () => {
   it("reports the clicked route up via onSelect (controlled selection)", () => {
     const onSelect = vi.fn();
     renderMap({ onSelect });
-    act(() => h.captured.onClick!(feature(123)));
+    act(() => h.captured.onClick!(over(123)));
     expect(onSelect).toHaveBeenCalledWith({
       id: 123,
       lng: -74,
@@ -295,7 +341,7 @@ describe("RouteMap interactivity (hover + click popover)", () => {
   it("clears the selection via onSelect(null) when clicking empty map", () => {
     const onSelect = vi.fn();
     renderMap({ onSelect });
-    act(() => h.captured.onClick!({ features: [], lngLat: { lng: 0, lat: 0 } }));
+    act(() => h.captured.onClick!({ point: { x: 0, y: 0 }, lngLat: { lng: 0, lat: 0 } }));
     expect(onSelect).toHaveBeenCalledWith(null);
   });
 
@@ -512,6 +558,26 @@ describe("RouteMap viewport fitting", () => {
       [11, 11],
     ]);
     expect(opts.duration).toBe(600);
+  });
+
+  it("frames an antimeridian-crossing bbox the short way, not around the globe", () => {
+    // A route running lng 170 → -170 stores as bbox [-170, .., 170, ..] (a 340°
+    // span). Naively that frames almost the whole world; it should frame the 20°
+    // arc across the date line instead.
+    render(
+      <RouteMap
+        {...baseProps}
+        defaultViewport={null}
+        fitTo={{ bbox: [-170, -1, 170, 1], nonce: 1, duration: 0 }}
+      />
+    );
+    expect(h.captured.fitBoundsCalls.length).toBe(1);
+    const [bounds] = h.captured.fitBoundsCalls[0] as [unknown];
+    // West 170 → east 190 (= -170 wrapped past +180): the short arc across the seam.
+    expect(bounds).toEqual([
+      [170, -1],
+      [190, 1],
+    ]);
   });
 
   it("re-fits only when the fitTo nonce changes (idempotent per request)", () => {

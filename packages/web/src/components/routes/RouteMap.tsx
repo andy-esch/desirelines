@@ -97,7 +97,9 @@ const AUTH_REFRESH_RESET_MS = 30_000;
  */
 const MAP_PROJECTION = { name: "mercator" } as const;
 
-/** Crisp line; width grows with zoom so routes stay legible world→street. */
+/** Crisp line; width grows with zoom so routes stay legible world→street. Past z14
+ *  it keeps widening for street-level presence (paired with LINE_OPACITY, which
+ *  fades it as it fattens so dense areas don't turn into a solid blob). */
 const LINE_WIDTH: ExpressionSpecification = [
   "interpolate",
   ["linear"],
@@ -108,7 +110,19 @@ const LINE_WIDTH: ExpressionSpecification = [
   2,
   14,
   3.5,
+  16,
+  5,
+  18,
+  7,
 ];
+/**
+ * Line opacity, tied to zoom as a proxy for width: fully opaque out to z14, then
+ * eased down as the line fattens past it — wider strokes at street level read
+ * better semi-transparent, and overlapping routes in dense areas stay legible
+ * instead of merging into one blob. Applies to the base lines only; the
+ * hover/selected highlight stays fully opaque so it still pops.
+ */
+const LINE_OPACITY: ExpressionSpecification = ["interpolate", ["linear"], ["zoom"], 14, 1, 18, 0.6];
 /**
  * Thicker line for the hovered/selected route, drawn by a separate highlight
  * layer filtered to those ids. (We deliberately do NOT use `feature-state` in
@@ -125,6 +139,10 @@ const HOVER_WIDTH: ExpressionSpecification = [
   4,
   14,
   6,
+  16,
+  8,
+  18,
+  10,
 ];
 const HIGHLIGHT_LAYER_ID = "routes-lines-highlight";
 
@@ -211,6 +229,16 @@ export interface RouteMapProps {
 
 function bboxToBounds(bbox: [number, number, number, number]): LngLatBoundsLike {
   const [minLng, minLat, maxLng, maxLat] = bbox;
+  // A >180° longitude span means the route wraps the SHORT way across the
+  // antimeridian (date line), not the long way around the globe — a naive [min,max]
+  // box would frame nearly the whole world and zoom right out. Frame the short arc
+  // instead by pushing the western edge east of +180° so mapbox fits across the seam.
+  if (maxLng - minLng > 180) {
+    return [
+      [maxLng, minLat],
+      [minLng + 360, maxLat],
+    ];
+  }
   return [
     [minLng, minLat],
     [maxLng, maxLat],
@@ -394,7 +422,7 @@ export default function RouteMap({
     () => ({
       "line-color": colorExpression,
       "line-width": LINE_WIDTH,
-      "line-opacity": 1,
+      "line-opacity": LINE_OPACITY,
     }),
     [colorExpression]
   );
@@ -474,10 +502,24 @@ export default function RouteMap({
     if (status === "error") errorRef.current?.querySelector("button")?.focus();
   }, [status]);
 
-  const onMouseMove = useCallback((e: MapMouseEvent) => {
+  // We hit-test the fat hit layer ourselves so we can rate-limit it. `interactiveLayerIds`
+  // makes react-map-gl run `queryRenderedFeatures` on EVERY raw mousemove — the
+  // per-event cost that janks a dense map. Instead we coalesce hover reads to one
+  // query per animation frame (~60fps); clicks query on demand.
+  const hoverRafRef = useRef<number | null>(null);
+  // Screen point [x, y] of the latest mousemove (mapbox's `Point` type resolves to an
+  // error type under type-aware lint, so we keep a plain tuple — a valid PointLike).
+  const hoverPointRef = useRef<[number, number] | null>(null);
+
+  const applyHover = useCallback(() => {
+    hoverRafRef.current = null;
     const map = mapRef.current;
-    if (!map) return;
-    const id = (e.features?.[0] as RouteFeature | undefined)?.id;
+    const point = hoverPointRef.current;
+    if (!map || !point) return;
+    const f = map.queryRenderedFeatures(point, { layers: [HITAREA_LAYER_ID] })[0] as
+      | RouteFeature
+      | undefined;
+    const id = f?.id;
     const nextId = typeof id === "number" || typeof id === "string" ? Number(id) : null;
     map.getCanvas().style.cursor = nextId !== null ? "pointer" : "";
     if (hoveredIdRef.current === nextId) return; // only re-render on a genuine change
@@ -485,7 +527,31 @@ export default function RouteMap({
     setHoveredId(nextId);
   }, []);
 
+  const onMouseMove = useCallback(
+    (e: MapMouseEvent) => {
+      const p = e.point as { x: number; y: number };
+      hoverPointRef.current = [p.x, p.y];
+      if (hoverRafRef.current == null) {
+        hoverRafRef.current = requestAnimationFrame(applyHover);
+      }
+    },
+    [applyHover]
+  );
+
+  // Cancel any queued hover read on unmount so a pending frame can't touch a
+  // torn-down map.
+  useEffect(
+    () => () => {
+      if (hoverRafRef.current != null) cancelAnimationFrame(hoverRafRef.current);
+    },
+    []
+  );
+
   const clearHover = useCallback(() => {
+    if (hoverRafRef.current != null) {
+      cancelAnimationFrame(hoverRafRef.current);
+      hoverRafRef.current = null;
+    }
     const map = mapRef.current;
     if (map) map.getCanvas().style.cursor = "";
     hoveredIdRef.current = null;
@@ -494,7 +560,10 @@ export default function RouteMap({
 
   const onClick = useCallback(
     (e: MapMouseEvent) => {
-      const f = e.features?.[0] as RouteFeature | undefined;
+      const p = e.point as { x: number; y: number };
+      const f = mapRef.current?.queryRenderedFeatures([p.x, p.y], {
+        layers: [HITAREA_LAYER_ID],
+      })[0] as RouteFeature | undefined;
       if (!f || f.id == null) {
         onSelect(null); // click on empty map closes the popover / clears selection
         return;
@@ -566,7 +635,6 @@ export default function RouteMap({
         }
         transformRequest={transformRequest}
         onError={handleError}
-        interactiveLayerIds={[HITAREA_LAYER_ID]}
         onMouseMove={onMouseMove}
         onMouseLeave={clearHover}
         onClick={onClick}
