@@ -651,7 +651,11 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 	qb := newQueryBuilder(`
 		SELECT
 			id, name, type, sport, start_date_local,
-			distance, moving_time, total_elevation_gain
+			distance, moving_time, total_elevation_gain,
+			EXISTS (
+				SELECT 1 FROM desirelines.activity_regions r
+				WHERE r.activity_id = activities.id
+			) AS has_route
 		FROM desirelines.activities
 		WHERE 1=1
 	`)
@@ -710,6 +714,7 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 		distanceMeters float64
 		movingTime     int32
 		elevation      *float64
+		hasRoute       bool
 	}
 
 	scannedActivities := make([]scannedActivity, 0, limit)
@@ -720,6 +725,7 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 		var distanceMeters float64
 		var movingTime int32
 		var elevation *float64
+		var hasRoute bool
 
 		if retErr = rows.Scan(
 			&id,
@@ -730,6 +736,7 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 			&distanceMeters,
 			&movingTime,
 			&elevation,
+			&hasRoute,
 		); retErr != nil {
 			return nil, fmt.Errorf("scan activity row: %w", retErr)
 		}
@@ -743,6 +750,7 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 			distanceMeters: distanceMeters,
 			movingTime:     movingTime,
 			elevation:      elevation,
+			hasRoute:       hasRoute,
 		})
 	}
 
@@ -769,6 +777,7 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 			DistanceMeters:    a.distanceMeters,
 			MovingTimeSeconds: a.movingTime,
 			ElevationMeters:   a.elevation,
+			HasRoute:          a.hasRoute,
 		})
 	}
 

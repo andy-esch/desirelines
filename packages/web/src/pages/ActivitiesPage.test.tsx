@@ -65,6 +65,7 @@ describe("ActivitiesPage", () => {
       distanceMeters: 45000,
       movingTimeSeconds: 5400,
       elevationMeters: 450,
+      hasRoute: true,
     },
   ];
 

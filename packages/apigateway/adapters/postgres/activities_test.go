@@ -784,9 +784,13 @@ func TestActivityRepository_ListActivities_SignatureAndTypes(t *testing.T) {
 			DistanceMeters:    10000,
 			MovingTimeSeconds: 1800,
 			ElevationMeters:   &elevation,
+			HasRoute:          true,
 		}
 		if summary.Id != 12345 {
 			t.Error("Id field should be set")
+		}
+		if !summary.HasRoute {
+			t.Error("HasRoute field should be set")
 		}
 	})
 

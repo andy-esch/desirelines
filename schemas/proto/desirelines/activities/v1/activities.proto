@@ -82,6 +82,12 @@ message ActivitySummary {
 
   // Elevation gain in meters (nullable).
   optional double elevation_meters = 8;
+
+  // True when the activity has real-world geography and thus appears on the
+  // routes map: it is tagged to >=1 region (the same inclusion rule as
+  // GET /activities/map/dataset). Indoor/virtual activities have no region tag
+  // and are false. Drives the "view on map" affordance in list views.
+  bool has_route = 9;
 }
 
 // MapActivity is a single geo-bearing activity for the routes-map cross-filter

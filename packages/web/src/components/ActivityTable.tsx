@@ -203,7 +203,7 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                   )}
                   <td className="text-right pe-6">
                     <div className="inline-flex items-center gap-3">
-                      {onViewOnMap && (
+                      {onViewOnMap && activity.hasRoute && (
                         <button
                           type="button"
                           onClick={() => onViewOnMap(activity.id)}

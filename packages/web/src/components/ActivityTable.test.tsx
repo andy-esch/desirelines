@@ -15,6 +15,7 @@ describe("ActivityTable", () => {
       distanceMeters: 45000,
       movingTimeSeconds: 5400,
       elevationMeters: 450,
+      hasRoute: true,
     },
     {
       id: "123456790",
@@ -25,6 +26,7 @@ describe("ActivityTable", () => {
       distanceMeters: 8000,
       movingTimeSeconds: 2400,
       elevationMeters: 50,
+      hasRoute: true,
     },
     {
       id: "123456791",
@@ -34,8 +36,13 @@ describe("ActivityTable", () => {
       startDateLocal: "2025-12-26T07:00:00",
       distanceMeters: 0,
       movingTimeSeconds: 3600,
+      // Indoor/no geography → no "view on map" affordance.
+      hasRoute: false,
     },
   ];
+
+  /** Count of fixture activities that carry route geography (get a map pin). */
+  const activitiesWithRoute = mockActivities.filter((a) => a.hasRoute).length;
 
   const defaultProps = {
     activities: mockActivities,
@@ -62,9 +69,21 @@ describe("ActivityTable", () => {
       const mapButtons = screen.getAllByRole("button", {
         name: /view this activity on the map/i,
       });
-      expect(mapButtons).toHaveLength(mockActivities.length);
+      // Only the geo-bearing activities (hasRoute) get a pin — not every row.
+      expect(mapButtons).toHaveLength(activitiesWithRoute);
       await userEvent.click(mapButtons[0]!);
       expect(onViewOnMap).toHaveBeenCalledWith("123456789");
+    });
+
+    it("omits the View-on-map pin for activities without route data", () => {
+      render(<ActivityTable {...defaultProps} onViewOnMap={vi.fn()} />);
+
+      // The yoga session (hasRoute: false) must not get a pin, so the count
+      // reflects only the routed activities.
+      expect(
+        screen.getAllByRole("button", { name: /view this activity on the map/i })
+      ).toHaveLength(activitiesWithRoute);
+      expect(activitiesWithRoute).toBeLessThan(mockActivities.length);
     });
 
     it("hides the View-on-map control when no onViewOnMap handler is given", () => {
