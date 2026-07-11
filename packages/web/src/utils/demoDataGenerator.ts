@@ -737,6 +737,9 @@ export function generateDemoActivities(
       distanceMeters: Math.round(distance),
       movingTimeSeconds: Math.round(duration),
       elevationMeters: elevation ? Math.round(elevation) : undefined,
+      // No "view on map" pin in demo: /routes is auth-gated (demo users never
+      // reach it), so a pin would only lead to the sign-in wall.
+      hasRoute: false,
     });
 
     activitiesGenerated++;

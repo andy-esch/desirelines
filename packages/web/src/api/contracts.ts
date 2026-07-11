@@ -113,6 +113,9 @@ const ActivitySchema = z
     name: z.string().optional(),
     sport: z.string().optional(),
     type: z.string().optional(),
+    // Present on ActivitySummary (list responses); gates the "view on map"
+    // affordance. Absent on the full Activity (GET /activities/{id}).
+    hasRoute: z.boolean().optional(),
   })
   .passthrough();
 

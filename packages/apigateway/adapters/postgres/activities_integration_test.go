@@ -197,6 +197,42 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 		})
 	})
 
+	t.Run("ListActivities_HasRoute", func(t *testing.T) {
+		// has_route mirrors the /activities/map/dataset inclusion rule: it is true
+		// iff the activity is tagged to >=1 region — NOT merely that it has route
+		// geometry. A routed-but-untagged activity is still false, so the "view on
+		// map" pin only appears when the routes map can actually show the activity.
+		withTestTxRaw(t, pool, func(tx pgx.Tx, repo *postgres.ActivityRepository) {
+			regionID := insertTestRegion(t, tx, "r1", "cbsa_metro")
+			insertRoutedActivity(t, tx, 5001, "test-user") // routed + tagged → true
+			tagActivityRegion(t, tx, 5001, regionID)
+			insertRoutedActivity(t, tx, 5002, "test-user")    // routed, untagged → false
+			insertRoutelessActivity(t, tx, 5003, "test-user") // routeless → false
+
+			resp, err := repo.ListActivities(ctx, repository.ActivityListFilter{
+				UserID: "test-user",
+				Limit:  10,
+			})
+			if err != nil {
+				t.Fatalf("ListActivities failed: %v", err)
+			}
+
+			got := make(map[int64]bool, len(resp.Activities))
+			for _, a := range resp.Activities {
+				got[a.Id] = a.HasRoute
+			}
+			if !got[5001] {
+				t.Error("activity 5001 (region-tagged) should have HasRoute=true")
+			}
+			if got[5002] {
+				t.Error("activity 5002 (routed but untagged) should have HasRoute=false")
+			}
+			if got[5003] {
+				t.Error("activity 5003 (routeless) should have HasRoute=false")
+			}
+		})
+	})
+
 	t.Run("ListActivities_WithLimit", func(t *testing.T) {
 		withTestTx(t, pool, func(repo *postgres.ActivityRepository) {
 			response, err := repo.ListActivities(ctx, repository.ActivityListFilter{

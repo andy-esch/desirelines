@@ -280,20 +280,22 @@ export default function RecentActivitiesList({
                           >
                             {activity.name}
                           </a>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void navigate({
-                                to: "/routes",
-                                search: { activity: Number(activity.id) },
-                              })
-                            }
-                            className="shrink-0 text-slate-light hover:text-accent-cyan motion-safe:transition-colors"
-                            title="View on map"
-                            aria-label="View this activity on the map"
-                          >
-                            <MapPinIcon size={12} />
-                          </button>
+                          {activity.hasRoute && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void navigate({
+                                  to: "/routes",
+                                  search: { activity: Number(activity.id) },
+                                })
+                              }
+                              className="shrink-0 text-slate-light hover:text-accent-cyan motion-safe:transition-colors"
+                              title="View on map"
+                              aria-label="View this activity on the map"
+                            >
+                              <MapPinIcon size={12} />
+                            </button>
+                          )}
                         </>
                       ) : (
                         <span className="truncate" title="Links disabled in demo mode">

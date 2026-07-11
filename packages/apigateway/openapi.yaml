@@ -629,7 +629,7 @@ components:
     ActivitySummary:
       type: object
       description: Condensed activity for list views
-      required: [id, name, type, sport, start_date_local, distance_meters, moving_time_seconds]
+      required: [id, name, type, sport, start_date_local, distance_meters, moving_time_seconds, has_route]
       properties:
         id:
           type: integer
@@ -651,6 +651,13 @@ components:
         elevation_meters:
           type: number
           format: double
+        has_route:
+          type: boolean
+          description: >-
+            True when the activity is tagged to >=1 region and thus appears on
+            the routes map (same inclusion rule as GET /activities/map/dataset).
+            Indoor/virtual activities are false. Drives the "view on map"
+            affordance in list views.
 
     ActivityListResponse:
       type: object

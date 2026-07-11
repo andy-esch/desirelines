@@ -34,6 +34,7 @@ describe("useActivities", () => {
       distanceMeters: 45000,
       movingTimeSeconds: 5400,
       elevationMeters: 450,
+      hasRoute: true,
     },
     {
       id: "123456790",
@@ -44,6 +45,7 @@ describe("useActivities", () => {
       distanceMeters: 8000,
       movingTimeSeconds: 2400,
       elevationMeters: 50,
+      hasRoute: true,
     },
   ];
 

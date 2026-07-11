@@ -31,7 +31,9 @@ interface ActivityTableProps {
   onRetry: () => void;
   /** Navigate to the routes map focused on this activity (the "View on map" link).
    *  A handler (not a route inside the table) keeps the table router-context-free;
-   *  the page wires it to client-side navigation. Omit to hide the affordance. */
+   *  the page wires it to client-side navigation. Omit to hide the affordance for
+   *  the whole table; per row, the pin also only shows when `activity.hasRoute`
+   *  (the routes map can't display a routeless/indoor activity). */
   onViewOnMap?: (activityId: string) => void;
   distanceUnit?: DistanceUnit;
   elevationUnit?: ElevationUnit;
@@ -203,7 +205,7 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                   )}
                   <td className="text-right pe-6">
                     <div className="inline-flex items-center gap-3">
-                      {onViewOnMap && (
+                      {onViewOnMap && activity.hasRoute && (
                         <button
                           type="button"
                           onClick={() => onViewOnMap(activity.id)}
