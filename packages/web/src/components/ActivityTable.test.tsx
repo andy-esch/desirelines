@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ActivityTable from "./ActivityTable";
 import type { ActivitySummary } from "../api/activities";
@@ -75,15 +75,17 @@ describe("ActivityTable", () => {
       expect(onViewOnMap).toHaveBeenCalledWith("123456789");
     });
 
-    it("omits the View-on-map pin for activities without route data", () => {
+    it("shows the pin only on the row of a routed activity, not a routeless one", () => {
       render(<ActivityTable {...defaultProps} onViewOnMap={vi.fn()} />);
+      const pinName = { name: /view this activity on the map/i } as const;
 
-      // The yoga session (hasRoute: false) must not get a pin, so the count
-      // reflects only the routed activities.
-      expect(
-        screen.getAllByRole("button", { name: /view this activity on the map/i })
-      ).toHaveLength(activitiesWithRoute);
-      expect(activitiesWithRoute).toBeLessThan(mockActivities.length);
+      // The routed cycling row gets a pin...
+      const routedRow = screen.getByText("Morning Ride").closest("tr")!;
+      expect(within(routedRow).getByRole("button", pinName)).toBeInTheDocument();
+
+      // ...but the indoor yoga row (hasRoute: false) does not.
+      const routelessRow = screen.getByText("Yoga Session").closest("tr")!;
+      expect(within(routelessRow).queryByRole("button", pinName)).not.toBeInTheDocument();
     });
 
     it("hides the View-on-map control when no onViewOnMap handler is given", () => {
