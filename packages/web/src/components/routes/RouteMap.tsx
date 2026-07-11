@@ -680,7 +680,9 @@ export default function RouteMap({
       {status === "ready" && tilesUnavailable && (
         <div
           role="status"
-          className="absolute bottom-20 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-slate-dark/85 px-3 py-1 text-[0.7rem] text-slate-light backdrop-blur-sm sm:bottom-2"
+          // Sits above the density caption's slot (bottom-20 / sm:bottom-2) so the
+          // two don't overlap when zoomed out and tiles fail at the same time.
+          className="absolute bottom-28 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-slate-dark/85 px-3 py-1 text-[0.7rem] text-slate-light backdrop-blur-sm sm:bottom-9"
         >
           <span>Routes couldn’t be loaded.</span>
           <button
@@ -702,7 +704,8 @@ export default function RouteMap({
           WebGL can't come up (e.g. WebGL unavailable on iOS, a stalled style fetch).
           Retryable until MAX_RETRIES, then terminal (no button) so it can't loop
           forever on a browser that simply can't render the map. The internal-401 tile
-          recovery above is unaffected. */}
+          recovery escalates here only on a not-yet-ready map (after the refresh cap);
+          on an already-rendered map it shows the dismissible notice above instead. */}
       {status === "error" && (
         <div
           ref={errorRef}
