@@ -279,11 +279,23 @@ export default function RouteMap({
   const [remountKey, setRemountKey] = useState(0);
   // Count of retries so far; once it hits MAX_RETRIES the error surface goes terminal.
   const [retries, setRetries] = useState(0);
+  // Route tiles gave up after MAX_AUTH_REFRESHES on an *already-loaded* map — the
+  // basemap is fine, so instead of the full error overlay we show a dismissible
+  // "routes unavailable" notice with a soft retry (re-fetch tiles, not a GL remount).
+  const [tilesUnavailable, setTilesUnavailable] = useState(false);
 
   const retry = useCallback(() => {
     setRetries((n) => n + 1);
     setStatus("loading");
     setRemountKey((k) => k + 1);
+  }, []);
+
+  // Soft retry for the route tiles alone: reset the auth-refresh budget and re-fetch
+  // tiles (source remount) without recreating the whole map / basemap.
+  const retryTiles = useCallback(() => {
+    authRefreshCountRef.current = 0;
+    setTilesUnavailable(false);
+    setReloadNonce((n) => n + 1);
   }, []);
 
   // Attach our Firebase ID token to internal tile requests only. Mapbox's own
@@ -321,16 +333,21 @@ export default function RouteMap({
 
         if (authRefreshCountRef.current >= MAX_AUTH_REFRESHES) {
           // Refreshed tokens keep 401ing → auth is genuinely broken; stop looping
-          // (each cycle blanks tiles) and surface the retryable error. Guarded so it
-          // never condemns an already-rendered map — a working basemap with missing
-          // route tiles beats replacing it with an error overlay.
+          // (each cycle blanks tiles) and surface the failure. On a not-yet-ready map
+          // that's the full retryable overlay; on an already-rendered map we keep the
+          // working basemap and show a dismissible "routes unavailable" notice
+          // instead of condemning it. (The quiet-gap reset still lets a later pan
+          // retry automatically.)
           logger.error(
             `[RouteMap] internal tile 401 persists after ${MAX_AUTH_REFRESHES} refreshes; giving up`
           );
           setStatus((s) => (s === "ready" ? s : "error"));
+          setTilesUnavailable(true);
           return;
         }
 
+        // Under budget: we're (re)attempting, so clear any stale "unavailable" notice.
+        setTilesUnavailable(false);
         authRefreshCountRef.current += 1;
         refreshingRef.current = true;
         void refreshAuthTokenRef
@@ -435,6 +452,7 @@ export default function RouteMap({
     // the 401-refresh budget: a full (re)mount is a clean slate.
     setRetries(0);
     authRefreshCountRef.current = 0;
+    setTilesUnavailable(false);
     syncZoomView();
   }, [syncZoomView]);
 
@@ -653,6 +671,25 @@ export default function RouteMap({
       {dotsView && (
         <div className="pointer-events-none absolute bottom-20 left-1/2 -translate-x-1/2 rounded-full bg-slate-dark/80 px-3 py-1 text-center text-[0.7rem] text-slate-light backdrop-blur-sm sm:bottom-2">
           Zoomed-out density — dots show all activities; zoom in to filter
+        </div>
+      )}
+
+      {/* Route tiles gave up (auth) on an otherwise-working map: keep the basemap,
+          tell the user their routes couldn't load, and offer a soft retry. Only while
+          `ready` — before that the full error overlay below handles it. */}
+      {status === "ready" && tilesUnavailable && (
+        <div
+          role="status"
+          className="absolute bottom-20 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-slate-dark/85 px-3 py-1 text-[0.7rem] text-slate-light backdrop-blur-sm sm:bottom-2"
+        >
+          <span>Routes couldn’t be loaded.</span>
+          <button
+            type="button"
+            onClick={retryTiles}
+            className="font-semibold text-accent-cyan underline underline-offset-2 hover:text-accent-magenta motion-safe:transition-colors"
+          >
+            Retry
+          </button>
         </div>
       )}
 

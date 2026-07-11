@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, act, screen } from "@testing-library/react";
+import { render, act, screen, fireEvent } from "@testing-library/react";
 import RouteMap from "./RouteMap";
 import type { RegionSummary } from "../../api/map";
 
@@ -400,6 +400,60 @@ describe("RouteMap 401 recovery", () => {
     expect(refreshAuthToken).toHaveBeenCalledTimes(3);
     // ...and the failure is surfaced (retryable overlay) instead of blanking tiles.
     expect(screen.getByRole("alert")).toBeInTheDocument();
+  });
+
+  it("shows a dismissible notice (not the full overlay) when tiles give up on a ready map", async () => {
+    const refreshAuthToken = vi.fn().mockResolvedValue(undefined);
+    renderMap({ refreshAuthToken });
+    act(() => h.captured.onLoad!()); // basemap loaded → status "ready"
+
+    for (let i = 0; i < 5; i++) {
+      await act(async () => {
+        h.captured.onError!({ error: { status: 401, url: A_TILE } });
+        await new Promise((r) => setTimeout(r, 0));
+      });
+    }
+
+    // The working basemap is kept (no full-screen error overlay)...
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    // ...and a non-blocking notice with a soft retry is offered instead.
+    expect(screen.getByText(/couldn.t be loaded/i)).toBeInTheDocument();
+
+    const mountsBefore = h.captured.sourceMounts;
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+      await Promise.resolve();
+    });
+    // Retry re-fetches tiles (source remount) and clears the notice.
+    expect(h.captured.sourceMounts).toBeGreaterThan(mountsBefore);
+    expect(screen.queryByText(/couldn.t be loaded/i)).not.toBeInTheDocument();
+  });
+
+  it("resets the refresh budget after a quiet gap between 401 bursts", async () => {
+    const nowSpy = vi.spyOn(Date, "now");
+    let clock = 1_000_000;
+    nowSpy.mockImplementation(() => clock);
+    try {
+      const refreshAuthToken = vi.fn().mockResolvedValue(undefined);
+      renderMap({ refreshAuthToken });
+
+      const fire401 = () =>
+        act(async () => {
+          h.captured.onError!({ error: { status: 401, url: A_TILE } });
+          await new Promise((r) => setTimeout(r, 0));
+        });
+
+      // Same instant: 3 refreshes then the cap trips (4th 401 gives up).
+      for (let i = 0; i < 4; i++) await fire401();
+      expect(refreshAuthToken).toHaveBeenCalledTimes(3);
+
+      // A 401 past AUTH_REFRESH_RESET_MS later is a fresh incident → new budget.
+      clock += 31_000;
+      await fire401();
+      expect(refreshAuthToken).toHaveBeenCalledTimes(4);
+    } finally {
+      nowSpy.mockRestore();
+    }
   });
 });
 
