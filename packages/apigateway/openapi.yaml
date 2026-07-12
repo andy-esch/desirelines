@@ -241,6 +241,80 @@ paths:
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 
+  /v1/activities/map/tiles.json:
+    get:
+      tags: [Activities]
+      summary: TileJSON metadata for the routes-map vector tiles
+      description: >
+        Returns a TileJSON 3.0.0 document describing the routes-map vector tiles:
+        the tile URL template, min/max zoom, and per-layer zoom ranges (the
+        "routes" layer's minzoom is the level-of-detail handoff, z8). The client
+        sources its zoom levels from here instead of hardcoding them; it builds its
+        own origin-aware tile URL (Firebase Hosting rewrites), so it reads only the
+        zoom levels from this document, not the tiles template.
+      operationId: getMapTileJSON
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: TileJSON 3.0.0 metadata document
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tilejson, tiles, minzoom, maxzoom, vector_layers]
+                properties:
+                  tilejson:
+                    type: string
+                    example: '3.0.0'
+                  name:
+                    type: string
+                  scheme:
+                    type: string
+                    example: xyz
+                  tiles:
+                    type: array
+                    items:
+                      type: string
+                  minzoom:
+                    type: integer
+                    example: 0
+                  maxzoom:
+                    type: integer
+                    example: 14
+                  bounds:
+                    type: array
+                    items:
+                      type: number
+                    minItems: 4
+                    maxItems: 4
+                  center:
+                    type: array
+                    items:
+                      type: number
+                    minItems: 3
+                    maxItems: 3
+                  vector_layers:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, minzoom, maxzoom]
+                      properties:
+                        id:
+                          type: string
+                        minzoom:
+                          type: integer
+                        maxzoom:
+                          type: integer
+                        fields:
+                          type: object
+                          additionalProperties:
+                            type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
   /v1/activities/map/tiles/{z}/{x}/{y}:
     get:
       tags: [Activities]

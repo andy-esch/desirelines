@@ -9,7 +9,7 @@ import type {
   LineLayerSpecification,
   LngLatBoundsLike,
 } from "mapbox-gl";
-import type { MapActivity, RegionSummary } from "../../api/map";
+import type { MapActivity, RegionSummary, MapTileJSON } from "../../api/map";
 import { isInternalRequest } from "../../api/url";
 import { logger } from "../../lib/logger";
 import { useIsMobile } from "../../hooks/useIsMobile";
@@ -34,13 +34,9 @@ const SOURCE_ID = "routes-src";
 const SOURCE_LAYER = "routes";
 const LAYER_ID = "routes-lines";
 
-/**
- * Below this zoom the tile server emits a grid-binned `route_points` density layer
- * instead of route lines (see `lineMinZoom` in the apigateway tile query). The
- * circle layer shows under it and the line layers show at/above it — a clean
- * level-of-detail handoff. MUST match the server's `lineMinZoom`.
- */
-const LINE_MIN_ZOOM = 8;
+// The LOD handoff zoom (route lines at/above it, grid-binned `route_points` density
+// dots below) is no longer a local constant: it comes from the backend TileJSON via
+// `tileMeta.lineMinZoom`, so client and server can't drift.
 const POINTS_SOURCE_LAYER = "route_points";
 const POINTS_LAYER_ID = "routes-points";
 
@@ -192,6 +188,9 @@ export interface RouteMapProps {
   accessToken: string;
   /** Absolute MVT tile template URL with literal {z}/{x}/{y} placeholders. */
   tileTemplateUrl: string;
+  /** Tile zoom levels (min/max + LOD switch) from the backend TileJSON — the source
+   *  of truth so the client doesn't hardcode them. See `useMapTileJSON`. */
+  tileMeta: MapTileJSON;
   /** API gateway base (`${apiGatewayUrl}/v1`) — used to classify internal requests. */
   apiBaseUrl: string;
   /** Reads the current Firebase ID token synchronously for tile auth headers. */
@@ -262,6 +261,7 @@ function bboxToBounds(bbox: [number, number, number, number]): LngLatBoundsLike 
 export default function RouteMap({
   accessToken,
   tileTemplateUrl,
+  tileMeta,
   apiBaseUrl,
   getAuthToken,
   refreshAuthToken,
@@ -465,9 +465,9 @@ export default function RouteMap({
   const syncZoomView = useCallback(() => {
     const z = mapRef.current?.getZoom();
     if (z == null) return;
-    const low = z < LINE_MIN_ZOOM;
+    const low = z < tileMeta.lineMinZoom;
     setDotsView((prev) => (prev === low ? prev : low));
-  }, []);
+  }, [tileMeta.lineMinZoom]);
 
   // On load: force a resize — iOS WebKit can size the GL canvas before the
   // `fixed` map container settles, leaving a 0/stale drawing buffer (grey) until
@@ -517,8 +517,7 @@ export default function RouteMap({
     const point = hoverPointRef.current;
     if (!map || !point) return;
     const f = map.queryRenderedFeatures(point, { layers: [HITAREA_LAYER_ID] })[0] as
-      | RouteFeature
-      | undefined;
+      RouteFeature | undefined;
     const id = f?.id;
     const nextId = typeof id === "number" || typeof id === "string" ? Number(id) : null;
     map.getCanvas().style.cursor = nextId !== null ? "pointer" : "";
@@ -651,8 +650,8 @@ export default function RouteMap({
           id={SOURCE_ID}
           type="vector"
           tiles={[tileTemplateUrl]}
-          minzoom={0}
-          maxzoom={14}
+          minzoom={tileMeta.minZoom}
+          maxzoom={tileMeta.maxZoom}
           // Promote the MVT `activity_id` property to the feature id (per
           // source-layer) so hover/click events expose it as `feature.id` (MVT
           // features have no native id). The highlight uses a filtered layer, not
@@ -663,7 +662,7 @@ export default function RouteMap({
             id={LAYER_ID}
             type="line"
             source-layer={SOURCE_LAYER}
-            minzoom={LINE_MIN_ZOOM}
+            minzoom={tileMeta.lineMinZoom}
             // Spread `filter` only when present — null/absent ⇒ no filter (show all).
             // (Spread, not `filter={... ?? undefined}`, for exactOptionalPropertyTypes.)
             {...(filter ? { filter } : {})}
@@ -677,7 +676,7 @@ export default function RouteMap({
             id={HITAREA_LAYER_ID}
             type="line"
             source-layer={SOURCE_LAYER}
-            minzoom={LINE_MIN_ZOOM}
+            minzoom={tileMeta.lineMinZoom}
             {...(filter ? { filter } : {})}
             layout={{ "line-join": "round", "line-cap": "round" }}
             paint={HIT_PAINT}
@@ -688,20 +687,20 @@ export default function RouteMap({
             id={HIGHLIGHT_LAYER_ID}
             type="line"
             source-layer={SOURCE_LAYER}
-            minzoom={LINE_MIN_ZOOM}
+            minzoom={tileMeta.lineMinZoom}
             filter={highlightFilter}
             layout={{ "line-join": "round", "line-cap": "round" }}
             paint={highlightPaint}
           />
           {/* Low-zoom density overview: one sized dot per grid cell (the server's
-              `route_points` layer), shown below LINE_MIN_ZOOM where individual lines
+              `route_points` layer), shown below the LOD switch where individual lines
               become spaghetti. Not interactive / not cross-filtered — an overview of
               the full dataset (see the caption). */}
           <Layer
             id={POINTS_LAYER_ID}
             type="circle"
             source-layer={POINTS_SOURCE_LAYER}
-            maxzoom={LINE_MIN_ZOOM}
+            maxzoom={tileMeta.lineMinZoom}
             // Stack concentric per-sport dots largest-behind: Mapbox draws ascending
             // sort-key first (at the back), so -count puts the biggest circle behind
             // and smaller ones on top — all visible.

@@ -516,6 +516,73 @@ func TestHandleMapRegions(t *testing.T) {
 	}
 }
 
+func TestHandleMapTileJSON(t *testing.T) {
+	handler := newTestHandler(t)
+
+	t.Run("returns a valid TileJSON doc sourced from the shared zoom constants", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/activities/map/tiles.json", nil)
+		req = req.WithContext(middleware.WithUserID(req.Context(), "user-123"))
+		w := httptest.NewRecorder()
+
+		handler.HandleMapTileJSON(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", w.Code)
+		}
+		var doc struct {
+			TileJSON     string   `json:"tilejson"`
+			Tiles        []string `json:"tiles"`
+			MinZoom      int      `json:"minzoom"`
+			MaxZoom      int      `json:"maxzoom"`
+			VectorLayers []struct {
+				ID      string `json:"id"`
+				MinZoom int    `json:"minzoom"`
+			} `json:"vector_layers"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &doc); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if doc.TileJSON != "3.0.0" {
+			t.Errorf("tilejson = %q, want 3.0.0", doc.TileJSON)
+		}
+		if len(doc.Tiles) != 1 {
+			t.Fatalf("tiles = %v, want exactly one template", doc.Tiles)
+		}
+		if !strings.Contains(doc.Tiles[0], "{z}/{x}/{y}") {
+			t.Errorf("tiles[0] = %q, want a {z}/{x}/{y} template", doc.Tiles[0])
+		}
+		// Must be RELATIVE to this endpoint's URL (no scheme/host) — an absolute URL
+		// built from the request would be wrong behind the /api StripPrefix and would
+		// echo an untrusted Host header.
+		if strings.Contains(doc.Tiles[0], "://") || strings.HasPrefix(doc.Tiles[0], "/") {
+			t.Errorf("tiles[0] = %q, want a path-relative template", doc.Tiles[0])
+		}
+		if doc.MinZoom != repository.TileMinZoom || doc.MaxZoom != repository.TileMaxZoom {
+			t.Errorf("zoom = %d..%d, want %d..%d",
+				doc.MinZoom, doc.MaxZoom, repository.TileMinZoom, repository.TileMaxZoom)
+		}
+		// The `routes` layer's minzoom is the LOD switch the client reads as lineMinZoom.
+		routesMinZoom := -1
+		for _, vl := range doc.VectorLayers {
+			if vl.ID == "routes" {
+				routesMinZoom = vl.MinZoom
+			}
+		}
+		if routesMinZoom != repository.TileLineMinZoom {
+			t.Errorf("routes layer minzoom = %d, want %d (lineMinZoom)", routesMinZoom, repository.TileLineMinZoom)
+		}
+	})
+
+	t.Run("requires an authenticated user", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/activities/map/tiles.json", nil)
+		w := httptest.NewRecorder()
+		handler.HandleMapTileJSON(w, req)
+		if w.Code != http.StatusInternalServerError {
+			t.Fatalf("status = %d, want 500 (missing user)", w.Code)
+		}
+	})
+}
+
 func TestHandleMapDataset(t *testing.T) {
 	sample := []*activitiesv1.MapActivity{
 		{

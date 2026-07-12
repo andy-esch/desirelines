@@ -184,3 +184,81 @@ func (h *Handler) HandleMapDataset(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", mapCacheControl)
 	h.respondProtobuf(w, r, resp)
 }
+
+// tileJSONVectorLayer describes one MVT layer's zoom span in a TileJSON doc. The
+// client reads the `routes` layer's minzoom as its LOD switch (lineMinZoom).
+type tileJSONVectorLayer struct {
+	ID      string            `json:"id"`
+	MinZoom int               `json:"minzoom"`
+	MaxZoom int               `json:"maxzoom"`
+	Fields  map[string]string `json:"fields"`
+}
+
+// tileJSONResponse is a TileJSON 3.0.0 metadata document (https://github.com/mapbox/tilejson-spec).
+type tileJSONResponse struct {
+	TileJSON     string                `json:"tilejson"`
+	Name         string                `json:"name"`
+	Scheme       string                `json:"scheme"`
+	Tiles        []string              `json:"tiles"`
+	MinZoom      int                   `json:"minzoom"`
+	MaxZoom      int                   `json:"maxzoom"`
+	Bounds       [4]float64            `json:"bounds"`
+	Center       [3]float64            `json:"center"`
+	VectorLayers []tileJSONVectorLayer `json:"vector_layers"`
+}
+
+// relativeTileTemplate is the tile URL template RELATIVE to this endpoint's own URL
+// (…/activities/map/tiles.json). A consumer resolves it against wherever it fetched
+// this doc, so it stays correct regardless of the deployment path prefix (Firebase
+// Hosting mounts the gateway under /api, which http.StripPrefix removes before this
+// handler ever sees the request) or host — no untrusted Host header echoed back, no
+// wrong absolute URL. Our web client ignores it and builds its own template anyway;
+// this just keeps the doc valid and correct for any other consumer.
+const relativeTileTemplate = "tiles/{z}/{x}/{y}"
+
+// HandleMapTileJSON serves a TileJSON 3.0.0 document for the routes-map vector
+// tiles, so the client sources the zoom levels and the LOD switch from one
+// authoritative place (repository.Tile*Zoom) instead of hardcoding them.
+// GET /activities/map/tiles.json
+func (h *Handler) HandleMapTileJSON(w http.ResponseWriter, r *http.Request) {
+	// Auth-gated for parity with the tile endpoint it describes; the doc itself is
+	// static (no per-user data), so no repo call.
+	if _, ok := h.getUserID(w, r); !ok {
+		return
+	}
+
+	doc := tileJSONResponse{
+		TileJSON: "3.0.0",
+		Name:     "desirelines routes",
+		Scheme:   "xyz",
+		Tiles:    []string{relativeTileTemplate},
+		MinZoom:  repository.TileMinZoom,
+		MaxZoom:  repository.TileMaxZoom,
+		// World extent: the client frames its own densest region from /map/regions,
+		// so deriving per-user bounds here would add a query for no gain.
+		Bounds: [4]float64{-180, -85.0511, 180, 85.0511},
+		Center: [3]float64{0, 20, 1},
+		VectorLayers: []tileJSONVectorLayer{
+			{
+				ID: "routes", MinZoom: repository.TileLineMinZoom, MaxZoom: repository.TileMaxZoom,
+				Fields: map[string]string{
+					"activity_id": "Strava activity id",
+					"name":        "Activity name",
+					"sport":       "Raw Strava sport_type",
+					"distance":    "Distance in meters",
+					"date":        "Local start date (YYYY-MM-DD)",
+				},
+			},
+			{
+				ID: "route_points", MinZoom: repository.TileMinZoom, MaxZoom: repository.TileLineMinZoom - 1,
+				Fields: map[string]string{
+					"activity_count": "Activities in this grid cell",
+					"sport":          "Raw Strava sport_type",
+				},
+			},
+		},
+	}
+
+	w.Header().Set("Cache-Control", mapCacheControl)
+	server.RespondJSON(w, http.StatusOK, doc, h.logger)
+}

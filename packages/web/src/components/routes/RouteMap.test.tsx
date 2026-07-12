@@ -117,6 +117,7 @@ function renderMap(overrides: Partial<React.ComponentProps<typeof RouteMap>> = {
   const props = {
     accessToken: "pk.test",
     tileTemplateUrl: TILE_URL,
+    tileMeta: { minZoom: 0, maxZoom: 14, lineMinZoom: 8 },
     apiBaseUrl: API_BASE,
     getAuthToken: () => "T" as string | undefined,
     refreshAuthToken: vi.fn().mockResolvedValue(undefined),
@@ -512,6 +513,7 @@ describe("RouteMap viewport fitting", () => {
   const baseProps = {
     accessToken: "pk.test",
     tileTemplateUrl: TILE_URL,
+    tileMeta: { minZoom: 0, maxZoom: 14, lineMinZoom: 8 },
     apiBaseUrl: API_BASE,
     getAuthToken: () => "T" as string | undefined,
     refreshAuthToken: vi.fn().mockResolvedValue(undefined),

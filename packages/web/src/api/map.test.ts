@@ -4,6 +4,8 @@ import {
   buildApiBaseUrl,
   fetchRouteRegions,
   fetchMapDataset,
+  fetchMapTileJSON,
+  DEFAULT_TILE_META,
   type MapActivity,
 } from "./map";
 import { isInternalRequest } from "./url";
@@ -299,5 +301,57 @@ describe("fetchMapDataset", () => {
 
     await expect(fetchMapDataset()).rejects.toThrow("throwApiError:fetchMapDataset");
     expect(throwApiError).toHaveBeenCalledWith(expect.any(Error), "fetchMapDataset");
+  });
+});
+
+describe("fetchMapTileJSON", () => {
+  beforeEach(() => {
+    mockGet.mockReset();
+    vi.mocked(throwApiError).mockClear();
+  });
+
+  it("reduces the TileJSON to zoom levels, reading lineMinZoom from the routes layer", async () => {
+    mockGet.mockResolvedValue({
+      data: {
+        tilejson: "3.0.0",
+        tiles: ["https://x/v1/activities/map/tiles/{z}/{x}/{y}"],
+        minzoom: 0,
+        maxzoom: 14,
+        vector_layers: [
+          { id: "routes", minzoom: 8, maxzoom: 14 },
+          { id: "route_points", minzoom: 0, maxzoom: 7 },
+        ],
+      },
+    });
+
+    const signal = new AbortController().signal;
+    const meta = await fetchMapTileJSON(signal);
+
+    expect(mockGet).toHaveBeenCalledWith("activities/map/tiles.json", { signal });
+    expect(meta).toEqual({ minZoom: 0, maxZoom: 14, lineMinZoom: 8 });
+  });
+
+  it("falls back to defaults for a missing body", async () => {
+    mockGet.mockResolvedValue({ data: undefined });
+    expect(await fetchMapTileJSON()).toEqual(DEFAULT_TILE_META);
+  });
+
+  it("keeps the response min/max zoom but falls back lineMinZoom when no routes layer", async () => {
+    // vector_layers present but without a "routes" entry: only lineMinZoom should
+    // fall back — the top-level zoom levels still come from the response.
+    mockGet.mockResolvedValue({
+      data: { minzoom: 1, maxzoom: 12, vector_layers: [{ id: "route_points", minzoom: 0 }] },
+    });
+    expect(await fetchMapTileJSON()).toEqual({
+      minZoom: 1,
+      maxZoom: 12,
+      lineMinZoom: DEFAULT_TILE_META.lineMinZoom,
+    });
+  });
+
+  it("routes errors through throwApiError with the endpoint context", async () => {
+    mockGet.mockRejectedValue(new Error("network"));
+    await expect(fetchMapTileJSON()).rejects.toThrow("throwApiError:fetchMapTileJSON");
+    expect(throwApiError).toHaveBeenCalledWith(expect.any(Error), "fetchMapTileJSON");
   });
 });

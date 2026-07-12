@@ -155,6 +155,49 @@ export const fetchRouteRegions = async (signal?: AbortSignal): Promise<RouteRegi
   }
 };
 
+/** The zoom levels the routes map needs, sourced from the backend's TileJSON so the
+ *  two can't drift on these magic numbers. `lineMinZoom` is the LOD switch (route
+ *  lines at/above it, density dots below). */
+export interface MapTileJSON {
+  minZoom: number;
+  maxZoom: number;
+  lineMinZoom: number;
+}
+
+/** Defaults matching the backend (repository.Tile*Zoom) — used until the TileJSON
+ *  resolves, and if the field is absent, so the map always renders sensibly. */
+export const DEFAULT_TILE_META: MapTileJSON = { minZoom: 0, maxZoom: 14, lineMinZoom: 8 };
+
+const TileJSONResponseSchema = z.object({
+  minzoom: z.number().default(DEFAULT_TILE_META.minZoom),
+  maxzoom: z.number().default(DEFAULT_TILE_META.maxZoom),
+  vector_layers: z.array(z.object({ id: z.string(), minzoom: z.number().optional() })).default([]),
+});
+
+/**
+ * Fetch the routes-map TileJSON and reduce it to the zoom levels the client needs.
+ * Only the zoom fields are consumed — the client builds its own origin-aware tile
+ * URL (Firebase Hosting rewrites), so the doc's `tiles` template is ignored here.
+ * `lineMinZoom` comes from the `routes` vector layer's minzoom.
+ */
+export const fetchMapTileJSON = async (signal?: AbortSignal): Promise<MapTileJSON> => {
+  try {
+    const { data } = await getClient().get<unknown>(
+      "activities/map/tiles.json",
+      signal ? { signal } : {}
+    );
+    const parsed = TileJSONResponseSchema.parse(data ?? {});
+    const routes = parsed.vector_layers.find((l) => l.id === "routes");
+    return {
+      minZoom: parsed.minzoom,
+      maxZoom: parsed.maxzoom,
+      lineMinZoom: routes?.minzoom ?? DEFAULT_TILE_META.lineMinZoom,
+    };
+  } catch (err: unknown) {
+    throwApiError(err, "fetchMapTileJSON");
+  }
+};
+
 /**
  * Build the absolute MVT tile template URL for a Mapbox `vector` source.
  *

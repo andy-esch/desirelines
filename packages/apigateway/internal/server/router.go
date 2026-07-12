@@ -57,6 +57,7 @@ type AuthenticatedRoutes struct {
 	GetMetrics      http.HandlerFunc
 	GetSource       http.HandlerFunc
 	GetMapTile      http.HandlerFunc // GET /activities/map/tiles/{z}/{x}/{y}
+	GetMapTileJSON  http.HandlerFunc // GET /activities/map/tiles.json
 	GetMapRegions   http.HandlerFunc // GET /activities/map/regions
 	GetMapDataset   http.HandlerFunc // GET /activities/map/dataset
 	ListActivities  http.HandlerFunc
@@ -99,6 +100,8 @@ func IsTileRequest(r *http.Request) bool {
 // hugeParam: PublicRoutes/AuthenticatedRoutes are passed by value intentionally —
 // NewRouter runs once at the composition root (startup), never on a hot path, so
 // copying a handful of func pointers is fine.
+//
+//nolint:gocritic // hugeParam: AuthenticatedRoutes passed by value intentionally (startup-only) — see note above.
 func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, logger *slog.Logger) chi.Router {
 	r := chi.NewRouter()
 
@@ -156,6 +159,9 @@ func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, 
 
 			// Map subsystem: per-region viewport summary + MVT vector tiles.
 			r.Get("/activities/map/regions", auth.GetMapRegions)
+			// TileJSON metadata (zoom levels + LOD switch) — static, so it skips the
+			// tile-specific rate limiter below and uses the shared auth-group chain.
+			r.Get("/activities/map/tiles.json", auth.GetMapTileJSON)
 			// The tile route gets its OWN limiter (bursty profile) scoped here,
 			// INSIDE the /v1 group — so it runs after the root CORSMiddleware and a
 			// tile 429 carries CORS headers (surfaces truthfully), with no reorder
