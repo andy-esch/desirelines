@@ -805,8 +805,8 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 // it a tile carries grid-binned density *points* (`route_points` layer) instead —
 // thousands of overlapping full-resolution GPS lines at low zoom are slow to encode
 // and read as noise. The web client mirrors this with layer min/maxzoom at the same
-// value (RouteMap.tsx) — keep the two in sync.
-const lineMinZoom = 8
+// value; both sides now source it from the TileJSON endpoint (repository.TileLineMinZoom).
+const lineMinZoom = repository.TileLineMinZoom
 
 // routeTileLinesQuery builds the `routes` line layer for z >= lineMinZoom. It adds
 // zoom-scaled ST_Simplify (was missing): tolerance ≈ a couple of MVT units in 3857

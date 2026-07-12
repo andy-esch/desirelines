@@ -424,6 +424,7 @@ func buildRouter(deps *Dependencies) http.Handler {
 		GetMetrics:      activitiesHandler.HandleMetrics,
 		GetSource:       activitiesHandler.HandleSource,
 		GetMapTile:      activitiesHandler.HandleMapTile,
+		GetMapTileJSON:  activitiesHandler.HandleMapTileJSON,
 		GetMapRegions:   activitiesHandler.HandleMapRegions,
 		GetMapDataset:   activitiesHandler.HandleMapDataset,
 		ListActivities:  activitiesHandler.HandleListActivities,

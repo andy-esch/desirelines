@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, act, screen } from "@testing-library/react";
+import { render, act, screen, fireEvent } from "@testing-library/react";
 import RouteMap from "./RouteMap";
 import type { RegionSummary } from "../../api/map";
 
@@ -19,8 +19,11 @@ const h = vi.hoisted(() => {
     resizeCalls: 0,
     initialViewState: undefined as Record<string, unknown> | undefined,
     mapStyle: undefined as string | undefined,
-    interactiveLayerIds: undefined as string[] | undefined,
     fitBoundsCalls: [] as unknown[],
+    // Manual hit-testing: `queryResult` is what queryRenderedFeatures returns (set
+    // per test), `queryCalls` captures its args (point + { layers }).
+    queryResult: [] as unknown[],
+    queryCalls: [] as unknown[][],
     featureStateCalls: [] as { feature: unknown; state: unknown }[],
     sources: [] as Record<string, unknown>[],
     layers: [] as Record<string, unknown>[],
@@ -44,9 +47,12 @@ vi.mock("react-map-gl/mapbox", async () => {
     h.captured.projection = props.projection;
     h.captured.initialViewState = props.initialViewState as Record<string, unknown>;
     h.captured.mapStyle = props.mapStyle as string;
-    h.captured.interactiveLayerIds = props.interactiveLayerIds as string[];
     React.useImperativeHandle(ref, () => ({
       fitBounds: (...args: unknown[]) => h.captured.fitBoundsCalls.push(args),
+      queryRenderedFeatures: (...args: unknown[]) => {
+        h.captured.queryCalls.push(args);
+        return h.captured.queryResult;
+      },
       setFeatureState: (feature: unknown, state: unknown) =>
         h.captured.featureStateCalls.push({ feature, state }),
       resize: () => {
@@ -93,8 +99,9 @@ function resetCaptured() {
   h.captured.resizeCalls = 0;
   h.captured.initialViewState = undefined;
   h.captured.mapStyle = undefined;
-  h.captured.interactiveLayerIds = undefined;
   h.captured.fitBoundsCalls.length = 0;
+  h.captured.queryResult = [];
+  h.captured.queryCalls.length = 0;
   h.captured.featureStateCalls.length = 0;
   h.captured.sources.length = 0;
   h.captured.layers.length = 0;
@@ -110,6 +117,7 @@ function renderMap(overrides: Partial<React.ComponentProps<typeof RouteMap>> = {
   const props = {
     accessToken: "pk.test",
     tileTemplateUrl: TILE_URL,
+    tileMeta: { minZoom: 0, maxZoom: 14, lineMinZoom: 8 },
     apiBaseUrl: API_BASE,
     getAuthToken: () => "T" as string | undefined,
     refreshAuthToken: vi.fn().mockResolvedValue(undefined),
@@ -201,9 +209,17 @@ describe("RouteMap layer setup", () => {
       -1,
       ["get", "activity_count"],
     ]);
-    // The dots are not interactive (overview only — not in the cross-filter).
-    // Interactivity is on the fat invisible hit layer, not the thin visible line.
-    expect(h.captured.interactiveLayerIds).toEqual(["routes-lines-hit"]);
+  });
+
+  it("sources the source zoom range and the LOD switch from tileMeta, not literals", () => {
+    // Non-default values prove the wiring: hardcoded 0/14/8 would fail this.
+    renderMap({ tileMeta: { minZoom: 2, maxZoom: 11, lineMinZoom: 6 } });
+
+    expect(h.captured.sources.at(-1)).toMatchObject({ minzoom: 2, maxzoom: 11 });
+    // Line layers switch on at lineMinZoom; the density dots switch off at it.
+    expect(baseLayer()).toMatchObject({ minzoom: 6 });
+    const points = h.captured.layers.filter((l) => l.id === "routes-points").at(-1);
+    expect(points).toMatchObject({ maxzoom: 6 });
   });
 
   it("themes the basemap and passes the color expression to the line layer", () => {
@@ -234,21 +250,46 @@ describe("RouteMap layer setup", () => {
 });
 
 describe("RouteMap interactivity (hover + click popover)", () => {
+  // Deferred rAF: capture the queued frame and run it via `flushRaf`, so the
+  // coalescing (schedule once, apply the latest point) is observable — and so the
+  // hover read applies at a controlled time (a synchronous stub would misorder the
+  // ref assignment against the callback, which only works because real rAF is async).
+  let rafCb: FrameRequestCallback | null = null;
+  const flushRaf = () => {
+    const cb = rafCb;
+    rafCb = null;
+    cb?.(0);
+  };
   beforeEach(() => {
     resetCaptured();
     vi.clearAllMocks();
+    rafCb = null;
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      rafCb = cb;
+      return 1;
+    });
+    vi.stubGlobal("cancelAnimationFrame", () => {
+      rafCb = null;
+    });
   });
+  afterEach(() => vi.unstubAllGlobals());
 
-  const feature = (id: number, props: Record<string, unknown> = {}) => ({
-    features: [
+  const EVT = { point: { x: 1, y: 1 }, lngLat: { lng: -74, lat: 40.7 } };
+  // Stage the hit-test result the handler will read, and return the pointer event.
+  const over = (id: number, props: Record<string, unknown> = {}) => {
+    h.captured.queryResult = [
       { id, properties: { name: "Morning Ride", distance: 45000, date: "2026-05-01", ...props } },
-    ],
-    lngLat: { lng: -74, lat: 40.7 },
-  });
+    ];
+    return EVT;
+  };
 
-  it("routes interactivity through the fat invisible hit layer (touch-friendly)", () => {
+  it("hit-tests only the fat invisible hit layer (touch-friendly)", () => {
     renderMap();
-    expect(h.captured.interactiveLayerIds).toEqual(["routes-lines-hit"]);
+    // A pointer read scopes queryRenderedFeatures to the hit layer alone.
+    act(() => h.captured.onMouseMove!(EVT));
+    act(() => flushRaf());
+    expect(h.captured.queryCalls.at(-1)?.[1]).toEqual({ layers: ["routes-lines-hit"] });
+
     // The hit layer is transparent, wide, and carries the cross-filter so only
     // visible routes are selectable.
     const filter = ["in", ["get", "activity_id"], ["literal", [5]]] as never;
@@ -261,16 +302,33 @@ describe("RouteMap interactivity (hover + click popover)", () => {
     expect(paint["line-width"]).toBeGreaterThan(10);
   });
 
+  it("coalesces rapid mousemoves into one hit-test per animation frame", () => {
+    renderMap();
+    // Three moves before the frame runs → one scheduled query, applied at the latest
+    // point (the whole point of the rAF throttle on a dense map).
+    act(() => {
+      h.captured.onMouseMove!({ point: { x: 1, y: 1 }, lngLat: { lng: 0, lat: 0 } });
+      h.captured.onMouseMove!({ point: { x: 2, y: 2 }, lngLat: { lng: 0, lat: 0 } });
+      h.captured.onMouseMove!({ point: { x: 3, y: 3 }, lngLat: { lng: 0, lat: 0 } });
+    });
+    expect(h.captured.queryCalls.length).toBe(0); // nothing until the frame runs
+    act(() => flushRaf());
+    expect(h.captured.queryCalls.length).toBe(1); // one query for the whole burst
+    expect(h.captured.queryCalls[0]?.[0]).toEqual([3, 3]); // latest point [x, y]
+  });
+
   it("highlights the hovered route via the highlight layer filter (not feature-state)", () => {
     renderMap();
     // Base layer never carries feature-state in its paint (that breaks rendering).
     expect(JSON.stringify(baseLayer()!.paint)).not.toContain("feature-state");
 
-    act(() => h.captured.onMouseMove!(feature(101)));
+    act(() => h.captured.onMouseMove!(over(101)));
+    act(() => flushRaf());
     expect(highlightLayer()!.filter).toEqual(["in", ["get", "activity_id"], ["literal", [101]]]);
 
     // Moving to another route highlights only that one.
-    act(() => h.captured.onMouseMove!(feature(202)));
+    act(() => h.captured.onMouseMove!(over(202)));
+    act(() => flushRaf());
     expect(highlightLayer()!.filter).toEqual(["in", ["get", "activity_id"], ["literal", [202]]]);
 
     // Leaving clears the highlight.
@@ -281,7 +339,7 @@ describe("RouteMap interactivity (hover + click popover)", () => {
   it("reports the clicked route up via onSelect (controlled selection)", () => {
     const onSelect = vi.fn();
     renderMap({ onSelect });
-    act(() => h.captured.onClick!(feature(123)));
+    act(() => h.captured.onClick!(over(123)));
     expect(onSelect).toHaveBeenCalledWith({
       id: 123,
       lng: -74,
@@ -295,7 +353,7 @@ describe("RouteMap interactivity (hover + click popover)", () => {
   it("clears the selection via onSelect(null) when clicking empty map", () => {
     const onSelect = vi.fn();
     renderMap({ onSelect });
-    act(() => h.captured.onClick!({ features: [], lngLat: { lng: 0, lat: 0 } }));
+    act(() => h.captured.onClick!({ point: { x: 0, y: 0 }, lngLat: { lng: 0, lat: 0 } }));
     expect(onSelect).toHaveBeenCalledWith(null);
   });
 
@@ -381,6 +439,80 @@ describe("RouteMap 401 recovery", () => {
 
     expect(refreshAuthToken).not.toHaveBeenCalled();
   });
+
+  it("caps the refresh loop and surfaces an error when a refreshed token keeps 401ing", async () => {
+    const refreshAuthToken = vi.fn().mockResolvedValue(undefined);
+    renderMap({ refreshAuthToken });
+
+    // Each cycle: internal 401 → refresh resolves → source remounts → still 401.
+    // Fire more cycles than the cap; drain the promise chain between them so each
+    // 401 sees a cleared `refreshingRef` (a genuine new cycle, not the debounce).
+    for (let i = 0; i < 5; i++) {
+      await act(async () => {
+        h.captured.onError!({ error: { status: 401, url: A_TILE } });
+        await new Promise((r) => setTimeout(r, 0));
+      });
+    }
+
+    // Bounded at MAX_AUTH_REFRESHES (3) — not one refresh per 401 forever...
+    expect(refreshAuthToken).toHaveBeenCalledTimes(3);
+    // ...and the failure is surfaced (retryable overlay) instead of blanking tiles.
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+  });
+
+  it("shows a dismissible notice (not the full overlay) when tiles give up on a ready map", async () => {
+    const refreshAuthToken = vi.fn().mockResolvedValue(undefined);
+    renderMap({ refreshAuthToken });
+    act(() => h.captured.onLoad!()); // basemap loaded → status "ready"
+
+    for (let i = 0; i < 5; i++) {
+      await act(async () => {
+        h.captured.onError!({ error: { status: 401, url: A_TILE } });
+        await new Promise((r) => setTimeout(r, 0));
+      });
+    }
+
+    // The working basemap is kept (no full-screen error overlay)...
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    // ...and a non-blocking notice with a soft retry is offered instead.
+    expect(screen.getByText(/couldn.t be loaded/i)).toBeInTheDocument();
+
+    const mountsBefore = h.captured.sourceMounts;
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+      await Promise.resolve();
+    });
+    // Retry re-fetches tiles (source remount) and clears the notice.
+    expect(h.captured.sourceMounts).toBeGreaterThan(mountsBefore);
+    expect(screen.queryByText(/couldn.t be loaded/i)).not.toBeInTheDocument();
+  });
+
+  it("resets the refresh budget after a quiet gap between 401 bursts", async () => {
+    const nowSpy = vi.spyOn(Date, "now");
+    let clock = 1_000_000;
+    nowSpy.mockImplementation(() => clock);
+    try {
+      const refreshAuthToken = vi.fn().mockResolvedValue(undefined);
+      renderMap({ refreshAuthToken });
+
+      const fire401 = () =>
+        act(async () => {
+          h.captured.onError!({ error: { status: 401, url: A_TILE } });
+          await new Promise((r) => setTimeout(r, 0));
+        });
+
+      // Same instant: 3 refreshes then the cap trips (4th 401 gives up).
+      for (let i = 0; i < 4; i++) await fire401();
+      expect(refreshAuthToken).toHaveBeenCalledTimes(3);
+
+      // A 401 past AUTH_REFRESH_RESET_MS later is a fresh incident → new budget.
+      clock += 31_000;
+      await fire401();
+      expect(refreshAuthToken).toHaveBeenCalledTimes(4);
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
 });
 
 describe("RouteMap viewport fitting", () => {
@@ -392,6 +524,7 @@ describe("RouteMap viewport fitting", () => {
   const baseProps = {
     accessToken: "pk.test",
     tileTemplateUrl: TILE_URL,
+    tileMeta: { minZoom: 0, maxZoom: 14, lineMinZoom: 8 },
     apiBaseUrl: API_BASE,
     getAuthToken: () => "T" as string | undefined,
     refreshAuthToken: vi.fn().mockResolvedValue(undefined),
@@ -438,6 +571,26 @@ describe("RouteMap viewport fitting", () => {
       [11, 11],
     ]);
     expect(opts.duration).toBe(600);
+  });
+
+  it("frames an antimeridian-crossing bbox the short way, not around the globe", () => {
+    // A route running lng 170 → -170 stores as bbox [-170, .., 170, ..] (a 340°
+    // span). Naively that frames almost the whole world; it should frame the 20°
+    // arc across the date line instead.
+    render(
+      <RouteMap
+        {...baseProps}
+        defaultViewport={null}
+        fitTo={{ bbox: [-170, -1, 170, 1], nonce: 1, duration: 0 }}
+      />
+    );
+    expect(h.captured.fitBoundsCalls.length).toBe(1);
+    const [bounds] = h.captured.fitBoundsCalls[0] as [unknown];
+    // West 170 → east 190 (= -170 wrapped past +180): the short arc across the seam.
+    expect(bounds).toEqual([
+      [170, -1],
+      [190, 1],
+    ]);
   });
 
   it("re-fits only when the fitTo nonce changes (idempotent per request)", () => {

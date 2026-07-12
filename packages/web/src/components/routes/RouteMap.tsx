@@ -9,7 +9,7 @@ import type {
   LineLayerSpecification,
   LngLatBoundsLike,
 } from "mapbox-gl";
-import type { MapActivity, RegionSummary } from "../../api/map";
+import type { MapActivity, RegionSummary, MapTileJSON } from "../../api/map";
 import { isInternalRequest } from "../../api/url";
 import { logger } from "../../lib/logger";
 import { useIsMobile } from "../../hooks/useIsMobile";
@@ -34,13 +34,9 @@ const SOURCE_ID = "routes-src";
 const SOURCE_LAYER = "routes";
 const LAYER_ID = "routes-lines";
 
-/**
- * Below this zoom the tile server emits a grid-binned `route_points` density layer
- * instead of route lines (see `lineMinZoom` in the apigateway tile query). The
- * circle layer shows under it and the line layers show at/above it — a clean
- * level-of-detail handoff. MUST match the server's `lineMinZoom`.
- */
-const LINE_MIN_ZOOM = 8;
+// The LOD handoff zoom (route lines at/above it, grid-binned `route_points` density
+// dots below) is no longer a local constant: it comes from the backend TileJSON via
+// `tileMeta.lineMinZoom`, so client and server can't drift.
 const POINTS_SOURCE_LAYER = "route_points";
 const POINTS_LAYER_ID = "routes-points";
 
@@ -79,13 +75,27 @@ const MAP_LOAD_TIMEOUT_MS = 15_000;
 const MAX_RETRIES = 2;
 
 /**
+ * Bound the internal-401 → token-refresh → tile-remount recovery. A refreshed token
+ * that still 401s (auth genuinely broken, not merely stale) would otherwise loop
+ * forever — refresh → remount `<Source>` → 401 → refresh … — blanking tiles each
+ * cycle. After this many consecutive refresh cycles we stop and surface the
+ * retryable error instead. The counter resets on a full (re)mount (`onMapLoad`) and
+ * after a quiet gap: a 401 this long after the previous one is a fresh incident, not
+ * the same loop, so it gets a new budget.
+ */
+const MAX_AUTH_REFRESHES = 3;
+const AUTH_REFRESH_RESET_MS = 30_000;
+
+/**
  * Flat mercator, not GL JS v3's default globe: a routes map needs no globe, and the
  * globe path is heavier on WebGL2 — a common cause of blank/grey maps on iOS WebKit.
  * Module-level constant so react-map-gl doesn't re-diff/re-apply it every render.
  */
 const MAP_PROJECTION = { name: "mercator" } as const;
 
-/** Crisp line; width grows with zoom so routes stay legible world→street. */
+/** Crisp line; width grows with zoom so routes stay legible world→street. Past z14
+ *  it keeps widening for street-level presence (paired with LINE_OPACITY, which
+ *  fades it as it fattens so dense areas don't turn into a solid blob). */
 const LINE_WIDTH: ExpressionSpecification = [
   "interpolate",
   ["linear"],
@@ -96,7 +106,19 @@ const LINE_WIDTH: ExpressionSpecification = [
   2,
   14,
   3.5,
+  16,
+  5,
+  18,
+  7,
 ];
+/**
+ * Line opacity, tied to zoom as a proxy for width: fully opaque out to z14, then
+ * eased down as the line fattens past it — wider strokes at street level read
+ * better semi-transparent, and overlapping routes in dense areas stay legible
+ * instead of merging into one blob. Applies to the base lines only; the
+ * hover/selected highlight stays fully opaque so it still pops.
+ */
+const LINE_OPACITY: ExpressionSpecification = ["interpolate", ["linear"], ["zoom"], 14, 1, 18, 0.6];
 /**
  * Thicker line for the hovered/selected route, drawn by a separate highlight
  * layer filtered to those ids. (We deliberately do NOT use `feature-state` in
@@ -113,6 +135,10 @@ const HOVER_WIDTH: ExpressionSpecification = [
   4,
   14,
   6,
+  16,
+  8,
+  18,
+  10,
 ];
 const HIGHLIGHT_LAYER_ID = "routes-lines-highlight";
 
@@ -162,6 +188,9 @@ export interface RouteMapProps {
   accessToken: string;
   /** Absolute MVT tile template URL with literal {z}/{x}/{y} placeholders. */
   tileTemplateUrl: string;
+  /** Tile zoom levels (min/max + LOD switch) from the backend TileJSON — the source
+   *  of truth so the client doesn't hardcode them. See `useMapTileJSON`. */
+  tileMeta: MapTileJSON;
   /** API gateway base (`${apiGatewayUrl}/v1`) — used to classify internal requests. */
   apiBaseUrl: string;
   /** Reads the current Firebase ID token synchronously for tile auth headers. */
@@ -199,6 +228,16 @@ export interface RouteMapProps {
 
 function bboxToBounds(bbox: [number, number, number, number]): LngLatBoundsLike {
   const [minLng, minLat, maxLng, maxLat] = bbox;
+  // A >180° longitude span means the route wraps the SHORT way across the
+  // antimeridian (date line), not the long way around the globe — a naive [min,max]
+  // box would frame nearly the whole world and zoom right out. Frame the short arc
+  // instead by pushing the western edge east of +180° so mapbox fits across the seam.
+  if (maxLng - minLng > 180) {
+    return [
+      [maxLng, minLat],
+      [minLng + 360, maxLat],
+    ];
+  }
   return [
     [minLng, minLat],
     [maxLng, maxLat],
@@ -222,6 +261,7 @@ function bboxToBounds(bbox: [number, number, number, number]): LngLatBoundsLike 
 export default function RouteMap({
   accessToken,
   tileTemplateUrl,
+  tileMeta,
   apiBaseUrl,
   getAuthToken,
   refreshAuthToken,
@@ -254,6 +294,11 @@ export default function RouteMap({
   // needs because it won't retry tiles stuck in the "errored" state on its own.
   const [reloadNonce, setReloadNonce] = useState(0);
   const refreshingRef = useRef(false);
+  // Consecutive 401→refresh cycles + when the last one fired — bounds the recovery
+  // loop (see MAX_AUTH_REFRESHES). Refs, not state: read/updated inside the Mapbox
+  // error callback, and they must not trigger a re-render.
+  const authRefreshCountRef = useRef(0);
+  const lastAuthErrorAtRef = useRef(0);
 
   // Map lifecycle for the load/error UX. `status` drives the loading spinner and
   // the retryable failure overlay; `remountKey` recreates the whole <Map> on retry
@@ -262,11 +307,23 @@ export default function RouteMap({
   const [remountKey, setRemountKey] = useState(0);
   // Count of retries so far; once it hits MAX_RETRIES the error surface goes terminal.
   const [retries, setRetries] = useState(0);
+  // Route tiles gave up after MAX_AUTH_REFRESHES on an *already-loaded* map — the
+  // basemap is fine, so instead of the full error overlay we show a dismissible
+  // "routes unavailable" notice with a soft retry (re-fetch tiles, not a GL remount).
+  const [tilesUnavailable, setTilesUnavailable] = useState(false);
 
   const retry = useCallback(() => {
     setRetries((n) => n + 1);
     setStatus("loading");
     setRemountKey((k) => k + 1);
+  }, []);
+
+  // Soft retry for the route tiles alone: reset the auth-refresh budget and re-fetch
+  // tiles (source remount) without recreating the whole map / basemap.
+  const retryTiles = useCallback(() => {
+    authRefreshCountRef.current = 0;
+    setTilesUnavailable(false);
+    setReloadNonce((n) => n + 1);
   }, []);
 
   // Attach our Firebase ID token to internal tile requests only. Mapbox's own
@@ -294,6 +351,32 @@ export default function RouteMap({
       const isInternalUrl = err?.url === undefined || isInternalRequest(err.url, apiBaseUrl);
       const isInternal401 = err?.status === 401 && isInternalUrl;
       if (isInternal401 && !refreshingRef.current) {
+        // A 401 well after the previous one is a fresh incident, not the same loop —
+        // give it a new refresh budget.
+        const now = Date.now();
+        if (now - lastAuthErrorAtRef.current > AUTH_REFRESH_RESET_MS) {
+          authRefreshCountRef.current = 0;
+        }
+        lastAuthErrorAtRef.current = now;
+
+        if (authRefreshCountRef.current >= MAX_AUTH_REFRESHES) {
+          // Refreshed tokens keep 401ing → auth is genuinely broken; stop looping
+          // (each cycle blanks tiles) and surface the failure. On a not-yet-ready map
+          // that's the full retryable overlay; on an already-rendered map we keep the
+          // working basemap and show a dismissible "routes unavailable" notice
+          // instead of condemning it. (The quiet-gap reset still lets a later pan
+          // retry automatically.)
+          logger.error(
+            `[RouteMap] internal tile 401 persists after ${MAX_AUTH_REFRESHES} refreshes; giving up`
+          );
+          setStatus((s) => (s === "ready" ? s : "error"));
+          setTilesUnavailable(true);
+          return;
+        }
+
+        // Under budget: we're (re)attempting, so clear any stale "unavailable" notice.
+        setTilesUnavailable(false);
+        authRefreshCountRef.current += 1;
         refreshingRef.current = true;
         void refreshAuthTokenRef
           .current()
@@ -339,7 +422,7 @@ export default function RouteMap({
     () => ({
       "line-color": colorExpression,
       "line-width": LINE_WIDTH,
-      "line-opacity": 1,
+      "line-opacity": LINE_OPACITY,
     }),
     [colorExpression]
   );
@@ -382,9 +465,9 @@ export default function RouteMap({
   const syncZoomView = useCallback(() => {
     const z = mapRef.current?.getZoom();
     if (z == null) return;
-    const low = z < LINE_MIN_ZOOM;
+    const low = z < tileMeta.lineMinZoom;
     setDotsView((prev) => (prev === low ? prev : low));
-  }, []);
+  }, [tileMeta.lineMinZoom]);
 
   // On load: force a resize — iOS WebKit can size the GL canvas before the
   // `fixed` map container settles, leaving a 0/stale drawing buffer (grey) until
@@ -393,8 +476,11 @@ export default function RouteMap({
     mapRef.current?.resize();
     setStatus("ready");
     // A genuine load clears the retry budget so a later transient failure in the
-    // same session starts fresh rather than inheriting an elevated count.
+    // same session starts fresh rather than inheriting an elevated count. Same for
+    // the 401-refresh budget: a full (re)mount is a clean slate.
     setRetries(0);
+    authRefreshCountRef.current = 0;
+    setTilesUnavailable(false);
     syncZoomView();
   }, [syncZoomView]);
 
@@ -416,10 +502,23 @@ export default function RouteMap({
     if (status === "error") errorRef.current?.querySelector("button")?.focus();
   }, [status]);
 
-  const onMouseMove = useCallback((e: MapMouseEvent) => {
+  // We hit-test the fat hit layer ourselves so we can rate-limit it. `interactiveLayerIds`
+  // makes react-map-gl run `queryRenderedFeatures` on EVERY raw mousemove — the
+  // per-event cost that janks a dense map. Instead we coalesce hover reads to one
+  // query per animation frame (~60fps); clicks query on demand.
+  const hoverRafRef = useRef<number | null>(null);
+  // Screen point [x, y] of the latest mousemove (mapbox's `Point` type resolves to an
+  // error type under type-aware lint, so we keep a plain tuple — a valid PointLike).
+  const hoverPointRef = useRef<[number, number] | null>(null);
+
+  const applyHover = useCallback(() => {
+    hoverRafRef.current = null;
     const map = mapRef.current;
-    if (!map) return;
-    const id = (e.features?.[0] as RouteFeature | undefined)?.id;
+    const point = hoverPointRef.current;
+    if (!map || !point) return;
+    const f = map.queryRenderedFeatures(point, { layers: [HITAREA_LAYER_ID] })[0] as
+      RouteFeature | undefined;
+    const id = f?.id;
     const nextId = typeof id === "number" || typeof id === "string" ? Number(id) : null;
     map.getCanvas().style.cursor = nextId !== null ? "pointer" : "";
     if (hoveredIdRef.current === nextId) return; // only re-render on a genuine change
@@ -427,7 +526,31 @@ export default function RouteMap({
     setHoveredId(nextId);
   }, []);
 
+  const onMouseMove = useCallback(
+    (e: MapMouseEvent) => {
+      const p = e.point as { x: number; y: number };
+      hoverPointRef.current = [p.x, p.y];
+      if (hoverRafRef.current == null) {
+        hoverRafRef.current = requestAnimationFrame(applyHover);
+      }
+    },
+    [applyHover]
+  );
+
+  // Cancel any queued hover read on unmount so a pending frame can't touch a
+  // torn-down map.
+  useEffect(
+    () => () => {
+      if (hoverRafRef.current != null) cancelAnimationFrame(hoverRafRef.current);
+    },
+    []
+  );
+
   const clearHover = useCallback(() => {
+    if (hoverRafRef.current != null) {
+      cancelAnimationFrame(hoverRafRef.current);
+      hoverRafRef.current = null;
+    }
     const map = mapRef.current;
     if (map) map.getCanvas().style.cursor = "";
     hoveredIdRef.current = null;
@@ -436,7 +559,10 @@ export default function RouteMap({
 
   const onClick = useCallback(
     (e: MapMouseEvent) => {
-      const f = e.features?.[0] as RouteFeature | undefined;
+      const p = e.point as { x: number; y: number };
+      const f = mapRef.current?.queryRenderedFeatures([p.x, p.y], {
+        layers: [HITAREA_LAYER_ID],
+      })[0] as RouteFeature | undefined;
       if (!f || f.id == null) {
         onSelect(null); // click on empty map closes the popover / clears selection
         return;
@@ -508,7 +634,6 @@ export default function RouteMap({
         }
         transformRequest={transformRequest}
         onError={handleError}
-        interactiveLayerIds={[HITAREA_LAYER_ID]}
         onMouseMove={onMouseMove}
         onMouseLeave={clearHover}
         onClick={onClick}
@@ -525,8 +650,8 @@ export default function RouteMap({
           id={SOURCE_ID}
           type="vector"
           tiles={[tileTemplateUrl]}
-          minzoom={0}
-          maxzoom={14}
+          minzoom={tileMeta.minZoom}
+          maxzoom={tileMeta.maxZoom}
           // Promote the MVT `activity_id` property to the feature id (per
           // source-layer) so hover/click events expose it as `feature.id` (MVT
           // features have no native id). The highlight uses a filtered layer, not
@@ -537,7 +662,7 @@ export default function RouteMap({
             id={LAYER_ID}
             type="line"
             source-layer={SOURCE_LAYER}
-            minzoom={LINE_MIN_ZOOM}
+            minzoom={tileMeta.lineMinZoom}
             // Spread `filter` only when present — null/absent ⇒ no filter (show all).
             // (Spread, not `filter={... ?? undefined}`, for exactOptionalPropertyTypes.)
             {...(filter ? { filter } : {})}
@@ -551,7 +676,7 @@ export default function RouteMap({
             id={HITAREA_LAYER_ID}
             type="line"
             source-layer={SOURCE_LAYER}
-            minzoom={LINE_MIN_ZOOM}
+            minzoom={tileMeta.lineMinZoom}
             {...(filter ? { filter } : {})}
             layout={{ "line-join": "round", "line-cap": "round" }}
             paint={HIT_PAINT}
@@ -562,20 +687,20 @@ export default function RouteMap({
             id={HIGHLIGHT_LAYER_ID}
             type="line"
             source-layer={SOURCE_LAYER}
-            minzoom={LINE_MIN_ZOOM}
+            minzoom={tileMeta.lineMinZoom}
             filter={highlightFilter}
             layout={{ "line-join": "round", "line-cap": "round" }}
             paint={highlightPaint}
           />
           {/* Low-zoom density overview: one sized dot per grid cell (the server's
-              `route_points` layer), shown below LINE_MIN_ZOOM where individual lines
+              `route_points` layer), shown below the LOD switch where individual lines
               become spaghetti. Not interactive / not cross-filtered — an overview of
               the full dataset (see the caption). */}
           <Layer
             id={POINTS_LAYER_ID}
             type="circle"
             source-layer={POINTS_SOURCE_LAYER}
-            maxzoom={LINE_MIN_ZOOM}
+            maxzoom={tileMeta.lineMinZoom}
             // Stack concentric per-sport dots largest-behind: Mapbox draws ascending
             // sort-key first (at the back), so -count puts the biggest circle behind
             // and smaller ones on top — all visible.
@@ -616,6 +741,27 @@ export default function RouteMap({
         </div>
       )}
 
+      {/* Route tiles gave up (auth) on an otherwise-working map: keep the basemap,
+          tell the user their routes couldn't load, and offer a soft retry. Only while
+          `ready` — before that the full error overlay below handles it. */}
+      {status === "ready" && tilesUnavailable && (
+        <div
+          role="status"
+          // Sits above the density caption's slot (bottom-20 / sm:bottom-2) so the
+          // two don't overlap when zoomed out and tiles fail at the same time.
+          className="absolute bottom-28 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-slate-dark/85 px-3 py-1 text-[0.7rem] text-slate-light backdrop-blur-sm sm:bottom-9"
+        >
+          <span>Routes couldn’t be loaded.</span>
+          <button
+            type="button"
+            onClick={retryTiles}
+            className="font-semibold text-accent-cyan underline underline-offset-2 hover:text-accent-magenta motion-safe:transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Loading spinner from mount until the map's `load` event — covers the
           post-mount, basemap/tiles-still-loading gap that previously read as a bare
           grey canvas (notably the slow first load on mobile). */}
@@ -625,7 +771,8 @@ export default function RouteMap({
           WebGL can't come up (e.g. WebGL unavailable on iOS, a stalled style fetch).
           Retryable until MAX_RETRIES, then terminal (no button) so it can't loop
           forever on a browser that simply can't render the map. The internal-401 tile
-          recovery above is unaffected. */}
+          recovery escalates here only on a not-yet-ready map (after the refresh cap);
+          on an already-rendered map it shows the dismissible notice above instead. */}
       {status === "error" && (
         <div
           ref={errorRef}

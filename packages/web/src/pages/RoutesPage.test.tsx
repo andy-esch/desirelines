@@ -41,6 +41,10 @@ vi.mock("../hooks/useMapDataset", () => ({
   useMapDataset: vi.fn(() => ({ activities: [], isLoading: false, error: null })),
 }));
 
+vi.mock("../hooks/useMapTileJSON", () => ({
+  useMapTileJSON: vi.fn(() => ({ minZoom: 0, maxZoom: 14, lineMinZoom: 8 })),
+}));
+
 vi.mock("../hooks/useUserConfig", () => ({
   useUserConfig: vi.fn(() => ({ data: null })),
 }));

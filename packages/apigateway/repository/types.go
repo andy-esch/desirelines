@@ -13,6 +13,20 @@ const DefaultListLimit = 20
 // MaxListLimit is the maximum number of items allowed per page.
 const MaxListLimit = 100
 
+// Routes-map tile zoom levels — the single source of truth shared by the MVT tile
+// query (adapters/postgres) and the TileJSON endpoint (internal/activities), so the
+// frontend and backend can't drift on these magic numbers.
+const (
+	// TileMinZoom is the lowest zoom the client requests tiles for.
+	TileMinZoom = 0
+	// TileMaxZoom is the highest zoom served; the client overzooms above it.
+	TileMaxZoom = 14
+	// TileLineMinZoom is the level-of-detail handoff: at z >= this a tile carries
+	// simplified route *lines* (`routes` layer); below it, grid-binned density
+	// *points* (`route_points` layer).
+	TileLineMinZoom = 8
+)
+
 // =============================================================================
 // Pagination Types (Internal)
 // =============================================================================

@@ -14,6 +14,7 @@ import { PageLayout } from "../components/layout/PageLayout";
 import { useAuth } from "../hooks/useAuth";
 import { useTheme } from "../contexts/ThemeContext";
 import { useRouteRegions } from "../hooks/useRouteRegions";
+import { useMapTileJSON } from "../hooks/useMapTileJSON";
 import { useSportConfig } from "../hooks/useSportConfig";
 import { useAuthTokenRef } from "../hooks/useAuthTokenRef";
 import { useMapDataset } from "../hooks/useMapDataset";
@@ -65,6 +66,9 @@ export default function RoutesPage() {
   const apiGatewayUrl = config.apiGatewayUrl;
 
   const { regions, defaultViewport, isLoading: regionsLoading, error } = useRouteRegions();
+  // Tile zoom levels from the backend TileJSON (falls back to matching defaults until
+  // it resolves), so the map doesn't hardcode min/max zoom or the LOD switch.
+  const tileMeta = useMapTileJSON();
   const { sportConfig } = useSportConfig();
   const { getToken, ready: tokenReady, refresh: refreshAuthToken } = useAuthTokenRef();
 
@@ -368,6 +372,7 @@ export default function RoutesPage() {
             <RouteMap
               accessToken={mapboxToken}
               tileTemplateUrl={mapConfig.tileTemplateUrl}
+              tileMeta={tileMeta}
               apiBaseUrl={mapConfig.apiBaseUrl}
               getAuthToken={getToken}
               refreshAuthToken={refreshAuthToken}
