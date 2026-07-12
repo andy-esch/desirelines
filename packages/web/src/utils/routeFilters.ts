@@ -44,6 +44,19 @@ export function yearRange(year: number, now: Date = new Date()): [string, string
   return [start, end];
 }
 
+/**
+ * The "My sports" map-filter preset: the user's app-wide visible-sports
+ * preference narrowed to the sports actually present in the map dataset. An
+ * opted-in sport with no geo-bearing activities has no route line, so it drops
+ * out here (and the preset button then hides when nothing — or everything — is
+ * left). `visibleSports` is already registry-validated by `useVisibleSports`,
+ * so no further key-validation is needed.
+ */
+export function mapPresetSports(visibleSports: string[], presentSports: string[]): string[] {
+  const presentSet = new Set(presentSports);
+  return visibleSports.filter((s) => presentSet.has(s));
+}
+
 /** Default filters: current year, all sports/regions, no distance constraint. */
 export function defaultRouteFilters(now: Date = new Date()): RouteFilterState {
   return {
