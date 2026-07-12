@@ -211,6 +211,17 @@ describe("RouteMap layer setup", () => {
     ]);
   });
 
+  it("sources the source zoom range and the LOD switch from tileMeta, not literals", () => {
+    // Non-default values prove the wiring: hardcoded 0/14/8 would fail this.
+    renderMap({ tileMeta: { minZoom: 2, maxZoom: 11, lineMinZoom: 6 } });
+
+    expect(h.captured.sources.at(-1)).toMatchObject({ minzoom: 2, maxzoom: 11 });
+    // Line layers switch on at lineMinZoom; the density dots switch off at it.
+    expect(baseLayer()).toMatchObject({ minzoom: 6 });
+    const points = h.captured.layers.filter((l) => l.id === "routes-points").at(-1);
+    expect(points).toMatchObject({ maxzoom: 6 });
+  });
+
   it("themes the basemap and passes the color expression to the line layer", () => {
     renderMap({ isDark: false, colorExpression: "rgb(1,2,3)" });
 

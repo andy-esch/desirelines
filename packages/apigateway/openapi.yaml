@@ -247,7 +247,8 @@ paths:
       summary: TileJSON metadata for the routes-map vector tiles
       description: >
         Returns a TileJSON 3.0.0 document describing the routes-map vector tiles:
-        the tile URL template, min/max zoom, and per-layer zoom ranges (the
+        the tile URL template (relative to this endpoint, so it stays correct behind
+        the deployment's path prefix), min/max zoom, and per-layer zoom ranges (the
         "routes" layer's minzoom is the level-of-detail handoff, z8). The client
         sources its zoom levels from here instead of hardcoding them; it builds its
         own origin-aware tile URL (Firebase Hosting rewrites), so it reads only the
