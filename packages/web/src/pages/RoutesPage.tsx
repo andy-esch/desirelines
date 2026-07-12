@@ -20,7 +20,12 @@ import { useVisibleSports } from "../hooks/useVisibleSports";
 import { useAuthTokenRef } from "../hooks/useAuthTokenRef";
 import { useMapDataset } from "../hooks/useMapDataset";
 import { useRouteFilters } from "../hooks/useRouteFilters";
-import { mapPresetSports } from "../utils/routeFilters";
+import { mapPresetSports, type RouteFilterState } from "../utils/routeFilters";
+import {
+  searchToFilters,
+  filtersToSearch,
+  parseActivityFilterSearch,
+} from "../utils/activityFilterSearch";
 import { useThrottledValue } from "../hooks/useThrottledValue";
 import { useUserConfig } from "../hooks/useUserConfig";
 import { getUserSettings } from "../utils/units";
@@ -84,7 +89,36 @@ export default function RoutesPage() {
   // Manual "pull the latest" for the map data (Strava sync is backend-driven, so there's
   // no push signal that new activities landed).
   const { refresh: refreshMapData, isRefreshing } = useRefreshMapData();
-  const routeFilters = useRouteFilters(activities);
+  // The routes-map filters live in the URL, so a selection is shareable and survives
+  // hopping to Charts/List and back. `strict: false` reads search without coupling to
+  // the route id (the test router mounts this page at "/"); `/routes`' validateSearch
+  // coerces the params. `clockNow` is frozen once so default-window detection and
+  // (de)serialization agree with the filter hook.
+  const [clockNow] = useState(() => new Date());
+  const search = useSearch({ strict: false });
+  const navigate = useNavigate({ from: "/routes" });
+  const filterValue = useMemo(
+    () => searchToFilters(parseActivityFilterSearch(search as Record<string, unknown>), clockNow),
+    [search, clockNow]
+  );
+  const applyFilterSearch = useCallback(
+    (next: RouteFilterState) => {
+      void navigate({
+        search: (prev) => {
+          const filters = filtersToSearch(next, clockNow);
+          // Keep the deep-link focus param if present; default dimensions are omitted.
+          return prev.activity !== undefined ? { ...filters, activity: prev.activity } : filters;
+        },
+        replace: true,
+      });
+    },
+    [navigate, clockNow]
+  );
+  const routeFilters = useRouteFilters(activities, {
+    now: clockNow,
+    value: filterValue,
+    onChange: applyFilterSearch,
+  });
   // Deferred copy for the insights charts: each chart re-aggregates (O(n), some sorted)
   // and recharts re-renders, which is the most expensive work on the page. The map's
   // filter is throttled separately; this lets a slider drag update the map/summary live
@@ -178,10 +212,7 @@ export default function RoutesPage() {
   const throttledMapFilter = useThrottledValue(routeFilters.mapFilter, 120);
 
   // Deep-link focus (the activity lists' "View on map" → /routes?activity=<id>).
-  // `strict: false` reads the search without coupling to the exact route id (works
-  // under the test router too); the `/routes` route's validateSearch coerces it.
-  const search = useSearch({ strict: false });
-  const navigate = useNavigate({ from: "/routes" });
+  // `search`/`navigate` are set up above — they also drive the filter URL state.
   const rawActivity: unknown = search.activity;
   const focusId =
     typeof rawActivity === "number" && Number.isFinite(rawActivity) ? rawActivity : null;
@@ -253,11 +284,17 @@ export default function RoutesPage() {
     requestFit(bbox);
   }, [focusId, getActivity, requestFit]);
 
-  // Leave focus: clear the popup + drop the ?activity= param (restores the full map).
-  // `/routes` carries no other search params, so replacing search with {} is enough.
+  // Leave focus: clear the popup + drop ONLY the ?activity= param — the filter params
+  // stay in the URL (they aren't about the focused activity).
   const exitFocus = useCallback(() => {
     setSelected(null);
-    void navigate({ search: {} });
+    void navigate({
+      search: (prev) => {
+        const { activity: _activity, ...rest } = prev;
+        return rest;
+      },
+      replace: true,
+    });
   }, [navigate]);
 
   const onSelectFromList = useCallback(

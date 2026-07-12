@@ -13,6 +13,7 @@ import { Route as SettingsRouteImport } from "./routes/settings";
 import { Route as RoutesRouteImport } from "./routes/routes";
 import { Route as OriginsRouteImport } from "./routes/origins";
 import { Route as DashboardRouteImport } from "./routes/dashboard";
+import { Route as ChartsRouteImport } from "./routes/charts";
 import { Route as ActivitiesRouteImport } from "./routes/activities";
 import { Route as SportRouteImport } from "./routes/$sport";
 import { Route as IndexRouteImport } from "./routes/index";
@@ -43,6 +44,11 @@ const OriginsRoute = OriginsRouteImport.update({
 const DashboardRoute = DashboardRouteImport.update({
   id: "/dashboard",
   path: "/dashboard",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const ChartsRoute = ChartsRouteImport.update({
+  id: "/charts",
+  path: "/charts",
   getParentRoute: () => rootRouteImport,
 } as any);
 const ActivitiesRoute = ActivitiesRouteImport.update({
@@ -105,6 +111,7 @@ export interface FileRoutesByFullPath {
   "/": typeof IndexRoute;
   "/$sport": typeof SportRouteWithChildren;
   "/activities": typeof ActivitiesRoute;
+  "/charts": typeof ChartsRoute;
   "/dashboard": typeof DashboardRoute;
   "/origins": typeof OriginsRoute;
   "/routes": typeof RoutesRoute;
@@ -121,6 +128,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   "/": typeof IndexRoute;
   "/activities": typeof ActivitiesRoute;
+  "/charts": typeof ChartsRoute;
   "/dashboard": typeof DashboardRoute;
   "/origins": typeof OriginsRoute;
   "/routes": typeof RoutesRoute;
@@ -138,6 +146,7 @@ export interface FileRoutesById {
   "/": typeof IndexRoute;
   "/$sport": typeof SportRouteWithChildren;
   "/activities": typeof ActivitiesRoute;
+  "/charts": typeof ChartsRoute;
   "/dashboard": typeof DashboardRoute;
   "/origins": typeof OriginsRoute;
   "/routes": typeof RoutesRoute;
@@ -157,6 +166,7 @@ export interface FileRouteTypes {
     | "/"
     | "/$sport"
     | "/activities"
+    | "/charts"
     | "/dashboard"
     | "/origins"
     | "/routes"
@@ -173,6 +183,7 @@ export interface FileRouteTypes {
   to:
     | "/"
     | "/activities"
+    | "/charts"
     | "/dashboard"
     | "/origins"
     | "/routes"
@@ -189,6 +200,7 @@ export interface FileRouteTypes {
     | "/"
     | "/$sport"
     | "/activities"
+    | "/charts"
     | "/dashboard"
     | "/origins"
     | "/routes"
@@ -207,6 +219,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
   SportRoute: typeof SportRouteWithChildren;
   ActivitiesRoute: typeof ActivitiesRoute;
+  ChartsRoute: typeof ChartsRoute;
   DashboardRoute: typeof DashboardRoute;
   OriginsRoute: typeof OriginsRoute;
   RoutesRoute: typeof RoutesRoute;
@@ -245,6 +258,13 @@ declare module "@tanstack/react-router" {
       path: "/dashboard";
       fullPath: "/dashboard";
       preLoaderRoute: typeof DashboardRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/charts": {
+      id: "/charts";
+      path: "/charts";
+      fullPath: "/charts";
+      preLoaderRoute: typeof ChartsRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     "/activities": {
@@ -357,6 +377,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SportRoute: SportRouteWithChildren,
   ActivitiesRoute: ActivitiesRoute,
+  ChartsRoute: ChartsRoute,
   DashboardRoute: DashboardRoute,
   OriginsRoute: OriginsRoute,
   RoutesRoute: RoutesRoute,
