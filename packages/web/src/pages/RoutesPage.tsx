@@ -584,6 +584,35 @@ export default function RoutesPage() {
               </p>
             </div>
           )}
+
+          {/* Filters hide every route (incl. the default current-year window when all
+              activities are older) → say so ON the map, not only in the (possibly
+              collapsed) drawer, so a left-over/bookmarked filter never reads as "my
+              data vanished". Shown while the drawer is collapsed; when it's open, the
+              drawer's own zero-result state covers it. */}
+          {!drawerOpen &&
+            !datasetLoading &&
+            focusId == null &&
+            activities.length > 0 &&
+            routeFilters.totals.count === 0 && (
+              <div className="absolute inset-0 flex items-center justify-center px-4">
+                <div className="pointer-events-auto max-w-xs rounded-lg border border-border/70 bg-card/90 px-4 py-3 text-center shadow-lg backdrop-blur-md">
+                  <p className="text-sm font-medium text-body-text">
+                    No activities match your filters
+                  </p>
+                  <p className="mt-1 text-xs text-slate-light">
+                    Hidden by the date, sport, distance, or region filter.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={routeFilters.showAll}
+                    className="mt-2 text-sm font-medium text-accent-cyan hover:underline"
+                  >
+                    Show all activities
+                  </button>
+                </div>
+              </div>
+            )}
         </div>
       </div>
     </PageLayout>

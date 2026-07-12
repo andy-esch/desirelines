@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor, fireEvent } from "@testing-library/react";
+import { screen, waitFor, fireEvent, within } from "@testing-library/react";
 import RoutesPage from "./RoutesPage";
 import { renderWithRouter } from "../test/renderWithRouter";
 import type { MapActivity, RegionSummary } from "../api/map";
@@ -566,6 +566,32 @@ describe("RoutesPage", () => {
         // Side panels coexist on desktop — opening insights leaves filters open.
         await waitFor(() => expect(insightsToggle).toHaveAttribute("aria-expanded", "true"));
         expect(filtersToggle).toHaveAttribute("aria-expanded", "true");
+      } finally {
+        restore();
+      }
+    });
+
+    it("shows an on-map 'no matches' recourse when filters hide every activity", async () => {
+      const restore = setViewport(true); // mobile → the filter drawer starts collapsed
+      try {
+        // A 2020 activity is outside the default current-year window → filtered to zero,
+        // and with the drawer collapsed the map would otherwise look mysteriously empty.
+        mockUseMapDataset.mockReturnValue({
+          activities: [{ ...activity, activityId: 9, startDateLocal: "2020-05-01T08:00:00" }],
+          isLoading: false,
+          error: null,
+        });
+        await renderWithRouter(<RoutesPage />);
+        await screen.findByTestId("route-map");
+
+        // Scoped to the on-map banner — the (collapsed) drawer's zero-result state also
+        // carries a "Show all activities" button in the DOM.
+        const banner = await screen.findByText(/no activities match your filters/i);
+        expect(
+          within(banner.closest("div") as HTMLElement).getByRole("button", {
+            name: /show all activities/i,
+          })
+        ).toBeInTheDocument();
       } finally {
         restore();
       }
