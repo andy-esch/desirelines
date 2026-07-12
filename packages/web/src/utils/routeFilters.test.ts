@@ -11,6 +11,7 @@ import {
   filterMapActivities,
   buildActivityIdFilter,
   summarizeMapActivities,
+  mapPresetSports,
   type RouteFilterState,
 } from "./routeFilters";
 
@@ -171,5 +172,34 @@ describe("summarizeMapActivities", () => {
       movingTimeSeconds: 0,
       elevationMeters: 0,
     });
+  });
+});
+
+describe("mapPresetSports", () => {
+  it("keeps only preferred sports present in the dataset", () => {
+    expect(mapPresetSports(["cycling", "running", "swimming"], ["cycling", "swimming"])).toEqual([
+      "cycling",
+      "swimming",
+    ]);
+  });
+
+  it("drops a preferred sport with no geo-bearing activities on the map", () => {
+    // User opted into hiking app-wide but has no hikes with route geometry.
+    expect(mapPresetSports(["cycling", "hiking"], ["cycling"])).toEqual(["cycling"]);
+  });
+
+  it("returns empty when none of the preferred sports are present", () => {
+    expect(mapPresetSports(["hiking"], ["cycling", "running"])).toEqual([]);
+  });
+
+  it("returns empty for an empty preference", () => {
+    expect(mapPresetSports([], ["cycling"])).toEqual([]);
+  });
+
+  it("preserves the preference's order, not the dataset's", () => {
+    expect(mapPresetSports(["running", "cycling"], ["cycling", "running"])).toEqual([
+      "running",
+      "cycling",
+    ]);
   });
 });

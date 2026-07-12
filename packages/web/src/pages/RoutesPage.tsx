@@ -16,9 +16,11 @@ import { useTheme } from "../contexts/ThemeContext";
 import { useRouteRegions } from "../hooks/useRouteRegions";
 import { useMapTileJSON } from "../hooks/useMapTileJSON";
 import { useSportConfig } from "../hooks/useSportConfig";
+import { useVisibleSports } from "../hooks/useVisibleSports";
 import { useAuthTokenRef } from "../hooks/useAuthTokenRef";
 import { useMapDataset } from "../hooks/useMapDataset";
 import { useRouteFilters } from "../hooks/useRouteFilters";
+import { mapPresetSports } from "../utils/routeFilters";
 import { useThrottledValue } from "../hooks/useThrottledValue";
 import { useUserConfig } from "../hooks/useUserConfig";
 import { getUserSettings } from "../utils/units";
@@ -70,6 +72,9 @@ export default function RoutesPage() {
   // it resolves), so the map doesn't hardcode min/max zoom or the LOD switch.
   const tileMeta = useMapTileJSON();
   const { sportConfig } = useSportConfig();
+  // The shared visible-sports preference (same one the dashboard/sport pages read),
+  // for the map's one-tap "My sports" filter preset.
+  const { visibleSports } = useVisibleSports();
   const { getToken, ready: tokenReady, refresh: refreshAuthToken } = useAuthTokenRef();
 
   // Cross-filter dataset + state. Loaded independently of the map so a slow
@@ -148,6 +153,13 @@ export default function RoutesPage() {
         color: sportColors[sport] ?? DEFAULT_SPORT_COLOR,
       })),
     [orderedSports, sportConfig, sportColors]
+  );
+  // The "My sports" preset: the user's configured visible sports narrowed to what's
+  // actually present in the map dataset (an opted-in sport with no geo activities has
+  // no route line, so it drops out). `visibleSports` is already registry-validated.
+  const mySports = useMemo(
+    () => mapPresetSports(visibleSports, orderedSports),
+    [visibleSports, orderedSports]
   );
   // sport → display label, for the insights breakdown (over the filtered subset).
   const sportLabels = useMemo<Record<string, string>>(
@@ -414,6 +426,7 @@ export default function RoutesPage() {
               <MapFilterControls
                 filters={routeFilters.filters}
                 sportOptions={sportOptions}
+                mySports={mySports}
                 distanceDomain={routeFilters.distanceDomain}
                 dateDomain={routeFilters.dateDomain}
                 distanceUnit={distanceUnit}

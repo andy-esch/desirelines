@@ -45,6 +45,14 @@ vi.mock("../hooks/useMapTileJSON", () => ({
   useMapTileJSON: vi.fn(() => ({ minZoom: 0, maxZoom: 14, lineMinZoom: 8 })),
 }));
 
+vi.mock("../hooks/useVisibleSports", () => ({
+  useVisibleSports: vi.fn(() => ({
+    visibleSports: [],
+    setVisibleSports: vi.fn(),
+    isLoading: false,
+  })),
+}));
+
 vi.mock("../hooks/useUserConfig", () => ({
   useUserConfig: vi.fn(() => ({ data: null })),
 }));
@@ -70,6 +78,17 @@ vi.mock("../components/routes/RouteMap", () => ({
   },
 }));
 
+// Capture the props the page wires into the (lazy) filter controls, so the
+// `mySports` derivation can be asserted without driving the Base UI internals.
+const filterPropsSpy = vi.fn();
+vi.mock("../components/routes/MapFilterControls", () => ({
+  __esModule: true,
+  default: (props: Record<string, unknown>) => {
+    filterPropsSpy(props);
+    return <div data-testid="map-filter-controls" />;
+  },
+}));
+
 import { useAuth } from "../hooks/useAuth";
 import { useRouteRegions } from "../hooks/useRouteRegions";
 import { useAuthTokenRef } from "../hooks/useAuthTokenRef";
@@ -83,11 +102,29 @@ const mockGetConfig = vi.mocked(getConfig);
 import { useMapDataset } from "../hooks/useMapDataset";
 const mockUseMapDataset = vi.mocked(useMapDataset);
 
+import { useVisibleSports } from "../hooks/useVisibleSports";
+const mockUseVisibleSports = vi.mocked(useVisibleSports);
+
 import { useRefreshMapData } from "../hooks/useRefreshMapData";
 const mockUseRefreshMapData = vi.mocked(useRefreshMapData);
 
 /** Props of the most recent <RouteMap> render (the mock spies on them). */
 const lastMapProps = () => mapPropsSpy.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+
+/** Props of the most recent <MapFilterControls> render (the mock spies on them). */
+const lastFilterProps = () => filterPropsSpy.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+
+/** Full useVisibleSports return, so per-test overrides typecheck. */
+const visibleSportsResult = (visibleSports: string[]) =>
+  ({
+    visibleSports,
+    setVisibleSports: vi.fn(),
+    isLoading: false,
+    error: null,
+    isSaving: false,
+    saveError: null,
+    clearSaveError: vi.fn(),
+  }) as ReturnType<typeof useVisibleSports>;
 
 const authedUser = {
   user: { uid: "u1", email: "a@b.com", displayName: "Test", photoURL: null },
@@ -135,6 +172,8 @@ describe("RoutesPage", () => {
     // Reset the dataset to empty each test â clearAllMocks doesn't undo a
     // per-test mockReturnValue (e.g. the deep-link focus test sets one).
     mockUseMapDataset.mockReturnValue({ activities: [], isLoading: false, error: null });
+    // Same for the visible-sports preference (default: none set).
+    mockUseVisibleSports.mockReturnValue(visibleSportsResult([]));
   });
 
   it("shows sign-in prompt when unauthenticated", async () => {
@@ -272,6 +311,45 @@ describe("RoutesPage", () => {
     expect(typeof props.getAuthToken).toBe("function");
     expect(props.getAuthToken()).toBe("firebase-token");
     expect(typeof props.refreshAuthToken).toBe("function");
+  });
+
+  it("wires only the present visible-sports into the filter's 'My sports' preset", async () => {
+    // Opted into cycling + hiking app-wide; the map dataset has cycling + running.
+    mockUseVisibleSports.mockReturnValue(visibleSportsResult(["cycling", "hiking"]));
+    mockUseMapDataset.mockReturnValue({
+      activities: [
+        {
+          activityId: 1,
+          name: "Ride",
+          sport: "cycling",
+          distanceMeters: 10_000,
+          movingTime: 1_800,
+          startDateLocal: "2026-05-01T08:00:00",
+          regionIds: [],
+          bbox: [-74.1, 40.6, -73.8, 40.9],
+        },
+        {
+          activityId: 2,
+          name: "Jog",
+          sport: "running",
+          distanceMeters: 5_000,
+          movingTime: 1_500,
+          startDateLocal: "2026-05-02T08:00:00",
+          regionIds: [],
+          bbox: [-74.1, 40.6, -73.8, 40.9],
+        },
+      ],
+      isLoading: false,
+      error: null,
+    });
+
+    await renderWithRouter(<RoutesPage />);
+    await screen.findByTestId("route-map");
+
+    // "hiking" is opted-in but has no route on the map → dropped; "running" is present
+    // but not opted-in → excluded. Only the intersection reaches the control.
+    await waitFor(() => expect(filterPropsSpy).toHaveBeenCalled());
+    expect(lastFilterProps().mySports).toEqual(["cycling"]);
   });
 
   it("shows an empty hint when there are no geo-bearing activities", async () => {

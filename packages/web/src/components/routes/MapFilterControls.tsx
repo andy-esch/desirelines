@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { type RouteFilterState, yearRange } from "../../utils/routeFilters";
 import type { RegionSummary } from "../../api/map";
 import { convertDistance, getDistanceLabel, type DistanceUnit } from "../../utils/units";
+import { SportVisibilityHint } from "../SportVisibilityHint";
 
 /** A selectable sport: app-category key + display label + legend color. */
 export interface SportOption {
@@ -20,6 +21,11 @@ export interface MapFilterControlsProps {
   filters: RouteFilterState;
   /** App-category sports present in the dataset (derived in the page). */
   sportOptions: SportOption[];
+  /** The user's configured visible sports (from the shared `useVisibleSports`
+   *  preference) — powers the one-tap "My sports" preset. The control narrows this
+   *  to sports present in `sportOptions`; when the result is empty, or equals all
+   *  present sports, the preset is hidden. */
+  mySports: string[];
   /** `[0, maxMeters]` over the full dataset — the distance slider domain. */
   distanceDomain: [number, number];
   /** `[earliest, today]` over the full dataset — drives the year quick-select. */
@@ -45,6 +51,11 @@ export interface MapFilterControlsProps {
 const ALL_REGIONS = "all";
 
 const ALL_TIME = "all";
+
+/** True when two sport selections are the same set (order-independent). */
+function sameSportSet(a: string[], b: string[]): boolean {
+  return a.length === b.length && [...a].sort().join("|") === [...b].sort().join("|");
+}
 
 function Section({
   label,
@@ -86,6 +97,7 @@ function Section({
 export default function MapFilterControls({
   filters,
   sportOptions,
+  mySports,
   distanceDomain,
   dateDomain,
   distanceUnit,
@@ -102,6 +114,18 @@ export default function MapFilterControls({
   // Stable across renders (a bare `now ?? new Date()` would churn useMemo deps).
   const today = useMemo(() => now ?? new Date(), [now]);
   const currentYear = today.getFullYear();
+
+  // "My sports" preset: one-tap apply of the user's configured visible-sports. Defend
+  // against a caller passing sports absent from the dataset by narrowing to those that
+  // actually have a chip — so the length check below is a true "proper subset" test and
+  // clicking can't select an unrenderable sport. Meaningful only as a proper subset: if
+  // it equals all present sports it's the same as "All"/clear, so we hide it.
+  const presentMySports = useMemo(
+    () => mySports.filter((s) => sportOptions.some((o) => o.value === s)),
+    [mySports, sportOptions]
+  );
+  const showMySports = presentMySports.length > 0 && presentMySports.length < sportOptions.length;
+  const myActive = showMySports && sameSportSet(filters.sports, presentMySports);
 
   // Years present in the data (earliest → current), newest first, for the
   // quick-select. Plus an "All" chip that widens to the full date domain.
@@ -215,17 +239,39 @@ export default function MapFilterControls({
           label="Sport"
           htmlId="filter-sport-label"
           action={
-            filters.sports.length > 0 ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onSportsChange([])}
-                disabled={disabled}
-                className="h-auto gap-1 px-1.5 py-0.5 text-[0.7rem] text-slate-light hover:text-body-text"
-              >
-                Clear
-                <span aria-hidden="true">✕</span>
-              </Button>
+            showMySports || filters.sports.length > 0 ? (
+              <div className="flex items-center gap-1">
+                {showMySports && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-pressed={myActive}
+                    // A true toggle: apply the preset, or (when already active) clear
+                    // back to all sports. Keeps `aria-pressed` honest and avoids the
+                    // dead re-render a re-apply-the-same-set click would cause.
+                    onClick={() => onSportsChange(myActive ? [] : presentMySports)}
+                    disabled={disabled}
+                    className={cn(
+                      "h-auto px-1.5 py-0.5 text-[0.7rem] hover:text-body-text",
+                      myActive ? "text-body-text" : "text-slate-light"
+                    )}
+                  >
+                    My sports
+                  </Button>
+                )}
+                {filters.sports.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onSportsChange([])}
+                    disabled={disabled}
+                    className="h-auto gap-1 px-1.5 py-0.5 text-[0.7rem] text-slate-light hover:text-body-text"
+                  >
+                    Clear
+                    <span aria-hidden="true">✕</span>
+                  </Button>
+                )}
+              </div>
             ) : undefined
           }
         >
@@ -254,6 +300,8 @@ export default function MapFilterControls({
               </ToggleGroupItem>
             ))}
           </ToggleGroup>
+          {/* Points at the same visible-sports config the "My sports" preset reads. */}
+          <SportVisibilityHint className="mt-2" />
         </Section>
       )}
 

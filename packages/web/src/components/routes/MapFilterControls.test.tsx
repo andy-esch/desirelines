@@ -1,8 +1,17 @@
 import { describe, it, expect, vi } from "vitest";
+import type { ReactNode } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import MapFilterControls, { type MapFilterControlsProps } from "./MapFilterControls";
 import { defaultRouteFilters } from "../../utils/routeFilters";
+
+// SportVisibilityHint uses TanStack Router's <Link>; stub it as an <a> (with a real
+// href so it keeps the "link" role) — no router context in this unit test.
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ to, hash, children }: { to?: string; hash?: string; children: ReactNode }) => (
+    <a href={hash ? `${to}#${hash}` : to}>{children}</a>
+  ),
+}));
 
 const NOW = new Date("2026-06-22T12:00:00");
 
@@ -20,6 +29,7 @@ function renderControls(over: Partial<MapFilterControlsProps> = {}) {
       { value: "cycling", label: "Cycling", color: "rgb(0,255,255)" },
       { value: "running", label: "Running", color: "rgb(0,200,255)" },
     ],
+    mySports: [],
     distanceDomain: [0, 80_000],
     dateDomain: ["2025-08-01", "2026-06-22"],
     distanceUnit: "miles",
@@ -65,6 +75,61 @@ describe("MapFilterControls", () => {
     expect(onSportsChange).toHaveBeenCalledWith([]);
   });
 
+  it("applies the configured visible sports via the 'My sports' preset", async () => {
+    const user = userEvent.setup();
+    const { onSportsChange } = renderControls({ mySports: ["cycling"] });
+    await user.click(screen.getByRole("button", { name: /my sports/i }));
+    expect(onSportsChange).toHaveBeenCalledWith(["cycling"]);
+  });
+
+  it("marks 'My sports' pressed when the filter already equals the preference", () => {
+    renderControls({
+      mySports: ["cycling"],
+      filters: { ...defaultRouteFilters(NOW), sports: ["cycling"] },
+    });
+    expect(screen.getByRole("button", { name: /my sports/i })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+  });
+
+  it("toggles 'My sports' off (clears to all sports) when it is already active", async () => {
+    const user = userEvent.setup();
+    const { onSportsChange } = renderControls({
+      mySports: ["cycling"],
+      filters: { ...defaultRouteFilters(NOW), sports: ["cycling"] },
+    });
+    await user.click(screen.getByRole("button", { name: /my sports/i }));
+    expect(onSportsChange).toHaveBeenCalledWith([]);
+  });
+
+  it("narrows the 'My sports' preset to sports present in the dataset", async () => {
+    const user = userEvent.setup();
+    // "swimming" isn't among the sportOptions (dataset) → excluded from the preset.
+    const { onSportsChange } = renderControls({ mySports: ["cycling", "swimming"] });
+    await user.click(screen.getByRole("button", { name: /my sports/i }));
+    expect(onSportsChange).toHaveBeenCalledWith(["cycling"]);
+  });
+
+  it("hides 'My sports' when no preferred sport is present in the dataset", () => {
+    renderControls({ mySports: ["swimming"] });
+    expect(screen.queryByRole("button", { name: /my sports/i })).not.toBeInTheDocument();
+  });
+
+  it("hides 'My sports' when the preference isn't a proper subset of present sports", () => {
+    // Empty preference → no preset.
+    renderControls({ mySports: [] });
+    expect(screen.queryByRole("button", { name: /my sports/i })).not.toBeInTheDocument();
+    // Preference == all present sports → redundant with All/clear, so hidden.
+    renderControls({ mySports: ["cycling", "running"] });
+    expect(screen.queryByRole("button", { name: /my sports/i })).not.toBeInTheDocument();
+  });
+
+  it("links to the shared visible-sports settings", () => {
+    renderControls();
+    expect(screen.getByRole("link", { name: /manage visible sports/i })).toBeInTheDocument();
+  });
+
   it("marks the current-year chip as pressed by default", () => {
     renderControls();
     expect(screen.getByRole("button", { name: "2026" })).toHaveAttribute("aria-pressed", "true");
@@ -105,8 +170,11 @@ describe("MapFilterControls", () => {
     // Trigger shows "All regions" by default.
     const trigger = screen.getByRole("combobox");
     await user.click(trigger);
+    // The Base UI Select opens its listbox in a portal on a Floating-UI tick, so the
+    // options aren't in the DOM synchronously — await them (a sync `getByRole` here
+    // races the mount and fails deterministically in isolation / flakily in the suite).
     // Regions are listed densest-first with counts.
-    await user.click(screen.getByRole("option", { name: /New York \(42\)/ }));
+    await user.click(await screen.findByRole("option", { name: /New York \(42\)/ }));
     expect(onSelectRegion).toHaveBeenCalledWith(10);
   });
 
