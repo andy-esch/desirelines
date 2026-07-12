@@ -52,9 +52,13 @@ const ALL_REGIONS = "all";
 
 const ALL_TIME = "all";
 
-/** True when two sport selections are the same set (order-independent). */
+/** True when two sport selections are the same set (order-independent). Inputs are
+ *  duplicate-free selections, so an equal length + one-way subset check is exact —
+ *  and a Set avoids both a delimiter-join's collision risk and its sort cost. */
 function sameSportSet(a: string[], b: string[]): boolean {
-  return a.length === b.length && [...a].sort().join("|") === [...b].sort().join("|");
+  if (a.length !== b.length) return false;
+  const setA = new Set(a);
+  return b.every((x) => setA.has(x));
 }
 
 function Section({
@@ -120,10 +124,10 @@ export default function MapFilterControls({
   // actually have a chip — so the length check below is a true "proper subset" test and
   // clicking can't select an unrenderable sport. Meaningful only as a proper subset: if
   // it equals all present sports it's the same as "All"/clear, so we hide it.
-  const presentMySports = useMemo(
-    () => mySports.filter((s) => sportOptions.some((o) => o.value === s)),
-    [mySports, sportOptions]
-  );
+  const presentMySports = useMemo(() => {
+    const optionValues = new Set(sportOptions.map((o) => o.value));
+    return mySports.filter((s) => optionValues.has(s));
+  }, [mySports, sportOptions]);
   const showMySports = presentMySports.length > 0 && presentMySports.length < sportOptions.length;
   const myActive = showMySports && sameSportSet(filters.sports, presentMySports);
 

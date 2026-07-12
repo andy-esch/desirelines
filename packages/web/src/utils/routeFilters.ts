@@ -53,7 +53,8 @@ export function yearRange(year: number, now: Date = new Date()): [string, string
  * so no further key-validation is needed.
  */
 export function mapPresetSports(visibleSports: string[], presentSports: string[]): string[] {
-  return visibleSports.filter((s) => presentSports.includes(s));
+  const presentSet = new Set(presentSports);
+  return visibleSports.filter((s) => presentSet.has(s));
 }
 
 /** Default filters: current year, all sports/regions, no distance constraint. */
