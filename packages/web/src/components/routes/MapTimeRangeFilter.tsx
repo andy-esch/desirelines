@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Slider } from "../ui/slider";
 import { Input } from "../ui/input";
 
@@ -43,7 +44,18 @@ export default function MapTimeRangeFilter({
   const lo = clamp(ymdToDay(dateRange[0]) - startDay, 0, span);
   const hi = clamp(ymdToDay(dateRange[1]) - startDay, 0, span);
 
-  const onSlider = (vals: number[]) => {
+  // The slider is `value`-controlled off the date range, which now lives in the URL —
+  // committing on every drag tick would fire a navigate() per frame. Keep a local draft
+  // for a smooth thumb during the drag and commit (→ filter/URL) only on release; drop
+  // the draft once the committed range round-trips back (render-time adjustment, so the
+  // thumb never flickers). The date inputs below are discrete and commit directly.
+  const [sliderDraft, setSliderDraft] = useState<[number, number] | null>(null);
+  if (sliderDraft && sliderDraft[0] === lo && sliderDraft[1] === hi) {
+    setSliderDraft(null);
+  }
+  const sliderValue = sliderDraft ?? [lo, hi];
+
+  const commitSlider = (vals: number[]) => {
     const a = vals[0] ?? 0;
     const b = vals[1] ?? span;
     onChange([dayToYmd(startDay + a), dayToYmd(startDay + b)]);
@@ -70,9 +82,15 @@ export default function MapTimeRangeFilter({
         min={0}
         max={span}
         step={1}
-        value={[lo, hi]}
+        value={sliderValue}
         disabled={disabled}
-        onValueChange={(vals) => onSlider(vals as number[])}
+        // Live thumb only — no filter/URL write per tick.
+        onValueChange={(vals) => {
+          const next = vals as number[];
+          setSliderDraft([next[0] ?? 0, next[1] ?? span]);
+        }}
+        // Commit once, on release (pointer-up / keyboard step) → writes the date range (URL).
+        onValueCommitted={(vals) => commitSlider(vals as number[])}
       />
       <div className="mt-2 flex items-center gap-2">
         <Input

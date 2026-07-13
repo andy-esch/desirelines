@@ -20,28 +20,63 @@ export interface ActivityFilterSearch {
   dmin?: number;
   /** Max distance (meters). Paired with `dmin`. */
   dmax?: number;
-  /** Region id. */
+  /**
+   * Region id. NOTE: this is the **least portable** filter param — a raw backend
+   * region id. A bookmarked/shared `?region=` assumes that id stays stable and present
+   * in the dataset; region re-tagging/renumbering (or, under future multi-user,
+   * another athlete's dataset) can leave a persisted region filter pointing at the
+   * wrong/empty region. It is map-only by nature (non-geo activities have no region),
+   * so it must not be carried into non-map views.
+   */
   region?: number;
 }
 
 function toFiniteNumber(v: unknown): number | undefined {
+  // Guard empty/whitespace strings: Number("") === 0 would turn `?region=` into region 0.
+  if (typeof v === "string" && v.trim() === "") return undefined;
   const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
   return Number.isFinite(n) ? n : undefined;
 }
 
-/** Coerce raw URL search into the typed filter params (a `validateSearch` helper). */
+/** A real calendar date string (YYYY-MM-DD) — the only date shape we accept. */
+function isYmd(v: unknown): v is string {
+  if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  // Reject impossible dates (e.g. 2026-02-31): the Date engine rolls them forward, so a
+  // valid date must serialize back to itself — otherwise the <input type="date"> that
+  // receives the raw string renders blank while the slider sits at the rolled-over day.
+  const d = new Date(v);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
+}
+
+/**
+ * Coerce raw URL search into the typed filter params (a `validateSearch` helper).
+ * Defensive against hand-edited / corrupted URLs: malformed dates are dropped (a
+ * garbage `?from=oops` would otherwise string-compare in `matchesFilters` and hide
+ * every activity, and blank the date input), and crossed date/distance pairs are
+ * ordered so a slider never receives `lo > hi` (which can wedge the Base UI Slider).
+ */
 export function parseActivityFilterSearch(search: Record<string, unknown>): ActivityFilterSearch {
   const out: ActivityFilterSearch = {};
   if (typeof search.sports === "string" && search.sports.length > 0) out.sports = search.sports;
-  if (typeof search.from === "string") out.from = search.from;
-  if (typeof search.to === "string") out.to = search.to;
+
+  const from = isYmd(search.from) ? search.from : undefined;
+  const to = isYmd(search.to) ? search.to : undefined;
+  if (from !== undefined && to !== undefined) {
+    out.from = from <= to ? from : to;
+    out.to = from <= to ? to : from;
+  } else {
+    if (from !== undefined) out.from = from;
+    if (to !== undefined) out.to = to;
+  }
+
+  // Distance is a paired window — keep both or neither, ordered.
   const dmin = toFiniteNumber(search.dmin);
   const dmax = toFiniteNumber(search.dmax);
-  // Distance is a paired window — keep both or neither so it round-trips cleanly.
   if (dmin !== undefined && dmax !== undefined) {
-    out.dmin = dmin;
-    out.dmax = dmax;
+    out.dmin = Math.min(dmin, dmax);
+    out.dmax = Math.max(dmin, dmax);
   }
+
   const region = toFiniteNumber(search.region);
   if (region !== undefined && Number.isInteger(region)) out.region = region;
   return out;

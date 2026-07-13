@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ExpressionSpecification } from "mapbox-gl";
 import type { MapActivity } from "../api/map";
 import {
@@ -96,15 +96,30 @@ export function useRouteFilters(
   const [internal, setInternal] = useState<RouteFilterState>(() => defaultRouteFilters(now));
   const filters = controlled ? controlledValue : internal;
 
+  // Keep the setters below referentially STABLE across renders (so memoized children —
+  // map controls, charts — don't re-render just because a filter changed). `applyFilters`
+  // reads the live filters/onChange from a ref updated in an effect (NOT during render —
+  // that trips the no-refs-during-render rule) rather than closing over them via deps.
+  const live = useRef({ filters, onChange, controlled });
+  useEffect(() => {
+    live.current = { filters, onChange, controlled };
+  }, [filters, onChange, controlled]);
+
+  // CONTRACT: in *controlled* mode a functional update reads the current filters, so a
+  // caller must apply at most ONE mutation per tick — two synchronous setter calls would
+  // both read the pre-update value and the second would win (last-write-wins). Uncontrolled
+  // mode batches functional updaters via setState and is unaffected. Every current call
+  // site mutates once per user event; keep it so.
   const applyFilters = useCallback(
     (updater: RouteFilterState | ((f: RouteFilterState) => RouteFilterState)) => {
-      if (controlled && onChange) {
-        onChange(typeof updater === "function" ? updater(controlledValue) : updater);
+      const { controlled: isControlled, onChange: emit, filters: current } = live.current;
+      if (isControlled && emit) {
+        emit(typeof updater === "function" ? updater(current) : updater);
       } else {
         setInternal(updater);
       }
     },
-    [controlled, controlledValue, onChange]
+    []
   );
 
   const setSports = useCallback(

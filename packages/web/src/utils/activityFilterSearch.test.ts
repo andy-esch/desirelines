@@ -46,6 +46,32 @@ describe("parseActivityFilterSearch", () => {
       dmax: 2000,
     });
   });
+
+  it("drops malformed and impossible dates", () => {
+    expect(parseActivityFilterSearch({ from: "oops", to: "2026-06-22" })).toEqual({
+      to: "2026-06-22",
+    });
+    // 2026-02-31 rolls forward in the Date engine → rejected (would blank the date input).
+    expect(parseActivityFilterSearch({ from: "2026-02-31" })).toEqual({});
+  });
+
+  it("orders a crossed date window", () => {
+    expect(parseActivityFilterSearch({ from: "2026-06-22", to: "2026-01-01" })).toEqual({
+      from: "2026-01-01",
+      to: "2026-06-22",
+    });
+  });
+
+  it("orders a crossed distance window (the slider never gets lo > hi)", () => {
+    expect(parseActivityFilterSearch({ dmin: "5000", dmax: "1000" })).toEqual({
+      dmin: 1000,
+      dmax: 5000,
+    });
+  });
+
+  it("ignores empty-string params (no region 0 from `?region=`)", () => {
+    expect(parseActivityFilterSearch({ region: "", dmin: "", dmax: "" })).toEqual({});
+  });
 });
 
 describe("searchToFilters", () => {

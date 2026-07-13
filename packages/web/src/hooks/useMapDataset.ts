@@ -11,6 +11,11 @@ export interface UseMapDatasetResult {
 /** Query key for the map dataset (shared so the refresh hook can invalidate it). */
 export const mapDatasetKey = (uid: string | undefined) => ["mapDataset", uid] as const;
 
+// Stable reference for the loading/empty state so `activities` doesn't change identity
+// every render (a fresh `[]` would needlessly invalidate downstream memos like
+// RoutesPage's `orderedSports` before the data has even loaded).
+const EMPTY_ACTIVITIES: MapActivity[] = [];
+
 /**
  * Fetch the routes-map cross-filter dataset (all geo-bearing activities' scalars
  * + region tags, keyed by activity id). Fetched once; the routes map filters this
@@ -38,7 +43,7 @@ export function useMapDataset(): UseMapDatasetResult {
   });
 
   return {
-    activities: data ?? [],
+    activities: data ?? EMPTY_ACTIVITIES,
     isLoading: authLoading || isLoading,
     error: error,
   };

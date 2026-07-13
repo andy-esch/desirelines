@@ -333,7 +333,12 @@ export default function RoutesPage() {
     () => new Set(routeFilters.filteredIds),
     [routeFilters.filteredIds]
   );
-  if (selected !== null && !filteredIdSet.has(selected.id)) {
+  // Exempt the deep-linked (focused) activity: the map already overrides the filter to
+  // show its route, so its popup must stay too. Otherwise a filter that excludes the
+  // focused id — a URL-carried sport filter, or just the default current-year window for
+  // a past activity opened via "View on map" — would clear the popup and strand a framed
+  // route with no details (and `focusAppliedRef` blocks it from re-opening).
+  if (selected !== null && selected.id !== focusId && !filteredIdSet.has(selected.id)) {
     setSelected(null);
   }
 

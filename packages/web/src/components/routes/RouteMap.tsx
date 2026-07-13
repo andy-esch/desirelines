@@ -592,13 +592,14 @@ export default function RouteMap({
   // given request fits once, not on every re-render.
   const fittedNonceRef = useRef<number | null>(null);
   useEffect(() => {
-    if (!fitTo || fittedNonceRef.current === fitTo.nonce) return;
+    const map = mapRef.current;
+    if (!map || !fitTo || fittedNonceRef.current === fitTo.nonce) return;
     fittedNonceRef.current = fitTo.nonce;
-    mapRef.current?.fitBounds(bboxToBounds(fitTo.bbox), {
+    map.fitBounds(bboxToBounds(fitTo.bbox), {
       ...FIT_BOUNDS_OPTIONS,
       duration: fitTo.duration,
     });
-  }, [fitTo]);
+  }, [fitTo, status]);
 
   // The hovered route + the selected route get the wider highlight layer.
   const highlightPaint = useMemo<NonNullable<LineLayerSpecification["paint"]>>(

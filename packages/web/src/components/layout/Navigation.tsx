@@ -15,7 +15,7 @@ interface NavigationProps {
   vertical?: boolean;
 }
 
-/** The three coordinated views nested under the Activities dropdown (signed-in). */
+/** The three coordinated views nested under the Activities dropdown. */
 const ACTIVITIES_VIEWS = [
   { to: "/routes", label: "Routes" },
   { to: "/charts", label: "Charts" },
@@ -120,7 +120,10 @@ export default function Navigation({ className = "", vertical = false }: Navigat
           className={`nav-link ${isOnSportPage ? "active" : "text-white/50"}`}
           style={{ cursor: "pointer" }}
         >
-          Goals <span style={{ fontSize: "0.65em" }}>▼</span>
+          Goals{" "}
+          <span aria-hidden="true" style={{ fontSize: "0.65em" }}>
+            ▼
+          </span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="bg-header-bg border-header-border min-w-40">
           {sports.map((sport) => (
@@ -148,7 +151,10 @@ export default function Navigation({ className = "", vertical = false }: Navigat
           className={`nav-link ${isOnActivitiesGroup ? "active" : "text-white/50"}`}
           style={{ cursor: "pointer" }}
         >
-          Activities <span style={{ fontSize: "0.65em" }}>▼</span>
+          Activities{" "}
+          <span aria-hidden="true" style={{ fontSize: "0.65em" }}>
+            ▼
+          </span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="bg-header-bg border-header-border min-w-40">
           {ACTIVITIES_VIEWS.map((v) => (
