@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { Slider } from "../ui/slider";
 import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
@@ -166,6 +166,25 @@ export default function MapFilterControls({
   // Step ≈ 1% of the range (min 100 m) so the slider is smooth but not jittery.
   const distanceStep = Math.max(100, Math.round(distanceMax / 100));
 
+  // The distance slider is `value`-controlled off the filter state, which now lives in
+  // the URL — committing on every drag tick would fire a navigate() per frame. Keep a
+  // local "draft" for a smooth thumb during the drag and commit (→ filter/URL) only on
+  // release; drop the draft once the committed value round-trips back through the prop,
+  // so the thumb never flickers back to the pre-commit position.
+  const [distanceDraft, setDistanceDraft] = useState<[number, number] | null>(null);
+  // Drop the draft once the committed value has round-tripped back through the prop.
+  // Adjusting state *during render* (React's documented alternative to a syncing
+  // effect) — React re-renders immediately without committing the intermediate DOM,
+  // so there's no cascading render and the thumb never flickers to the old position.
+  if (
+    distanceDraft &&
+    distanceDraft[0] === distanceValue[0] &&
+    distanceDraft[1] === distanceValue[1]
+  ) {
+    setDistanceDraft(null);
+  }
+  const sliderDistance = distanceDraft ?? distanceValue;
+
   return (
     <div
       className={cn("divide-y divide-border/60", disabled && "pointer-events-none opacity-50")}
@@ -316,9 +335,15 @@ export default function MapFilterControls({
           min={0}
           max={distanceMax}
           step={distanceStep}
-          value={distanceValue}
+          value={sliderDistance}
           disabled={disabled}
+          // Live thumb only — cheap local state, no filter/URL write per tick.
           onValueChange={(vals) => {
+            const next = vals as number[];
+            setDistanceDraft([next[0] ?? 0, next[1] ?? distanceMax]);
+          }}
+          // Commit once, on release (pointer-up / keyboard step) → writes the filter (URL).
+          onValueCommitted={(vals) => {
             const next = vals as number[];
             const lo = next[0] ?? 0;
             const hi = next[1] ?? distanceMax;
@@ -329,10 +354,10 @@ export default function MapFilterControls({
         />
         <div className="mt-1 flex justify-between text-xs tabular-nums text-slate-light">
           <span>
-            {fmt(distanceValue[0])} {unitLabel}
+            {fmt(sliderDistance[0])} {unitLabel}
           </span>
           <span>
-            {fmt(distanceValue[1])} {unitLabel}
+            {fmt(sliderDistance[1])} {unitLabel}
           </span>
         </div>
       </Section>

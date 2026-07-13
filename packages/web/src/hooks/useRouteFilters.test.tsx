@@ -1,6 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import type { MapActivity } from "../api/map";
+import type { RouteFilterState } from "../utils/routeFilters";
 import { useRouteFilters } from "./useRouteFilters";
 
 const NOW = new Date("2026-06-22T12:00:00");
@@ -134,6 +135,39 @@ describe("useRouteFilters", () => {
       distanceRange: null,
       dateRange: ["2026-01-01", "2026-06-22"],
       regionId: null,
+    });
+  });
+
+  describe("controlled mode (value + onChange)", () => {
+    const baseValue: RouteFilterState = {
+      sports: [],
+      distanceRange: null,
+      dateRange: ["2026-01-01", "2026-06-22"],
+      regionId: null,
+    };
+
+    it("reads filters from `value` and routes setters through `onChange`", () => {
+      const onChange = vi.fn();
+      const { result } = renderHook(() =>
+        useRouteFilters(DATASET, { now: NOW, value: baseValue, onChange })
+      );
+      expect(result.current.filters).toEqual(baseValue);
+      act(() => result.current.toggleSport("cycling"));
+      // Setter emits the next state; it does NOT mutate internal state (parent owns it).
+      expect(onChange).toHaveBeenCalledWith({ ...baseValue, sports: ["cycling"] });
+      expect(result.current.filters.sports).toEqual([]);
+    });
+
+    it("computes functional updates from the latest `value` prop", () => {
+      const onChange = vi.fn();
+      const { result, rerender } = renderHook(
+        ({ value }) => useRouteFilters(DATASET, { now: NOW, value, onChange }),
+        { initialProps: { value: { ...baseValue, sports: ["cycling"] } } }
+      );
+      const updated: RouteFilterState = { ...baseValue, sports: ["cycling", "running"] };
+      rerender({ value: updated });
+      act(() => result.current.setRegionId(10));
+      expect(onChange).toHaveBeenCalledWith({ ...updated, regionId: 10 });
     });
   });
 });

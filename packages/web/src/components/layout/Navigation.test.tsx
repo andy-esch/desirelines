@@ -30,11 +30,6 @@ describe("Navigation", () => {
       expect(screen.getByRole("link", { name: "Dashboard" })).toBeInTheDocument();
     });
 
-    it("renders Activities link", async () => {
-      await renderNav(<Navigation />);
-      expect(screen.getByRole("link", { name: "Activities" })).toBeInTheDocument();
-    });
-
     it("renders Goals dropdown button", async () => {
       await renderNav(<Navigation />);
       expect(screen.getByRole("button", { name: /Goals/ })).toBeInTheDocument();
@@ -51,27 +46,40 @@ describe("Navigation", () => {
 
     it("highlights Dashboard when on root route", async () => {
       await renderNav(<Navigation />, { route: "/" });
-      const dashboardLink = screen.getByRole("link", { name: "Dashboard" });
-      expect(dashboardLink).toHaveClass("active");
+      expect(screen.getByRole("link", { name: "Dashboard" })).toHaveClass("active");
     });
 
     it("highlights Goals dropdown when on sport route", async () => {
       const currentYear = new Date().getFullYear();
       await renderNav(<Navigation />, { route: `/cycling/${currentYear}` });
-      const goalsButton = screen.getByRole("button", { name: /Goals/ });
-      expect(goalsButton).toHaveClass("active");
-    });
-
-    it("highlights Activities link when on activities page", async () => {
-      await renderNav(<Navigation />, { route: "/activities" });
-      const activitiesLink = screen.getByRole("link", { name: "Activities" });
-      expect(activitiesLink).toHaveClass("active");
+      expect(screen.getByRole("button", { name: /Goals/ })).toHaveClass("active");
     });
 
     it("does not highlight Goals dropdown when on dashboard", async () => {
       await renderNav(<Navigation />, { route: "/" });
-      const goalsButton = screen.getByRole("button", { name: /Goals/ });
-      expect(goalsButton).not.toHaveClass("active");
+      expect(screen.getByRole("button", { name: /Goals/ })).not.toHaveClass("active");
+    });
+
+    // Activities is a dropdown (Routes/Charts/List), shown for everyone incl. demo.
+    it("renders an Activities dropdown button", async () => {
+      await renderNav(<Navigation />);
+      expect(screen.getByRole("button", { name: /Activities/ })).toBeInTheDocument();
+    });
+
+    it("lists Routes, Charts, and List under the Activities dropdown", async () => {
+      await renderNav(<Navigation />);
+      await userEvent.click(screen.getByRole("button", { name: /Activities/ }));
+      expect(await screen.findByRole("menuitem", { name: "Routes" })).toHaveAttribute(
+        "href",
+        "/routes"
+      );
+      expect(screen.getByRole("menuitem", { name: "Charts" })).toHaveAttribute("href", "/charts");
+      expect(screen.getByRole("menuitem", { name: "List" })).toHaveAttribute("href", "/activities");
+    });
+
+    it("highlights the Activities dropdown when on one of its views", async () => {
+      await renderNav(<Navigation />, { route: "/charts" });
+      expect(screen.getByRole("button", { name: /Activities/ })).toHaveClass("active");
     });
   });
 
@@ -81,11 +89,6 @@ describe("Navigation", () => {
       expect(screen.getByRole("link", { name: "Dashboard" })).toBeInTheDocument();
     });
 
-    it("renders Activities link", async () => {
-      await renderNav(<Navigation vertical />);
-      expect(screen.getByRole("link", { name: "Activities" })).toBeInTheDocument();
-    });
-
     it("renders Goals section header", async () => {
       await renderNav(<Navigation vertical />);
       expect(screen.getByText("Goals")).toBeInTheDocument();
@@ -93,21 +96,24 @@ describe("Navigation", () => {
 
     it("renders all sport links directly (no dropdown)", async () => {
       await renderNav(<Navigation vertical />);
-      const cyclingLinks = screen.getAllByRole("link", { name: /Cycling/ });
-      const runningLinks = screen.getAllByRole("link", { name: /Running/ });
-      const yogaLinks = screen.getAllByRole("link", { name: /Yoga/ });
-
-      expect(cyclingLinks.length).toBeGreaterThan(0);
-      expect(runningLinks.length).toBeGreaterThan(0);
-      expect(yogaLinks.length).toBeGreaterThan(0);
+      expect(screen.getAllByRole("link", { name: /Cycling/ }).length).toBeGreaterThan(0);
+      expect(screen.getAllByRole("link", { name: /Running/ }).length).toBeGreaterThan(0);
+      expect(screen.getAllByRole("link", { name: /Yoga/ }).length).toBeGreaterThan(0);
     });
 
     it("highlights active sport link", async () => {
       const currentYear = new Date().getFullYear();
       await renderNav(<Navigation vertical />, { route: `/running/${currentYear}` });
       const runningLinks = screen.getAllByRole("link", { name: /Running/ });
-      const activeLink = runningLinks.find((link) => link.classList.contains("active"));
-      expect(activeLink).toBeTruthy();
+      expect(runningLinks.find((link) => link.classList.contains("active"))).toBeTruthy();
+    });
+
+    it("renders the Activities section with its three views", async () => {
+      await renderNav(<Navigation vertical />);
+      expect(screen.getByText("Activities")).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Routes" })).toHaveAttribute("href", "/routes");
+      expect(screen.getByRole("link", { name: "Charts" })).toHaveAttribute("href", "/charts");
+      expect(screen.getByRole("link", { name: "List" })).toHaveAttribute("href", "/activities");
     });
   });
 

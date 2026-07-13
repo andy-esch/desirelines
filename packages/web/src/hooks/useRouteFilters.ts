@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ExpressionSpecification } from "mapbox-gl";
 import type { MapActivity } from "../api/map";
 import {
@@ -71,7 +71,13 @@ export interface UseRouteFiltersResult {
  */
 export function useRouteFilters(
   activities: MapActivity[],
-  options?: { now?: Date }
+  options?: {
+    now?: Date;
+    /** Controlled mode: the current filter state (e.g. deserialized from the URL). */
+    value?: RouteFilterState;
+    /** Controlled mode: receives the next state instead of it being set internally. */
+    onChange?: (next: RouteFilterState) => void;
+  }
 ): UseRouteFiltersResult {
   // Freeze a fallback "now" for the hook's lifetime (so re-renders don't drift the
   // default date window) but still honor an explicitly-passed `options.now` if it
@@ -79,54 +85,93 @@ export function useRouteFilters(
   const [fallbackNow] = useState(() => new Date());
   const now = options?.now ?? fallbackNow;
 
-  const [filters, setFilters] = useState<RouteFilterState>(() => defaultRouteFilters(now));
+  // Uncontrolled by default (internal state). When `value` + `onChange` are supplied
+  // (e.g. URL-backed on the routes page) the hook is *controlled*: `filters` reads
+  // `value` and every setter routes the next state through `onChange` instead of
+  // setting internally. Extracting the two as consts lets TS narrow them from the
+  // `controlled` alias (no casts) and keeps `applyFilters` stable in uncontrolled use.
+  const controlledValue = options?.value;
+  const onChange = options?.onChange;
+  const controlled = controlledValue !== undefined && onChange !== undefined;
+  const [internal, setInternal] = useState<RouteFilterState>(() => defaultRouteFilters(now));
+  const filters = controlled ? controlledValue : internal;
 
-  const setSports = useCallback((sports: string[]) => {
-    setFilters((f) => ({ ...f, sports }));
-  }, []);
+  // Keep the setters below referentially STABLE across renders (so memoized children —
+  // map controls, charts — don't re-render just because a filter changed). `applyFilters`
+  // reads the live filters/onChange from a ref updated in an effect (NOT during render —
+  // that trips the no-refs-during-render rule) rather than closing over them via deps.
+  const live = useRef({ filters, onChange, controlled });
+  useEffect(() => {
+    live.current = { filters, onChange, controlled };
+  }, [filters, onChange, controlled]);
 
-  const toggleSport = useCallback((sport: string) => {
-    setFilters((f) => ({
-      ...f,
-      sports: f.sports.includes(sport) ? f.sports.filter((s) => s !== sport) : [...f.sports, sport],
-    }));
-  }, []);
-
-  const setDistanceRange = useCallback((distanceRange: [number, number] | null) => {
-    setFilters((f) => ({ ...f, distanceRange }));
-  }, []);
-
-  const setDateRange = useCallback((dateRange: [string, string]) => {
-    setFilters((f) => ({ ...f, dateRange }));
-  }, []);
-
-  const selectYear = useCallback(
-    (year: number) => {
-      setFilters((f) => ({ ...f, dateRange: yearRange(year, now) }));
+  // CONTRACT: in *controlled* mode a functional update reads the current filters, so a
+  // caller must apply at most ONE mutation per tick — two synchronous setter calls would
+  // both read the pre-update value and the second would win (last-write-wins). Uncontrolled
+  // mode batches functional updaters via setState and is unaffected. Every current call
+  // site mutates once per user event; keep it so.
+  const applyFilters = useCallback(
+    (updater: RouteFilterState | ((f: RouteFilterState) => RouteFilterState)) => {
+      const { controlled: isControlled, onChange: emit, filters: current } = live.current;
+      if (isControlled && emit) {
+        emit(typeof updater === "function" ? updater(current) : updater);
+      } else {
+        setInternal(updater);
+      }
     },
-    [now]
+    []
   );
 
-  const setRegionId = useCallback((regionId: number | null) => {
-    setFilters((f) => ({ ...f, regionId }));
-  }, []);
+  const setSports = useCallback(
+    (sports: string[]) => applyFilters((f) => ({ ...f, sports })),
+    [applyFilters]
+  );
 
-  const reset = useCallback(() => {
-    setFilters(defaultRouteFilters(now));
-  }, [now]);
+  const toggleSport = useCallback(
+    (sport: string) =>
+      applyFilters((f) => ({
+        ...f,
+        sports: f.sports.includes(sport)
+          ? f.sports.filter((s) => s !== sport)
+          : [...f.sports, sport],
+      })),
+    [applyFilters]
+  );
+
+  const setDistanceRange = useCallback(
+    (distanceRange: [number, number] | null) => applyFilters((f) => ({ ...f, distanceRange })),
+    [applyFilters]
+  );
+
+  const setDateRange = useCallback(
+    (dateRange: [string, string]) => applyFilters((f) => ({ ...f, dateRange })),
+    [applyFilters]
+  );
+
+  const selectYear = useCallback(
+    (year: number) => applyFilters((f) => ({ ...f, dateRange: yearRange(year, now) })),
+    [applyFilters, now]
+  );
+
+  const setRegionId = useCallback(
+    (regionId: number | null) => applyFilters((f) => ({ ...f, regionId })),
+    [applyFilters]
+  );
+
+  const reset = useCallback(() => applyFilters(defaultRouteFilters(now)), [applyFilters, now]);
 
   // Domains depend only on the dataset, not the filters — recompute on data change.
   const distanceDomain = useMemo(() => activityDistanceDomain(activities), [activities]);
   const dateDomain = useMemo(() => activityDateDomain(activities, now), [activities, now]);
 
   const showAll = useCallback(() => {
-    setFilters({
+    applyFilters({
       sports: [],
       distanceRange: null,
       dateRange: [dateDomain[0], dateDomain[1]],
       regionId: null,
     });
-  }, [dateDomain]);
+  }, [applyFilters, dateDomain]);
 
   const filteredActivities = useMemo(
     () => filterMapActivities(activities, filters),
@@ -177,7 +222,7 @@ export function useRouteFilters(
     setDateRange,
     selectYear,
     setRegionId,
-    setFilters,
+    setFilters: applyFilters,
     reset,
     showAll,
   };

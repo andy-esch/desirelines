@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { screen, waitFor, fireEvent, within } from "@testing-library/react";
 import RoutesPage from "./RoutesPage";
 import { renderWithRouter } from "../test/renderWithRouter";
 import type { MapActivity, RegionSummary } from "../api/map";
@@ -154,6 +154,11 @@ function mockConfig(overrides: Partial<ReturnType<typeof getConfig>> = {}) {
 
 describe("RoutesPage", () => {
   beforeEach(() => {
+    // Pin the clock so the hardcoded 2026 fixtures don't rot once the real year rolls
+    // over (RoutesPage captures `new Date()` for the default current-year window). Fake
+    // ONLY Date — timers stay real so waitFor/findBy keep working.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-06-22T12:00:00"));
     vi.clearAllMocks();
     mockConfig();
     mockUseAuth.mockReturnValue(authedUser);
@@ -174,6 +179,10 @@ describe("RoutesPage", () => {
     mockUseMapDataset.mockReturnValue({ activities: [], isLoading: false, error: null });
     // Same for the visible-sports preference (default: none set).
     mockUseVisibleSports.mockReturnValue(visibleSportsResult([]));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("shows sign-in prompt when unauthenticated", async () => {
@@ -223,6 +232,31 @@ describe("RoutesPage", () => {
     // The focus effect selects the activity (opens its popup, anchored at bbox center).
     await waitFor(() => {
       expect((lastMapProps().selected as { id?: number } | null)?.id).toBe(12345);
+    });
+    expect(screen.getByText(/showing one activity/i)).toBeInTheDocument();
+  });
+
+  it("keeps the deep-linked activity's popup even when the filters exclude it", async () => {
+    // A 2020 activity is outside the default current-year window, so the cross-filter
+    // excludes it — but a deep-link must still show it (the map overrides the filter for
+    // the focused route, and its popup must not be cleared by the stale-selection guard).
+    const activity: MapActivity = {
+      activityId: 777,
+      name: "Old Ride",
+      sport: "cycling",
+      distanceMeters: 20_000,
+      movingTime: 3_000,
+      startDateLocal: "2020-05-01T08:00:00",
+      regionIds: [],
+      bbox: [-74.1, 40.6, -73.8, 40.9],
+    };
+    mockUseMapDataset.mockReturnValue({ activities: [activity], isLoading: false, error: null });
+
+    await renderWithRouter(<RoutesPage />, { route: "/?activity=777" });
+    await screen.findByTestId("route-map");
+
+    await waitFor(() => {
+      expect((lastMapProps().selected as { id?: number } | null)?.id).toBe(777);
     });
     expect(screen.getByText(/showing one activity/i)).toBeInTheDocument();
   });
@@ -566,6 +600,32 @@ describe("RoutesPage", () => {
         // Side panels coexist on desktop — opening insights leaves filters open.
         await waitFor(() => expect(insightsToggle).toHaveAttribute("aria-expanded", "true"));
         expect(filtersToggle).toHaveAttribute("aria-expanded", "true");
+      } finally {
+        restore();
+      }
+    });
+
+    it("shows an on-map 'no matches' recourse when filters hide every activity", async () => {
+      const restore = setViewport(true); // mobile → the filter drawer starts collapsed
+      try {
+        // A 2020 activity is outside the default current-year window → filtered to zero,
+        // and with the drawer collapsed the map would otherwise look mysteriously empty.
+        mockUseMapDataset.mockReturnValue({
+          activities: [{ ...activity, activityId: 9, startDateLocal: "2020-05-01T08:00:00" }],
+          isLoading: false,
+          error: null,
+        });
+        await renderWithRouter(<RoutesPage />);
+        await screen.findByTestId("route-map");
+
+        // Scoped to the on-map banner — the (collapsed) drawer's zero-result state also
+        // carries a "Show all activities" button in the DOM.
+        const banner = await screen.findByText(/no activities match your filters/i);
+        expect(
+          within(banner.closest("div") as HTMLElement).getByRole("button", {
+            name: /show all activities/i,
+          })
+        ).toBeInTheDocument();
       } finally {
         restore();
       }

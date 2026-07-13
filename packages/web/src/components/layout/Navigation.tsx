@@ -8,13 +8,19 @@ import {
 import { useVisibleSports } from "../../hooks/useVisibleSports";
 import { useSportConfig } from "../../hooks/useSportConfig";
 import { useCurrentYear } from "../../hooks/useCurrentYear";
-import { useAuth } from "../../hooks/useAuth";
 
 interface NavigationProps {
   className?: string;
   /** When true, renders vertical nav (for mobile offcanvas) */
   vertical?: boolean;
 }
+
+/** The three coordinated views nested under the Activities dropdown. */
+const ACTIVITIES_VIEWS = [
+  { to: "/routes", label: "Routes" },
+  { to: "/charts", label: "Charts" },
+  { to: "/activities", label: "List" },
+] as const;
 
 /**
  * Main navigation links for Dashboard and sport pages.
@@ -23,7 +29,6 @@ interface NavigationProps {
 export default function Navigation({ className = "", vertical = false }: NavigationProps) {
   const currentYear = useCurrentYear();
   const location = useLocation();
-  const { user } = useAuth();
   const { visibleSports } = useVisibleSports();
   const { sportConfig } = useSportConfig();
 
@@ -37,6 +42,8 @@ export default function Navigation({ className = "", vertical = false }: Navigat
 
   // Determine if we're on a sport/goals page
   const isOnSportPage = sports.some((s) => location.pathname.startsWith(`/${s.id}`));
+  // The Activities group spans the three views nested under its dropdown.
+  const isOnActivitiesGroup = ACTIVITIES_VIEWS.some((v) => location.pathname.startsWith(v.to));
 
   // Vertical layout for mobile drawer
   if (vertical) {
@@ -70,22 +77,27 @@ export default function Navigation({ className = "", vertical = false }: Navigat
             {sport.label}
           </Link>
         ))}
-        <Link
-          to="/activities"
-          activeProps={{ className: "nav-link no-underline mt-2 active" }}
-          inactiveProps={{ className: "nav-link no-underline mt-2 text-white/50" }}
-        >
-          Activities
-        </Link>
-        {user && (
+        {/* Activities group: a labelled section (mirroring Goals) with the three
+            coordinated views — shown for everyone, incl. demo/logged-out. */}
+        <div className="mt-6 mb-1 ps-2">
+          <span
+            className="text-white/50 text-sm uppercase font-semibold"
+            style={{ fontSize: "0.65rem", letterSpacing: "0.05em" }}
+          >
+            Activities
+          </span>
+        </div>
+        {ACTIVITIES_VIEWS.map((v) => (
           <Link
-            to="/routes"
+            key={v.to}
+            to={v.to}
             activeProps={{ className: "nav-link no-underline active" }}
             inactiveProps={{ className: "nav-link no-underline text-white/50" }}
+            style={{ paddingLeft: "1rem" }}
           >
-            Routes
+            {v.label}
           </Link>
-        )}
+        ))}
       </nav>
     );
   }
@@ -108,7 +120,10 @@ export default function Navigation({ className = "", vertical = false }: Navigat
           className={`nav-link ${isOnSportPage ? "active" : "text-white/50"}`}
           style={{ cursor: "pointer" }}
         >
-          Goals <span style={{ fontSize: "0.65em" }}>▼</span>
+          Goals{" "}
+          <span aria-hidden="true" style={{ fontSize: "0.65em" }}>
+            ▼
+          </span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="bg-header-bg border-header-border min-w-40">
           {sports.map((sport) => (
@@ -129,25 +144,30 @@ export default function Navigation({ className = "", vertical = false }: Navigat
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {/* Activities link */}
-      <Link
-        to="/activities"
-        activeProps={{ className: "nav-link no-underline active" }}
-        inactiveProps={{ className: "nav-link no-underline text-white/50" }}
-      >
-        Activities
-      </Link>
-
-      {/* Routes link — authenticated only */}
-      {user && (
-        <Link
-          to="/routes"
-          activeProps={{ className: "nav-link no-underline active" }}
-          inactiveProps={{ className: "nav-link no-underline text-white/50" }}
+      {/* Activities: a dropdown of the three coordinated views (Routes/Charts/List) —
+          shown for everyone, incl. demo/logged-out. */}
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger
+          className={`nav-link ${isOnActivitiesGroup ? "active" : "text-white/50"}`}
+          style={{ cursor: "pointer" }}
         >
-          Routes
-        </Link>
-      )}
+          Activities{" "}
+          <span aria-hidden="true" style={{ fontSize: "0.65em" }}>
+            ▼
+          </span>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="bg-header-bg border-header-border min-w-40">
+          {ACTIVITIES_VIEWS.map((v) => (
+            <DropdownMenuLinkItem
+              key={v.to}
+              className="px-4 py-2 text-header-text data-[highlighted]:bg-white/10 data-[highlighted]:text-white"
+              render={<Link to={v.to} activeProps={{ className: "bg-white/15 text-white" }} />}
+            >
+              {v.label}
+            </DropdownMenuLinkItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </nav>
   );
 }
