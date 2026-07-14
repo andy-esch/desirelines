@@ -14,6 +14,8 @@ export interface MapActivityListProps {
   activities: MapActivity[];
   /** App-category → NEON spectrum color (shared with the chips + map lines). */
   sportColors: Record<string, string>;
+  /** App-category → display name, shown as text so sport isn't conveyed by color alone. */
+  sportLabels: Record<string, string>;
   distanceUnit: DistanceUnit;
   /** Activity id selected on the map (highlights + scrolls its row into view). */
   selectedId: number | null;
@@ -38,6 +40,7 @@ function stravaUrl(activityId: number): string {
 export default function MapActivityList({
   activities,
   sportColors,
+  sportLabels,
   distanceUnit,
   selectedId,
   onSelect,
@@ -81,9 +84,17 @@ export default function MapActivityList({
 
   const start = safePage * PAGE_SIZE;
   const pageItems = activities.slice(start, start + PAGE_SIZE);
+  const selectedActivity =
+    selectedId != null ? activities.find((a) => a.activityId === selectedId) : undefined;
 
   return (
     <section className="px-4 py-3" aria-label="Activities">
+      {/* Announce the selection's effect for AT: selecting a route highlights it + opens a
+          map popup that isn't in the tab order, so the visual cue alone is invisible to
+          screen-reader / keyboard users. */}
+      <p className="sr-only" role="status" aria-live="polite">
+        {selectedActivity ? `Selected ${selectedActivity.name} — highlighted on the map` : ""}
+      </p>
       <div className="mb-2 flex items-center justify-between gap-2">
         <button
           type="button"
@@ -166,7 +177,8 @@ export default function MapActivityList({
                     </span>
                     <span className="block text-xs tabular-nums text-slate-light">
                       {formatActivityDate(a.startDateLocal)} ·{" "}
-                      {formatDistance(a.distanceMeters, distanceUnit)}
+                      {formatDistance(a.distanceMeters, distanceUnit)} ·{" "}
+                      {sportLabels[a.sport] ?? a.sport}
                     </span>
                   </span>
                 </button>

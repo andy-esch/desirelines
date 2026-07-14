@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import WeeklyVolumeChart from "./WeeklyVolumeChart";
 import type { MapActivity } from "../../api/map";
@@ -49,5 +49,11 @@ describe("WeeklyVolumeChart", () => {
   it("shows an empty hint when there are no activities", () => {
     render(<WeeklyVolumeChart activities={[]} distanceUnit="miles" />);
     expect(screen.getByText(/no activities to summarize/i)).toBeInTheDocument();
+  });
+
+  it("provides an sr-only data table as a text alternative to the chart", () => {
+    render(<WeeklyVolumeChart activities={[act()]} distanceUnit="miles" />);
+    const table = screen.getByRole("table", { name: /weekly distance by week/i });
+    expect(within(table).getByText("Week of")).toBeInTheDocument();
   });
 });

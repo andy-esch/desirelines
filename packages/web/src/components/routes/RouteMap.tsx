@@ -179,6 +179,9 @@ export interface SelectedRoute {
   name: string;
   distanceMeters: number;
   date: string;
+  /** Display name of the activity's sport, shown in the popup so sport isn't
+   *  conveyed by the line color alone (resolved from the dataset by the page). */
+  sportLabel?: string;
   lng?: number;
   lat?: number;
 }
@@ -834,6 +837,12 @@ function RoutePopupCard({
         </button>
       </div>
       <dl className="mt-2 space-y-0.5 text-xs text-slate-light">
+        {selected.sportLabel && (
+          <div className="flex justify-between gap-4">
+            <dt>Sport</dt>
+            <dd className="text-body-text">{selected.sportLabel}</dd>
+          </div>
+        )}
         <div className="flex justify-between gap-4">
           <dt>Distance</dt>
           <dd className="tabular-nums text-body-text">{distance}</dd>

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import DistanceHistogramChart from "./DistanceHistogramChart";
 import type { MapActivity } from "../../api/map";
 
@@ -48,5 +48,17 @@ describe("DistanceHistogramChart", () => {
   it("shows an empty hint when there are no activities", () => {
     render(<DistanceHistogramChart activities={[]} distanceUnit="miles" onSelectRange={vi.fn()} />);
     expect(screen.getByText(/no activities to summarize/i)).toBeInTheDocument();
+  });
+
+  it("provides an sr-only data table as a text alternative to the chart", () => {
+    render(
+      <DistanceHistogramChart
+        activities={[act({ activityId: 1, distanceMeters: 5_000 })]}
+        distanceUnit="miles"
+        onSelectRange={vi.fn()}
+      />
+    );
+    const table = screen.getByRole("table", { name: /activity count by distance/i });
+    expect(within(table).getByText("Activities")).toBeInTheDocument();
   });
 });

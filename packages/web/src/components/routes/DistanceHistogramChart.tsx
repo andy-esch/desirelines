@@ -49,47 +49,69 @@ export default function DistanceHistogramChart({
       {data.length === 0 ? (
         <p className="text-xs text-slate-light">No activities to summarize.</p>
       ) : (
-        <div className="h-32">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -18 }}>
-              <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
-              <XAxis
-                dataKey="label"
-                tick={{ fontSize: 9, fill: "var(--color-chart-tick)" }}
-                axisLine={false}
-                tickLine={false}
-                interval="preserveStartEnd"
-                minTickGap={8}
-              />
-              <YAxis
-                width={28}
-                allowDecimals={false}
-                tick={{ fontSize: 9, fill: "var(--color-chart-tick)" }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip
-                cursor={{ fill: "rgba(120,120,120,0.15)" }}
-                contentStyle={TOOLTIP_STYLE}
-                formatter={(v) => [`${Number(v)} activities`, "Count"]}
-                labelFormatter={(l) => `${l}+ ${unit}`}
-              />
-              <Bar
-                dataKey="count"
-                fill="var(--color-accent-cyan)"
-                radius={[2, 2, 0, 0]}
-                cursor="pointer"
-                isAnimationActive={false}
-                onClick={(d) => {
-                  const bin = d as unknown as Record<string, unknown>;
-                  if (typeof bin.start === "number" && typeof bin.end === "number") {
-                    onSelectRange([bin.start, bin.end]);
-                  }
-                }}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        <>
+          <div className="h-32" aria-hidden="true">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -18 }}>
+                <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fontSize: 9, fill: "var(--color-chart-tick)" }}
+                  axisLine={false}
+                  tickLine={false}
+                  interval="preserveStartEnd"
+                  minTickGap={8}
+                />
+                <YAxis
+                  width={28}
+                  allowDecimals={false}
+                  tick={{ fontSize: 9, fill: "var(--color-chart-tick)" }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <Tooltip
+                  cursor={{ fill: "rgba(120,120,120,0.15)" }}
+                  contentStyle={TOOLTIP_STYLE}
+                  formatter={(v) => [`${Number(v)} activities`, "Count"]}
+                  labelFormatter={(l) => `${l}+ ${unit}`}
+                />
+                <Bar
+                  dataKey="count"
+                  fill="var(--color-accent-cyan)"
+                  radius={[2, 2, 0, 0]}
+                  cursor="pointer"
+                  isAnimationActive={false}
+                  onClick={(d) => {
+                    const bin = d as unknown as Record<string, unknown>;
+                    if (typeof bin.start === "number" && typeof bin.end === "number") {
+                      onSelectRange([bin.start, bin.end]);
+                    }
+                  }}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          {/* Text alternative for the visual-only chart (the SVG bars are aria-hidden).
+              Bin-filtering — which the bars do on click, with no keyboard path — is also
+              reachable via the keyboard-operable distance slider. */}
+          <table className="sr-only">
+            <caption>Activity count by distance ({unit})</caption>
+            <thead>
+              <tr>
+                <th>Min distance ({unit})</th>
+                <th>Activities</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.map((b) => (
+                <tr key={b.label}>
+                  <td>{b.label}+</td>
+                  <td>{b.count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
       )}
     </section>
   );

@@ -282,10 +282,11 @@ export default function RoutesPage() {
       name: a.name,
       distanceMeters: a.distanceMeters,
       date: a.startDateLocal.slice(0, 10),
+      sportLabel: sportLabels[a.sport] ?? a.sport,
       ...center,
     });
     requestFit(bbox);
-  }, [focusId, getActivity, requestFit]);
+  }, [focusId, getActivity, requestFit, sportLabels]);
 
   // Leave focus: clear the popup + drop ONLY the ?activity= param — the filter params
   // stay in the URL (they aren't about the focused activity).
@@ -312,11 +313,28 @@ export default function RoutesPage() {
         name: a.name,
         distanceMeters: a.distanceMeters,
         date: a.startDateLocal.slice(0, 10),
+        sportLabel: sportLabels[a.sport] ?? a.sport,
         ...center,
       });
       requestFit(bbox);
     },
-    [requestFit]
+    [requestFit, sportLabels]
+  );
+
+  // A route selected on the map arrives without sport (the tile carries the raw Strava
+  // type, not our app category), so enrich it with the dataset's app-category sport
+  // label — the popup shows sport as text, not line-color only.
+  const onSelectRoute = useCallback(
+    (route: SelectedRoute | null) => {
+      if (route === null) {
+        setSelected(null);
+        return;
+      }
+      const sport = getActivity(route.id)?.sport;
+      const sportLabel = sport ? (sportLabels[sport] ?? sport) : route.sportLabel;
+      setSelected(sportLabel !== undefined ? { ...route, sportLabel } : route);
+    },
+    [getActivity, sportLabels]
   );
 
   // Region select → filter to that region + frame it (uses the region's name/bbox
@@ -440,7 +458,7 @@ export default function RoutesPage() {
               distanceUnit={distanceUnit}
               getActivity={getActivity}
               selected={selected}
-              onSelect={setSelected}
+              onSelect={onSelectRoute}
               fitTo={fitTo}
             />
           </Suspense>
@@ -489,6 +507,7 @@ export default function RoutesPage() {
                 <MapActivityList
                   activities={routeFilters.filteredActivities}
                   sportColors={sportColors}
+                  sportLabels={sportLabels}
                   distanceUnit={distanceUnit}
                   selectedId={selected?.id ?? null}
                   onSelect={onSelectFromList}

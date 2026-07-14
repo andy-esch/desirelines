@@ -67,41 +67,61 @@ export default function WeeklyVolumeChart({ activities, distanceUnit }: WeeklyVo
       {data.length === 0 ? (
         <p className="text-xs text-slate-light">No activities to summarize.</p>
       ) : (
-        <div className="h-36">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -18 }}>
-              <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
-              <XAxis
-                dataKey="week"
-                tick={{ fontSize: 9, fill: "var(--color-chart-tick)" }}
-                tickFormatter={(d) => formatActivityDate(String(d))}
-                axisLine={false}
-                tickLine={false}
-                interval="preserveStartEnd"
-                minTickGap={24}
-              />
-              <YAxis
-                width={40}
-                tick={{ fontSize: 9, fill: "var(--color-chart-tick)" }}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(v: number) => String(Math.round(v))}
-              />
-              <Tooltip
-                cursor={{ fill: "rgba(120,120,120,0.15)" }}
-                contentStyle={TOOLTIP_STYLE}
-                formatter={(v) => [`${Math.round(Number(v))} ${unit}`, "Volume"]}
-                labelFormatter={(d) => `Week of ${formatActivityDate(String(d), { year: true })}`}
-              />
-              <Bar
-                dataKey="value"
-                fill="var(--color-accent-cyan)"
-                radius={[2, 2, 0, 0]}
-                isAnimationActive={false}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        <>
+          <div className="h-36" aria-hidden="true">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -18 }}>
+                <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
+                <XAxis
+                  dataKey="week"
+                  tick={{ fontSize: 9, fill: "var(--color-chart-tick)" }}
+                  tickFormatter={(d) => formatActivityDate(String(d))}
+                  axisLine={false}
+                  tickLine={false}
+                  interval="preserveStartEnd"
+                  minTickGap={24}
+                />
+                <YAxis
+                  width={40}
+                  tick={{ fontSize: 9, fill: "var(--color-chart-tick)" }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(v: number) => String(Math.round(v))}
+                />
+                <Tooltip
+                  cursor={{ fill: "rgba(120,120,120,0.15)" }}
+                  contentStyle={TOOLTIP_STYLE}
+                  formatter={(v) => [`${Math.round(Number(v))} ${unit}`, "Volume"]}
+                  labelFormatter={(d) => `Week of ${formatActivityDate(String(d), { year: true })}`}
+                />
+                <Bar
+                  dataKey="value"
+                  fill="var(--color-accent-cyan)"
+                  radius={[2, 2, 0, 0]}
+                  isAnimationActive={false}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          {/* Text alternative for the visual-only chart (the SVG bars are aria-hidden). */}
+          <table className="sr-only">
+            <caption>Weekly {metric === "distance" ? "distance" : "time"} by week</caption>
+            <thead>
+              <tr>
+                <th>Week of</th>
+                <th>{metric === "distance" ? `Distance (${unit})` : "Time (hours)"}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.map((d) => (
+                <tr key={d.week}>
+                  <td>{formatActivityDate(d.week, { year: true })}</td>
+                  <td>{d.value.toLocaleString(undefined, { maximumFractionDigits: 1 })}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
       )}
     </section>
   );

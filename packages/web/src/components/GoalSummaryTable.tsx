@@ -114,6 +114,7 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
       <div className="card-body">
         <div className="overflow-x-auto">
           <table className="table table-hover table-sm table-dark-transparent">
+            <caption className="sr-only">Goal achievability summary</caption>
             <thead>
               <tr>
                 <th style={{ width: "10px" }}></th>
@@ -160,6 +161,7 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
                         <div
                           className="progress-bar progress-bar-neon"
                           role="progressbar"
+                          aria-label={`${goal.label || "Unnamed"} progress`}
                           style={{
                             width: `${Math.min(100, progress)}%`,
                             backgroundColor: goalColor,
