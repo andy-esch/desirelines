@@ -768,9 +768,16 @@ func TestHandler_OwnerCheck_StrayDoesNotCallStrava(t *testing.T) {
 }
 
 // TestHandler_OwnerCheck_DeauthBypassesAllowlist asserts that athlete deauth
-// events run regardless of allowlist membership. Deauthorizing a stray
-// athlete is exactly how we drain a zombie subscription, so the allowlist
-// must NOT gate this path.
+// events run regardless of allowlist membership: DeleteTokens + publish fire
+// and IsAllowed is never called. This is an intentional design decision, not a
+// missing guard — do NOT add an allowlist gate to handleAthleteEvent.
+//
+// Deauth is cleanup, and cleanup must cover athletes who are no longer
+// allowlisted: someone who was allowlisted (has tokens + downstream data), is
+// removed, and then deauthorizes must still be purged. Gating on current
+// membership would strand that data. Deauthorizing a stray is also how we drain
+// a zombie subscription, and a true stray has no tokens/data so the work is a
+// harmless no-op. See the handleAthleteEvent doc comment.
 func TestHandler_OwnerCheck_DeauthBypassesAllowlist(t *testing.T) {
 	log := gcplog.NewNoOpLogger()
 	mockTokens := &portstest.MockTokenStore{}

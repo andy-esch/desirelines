@@ -562,6 +562,16 @@ func (h *Handler) handleActivityEvent(ctx context.Context, w http.ResponseWriter
 // updates={"authorized":"false"} (or the bare boolean {"authorized":false},
 // which we coerce below). We also handle aspect_type=delete defensively in case
 // Strava sends that form.
+//
+// Deliberately NO allowlist gate (unlike handleActivityEvent). Deauth is
+// cleanup, and cleanup must run regardless of *current* allowlist membership:
+// an athlete who was allowlisted, is later removed, and then deauthorizes still
+// has Firestore tokens + downstream data to purge. Gating on IsAllowed here
+// would strand that data. A true stray (never allowlisted) has no tokens and no
+// data, so the delete + publish are harmless no-ops — the deletion service is
+// idempotent and the deauth-event volume is bounded. This is an intentional
+// design decision (see TestHandler_OwnerCheck_DeauthBypassesAllowlist), not a
+// missing guard; please don't "mirror the activity-path gate" here.
 func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter, r *http.Request, webhook *generated.WebhookEvent, body []byte) {
 	correlationID := gcplog.CorrelationIDFromContext(ctx)
 
@@ -597,6 +607,9 @@ func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter,
 		return
 	}
 
+	// No IsAllowed check on purpose — a confirmed deauth proceeds to delete +
+	// publish regardless of allowlist membership. See the function doc comment
+	// for why (cleanup must cover former members; strays are harmless no-ops).
 	h.logger.Info("Athlete deauthorization received",
 		"owner_id", webhook.OwnerId,
 		"correlation_id", correlationID,

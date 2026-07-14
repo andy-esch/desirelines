@@ -72,6 +72,10 @@ dispatcher.handleAthleteEvent
             └─ deletion.bigquery
 ```
 
+Note there is no `allowlist_check` span here (unlike the activity path): deauth is
+cleanup and deliberately bypasses the allowlist, so it also emits no
+`webhook/owner_check` metric. See the dispatcher README's Deauthorization section.
+
 ## How propagation actually works
 
 There are two propagators registered globally on the Go side, in this order:
