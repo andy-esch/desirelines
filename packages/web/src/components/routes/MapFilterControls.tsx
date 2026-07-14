@@ -337,6 +337,8 @@ export default function MapFilterControls({
           step={distanceStep}
           value={sliderDistance}
           disabled={disabled}
+          // Screen readers hear "50 mi" (unit-aware), not the raw meter value.
+          getAriaValueText={(_, v) => `${fmt(v)} ${unitLabel}`}
           // Live thumb only — cheap local state, no filter/URL write per tick.
           onValueChange={(vals) => {
             const next = vals as number[];

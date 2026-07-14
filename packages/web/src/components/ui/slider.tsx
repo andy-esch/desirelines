@@ -15,8 +15,13 @@ function Slider({
   defaultValue,
   min = 0,
   max = 100,
+  getAriaValueText,
   ...props
-}: StringClass<React.ComponentProps<typeof BaseSlider.Root>>) {
+}: StringClass<React.ComponentProps<typeof BaseSlider.Root>> & {
+  /** Localized per-thumb `aria-valuetext` for screen readers (e.g. "50 mi" or a date)
+   *  instead of the raw internal number. Forwarded to each thumb's input. */
+  getAriaValueText?: (formattedValue: string, value: number, index: number) => string;
+}) {
   // Render one thumb per value (controlled or uncontrolled); fall back to a single
   // thumb at `min` when neither is provided.
   const thumbValues = React.useMemo<number[]>(() => {
@@ -42,6 +47,7 @@ function Slider({
             <BaseSlider.Thumb
               key={i}
               index={i}
+              getAriaValueText={getAriaValueText}
               className={cn(
                 "size-4 rounded-full border border-primary bg-card shadow-sm outline-none",
                 "transition-colors focus-visible:ring-2 focus-visible:ring-ring/40",

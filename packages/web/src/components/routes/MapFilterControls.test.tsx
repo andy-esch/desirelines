@@ -164,6 +164,14 @@ describe("MapFilterControls", () => {
     expect(screen.getByText("0 mi")).toBeInTheDocument();
   });
 
+  it("gives the distance slider thumbs unit-aware aria value text", () => {
+    renderControls();
+    // Screen readers hear "0 mi"/"50 mi", not the raw meters (0 / 80,000).
+    const thumbs = screen.getAllByRole("slider");
+    expect(thumbs[0]).toHaveAttribute("aria-valuetext", "0 mi");
+    expect(thumbs[1]).toHaveAttribute("aria-valuetext", "50 mi");
+  });
+
   it("lists regions by name with activity counts and selects one", async () => {
     const user = userEvent.setup();
     const { onSelectRegion } = renderControls();

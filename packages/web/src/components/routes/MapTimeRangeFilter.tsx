@@ -84,6 +84,8 @@ export default function MapTimeRangeFilter({
         step={1}
         value={sliderValue}
         disabled={disabled}
+        // Screen readers hear the date (e.g. "2026-06-22"), not the raw day-offset int.
+        getAriaValueText={(_, v) => dayToYmd(startDay + v)}
         // Live thumb only — no filter/URL write per tick.
         onValueChange={(vals) => {
           const next = vals as number[];

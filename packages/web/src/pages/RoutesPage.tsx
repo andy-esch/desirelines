@@ -132,6 +132,9 @@ export default function RoutesPage() {
   // first render, so the initial value is correct with no open-then-close flash.
   const isMobile = useIsMobile();
   const [drawerOpen, setDrawerOpen] = useState(() => !isMobile);
+  // Return focus to the Filters toggle after the on-map "Show all" recourse (which
+  // unmounts the banner) so keyboard focus doesn't fall to <body>.
+  const filtersToggleRef = useRef<HTMLButtonElement>(null);
   // Insights (charts) drawer — auto-hidden by default (open via its toggle).
   const [insightsOpen, setInsightsOpen] = useState(false);
 
@@ -448,6 +451,7 @@ export default function RoutesPage() {
           <Suspense fallback={null}>
             <MapFilterDrawer
               open={drawerOpen}
+              toggleRef={filtersToggleRef}
               onOpenChange={openFilters}
               hideToggle={isMobile && insightsOpen}
               totals={routeFilters.totals}
@@ -610,7 +614,10 @@ export default function RoutesPage() {
                   </p>
                   <button
                     type="button"
-                    onClick={routeFilters.showAll}
+                    onClick={() => {
+                      routeFilters.showAll();
+                      filtersToggleRef.current?.focus();
+                    }}
                     className="mt-2 text-sm font-medium text-accent-cyan hover:underline"
                   >
                     Show all activities

@@ -103,6 +103,15 @@ describe("MapFilterDrawer", () => {
     expect(onReset).toHaveBeenCalledTimes(1);
   });
 
+  it("parks keyboard focus on the panel (not <body>) when a reset control unmounts", async () => {
+    const user = userEvent.setup();
+    renderDrawer({ activeFilterCount: 2 });
+    // The reset link disappears once filters clear; focus must land on the labelled
+    // region rather than falling back to document.body.
+    await user.click(screen.getByRole("button", { name: /reset filters/i }));
+    expect(document.activeElement).toBe(screen.getByRole("region", { name: /activity filters/i }));
+  });
+
   it("surfaces a filter-count badge when filters are active", () => {
     renderDrawer({ activeFilterCount: 3 });
     expect(screen.getAllByText("3").length).toBeGreaterThan(0);
