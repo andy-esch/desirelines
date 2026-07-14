@@ -11,9 +11,6 @@ import {
   getMetricConfigByMetricId,
   getChartInterval,
   generateYAxisTicks,
-  isDistanceMetricSport,
-  isSessionsMetricSport,
-  isTimeMetricSport,
 } from "./metricConfig";
 import type { UserSettings } from "../utils/units";
 
@@ -278,72 +275,6 @@ describe("metricConfig", () => {
       expect(ticks.every((t, i) => i === 0 || t - ticks[i - 1]! === 2000)).toBe(true);
       // Should have at most 5 non-zero ticks
       expect(ticks.filter((t) => t > 0).length).toBeLessThanOrEqual(5);
-    });
-  });
-
-  describe("isDistanceMetricSport", () => {
-    it("returns true for cycling", () => {
-      expect(isDistanceMetricSport("cycling")).toBe(true);
-    });
-
-    it("returns true for running", () => {
-      expect(isDistanceMetricSport("running")).toBe(true);
-    });
-
-    it("returns true for hiking", () => {
-      expect(isDistanceMetricSport("hiking")).toBe(true);
-    });
-
-    it("returns false for yoga", () => {
-      expect(isDistanceMetricSport("yoga")).toBe(false);
-    });
-
-    it("returns false for workout", () => {
-      expect(isDistanceMetricSport("workout")).toBe(false);
-    });
-
-    it("returns true for unknown sport (defaults to distance)", () => {
-      expect(isDistanceMetricSport("unknown")).toBe(true);
-    });
-  });
-
-  describe("isSessionsMetricSport", () => {
-    it("returns false for yoga (now time)", () => {
-      expect(isSessionsMetricSport("yoga")).toBe(false);
-    });
-
-    it("returns false for workout (now time)", () => {
-      expect(isSessionsMetricSport("workout")).toBe(false);
-    });
-
-    it("returns false for cycling", () => {
-      expect(isSessionsMetricSport("cycling")).toBe(false);
-    });
-
-    it("returns false for running", () => {
-      expect(isSessionsMetricSport("running")).toBe(false);
-    });
-  });
-
-  describe("isTimeMetricSport", () => {
-    it("returns true for yoga", () => {
-      expect(isTimeMetricSport("yoga")).toBe(true);
-    });
-
-    it("returns true for workout", () => {
-      expect(isTimeMetricSport("workout")).toBe(true);
-    });
-
-    it("returns true for golf", () => {
-      expect(isTimeMetricSport("golf")).toBe(true);
-    });
-
-    it("returns false for cycling", () => {
-      expect(isTimeMetricSport("cycling")).toBe(false);
-    });
-
-    it("returns false for running", () => {
-      expect(isTimeMetricSport("running")).toBe(false);
     });
   });
 
