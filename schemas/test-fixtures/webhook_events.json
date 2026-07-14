@@ -93,6 +93,30 @@
     "expect_error": false
   },
   {
+    "name": "update activity with private BOOLEAN true (type-drift)",
+    "input": {
+      "aspect_type": "update",
+      "object_type": "activity",
+      "object_id": 12345,
+      "owner_id": 67890,
+      "event_time": 1704067200,
+      "subscription_id": 999,
+      "updates": {"private": true}
+    },
+    "expected": {
+      "aspect_type": "update",
+      "object_type": "activity",
+      "object_id": 12345,
+      "owner_id": 67890,
+      "event_time": 1704067200,
+      "subscription_id": 999,
+      "updates": {
+        "private": true
+      }
+    },
+    "expect_error": false
+  },
+  {
     "name": "update activity with all update fields",
     "input": {
       "aspect_type": "update",
@@ -172,6 +196,50 @@
     },
     "expected": {
       "aspect_type": "delete",
+      "object_type": "athlete",
+      "object_id": 12345,
+      "owner_id": 67890,
+      "event_time": 1704067200,
+      "subscription_id": 999,
+      "updates": null
+    },
+    "expect_error": false
+  },
+  {
+    "name": "deauth athlete (boolean authorized)",
+    "input": {
+      "aspect_type": "update",
+      "object_type": "athlete",
+      "object_id": 12345,
+      "owner_id": 67890,
+      "event_time": 1704067200,
+      "subscription_id": 999,
+      "updates": { "authorized": false }
+    },
+    "expected": {
+      "aspect_type": "update",
+      "object_type": "athlete",
+      "object_id": 12345,
+      "owner_id": 67890,
+      "event_time": 1704067200,
+      "subscription_id": 999,
+      "updates": null
+    },
+    "expect_error": false
+  },
+  {
+    "name": "deauth athlete (string authorized)",
+    "input": {
+      "aspect_type": "update",
+      "object_type": "athlete",
+      "object_id": 12345,
+      "owner_id": 67890,
+      "event_time": 1704067200,
+      "subscription_id": 999,
+      "updates": { "authorized": "false" }
+    },
+    "expected": {
+      "aspect_type": "update",
       "object_type": "athlete",
       "object_id": 12345,
       "owner_id": 67890,

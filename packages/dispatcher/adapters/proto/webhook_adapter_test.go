@@ -111,6 +111,19 @@ func TestParseStravaWebhook(t *testing.T) {
 	}
 }
 
+// stringMapToAny widens a string map to `map[string]any` for the now-tolerant
+// StravaWebhookJSON.Updates field (see the adapter). JSON output is identical.
+func stringMapToAny(m map[string]string) map[string]any {
+	if m == nil {
+		return nil
+	}
+	out := make(map[string]any, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
+}
+
 // webhookEventToStravaJSON marshals a bare WebhookEvent to Strava's string-enum
 // JSON. Production publishing goes through ToEnrichedJSON; this test-local
 // marshaller preserves the parse/serialize roundtrip coverage that used to ride
@@ -124,7 +137,7 @@ func webhookEventToStravaJSON(t *testing.T, event *pb.WebhookEvent) []byte {
 		OwnerID:        event.OwnerId,
 		EventTime:      event.EventTime,
 		SubscriptionID: event.SubscriptionId,
-		Updates:        activityUpdatesToMap(event.Updates),
+		Updates:        stringMapToAny(activityUpdatesToMap(event.Updates)),
 	}
 	b, err := json.Marshal(raw)
 	if err != nil {
@@ -733,6 +746,30 @@ func TestSharedFixtures(t *testing.T) {
 
 			// Roundtrip test: proto -> JSON -> proto
 			verifyRoundtrip(t, event)
+		})
+	}
+}
+
+func TestCoerceToString(t *testing.T) {
+	tests := []struct {
+		name   string
+		in     any
+		want   string
+		wantOK bool
+	}{
+		{"string passthrough", "Ride", "Ride", true},
+		{"boolean false (deauth type-drift)", false, "false", true},
+		{"boolean true", true, "true", true},
+		{"json number is float64", float64(5), "5", true},
+		{"nil is not coercible", nil, "", false},
+		{"nested object is not coercible", map[string]any{"x": 1}, "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := CoerceToString(tt.in)
+			if got != tt.want || ok != tt.wantOK {
+				t.Errorf("CoerceToString(%#v) = (%q, %v), want (%q, %v)", tt.in, got, ok, tt.want, tt.wantOK)
+			}
 		})
 	}
 }

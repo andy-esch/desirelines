@@ -559,8 +559,19 @@ func (h *Handler) handleActivityEvent(ctx context.Context, w http.ResponseWriter
 //
 // Per Strava webhook docs (https://developers.strava.com/docs/webhooks/),
 // deauthorization is signaled via object_type=athlete with
-// updates={"authorized":"false"}. We also handle aspect_type=delete
-// defensively in case Strava sends that form.
+// updates={"authorized":"false"} (or the bare boolean {"authorized":false},
+// which we coerce below). We also handle aspect_type=delete defensively in case
+// Strava sends that form.
+//
+// Deliberately NO allowlist gate (unlike handleActivityEvent). Deauth is
+// cleanup, and cleanup must run regardless of *current* allowlist membership:
+// an athlete who was allowlisted, is later removed, and then deauthorizes still
+// has Firestore tokens + downstream data to purge. Gating on IsAllowed here
+// would strand that data. A true stray (never allowlisted) has no tokens and no
+// data, so the delete + publish are harmless no-ops — the deletion service is
+// idempotent and the deauth-event volume is bounded. This is an intentional
+// design decision (see TestHandler_OwnerCheck_DeauthBypassesAllowlist), not a
+// missing guard; please don't "mirror the activity-path gate" here.
 func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter, r *http.Request, webhook *generated.WebhookEvent, body []byte) {
 	correlationID := gcplog.CorrelationIDFromContext(ctx)
 
@@ -569,10 +580,12 @@ func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter,
 	case generated.AspectType_ASPECT_TYPE_DELETE:
 		isDeauth = true
 	case generated.AspectType_ASPECT_TYPE_UPDATE:
-		// The proto parser only handles activity updates, so inspect the raw JSON
-		// to detect the athlete deauthorization update payload.
+		// The proto parser only handles activity updates, so inspect the raw JSON to
+		// detect the athlete deauthorization update. Decode `updates` as RawMessage and
+		// coerce so a bare boolean ({"authorized":false}) is detected too, not dropped
+		// as a failed string unmarshal (which would leak the athlete's tokens).
 		var payload struct {
-			Updates map[string]string `json:"updates"`
+			Updates map[string]any `json:"updates"`
 		}
 		if err := json.Unmarshal(body, &payload); err != nil {
 			h.logger.Warn("Failed to unmarshal athlete update payload",
@@ -580,8 +593,8 @@ func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter,
 				"error", err,
 				"owner_id", webhook.OwnerId,
 			)
-		} else {
-			if val, ok := payload.Updates["authorized"]; ok && val == "false" {
+		} else if raw, ok := payload.Updates["authorized"]; ok {
+			if val, valid := webhookproto.CoerceToString(raw); valid && val == "false" {
 				isDeauth = true
 			}
 		}
@@ -594,6 +607,9 @@ func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter,
 		return
 	}
 
+	// No IsAllowed check on purpose — a confirmed deauth proceeds to delete +
+	// publish regardless of allowlist membership. See the function doc comment
+	// for why (cleanup must cover former members; strays are harmless no-ops).
 	h.logger.Info("Athlete deauthorization received",
 		"owner_id", webhook.OwnerId,
 		"correlation_id", correlationID,
@@ -609,7 +625,11 @@ func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter,
 		)
 	}
 
-	// Publish the deauth event to the dedicated deauth topic so downstream consumers can act on it.
+	// Publish to the dedicated deauth topic. CONTRACT: the deauth signal is the *topic
+	// identity*, not the body — the published payload carries the athlete event (owner_id,
+	// aspect/object type) but no explicit `authorized:false` flag. Consumers act on receipt
+	// from this topic; they must not depend on inspecting the body for deauth intent (it's
+	// detected here from the raw webhook and deliberately not propagated).
 	enriched := &generated.EnrichedEvent{Event: webhook}
 	if publishErr := h.deauthPublisher.Publish(ctx, enriched, correlationID); publishErr != nil {
 		h.writeError(w, r, http.StatusInternalServerError, ErrCodeDeauthFailed,

@@ -32,10 +32,11 @@ packages/dispatcher/
 ```
 
 The athlete-allowlist check (`packages/shared/allowlist`) is shared with the
-apigateway. The dispatcher uses it to drop stray webhooks — events from
-athletes who hold a Strava OAuth grant but are not allowlisted in this
-environment — before any Strava API call. See `webhook/owner_check` metric
-for outcome breakdown.
+apigateway. On the **activity** path the dispatcher uses it to drop stray
+webhooks — events from athletes who hold a Strava OAuth grant but are not
+allowlisted in this environment — before any Strava API call. The **deauth**
+path deliberately skips this check (see [Deauthorization](#deauthorization)).
+See `webhook/owner_check` metric for outcome breakdown.
 
 **Type Definitions:** Webhook types are defined in `schemas/proto/desirelines/webhook/v1/webhook.proto` and shared with stravapipe (Python). Generated code lives in `types/generated/`. See `just proto-gen-backend`.
 
@@ -62,6 +63,13 @@ Strava signals athlete deauthorization with an `athlete` webhook event — eithe
    downstream deletion job.
 2. **Publishes** the event to the dedicated deauth topic
    (`GCP_PUBSUB_DEAUTH_TOPIC`) so downstream consumers can act on it.
+
+Unlike the activity path, deauth **deliberately does not gate on the
+allowlist**. Deauth is cleanup, and cleanup must run regardless of *current*
+allowlist membership: an athlete who was allowlisted, is later removed, and then
+deauthorizes still has tokens and downstream data to purge — gating on
+`IsAllowed` would strand it. A true stray (never allowlisted) has no tokens or
+data, so the delete and publish are harmless, idempotent no-ops.
 
 `FIRESTORE_DATABASE` and `GCP_PUBSUB_DEAUTH_TOPIC` are fail-fast-required at
 startup precisely because of this flow.
