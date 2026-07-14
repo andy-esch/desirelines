@@ -213,7 +213,7 @@ func TestHandler_HandleEvent(t *testing.T) {
 		ObjectType:     "activity",
 		OwnerID:        testOwnerID,
 		SubscriptionID: testSubscriptionID,
-		Updates:        map[string]string{},
+		Updates:        map[string]any{},
 	}
 
 	tests := []handleEventTestCase{
@@ -238,7 +238,7 @@ func TestHandler_HandleEvent(t *testing.T) {
 				ObjectType:     "activity",
 				OwnerID:        testOwnerID,
 				SubscriptionID: testSubscriptionID,
-				Updates:        map[string]string{"title": "Evening Run"},
+				Updates:        map[string]any{"title": "Evening Run"},
 			},
 			mockSubID:      testSubscriptionID,
 			expectedStatus: http.StatusCreated,
@@ -607,7 +607,35 @@ func TestHandler_AthleteDeauth(t *testing.T) {
 				ObjectType:     "athlete",
 				OwnerID:        testOwnerID,
 				SubscriptionID: testSubscriptionID,
-				Updates:        map[string]string{"authorized": "false"},
+				Updates:        map[string]any{"authorized": "false"},
+			},
+			mockSubID:      testSubscriptionID,
+			mockTokenStore: mockTokens,
+			expectedStatus: http.StatusOK,
+			expectedBody:   "acknowledged",
+		}
+		runHandleEventTest(t, &tt)
+
+		if len(mockTokens.DeletedAthleteIDs) != 1 || mockTokens.DeletedAthleteIDs[0] != testOwnerID {
+			t.Errorf("expected DeleteTokens called with athlete %d, got %v", testOwnerID, mockTokens.DeletedAthleteIDs)
+		}
+	})
+
+	t.Run("Deauth update with BOOLEAN authorized false deletes tokens (type-drift)", func(t *testing.T) {
+		mockTokens := &portstest.MockTokenStore{}
+		tt := handleEventTestCase{
+			method:      "POST",
+			contentType: "application/json",
+			payload: webhookproto.StravaWebhookJSON{
+				AspectType:     "update",
+				EventTime:      testEventTime,
+				ObjectID:       testOwnerID,
+				ObjectType:     "athlete",
+				OwnerID:        testOwnerID,
+				SubscriptionID: testSubscriptionID,
+				// Strava has been observed to send a bare JSON boolean here; it must still
+				// parse AND be detected as a deauth (this used to 400 → tokens leaked).
+				Updates: map[string]any{"authorized": false},
 			},
 			mockSubID:      testSubscriptionID,
 			mockTokenStore: mockTokens,
@@ -668,7 +696,7 @@ func TestHandler_AthleteDeauth(t *testing.T) {
 				ObjectType:     "athlete",
 				OwnerID:        testOwnerID,
 				SubscriptionID: testSubscriptionID,
-				Updates:        map[string]string{"profile": "updated"},
+				Updates:        map[string]any{"profile": "updated"},
 			},
 			mockSubID:      testSubscriptionID,
 			mockTokenStore: mockTokens,
@@ -768,7 +796,7 @@ func TestHandler_OwnerCheck_DeauthBypassesAllowlist(t *testing.T) {
 		OwnerID:        testOwnerID,
 		EventTime:      testEventTime,
 		SubscriptionID: testSubscriptionID,
-		Updates:        map[string]string{"authorized": "false"},
+		Updates:        map[string]any{"authorized": "false"},
 	})
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
@@ -998,7 +1026,7 @@ func TestHandler_EnrichmentBehavior_Update_TitleOnly(t *testing.T) {
 		OwnerID:        testOwnerID,
 		EventTime:      testEventTime,
 		SubscriptionID: testSubscriptionID,
-		Updates:        map[string]string{"title": "New Title"},
+		Updates:        map[string]any{"title": "New Title"},
 	})
 	if marshalErr != nil {
 		t.Fatalf("Failed to marshal payload: %v", marshalErr)
@@ -1042,7 +1070,7 @@ func TestHandler_EnrichmentBehavior_Update_TypeChange(t *testing.T) {
 		OwnerID:        testOwnerID,
 		EventTime:      testEventTime,
 		SubscriptionID: testSubscriptionID,
-		Updates:        map[string]string{"type": "Ride"},
+		Updates:        map[string]any{"type": "Ride"},
 	})
 	if marshalErr != nil {
 		t.Fatalf("Failed to marshal payload: %v", marshalErr)
@@ -1089,7 +1117,7 @@ func TestHandler_EnrichmentBehavior_Update_TypeChange_ActivityGone(t *testing.T)
 		OwnerID:        testOwnerID,
 		EventTime:      testEventTime,
 		SubscriptionID: testSubscriptionID,
-		Updates:        map[string]string{"type": "Ride"},
+		Updates:        map[string]any{"type": "Ride"},
 	})
 	if marshalErr != nil {
 		t.Fatalf("Failed to marshal payload: %v", marshalErr)
@@ -1224,7 +1252,7 @@ func TestNewHandler_WithConfig(t *testing.T) {
 		ObjectType:     "activity",
 		OwnerID:        testOwnerID,
 		SubscriptionID: testSubscriptionID,
-		Updates:        map[string]string{"padding": strings.Repeat("x", 600)},
+		Updates:        map[string]any{"padding": strings.Repeat("x", 600)},
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {

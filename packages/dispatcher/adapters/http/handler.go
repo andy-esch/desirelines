@@ -559,8 +559,9 @@ func (h *Handler) handleActivityEvent(ctx context.Context, w http.ResponseWriter
 //
 // Per Strava webhook docs (https://developers.strava.com/docs/webhooks/),
 // deauthorization is signaled via object_type=athlete with
-// updates={"authorized":"false"}. We also handle aspect_type=delete
-// defensively in case Strava sends that form.
+// updates={"authorized":"false"} (or the bare boolean {"authorized":false},
+// which we coerce below). We also handle aspect_type=delete defensively in case
+// Strava sends that form.
 func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter, r *http.Request, webhook *generated.WebhookEvent, body []byte) {
 	correlationID := gcplog.CorrelationIDFromContext(ctx)
 
@@ -569,10 +570,12 @@ func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter,
 	case generated.AspectType_ASPECT_TYPE_DELETE:
 		isDeauth = true
 	case generated.AspectType_ASPECT_TYPE_UPDATE:
-		// The proto parser only handles activity updates, so inspect the raw JSON
-		// to detect the athlete deauthorization update payload.
+		// The proto parser only handles activity updates, so inspect the raw JSON to
+		// detect the athlete deauthorization update. Decode `updates` as RawMessage and
+		// coerce so a bare boolean ({"authorized":false}) is detected too, not dropped
+		// as a failed string unmarshal (which would leak the athlete's tokens).
 		var payload struct {
-			Updates map[string]string `json:"updates"`
+			Updates map[string]any `json:"updates"`
 		}
 		if err := json.Unmarshal(body, &payload); err != nil {
 			h.logger.Warn("Failed to unmarshal athlete update payload",
@@ -580,8 +583,8 @@ func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter,
 				"error", err,
 				"owner_id", webhook.OwnerId,
 			)
-		} else {
-			if val, ok := payload.Updates["authorized"]; ok && val == "false" {
+		} else if raw, ok := payload.Updates["authorized"]; ok {
+			if val, valid := webhookproto.CoerceToString(raw); valid && val == "false" {
 				isDeauth = true
 			}
 		}
@@ -609,7 +612,11 @@ func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter,
 		)
 	}
 
-	// Publish the deauth event to the dedicated deauth topic so downstream consumers can act on it.
+	// Publish to the dedicated deauth topic. CONTRACT: the deauth signal is the *topic
+	// identity*, not the body — the published payload carries the athlete event (owner_id,
+	// aspect/object type) but no explicit `authorized:false` flag. Consumers act on receipt
+	// from this topic; they must not depend on inspecting the body for deauth intent (it's
+	// detected here from the raw webhook and deliberately not propagated).
 	enriched := &generated.EnrichedEvent{Event: webhook}
 	if publishErr := h.deauthPublisher.Publish(ctx, enriched, correlationID); publishErr != nil {
 		h.writeError(w, r, http.StatusInternalServerError, ErrCodeDeauthFailed,

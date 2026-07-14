@@ -23,15 +23,20 @@ const (
 //   - object_type: "activity" or "athlete"
 //   - aspect_type: "create", "update", or "delete"
 //   - updates (activities): title, type, private
-//   - updates (athlete deauth): {"authorized":"false"}
+//   - updates (athlete deauth): {"authorized":"false"} — or the bare boolean
+//     {"authorized":false}; both are tolerated (see the Updates field note).
 type StravaWebhookJSON struct {
-	AspectType     string            `json:"aspect_type"`
-	ObjectType     string            `json:"object_type"`
-	ObjectID       int64             `json:"object_id"`
-	OwnerID        int64             `json:"owner_id"`
-	EventTime      int64             `json:"event_time"`
-	SubscriptionID int32             `json:"subscription_id"`
-	Updates        map[string]string `json:"updates"`
+	AspectType     string `json:"aspect_type"`
+	ObjectType     string `json:"object_type"`
+	ObjectID       int64  `json:"object_id"`
+	OwnerID        int64  `json:"owner_id"`
+	EventTime      int64  `json:"event_time"`
+	SubscriptionID int32  `json:"subscription_id"`
+	// `any` (not string) so a non-string value can't reject the WHOLE webhook at unmarshal
+	// time — Strava documents string updates ({"authorized":"false"}) but has been seen to
+	// send a bare boolean ({"authorized":false}), which would otherwise 400 the envelope
+	// and silently drop the deauthorization. Coerced per-key below.
+	Updates map[string]any `json:"updates"`
 }
 
 // ParseStravaWebhook parses raw JSON from Strava into a protobuf WebhookEvent.
@@ -72,23 +77,51 @@ func ParseStravaWebhook(data []byte) (*pb.WebhookEvent, error) {
 	return event, nil
 }
 
+// CoerceToString normalizes a decoded JSON value from Strava's `updates` map to a string.
+// Strava documents string values ({"private":"true"}, {"authorized":"false"}) but has
+// been observed to send a bare boolean ({"authorized":false}); tolerate both (plus a bare
+// number) so one odd value can't reject the whole webhook — critically, a deauthorization.
+// Returns false for shapes we don't understand (so the caller can skip that key, not fail).
+func CoerceToString(v any) (string, bool) {
+	switch t := v.(type) {
+	case string:
+		return t, true
+	case bool:
+		return strconv.FormatBool(t), true
+	case float64: // encoding/json decodes all JSON numbers to float64
+		return strconv.FormatFloat(t, 'f', -1, 64), true
+	default:
+		return "", false
+	}
+}
+
+// stringUpdate looks up a key in the updates map and coerces its value to a string,
+// tolerating Strava's string/boolean/number shapes (see CoerceToString).
+func stringUpdate(updates map[string]any, key string) (string, bool) {
+	raw, ok := updates[key]
+	if !ok {
+		return "", false
+	}
+	return CoerceToString(raw)
+}
+
 // parseActivityUpdates converts Strava's updates map to typed ActivityUpdates.
-func parseActivityUpdates(updates map[string]string) *pb.ActivityUpdates {
+func parseActivityUpdates(updates map[string]any) *pb.ActivityUpdates {
 	if len(updates) == 0 {
 		return nil
 	}
 
 	activityUpdates := &pb.ActivityUpdates{}
 
-	if title, ok := updates["title"]; ok {
+	if title, ok := stringUpdate(updates, "title"); ok {
 		activityUpdates.Title = &title
 	}
 
-	if activityType, ok := updates["type"]; ok {
+	if activityType, ok := stringUpdate(updates, "type"); ok {
 		activityUpdates.Type = &activityType
 	}
 
-	if privateStr, ok := updates["private"]; ok {
+	if privateStr, ok := stringUpdate(updates, "private"); ok {
 		private := privateStr == "true"
 		activityUpdates.Private = &private
 	}
