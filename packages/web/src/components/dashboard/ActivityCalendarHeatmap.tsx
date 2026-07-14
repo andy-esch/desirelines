@@ -447,11 +447,16 @@ export default function ActivityCalendarHeatmap({
                   const dateStr = toLocalDateString(date);
                   const count = activityCounts[dateStr] || 0;
                   const color = getIntensityColor(count);
+                  // Color alone can't convey the count to AT; expose the same text the
+                  // hover `title` shows as an image label (the cell is a data point).
+                  const cellLabel = `${dateStr}: ${count} ${count === 1 ? "activity" : "activities"}`;
 
                   return (
                     <div
                       key={dateStr}
-                      title={`${dateStr}: ${count} ${count === 1 ? "activity" : "activities"}`}
+                      role="img"
+                      aria-label={cellLabel}
+                      title={cellLabel}
                       style={{
                         width: CELL_SIZE,
                         height: CELL_SIZE,

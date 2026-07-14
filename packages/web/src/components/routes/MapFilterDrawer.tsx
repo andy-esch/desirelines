@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef } from "react";
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties, ReactNode, RefObject } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
@@ -59,6 +59,9 @@ export interface MapFilterDrawerProps {
   onRefresh?: () => void;
   /** A refresh is in flight — spins the refresh control. */
   isRefreshing?: boolean;
+  /** Ref to the collapsed-state Filters toggle, so a parent (the on-map "Show all"
+   *  banner) can return keyboard focus to it after clearing the filters. */
+  toggleRef?: RefObject<HTMLButtonElement | null>;
   /** Filter controls / charts / activity list slot in here (later steps). */
   children?: ReactNode;
 }
@@ -158,9 +161,13 @@ export default function MapFilterDrawer({
   error = null,
   onRefresh,
   isRefreshing = false,
+  toggleRef,
   children,
 }: MapFilterDrawerProps) {
-  const toggleButtonRef = useRef<HTMLButtonElement>(null);
+  const internalToggleRef = useRef<HTMLButtonElement>(null);
+  // Use the parent's ref when provided (so it can return focus to this toggle after the
+  // on-map "Show all" banner clears the filters); otherwise a private one.
+  const toggleButtonRef = toggleRef ?? internalToggleRef;
   const panelRef = useRef<HTMLElement>(null);
   const headingId = useId();
   // Neon-cyan chrome in dark; readable theme default in light (see NEON_CHROME).
@@ -185,20 +192,27 @@ export default function MapFilterDrawer({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, onOpenChange]);
+  }, [open, onOpenChange, toggleButtonRef]);
 
-  // This is the APG *disclosure* pattern, not a modal dialog: focus is NOT moved
-  // into the panel on open (that would steal focus on the default-open mount and
-  // dump keyboard users onto the collapse button). The panel joins the natural tab
-  // order via `inert` toggling below. On collapse we only return focus to the
-  // toggle if focus was inside the panel, so closing it keeps the user oriented.
+  // APG *disclosure* pattern, not a modal dialog. On an EXPLICIT open (user toggled
+  // closed → open) we move focus into the panel so keyboard users land on the revealed
+  // content; on the default-open mount focus is left alone (open was already true → no
+  // transition), so we never steal focus on load. The panel joins the natural tab order
+  // via `inert` toggling below. On collapse we return focus to the toggle only if focus
+  // was inside the panel, so closing it keeps the user oriented.
   const prevOpen = useRef(open);
   useEffect(() => {
-    if (!open && prevOpen.current && panelRef.current?.contains(document.activeElement)) {
+    if (open && !prevOpen.current) {
+      // EXPLICIT open (user toggled closed → open): move focus into the panel so keyboard
+      // users land on the revealed content instead of the now-hidden toggle. This does NOT
+      // fire on the default-open mount (open was already true → no transition), preserving
+      // the APG-disclosure choice not to steal focus on load.
+      panelRef.current?.focus();
+    } else if (!open && prevOpen.current && panelRef.current?.contains(document.activeElement)) {
       toggleButtonRef.current?.focus();
     }
     prevOpen.current = open;
-  }, [open]);
+  }, [open, toggleButtonRef]);
 
   const distanceLabel = getDistanceLabel(distanceUnit);
   const stats = isLoading
@@ -243,6 +257,19 @@ export default function MapFilterDrawer({
   // Debounced so a slider drag doesn't flood the `aria-live` region with every
   // intermediate readout — announce only once the filtering settles.
   const announcedSummary = useDebouncedValue(liveSummary, 500);
+
+  // Keep keyboard focus in the drawer when a reset control unmounts on activation
+  // (activeFilterCount → 0, or zero-result → stats view) — otherwise focus falls to
+  // <body>. The panel region is always present + labelled ("Activity filters") while
+  // open, so it's a safe, orienting anchor.
+  const resetAndKeepFocus = () => {
+    onReset();
+    panelRef.current?.focus();
+  };
+  const showAllAndKeepFocus = () => {
+    onShowAll();
+    panelRef.current?.focus();
+  };
 
   return (
     <>
@@ -293,6 +320,9 @@ export default function MapFilterDrawer({
         id={DRAWER_ID}
         role="region"
         aria-labelledby={headingId}
+        // Programmatically focusable (not in the tab order) so a reset action can park
+        // focus on the region instead of dropping it to <body> (see resetAndKeepFocus).
+        tabIndex={-1}
         style={neonChrome}
         // `inert` (not `aria-hidden`) when closed: removes the offscreen panel from
         // BOTH the a11y tree and the focus/pointer order in one deterministic step,
@@ -379,11 +409,11 @@ export default function MapFilterDrawer({
                   this is the only way out of an empty current year. */}
               {isZeroResult && (
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <Button variant="outline" size="sm" onClick={onShowAll}>
+                  <Button variant="outline" size="sm" onClick={showAllAndKeepFocus}>
                     Show all activities
                   </Button>
                   {activeFilterCount > 0 && (
-                    <Button variant="ghost" size="sm" onClick={onReset}>
+                    <Button variant="ghost" size="sm" onClick={resetAndKeepFocus}>
                       Reset to this year
                     </Button>
                   )}
@@ -421,7 +451,7 @@ export default function MapFilterDrawer({
               {activeFilterCount > 0 && (
                 <Button
                   variant="link"
-                  onClick={onReset}
+                  onClick={resetAndKeepFocus}
                   className="mt-3 h-auto p-0 text-xs text-accent-cyan"
                 >
                   Reset filters

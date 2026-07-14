@@ -103,6 +103,40 @@ describe("MapFilterDrawer", () => {
     expect(onReset).toHaveBeenCalledTimes(1);
   });
 
+  it("parks keyboard focus on the panel (not <body>) when a reset control unmounts", async () => {
+    const user = userEvent.setup();
+    renderDrawer({ activeFilterCount: 2 });
+    // The reset link disappears once filters clear; focus must land on the labelled
+    // region rather than falling back to document.body.
+    await user.click(screen.getByRole("button", { name: /reset filters/i }));
+    expect(document.activeElement).toBe(screen.getByRole("region", { name: /activity filters/i }));
+  });
+
+  it("moves focus into the panel on an explicit open (closed → open)", () => {
+    const props: MapFilterDrawerProps = {
+      open: false,
+      onOpenChange: vi.fn(),
+      totals: TOTALS,
+      totalCount: 300,
+      activeFilterCount: 0,
+      onReset: vi.fn(),
+      onShowAll: vi.fn(),
+      distanceUnit: "miles",
+      elevationUnit: "feet",
+      isDark: true,
+    };
+    const { rerender } = render(<MapFilterDrawer {...props} />);
+    rerender(<MapFilterDrawer {...props} open />);
+    expect(document.activeElement).toBe(screen.getByRole("region", { name: /activity filters/i }));
+  });
+
+  it("does not steal focus on the default-open mount", () => {
+    renderDrawer({ open: true });
+    expect(document.activeElement).not.toBe(
+      screen.getByRole("region", { name: /activity filters/i })
+    );
+  });
+
   it("surfaces a filter-count badge when filters are active", () => {
     renderDrawer({ activeFilterCount: 3 });
     expect(screen.getAllByText("3").length).toBeGreaterThan(0);

@@ -26,6 +26,7 @@ function renderList(over: Partial<MapActivityListProps> = {}) {
       act_({ activityId: 2, name: "Evening Run", sport: "running" }),
     ],
     sportColors: { cycling: "rgb(0,255,255)", running: "rgb(255,0,255)" },
+    sportLabels: { cycling: "Cycling", running: "Running" },
     distanceUnit: "miles",
     selectedId: null,
     onSelect,
@@ -43,11 +44,25 @@ describe("MapActivityList", () => {
     expect(screen.getByText("Evening Run")).toBeInTheDocument();
   });
 
+  it("shows the sport name as text so sport isn't conveyed by color alone", () => {
+    renderList();
+    expect(screen.getByText(/Cycling/)).toBeInTheDocument();
+    expect(screen.getByText(/Running/)).toBeInTheDocument();
+  });
+
+  it("announces the selection's effect via a polite live region", () => {
+    renderList({ selectedId: 1 });
+    const status = screen.getByRole("status");
+    expect(status).toHaveAttribute("aria-live", "polite");
+    expect(status).toHaveTextContent(/Selected Morning Ride/);
+  });
+
   it("renders nothing when there are no activities", () => {
     const { container } = render(
       <MapActivityList
         activities={[]}
         sportColors={{}}
+        sportLabels={{}}
         distanceUnit="miles"
         selectedId={null}
         onSelect={vi.fn()}

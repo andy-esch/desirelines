@@ -42,4 +42,11 @@ describe("MapTimeRangeFilter", () => {
     renderFilter();
     expect(screen.getAllByRole("slider")).toHaveLength(2);
   });
+
+  it("gives the date slider thumbs date aria value text (not day-offset ints)", () => {
+    renderFilter();
+    const thumbs = screen.getAllByRole("slider");
+    expect(thumbs[0]).toHaveAttribute("aria-valuetext", "2026-01-01");
+    expect(thumbs[1]).toHaveAttribute("aria-valuetext", "2026-06-22");
+  });
 });
