@@ -194,11 +194,12 @@ export default function MapFilterDrawer({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, onOpenChange, toggleButtonRef]);
 
-  // This is the APG *disclosure* pattern, not a modal dialog: focus is NOT moved
-  // into the panel on open (that would steal focus on the default-open mount and
-  // dump keyboard users onto the collapse button). The panel joins the natural tab
-  // order via `inert` toggling below. On collapse we only return focus to the
-  // toggle if focus was inside the panel, so closing it keeps the user oriented.
+  // APG *disclosure* pattern, not a modal dialog. On an EXPLICIT open (user toggled
+  // closed → open) we move focus into the panel so keyboard users land on the revealed
+  // content; on the default-open mount focus is left alone (open was already true → no
+  // transition), so we never steal focus on load. The panel joins the natural tab order
+  // via `inert` toggling below. On collapse we return focus to the toggle only if focus
+  // was inside the panel, so closing it keeps the user oriented.
   const prevOpen = useRef(open);
   useEffect(() => {
     if (open && !prevOpen.current) {

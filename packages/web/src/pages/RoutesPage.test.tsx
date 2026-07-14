@@ -630,5 +630,31 @@ describe("RoutesPage", () => {
         restore();
       }
     });
+
+    it("returns focus to the Filters toggle after the on-map 'Show all' banner", async () => {
+      const restore = setViewport(true); // mobile → drawer collapsed; banner + toggle both visible
+      try {
+        mockUseMapDataset.mockReturnValue({
+          activities: [{ ...activity, activityId: 9, startDateLocal: "2020-05-01T08:00:00" }],
+          isLoading: false,
+          error: null,
+        });
+        await renderWithRouter(<RoutesPage />);
+        await screen.findByTestId("route-map");
+
+        const banner = await screen.findByText(/no activities match your filters/i);
+        const showAll = within(banner.closest("div") as HTMLElement).getByRole("button", {
+          name: /show all activities/i,
+        });
+        // The collapsed drawer's Filters toggle must be present to receive focus.
+        const filtersToggle = await findFiltersToggle();
+
+        fireEvent.click(showAll);
+        // Banner unmounts as results appear; focus lands on the toggle, not <body>.
+        expect(document.activeElement).toBe(filtersToggle);
+      } finally {
+        restore();
+      }
+    });
   });
 });

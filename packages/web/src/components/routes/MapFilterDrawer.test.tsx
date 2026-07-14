@@ -112,6 +112,31 @@ describe("MapFilterDrawer", () => {
     expect(document.activeElement).toBe(screen.getByRole("region", { name: /activity filters/i }));
   });
 
+  it("moves focus into the panel on an explicit open (closed → open)", () => {
+    const props: MapFilterDrawerProps = {
+      open: false,
+      onOpenChange: vi.fn(),
+      totals: TOTALS,
+      totalCount: 300,
+      activeFilterCount: 0,
+      onReset: vi.fn(),
+      onShowAll: vi.fn(),
+      distanceUnit: "miles",
+      elevationUnit: "feet",
+      isDark: true,
+    };
+    const { rerender } = render(<MapFilterDrawer {...props} />);
+    rerender(<MapFilterDrawer {...props} open />);
+    expect(document.activeElement).toBe(screen.getByRole("region", { name: /activity filters/i }));
+  });
+
+  it("does not steal focus on the default-open mount", () => {
+    renderDrawer({ open: true });
+    expect(document.activeElement).not.toBe(
+      screen.getByRole("region", { name: /activity filters/i })
+    );
+  });
+
   it("surfaces a filter-count badge when filters are active", () => {
     renderDrawer({ activeFilterCount: 3 });
     expect(screen.getAllByText("3").length).toBeGreaterThan(0);
