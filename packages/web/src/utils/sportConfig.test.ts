@@ -2,11 +2,6 @@ import { describe, it, expect } from "vitest";
 import type { SportConfig } from "../api/activities";
 import {
   SPORT_COLORS,
-  SPORT_TEXT_COLORS,
-  DEFAULT_SPORT_COLOR,
-  DEFAULT_SPORT_TEXT_COLOR,
-  getSportColor,
-  getSportTextColor,
   getSportDisplayName,
   getPrimaryMetric,
   isDistanceSport,
@@ -79,36 +74,6 @@ describe("SPORT_COLORS", () => {
     const colors = Object.values(SPORT_COLORS);
     const uniqueColors = new Set(colors);
     expect(uniqueColors.size).toBe(colors.length);
-  });
-});
-
-describe("SPORT_TEXT_COLORS", () => {
-  it("has text colors for all sports that have chart colors", () => {
-    for (const sport of Object.keys(SPORT_COLORS)) {
-      expect(SPORT_TEXT_COLORS[sport]).toBeDefined();
-    }
-  });
-});
-
-describe("getSportColor", () => {
-  it("returns the correct color for known sports", () => {
-    expect(getSportColor("cycling")).toBe("rgb(0, 255, 255)");
-    expect(getSportColor("yoga")).toBe("rgb(255, 0, 255)");
-  });
-
-  it("returns default color for unknown sports", () => {
-    expect(getSportColor("unknown_sport")).toBe(DEFAULT_SPORT_COLOR);
-  });
-});
-
-describe("getSportTextColor", () => {
-  it("returns the correct text color for known sports", () => {
-    expect(getSportTextColor("cycling")).toBe("rgb(0, 160, 160)");
-    expect(getSportTextColor("yoga")).toBe("rgb(180, 0, 180)");
-  });
-
-  it("returns default text color for unknown sports", () => {
-    expect(getSportTextColor("unknown_sport")).toBe(DEFAULT_SPORT_TEXT_COLOR);
   });
 });
 

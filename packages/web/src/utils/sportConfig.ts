@@ -65,61 +65,8 @@ export const SPORT_COLORS: Record<string, string> = {
   wheelchair: "rgb(150, 150, 255)", // Periwinkle
 } as const;
 
-/**
- * Darker versions of sport colors for text labels on light backgrounds.
- * These maintain the hue but reduce brightness for readability.
- */
-export const SPORT_TEXT_COLORS: Record<string, string> = {
-  // Endurance
-  cycling: "rgb(0, 160, 160)",
-  running: "rgb(0, 130, 180)",
-  swimming: "rgb(0, 100, 180)",
-  ebike: "rgb(60, 150, 180)",
-
-  // Outdoor/Adventure
-  hiking: "rgb(0, 160, 80)",
-  walking: "rgb(60, 160, 90)",
-  winter_sports: "rgb(90, 160, 120)",
-  watersports: "rgb(0, 130, 120)",
-
-  // Fitness/Mind-Body
-  yoga: "rgb(180, 0, 180)",
-  workout: "rgb(180, 60, 140)",
-  climbing: "rgb(140, 30, 180)",
-
-  // Ball/Racket Sports
-  racket_sports: "rgb(180, 140, 0)",
-  team_sports: "rgb(180, 100, 30)",
-  golf: "rgb(130, 170, 60)",
-
-  // Alternative Transport
-  skating: "rgb(120, 60, 180)",
-  wheelchair: "rgb(100, 100, 180)",
-} as const;
-
 /** Fallback color for unknown sports */
 export const DEFAULT_SPORT_COLOR = "rgb(150, 150, 150)";
-export const DEFAULT_SPORT_TEXT_COLOR = "rgb(100, 100, 100)";
-
-/**
- * Get the chart color for a sport.
- *
- * @param sport - Sport key (e.g., "cycling", "yoga")
- * @returns RGB color string for chart use
- */
-export function getSportColor(sport: string): string {
-  return SPORT_COLORS[sport] ?? DEFAULT_SPORT_COLOR;
-}
-
-/**
- * Get the text color for a sport (darker, for labels on light backgrounds).
- *
- * @param sport - Sport key (e.g., "cycling", "yoga")
- * @returns RGB color string for text use
- */
-export function getSportTextColor(sport: string): string {
-  return SPORT_TEXT_COLORS[sport] ?? DEFAULT_SPORT_TEXT_COLOR;
-}
 
 /**
  * Get the display name for a sport from config.

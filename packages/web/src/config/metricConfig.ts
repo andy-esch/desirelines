@@ -352,39 +352,6 @@ export function generateYAxisTicks(maxValue: number, config: MetricConfig): numb
 }
 
 /**
- * Check if a sport uses distance as its primary metric.
- *
- * @param sport - Sport key
- * @returns true if the sport tracks distance
- */
-export function isDistanceMetricSport(sport: string): boolean {
-  const config = getMetricConfig(sport);
-  return config.id === "distance";
-}
-
-/**
- * Check if a sport uses sessions as its primary metric.
- *
- * @param sport - Sport key
- * @returns true if the sport tracks sessions
- */
-export function isSessionsMetricSport(sport: string): boolean {
-  const config = getMetricConfig(sport);
-  return config.id === "sessions";
-}
-
-/**
- * Check if a sport uses time as its primary metric.
- *
- * @param sport - Sport key
- * @returns true if the sport tracks time
- */
-export function isTimeMetricSport(sport: string): boolean {
-  const config = getMetricConfig(sport);
-  return config.id === "time";
-}
-
-/**
  * Mapping from proto MetricType enum to base config keys.
  * This bridges the cross-language contract (proto) with the frontend config system.
  */
