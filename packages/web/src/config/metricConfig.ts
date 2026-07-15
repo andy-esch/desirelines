@@ -20,6 +20,7 @@
  */
 
 import type { MetricUnit, UserSettings } from "../utils/units";
+import type { SportConfig } from "../api/activities";
 import { MetricType } from "../types/generated/sports_metrics";
 
 /**
@@ -139,150 +140,85 @@ const BASE_METRIC_CONFIGS: Record<BaseMetricKey, MetricConfig> = {
 };
 
 /**
- * Sport-specific metric overrides.
- * These override specific properties from the base metric config.
+ * Resolve a sport's registry `primaryMetric` string (e.g. "distance_meters") to
+ * its base metric config key. Unknown strings fall back to distance.
  */
-interface SportMetricOverride {
-  /** Base metric type to use */
-  metricType: BaseMetricKey;
-  /** Properties to override from the base config */
-  overrides?: Partial<MetricConfig>;
+function primaryMetricToBaseKey(primaryMetric: string): BaseMetricKey {
+  const metricType = METRIC_STRING_TO_TYPE[primaryMetric] ?? MetricType.METRIC_TYPE_UNSPECIFIED;
+  return METRIC_TYPE_TO_CONFIG_KEY[metricType];
 }
 
-const SPORT_METRIC_OVERRIDES: Record<string, SportMetricOverride> = {
-  cycling: {
-    metricType: "distance",
-    // Cycling uses default distance config (100 increment, 2500 default)
-  },
-  running: {
-    metricType: "distance",
-    overrides: {
-      goalIncrement: 10,
-      roundingFactor: 10,
-      defaultGoalValue: 1000,
-      chartIntervalThresholds: [
-        { max: 200, interval: 50 },
-        { max: 500, interval: 100 },
-        { max: 1500, interval: 250 },
-        { max: Infinity, interval: 500 },
-      ],
-    },
-  },
-  yoga: {
-    metricType: "time",
-    // Yoga uses default time config (5 hr increment, 100 hr default)
-  },
-  hiking: {
-    metricType: "distance",
-    overrides: {
-      goalIncrement: 10,
-      roundingFactor: 10,
-      defaultGoalValue: 500,
-      chartIntervalThresholds: [
-        { max: 100, interval: 25 },
-        { max: 500, interval: 50 },
-        { max: 1000, interval: 100 },
-        { max: Infinity, interval: 250 },
-      ],
-    },
-  },
-  swimming: {
-    metricType: "distance",
-    overrides: {
-      goalIncrement: 10,
-      roundingFactor: 10,
-      defaultGoalValue: 200,
-      chartIntervalThresholds: [
-        { max: 50, interval: 10 },
-        { max: 200, interval: 25 },
-        { max: 500, interval: 50 },
-        { max: Infinity, interval: 100 },
-      ],
-    },
-  },
-  workout: {
-    metricType: "time",
-    overrides: {
-      defaultGoalValue: 25, // ~25 hours
-    },
-  },
-  walking: {
-    metricType: "distance",
-    overrides: {
-      goalIncrement: 10,
-      roundingFactor: 10,
-      defaultGoalValue: 500,
-    },
-  },
-  golf: {
-    metricType: "time",
-  },
-  racket_sports: {
-    metricType: "time",
-  },
-  team_sports: {
-    metricType: "time",
-  },
-  climbing: {
-    metricType: "time",
-  },
-  ebike: {
-    metricType: "distance",
-  },
-  watersports: {
-    metricType: "distance",
-  },
-  winter_sports: {
-    metricType: "distance",
-  },
-  skating: {
-    metricType: "distance",
-  },
-  wheelchair: {
-    metricType: "distance",
-  },
+/**
+ * Load-transient fallback: a sport's base metric type for the brief window when
+ * the async `sportConfig` is still null (first navigation, before the registry
+ * request resolves). Without it, time-based sports (yoga, workout, …) would
+ * flash distance units ("mi") and a distance default before snapping to the
+ * correct config. The registry (`sportConfig.primaryMetric`) is authoritative
+ * once loaded — this only affects the pre-load render, carries NO goal tuning,
+ * and a sport missing here simply falls back to distance during that window.
+ */
+const FALLBACK_BASE_METRIC: Record<string, BaseMetricKey> = {
+  cycling: "distance",
+  ebike: "distance",
+  running: "distance",
+  walking: "distance",
+  hiking: "distance",
+  swimming: "distance",
+  watersports: "distance",
+  winter_sports: "distance",
+  skating: "distance",
+  wheelchair: "distance",
+  yoga: "time",
+  workout: "time",
+  golf: "time",
+  racket_sports: "time",
+  team_sports: "time",
+  climbing: "time",
+  other: "time",
 };
 
 /**
  * Get the metric configuration for a sport.
  *
- * Returns the base metric config for the sport's primary metric type,
- * with any sport-specific overrides applied.
+ * The base metric type comes from the canonical registry
+ * (`sportConfig.sportCategories[sport].primaryMetric`); per-sport goal tuning
+ * (increment / rounding / default / chart intervals) is layered on top from the
+ * registry's optional `goalDefaults`. While `sportConfig` is still loading
+ * (null), {@link FALLBACK_BASE_METRIC} keeps the base metric type stable so
+ * units don't flash; a truly unknown sport falls back to distance.
  *
  * @param sport - Sport key (e.g., "cycling", "yoga")
+ * @param sportConfig - Loaded sport registry (from the API), or null while loading
  * @returns Complete MetricConfig for the sport
- *
- * @example
- * ```ts
- * const config = getMetricConfig("cycling");
- * // Returns distance config with 100 increment, 2500 default
- *
- * const config = getMetricConfig("running");
- * // Returns distance config with 10 increment, 1000 default (overridden)
- *
- * const config = getMetricConfig("yoga");
- * // Returns sessions config with 10 increment, 100 default
- * ```
  */
-export function getMetricConfig(sport: string): MetricConfig {
-  const sportOverride = SPORT_METRIC_OVERRIDES[sport];
-
-  if (!sportOverride) {
-    // Unknown sport defaults to distance
-    return BASE_METRIC_CONFIGS.distance;
+export function getMetricConfig(sport: string, sportConfig: SportConfig | null): MetricConfig {
+  const category = sportConfig?.sportCategories?.[sport];
+  if (!category) {
+    // Registry not loaded yet, or sport not in the registry: use the static
+    // base-metric fallback (distance for unknown sports), with no goal tuning.
+    return BASE_METRIC_CONFIGS[FALLBACK_BASE_METRIC[sport] ?? "distance"];
   }
 
-  const baseConfig = BASE_METRIC_CONFIGS[sportOverride.metricType];
-
-  if (!sportOverride.overrides) {
+  const baseConfig = BASE_METRIC_CONFIGS[primaryMetricToBaseKey(category.primaryMetric)];
+  const goalDefaults = category.goalDefaults;
+  if (!goalDefaults) {
     return baseConfig;
   }
 
-  // Merge base config with sport-specific overrides
-  return {
-    ...baseConfig,
-    ...sportOverride.overrides,
-  };
+  // Layer the registry's per-sport goal tuning over the base config. Each field
+  // is optional and inherits the base when absent. `chartIntervals` omits the
+  // catch-all bucket's `max` (JSON has no Infinity) — restore it here.
+  const merged: MetricConfig = { ...baseConfig };
+  if (goalDefaults.increment !== undefined) merged.goalIncrement = goalDefaults.increment;
+  if (goalDefaults.rounding !== undefined) merged.roundingFactor = goalDefaults.rounding;
+  if (goalDefaults.defaultValue !== undefined) merged.defaultGoalValue = goalDefaults.defaultValue;
+  if (goalDefaults.chartIntervals !== undefined) {
+    merged.chartIntervalThresholds = goalDefaults.chartIntervals.map((ci) => ({
+      max: ci.max ?? Infinity,
+      interval: ci.interval,
+    }));
+  }
+  return merged;
 }
 
 /**

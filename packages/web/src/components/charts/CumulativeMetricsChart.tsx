@@ -14,6 +14,7 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import type { DistanceEntry } from "../../types/activity";
 import { type Goals } from "../../utils/goalCalculations";
+import type { SportConfig } from "../../api/activities";
 import { getMetricUnitLabel, isSessionsUnit, type MetricUnit } from "../../utils/units";
 import { getMetricDisplayLabel } from "../../config/metricConfig";
 import { useCumulativeChartData } from "../../hooks/useCumulativeChartData";
@@ -64,6 +65,8 @@ interface CumulativeMetricsChartProps {
   metric?: string | undefined;
   /** Sport type for empty state messaging */
   sport?: string | undefined;
+  /** Loaded sport registry (or null while loading) for metric-config lookup */
+  sportConfig?: SportConfig | null | undefined;
   /** Callback for retry on error */
   onRetry?: (() => void) | undefined;
   /** Prior year chart data keyed by year */
@@ -197,6 +200,7 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
     unit = "miles",
     metric,
     sport,
+    sportConfig = null,
     onRetry,
     priorYearData,
     showPriorYears = false,
@@ -252,6 +256,7 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
     distanceData,
     showFullYear: true, // Always generate full year data so goal projections extend; x-axis domain handles visual clipping
     sport,
+    sportConfig,
     priorYearData: showPriorYears ? priorYearData : undefined,
   });
 

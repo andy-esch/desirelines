@@ -133,7 +133,7 @@ export function useWeeklySummary(): {
   const sportTotals = useMemo(() => {
     const total = validSports.length;
     return validSports.map((sport, index) => {
-      const metricConfig = getMetricConfig(sport);
+      const metricConfig = getMetricConfig(sport, sportConfig);
       const primaryMetric = getPrimaryMetric(sport, sportConfig);
       const metricCfg = getMetricConfigByMetricId(primaryMetric, userSettings);
       const isDistance = primaryMetric === "distance_meters";

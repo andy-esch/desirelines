@@ -83,6 +83,10 @@ type SportCategory struct {
 	// "danger zone" rendering. Loaded and passed through verbatim; the apigateway
 	// does not interpret it.
 	DangerPace *DangerPace `json:"dangerPace,omitempty"`
+	// GoalDefaults is optional per-sport goal tuning (increment / rounding /
+	// default / chart intervals) used by the frontend's metric-config layer.
+	// Loaded and passed through verbatim; the apigateway does not interpret it.
+	GoalDefaults *GoalDefaults `json:"goalDefaults,omitempty"`
 }
 
 // DangerPace expresses a daily pace ceiling in human-readable units. The web
@@ -90,6 +94,23 @@ type SportCategory struct {
 type DangerPace struct {
 	ValuePerDay float64 `json:"valuePerDay" validate:"required"`
 	Unit        string  `json:"unit" validate:"required"`
+}
+
+// GoalDefaults is optional per-sport goal tuning consumed by the frontend. Each
+// field is optional and inherits the base metric config when omitted. Loaded
+// and passed through verbatim; the apigateway does not interpret it.
+type GoalDefaults struct {
+	Increment      *float64        `json:"increment,omitempty"`
+	Rounding       *float64        `json:"rounding,omitempty"`
+	DefaultValue   *float64        `json:"defaultValue,omitempty"`
+	ChartIntervals []ChartInterval `json:"chartIntervals,omitempty"`
+}
+
+// ChartInterval is one Y-axis tick threshold. A nil Max marks the catch-all
+// top bucket (JSON has no Infinity; the frontend restores it).
+type ChartInterval struct {
+	Max      *float64 `json:"max,omitempty"`
+	Interval float64  `json:"interval"`
 }
 
 // SportConfigData is a config that holds the sport config version and
@@ -189,8 +210,12 @@ func NewSportConfig(configPath string) (*SportConfig, error) {
 	// resolve to whichever category was visited last — silently miscategorizing
 	// and changing the answer on every restart.
 	reverseMap := make(map[string]string)
-	for categoryName, category := range configData.SportCategories {
-		for _, stravaType := range category.StravaTypes {
+	for categoryName := range configData.SportCategories {
+		// Index the map for just the slice we need rather than ranging the
+		// value: `k, v := range` would copy the whole SportCategory struct each
+		// iteration (gocritic rangeValCopy) now that it carries optional config.
+		stravaTypes := configData.SportCategories[categoryName].StravaTypes
+		for _, stravaType := range stravaTypes {
 			if existing, dup := reverseMap[stravaType]; dup {
 				return nil, fmt.Errorf(
 					"invalid sport config: sport_type %q maps to multiple categories "+

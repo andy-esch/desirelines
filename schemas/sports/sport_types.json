@@ -28,7 +28,18 @@
       "metrics": ["distance_meters", "time_minutes", "elevation_meters", "activities", "activity_ids"],
       "hasDistance": true,
       "hasElevation": true,
-      "dangerPace": { "valuePerDay": 10, "unit": "miles" }
+      "dangerPace": { "valuePerDay": 10, "unit": "miles" },
+      "goalDefaults": {
+        "increment": 10,
+        "rounding": 10,
+        "defaultValue": 1000,
+        "chartIntervals": [
+          { "max": 200, "interval": 50 },
+          { "max": 500, "interval": 100 },
+          { "max": 1500, "interval": 250 },
+          { "interval": 500 }
+        ]
+      }
     },
     "walking": {
       "displayName": "Walking",
@@ -37,7 +48,12 @@
       "primaryMetric": "distance_meters",
       "metrics": ["distance_meters", "time_minutes", "elevation_meters", "activities", "activity_ids"],
       "hasDistance": true,
-      "hasElevation": true
+      "hasElevation": true,
+      "goalDefaults": {
+        "increment": 10,
+        "rounding": 10,
+        "defaultValue": 500
+      }
     },
     "hiking": {
       "displayName": "Hiking",
@@ -46,7 +62,18 @@
       "primaryMetric": "distance_meters",
       "metrics": ["distance_meters", "time_minutes", "elevation_meters", "activities", "activity_ids"],
       "hasDistance": true,
-      "hasElevation": true
+      "hasElevation": true,
+      "goalDefaults": {
+        "increment": 10,
+        "rounding": 10,
+        "defaultValue": 500,
+        "chartIntervals": [
+          { "max": 100, "interval": 25 },
+          { "max": 500, "interval": 50 },
+          { "max": 1000, "interval": 100 },
+          { "interval": 250 }
+        ]
+      }
     },
     "swimming": {
       "displayName": "Swimming",
@@ -55,7 +82,18 @@
       "primaryMetric": "distance_meters",
       "metrics": ["distance_meters", "time_minutes", "activities", "activity_ids"],
       "hasDistance": true,
-      "hasElevation": false
+      "hasElevation": false,
+      "goalDefaults": {
+        "increment": 10,
+        "rounding": 10,
+        "defaultValue": 200,
+        "chartIntervals": [
+          { "max": 50, "interval": 10 },
+          { "max": 200, "interval": 25 },
+          { "max": 500, "interval": 50 },
+          { "interval": 100 }
+        ]
+      }
     },
     "yoga": {
       "displayName": "Yoga",
@@ -74,7 +112,10 @@
       "primaryMetric": "time_minutes",
       "metrics": ["time_minutes", "activities", "activity_ids"],
       "hasDistance": false,
-      "hasElevation": false
+      "hasElevation": false,
+      "goalDefaults": {
+        "defaultValue": 25
+      }
     },
     "watersports": {
       "displayName": "Water Sports",

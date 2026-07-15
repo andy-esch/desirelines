@@ -77,6 +77,24 @@ const SportCategorySchema = z
       })
       .passthrough()
       .optional(),
+    goalDefaults: z
+      .object({
+        increment: z.number().optional(),
+        rounding: z.number().optional(),
+        defaultValue: z.number().optional(),
+        chartIntervals: z
+          .array(
+            z
+              .object({
+                max: z.number().optional(),
+                interval: z.number(),
+              })
+              .passthrough()
+          )
+          .optional(),
+      })
+      .passthrough()
+      .optional(),
   })
   .passthrough();
 

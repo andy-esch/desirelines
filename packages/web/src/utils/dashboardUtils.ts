@@ -66,7 +66,7 @@ export function transformToSportGoalData(options: TransformOptions): SportGoalDa
     isAuthMode,
   } = options;
 
-  const metricConfig = getMetricConfig(sport);
+  const metricConfig = getMetricConfig(sport, sportConfig);
   const primaryMetric = getPrimaryMetric(sport, sportConfig);
   const metricCfg = getMetricConfigByMetricId(primaryMetric, userSettings);
   const fieldName = getMetricFieldName(primaryMetric);
