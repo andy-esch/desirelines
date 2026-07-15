@@ -16,6 +16,7 @@ describe("useGoalManager", () => {
     estimatedYearEnd: 3000,
     sport: "cycling",
     primaryMetric: "distance_meters",
+    sportConfig: null,
   };
 
   beforeEach(() => {

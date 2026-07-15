@@ -198,7 +198,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   }
 
   // For goals, always use the sport's primary metric config
-  const primaryMetricConfig = getMetricConfig(sport);
+  const primaryMetricConfig = getMetricConfig(sport, sportConfig);
 
   // Check if we're viewing the primary metric (for goal visibility)
   const isViewingPrimaryMetric = activeMetric === primaryMetric;

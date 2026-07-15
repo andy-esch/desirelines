@@ -27,7 +27,16 @@ The database stores Strava's `sport_type` as-is without validation. Filtering to
       "metrics": ["distance_meters", "time_minutes", ...],
       "has_distance": true|false,
       "has_elevation": true|false,
-      "dangerPace": { "valuePerDay": 20, "unit": "miles" }
+      "dangerPace": { "valuePerDay": 20, "unit": "miles" },
+      "goalDefaults": {
+        "increment": 10,
+        "rounding": 10,
+        "defaultValue": 1000,
+        "chartIntervals": [
+          { "max": 200, "interval": 50 },
+          { "interval": 500 }
+        ]
+      }
     }
   }
 }
@@ -39,6 +48,17 @@ The database stores Strava's `sport_type` as-is without validation. Filtering to
 is converted into the user's preferred display unit at read time, so always
 state it in whatever unit is most natural to maintain (e.g. `miles` for the US
 default, `hours` for time sports).
+
+`goalDefaults` is optional per-sport goal tuning read by the web client's
+`getMetricConfig`; backends load and pass it through without interpreting it.
+Every field is optional and inherits the base config for the sport's
+`primary_metric` when omitted — so a sport whose defaults match its base type
+needs no entry at all. Fields: `increment` (goal +/- step), `rounding`
+(goal-value rounding factor), `defaultValue` (goal when a sport has no
+activities yet), and `chartIntervals` (Y-axis tick thresholds). Values are in
+the display unit of the sport's `primary_metric` (miles for distance sports,
+hours for time sports). In `chartIntervals`, the final catch-all bucket omits
+`max` (JSON has no `Infinity`); the client restores it as `Infinity`.
 
 ## Consumers
 
@@ -54,12 +74,13 @@ This file is synced to three packages via `just sync-schemas`. Each consumer dep
 | `has_distance` | Returned via `GetCategory()` | Loaded | — |
 | `has_elevation` | Returned via `GetCategory()` | Loaded | — |
 | `dangerPace` | Loaded, passed through | Loaded, ignored | Danger-zone rendering in charts |
+| `goalDefaults` | Loaded, passed through | Loaded, ignored | Per-sport goal tuning in `getMetricConfig` |
 
 **Note:** The backend packages (`apigateway`, `stravapipe`) are synced automatically via `just sync-sport-config`. The web package's demo fixture (`packages/web/src/data/fixtures/index.ts`) must be updated **manually** to match this file.
 
 ### Source files
 
-- **apigateway**: `config/sport_config.go`, `internal/config/handler.go`
+- **apigateway**: `config/sport_config.go`, `internal/sports/handler.go`
 - **stravapipe**: `stravapipe/config/sport_config.py`
 - **web**: `api/activities.ts` (type definition), `utils/sportConfig.ts` (field access)
 

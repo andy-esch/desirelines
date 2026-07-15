@@ -67,7 +67,7 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
   }, [metrics, sportInfo, primaryMetric, userSettings]);
 
   // Get sport-specific configuration from MetricConfig system
-  const metricConfig = useMemo(() => getMetricConfig(sport), [sport]);
+  const metricConfig = useMemo(() => getMetricConfig(sport, sportConfig), [sport, sportConfig]);
 
   // Calculate current values
   const estimatedYearEnd = useMemo(() => {

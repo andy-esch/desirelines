@@ -3,6 +3,7 @@ import { type Goals, validateGoals, generateDefaultGoals } from "../utils/goalCa
 import { GOAL_COLORS } from "../constants/chartColors";
 import { getMetricConfig } from "../config/metricConfig";
 import type { MetricUnit } from "../utils/units";
+import type { SportConfig } from "../api/activities";
 import { useGoalManager } from "../hooks/useGoalManager";
 import { InlineAlert } from "./InlineAlert";
 
@@ -20,6 +21,8 @@ interface GoalControlsProps {
    * harden-user-config-goal-data-integrity #2.
    */
   primaryMetric: string;
+  /** Loaded sport registry (or null while loading) for metric-config lookup. */
+  sportConfig: SportConfig | null;
   // Loading/error state from parent (useUserConfig hook)
   isSaving?: boolean | undefined;
   saveError?: Error | null | undefined;
@@ -33,6 +36,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
   unit,
   sport,
   primaryMetric,
+  sportConfig,
   isSaving = false,
   saveError = null,
   onClearSaveError,
@@ -63,6 +67,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
     estimatedYearEnd,
     sport,
     primaryMetric,
+    sportConfig,
   });
 
   const validation = validateGoals(goals);
@@ -203,7 +208,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
             // produces sport-appropriate buckets (running: 10/1000, yoga: 10/100,
             // cycling: 100/2500). Defaulting both to 100 here silently broke
             // reset for non-cycling sports — caught in PR review.
-            const metricConfig = getMetricConfig(sport);
+            const metricConfig = getMetricConfig(sport, sportConfig);
             void saveGoals(
               generateDefaultGoals(
                 estimatedYearEnd,

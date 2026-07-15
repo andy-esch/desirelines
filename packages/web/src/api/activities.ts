@@ -71,6 +71,30 @@ export interface DangerPace {
   unit: "miles" | "kilometers" | "meters" | "feet" | "hours" | "minutes" | "sessions";
 }
 
+/** One Y-axis tick threshold; the catch-all top bucket omits `max` (JSON has no Infinity). */
+export interface ChartIntervalThreshold {
+  /** Upper bound (exclusive) for this bucket; omitted = catch-all (Infinity). */
+  max?: number;
+  /** Interval to use for Y-axis ticks below `max`. */
+  interval: number;
+}
+
+/**
+ * Optional per-sport goal tuning, layered over the base metric config in
+ * `getMetricConfig`. Each field is optional and inherits the base when omitted.
+ * Sourced from `schemas/sports/sport_types.json`.
+ */
+export interface GoalDefaults {
+  /** +/- step in GoalControls (maps to `goalIncrement`). */
+  increment?: number;
+  /** Rounding factor for goal values (maps to `roundingFactor`). */
+  rounding?: number;
+  /** Default goal when a sport has no activities yet (maps to `defaultGoalValue`). */
+  defaultValue?: number;
+  /** Y-axis tick thresholds (maps to `chartIntervalThresholds`). */
+  chartIntervals?: ChartIntervalThreshold[];
+}
+
 // Sport config response shape — sourced from `schemas/sports/sport_types.json`
 // at the apigateway boundary, not generated from a proto. If the proto coverage
 // expands to sport config in the future, regenerate and drop this declaration.
@@ -87,6 +111,7 @@ export interface SportConfig {
       hasDistance: boolean; // true for cycling/running, false for yoga
       hasElevation: boolean; // true for cycling/running, false for yoga
       dangerPace?: DangerPace; // optional sustainable-pace limit for the UI
+      goalDefaults?: GoalDefaults; // optional per-sport goal tuning for the UI
     }
   >;
 }

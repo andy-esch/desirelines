@@ -19,6 +19,7 @@ import type {
   GoalAchievement,
 } from "../types/chartData";
 import type { Goals } from "../utils/goalCalculations";
+import type { SportConfig } from "../api/activities";
 import {
   calculateDesireLine,
   calculateCurrentAverageLine,
@@ -43,6 +44,7 @@ interface UseCumulativeChartDataProps {
   distanceData: DistanceEntry[];
   showFullYear: boolean;
   sport?: string | undefined;
+  sportConfig?: SportConfig | null | undefined;
   priorYearData?: Record<number, DistanceEntry[]> | undefined;
 }
 
@@ -97,6 +99,7 @@ export function useCumulativeChartData({
   distanceData,
   showFullYear,
   sport = "cycling",
+  sportConfig = null,
   priorYearData,
 }: UseCumulativeChartDataProps) {
   // 1. Date range calculations
@@ -264,7 +267,7 @@ export function useCumulativeChartData({
     : [];
 
   // 9. Metric-specific UI configuration
-  const metricConfig = getMetricConfig(sport);
+  const metricConfig = getMetricConfig(sport, sportConfig);
 
   // Explicit useMemo: flatMap over full merged dataset + Math.max. See header comment.
   const yAxisTicks = useMemo(() => {

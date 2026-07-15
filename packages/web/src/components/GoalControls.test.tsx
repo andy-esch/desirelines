@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import GoalControls from "./GoalControls";
 import type { Goals } from "../utils/goalCalculations";
+import type { SportConfig } from "../api/activities";
 import { testGoals } from "../utils/goalTestFixtures";
 
 describe("GoalControls", () => {
@@ -9,6 +10,33 @@ describe("GoalControls", () => {
     { id: "1", value: 1000, label: "Base" },
     { id: "2", value: 2000, label: "Target" },
   ]);
+
+  // Minimal registry fixture so getMetricConfig resolves sport-specific goal
+  // tuning (running: rounding 10 / default 1000; cycling: base 100 / 2500).
+  const testSportConfig: SportConfig = {
+    version: "1.0",
+    sportCategories: {
+      cycling: {
+        displayName: "Cycling",
+        stravaTypes: [],
+        excludedTypes: [],
+        primaryMetric: "distance_meters",
+        metrics: [],
+        hasDistance: true,
+        hasElevation: false,
+      },
+      running: {
+        displayName: "Running",
+        stravaTypes: [],
+        excludedTypes: [],
+        primaryMetric: "distance_meters",
+        metrics: [],
+        hasDistance: true,
+        hasElevation: false,
+        goalDefaults: { increment: 10, rounding: 10, defaultValue: 1000 },
+      },
+    },
+  };
 
   // Create async mock that resolves immediately by default
   const createAsyncMock = () => vi.fn().mockResolvedValue(undefined);
@@ -21,6 +49,7 @@ describe("GoalControls", () => {
     unit: "miles" as const,
     sport: "cycling",
     primaryMetric: "distance_meters",
+    sportConfig: testSportConfig,
   };
 
   beforeEach(() => {

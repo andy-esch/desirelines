@@ -163,6 +163,7 @@ export default function SportPageContent({
               unit={unit}
               sport={sport}
               primaryMetric={primaryMetric}
+              sportConfig={sportConfig}
               isSaving={isGoalsSaving}
               saveError={goalsSaveError}
               onClearSaveError={onClearGoalsSaveError}
@@ -270,6 +271,7 @@ export default function SportPageContent({
                 unit={unit}
                 metric={activeMetric}
                 sport={sport}
+                sportConfig={sportConfig}
                 onRetry={onRetry}
                 priorYearData={priorYearData}
                 showPriorYears={showPriorYears}

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { type Goals, type Goal, buildGoal, validateGoalValue } from "../utils/goalCalculations";
 import { getMetricConfig } from "../config/metricConfig";
+import type { SportConfig } from "../api/activities";
 import { logApiError } from "../api/errors";
 
 interface UseGoalManagerProps {
@@ -15,6 +16,8 @@ interface UseGoalManagerProps {
    * harden-user-config-goal-data-integrity.
    */
   primaryMetric: string;
+  /** Loaded sport registry (or null while loading) for metric-config lookup. */
+  sportConfig: SportConfig | null;
 }
 
 /**
@@ -34,6 +37,7 @@ export function useGoalManager({
   estimatedYearEnd,
   sport,
   primaryMetric,
+  sportConfig,
 }: UseGoalManagerProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -72,7 +76,7 @@ export function useGoalManager({
   };
 
   // Get sport-specific configuration
-  const metricConfig = useMemo(() => getMetricConfig(sport), [sport]);
+  const metricConfig = useMemo(() => getMetricConfig(sport, sportConfig), [sport, sportConfig]);
   const incrementSize = metricConfig.goalIncrement;
   const roundingFactor = metricConfig.roundingFactor;
 

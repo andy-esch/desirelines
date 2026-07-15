@@ -43,6 +43,32 @@ class DangerPaceModel(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class ChartIntervalModel(BaseModel):
+    """One Y-axis tick threshold; the catch-all top bucket omits ``max``."""
+
+    max: float | None = None
+    interval: float
+
+    model_config = {"populate_by_name": True}
+
+
+class GoalDefaultsModel(BaseModel):
+    """Optional per-sport goal tuning; consumed by the web client only.
+
+    Loaded and ignored by stravapipe. Validated here so a typo in
+    ``sport_types.json`` fails fast locally rather than in production.
+    """
+
+    increment: float | None = None
+    rounding: float | None = None
+    default_value: float | None = Field(default=None, alias="defaultValue")
+    chart_intervals: list[ChartIntervalModel] | None = Field(
+        default=None, alias="chartIntervals"
+    )
+
+    model_config = {"populate_by_name": True}
+
+
 # Pydantic models for schema validation
 class SportCategoryModel(BaseModel):
     """Schema for sport category configuration."""
@@ -58,6 +84,8 @@ class SportCategoryModel(BaseModel):
     has_elevation: bool = Field(alias="hasElevation")
     # Loaded and ignored by stravapipe; web frontend consumes it for danger-zone rendering.
     danger_pace: DangerPaceModel | None = Field(default=None, alias="dangerPace")
+    # Loaded and ignored by stravapipe; web frontend consumes it for goal tuning.
+    goal_defaults: GoalDefaultsModel | None = Field(default=None, alias="goalDefaults")
 
     model_config = {"populate_by_name": True}
 
