@@ -69,6 +69,12 @@ export interface DangerPace {
   valuePerDay: number;
   /** Unit the value is expressed in. The client converts to the user's display unit. */
   unit: "miles" | "kilometers" | "meters" | "feet" | "hours" | "minutes" | "sessions";
+  /**
+   * Optional fraction of the threshold at which the pacing chart starts showing
+   * the "danger zone" overlay. Defaults to 0.75 when omitted. Higher = warn
+   * later (e.g. yoga uses 0.9 since its threshold is more achievable).
+   */
+  warnAtFraction?: number;
 }
 
 /** One Y-axis tick threshold; the catch-all top bucket omits `max` (JSON has no Infinity). */

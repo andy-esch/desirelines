@@ -74,6 +74,7 @@ const SportCategorySchema = z
       .object({
         valuePerDay: z.number(),
         unit: z.string(),
+        warnAtFraction: z.number().optional(),
       })
       .passthrough()
       .optional(),

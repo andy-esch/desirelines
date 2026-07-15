@@ -117,6 +117,17 @@ describe("chartScaling utilities", () => {
       // Edge case: 0/20 = 0 → below proximity.
       expect(shouldShowDangerZone(0, 0, 20)).toBe(false);
     });
+
+    it("respects a per-sport warnAtFraction (higher = warn later)", () => {
+      // At the default 0.75, 15/20 already trips the gate; a yoga-style 0.9
+      // fraction holds the overlay back until data reaches 18/20.
+      expect(shouldShowDangerZone(15, 5, 20, 0.9)).toBe(false);
+      expect(shouldShowDangerZone(18, 5, 20, 0.9)).toBe(true); // 18/20 = 0.90 exactly
+    });
+
+    it("defaults warnAtFraction to 0.75 when omitted", () => {
+      expect(shouldShowDangerZone(15, 5, 20)).toBe(shouldShowDangerZone(15, 5, 20, 0.75));
+    });
   });
 
   describe("calculateCumulativeYAxisMax", () => {

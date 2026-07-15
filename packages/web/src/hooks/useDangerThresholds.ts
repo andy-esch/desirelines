@@ -16,6 +16,7 @@ import {
   type DistanceUnit,
   type ElevationUnit,
 } from "../utils/units";
+import { DEFAULT_DANGER_PROXIMITY } from "../utils/chartScaling";
 import { usePublicSportConfig } from "./usePublicSportConfig";
 import { useUserConfig } from "./useUserConfig";
 
@@ -30,7 +31,14 @@ export function useDangerThresholds() {
     return resolveDangerPace(pace, distanceUnit, elevationUnit);
   };
 
-  return { getThreshold };
+  // Per-sport proximity for the pacing chart's danger-zone overlay; falls back
+  // to the global default when a sport doesn't set `warnAtFraction`.
+  const getWarnAtFraction = (sport: string): number => {
+    const pace = sportConfig?.sportCategories?.[sport]?.dangerPace;
+    return pace?.warnAtFraction ?? DEFAULT_DANGER_PROXIMITY;
+  };
+
+  return { getThreshold, getWarnAtFraction };
 }
 
 /**
