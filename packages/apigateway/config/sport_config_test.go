@@ -180,6 +180,22 @@ func TestInvalidSchemaFails(t *testing.T) {
 	}
 }
 
+func TestWarnAtFractionOutOfRangeFails(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "test.json")
+
+	// dangerPace.warnAtFraction must be within [0, 1]; 1.5 is out of range.
+	invalidJSON := `{"version":"1.0","sportCategories":{"cycling":{"displayName":"Cycling","stravaTypes":["Ride"],"excludedTypes":[],"primaryMetric":"distance_meters","metrics":["distance_meters"],"hasDistance":true,"hasElevation":true,"dangerPace":{"valuePerDay":20,"unit":"miles","warnAtFraction":1.5}}}}`
+	if err := os.WriteFile(configPath, []byte(invalidJSON), 0o600); err != nil {
+		t.Fatalf("Failed to write test config: %v", err)
+	}
+
+	_, err := NewSportConfig(configPath)
+	if err == nil || !strings.Contains(err.Error(), "invalid sport config schema") {
+		t.Errorf("Expected schema validation error for out-of-range warnAtFraction, got: %v", err)
+	}
+}
+
 func TestGetCategoryForStravaType(t *testing.T) {
 	config, err := LoadSportConfig("sport_types.json")
 	if err != nil {

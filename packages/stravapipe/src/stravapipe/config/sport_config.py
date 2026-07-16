@@ -40,8 +40,11 @@ class DangerPaceModel(BaseModel):
     value_per_day: float = Field(alias="valuePerDay")
     unit: str
     # Optional fraction of the threshold at which the web pacing chart shows the
-    # danger-zone overlay (defaults to 0.75 client-side). Loaded and ignored here.
-    warn_at_fraction: float | None = Field(default=None, alias="warnAtFraction")
+    # danger-zone overlay (defaults to 0.75 client-side). Loaded and ignored here,
+    # but range-validated so a bad registry value fails fast locally.
+    warn_at_fraction: float | None = Field(
+        default=None, alias="warnAtFraction", ge=0.0, le=1.0
+    )
 
     model_config = {"populate_by_name": True}
 

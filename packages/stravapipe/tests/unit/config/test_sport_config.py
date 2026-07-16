@@ -146,6 +146,35 @@ def test_invalid_schema_fails(tmp_path):
         SportConfig(config_path)
 
 
+def test_warn_at_fraction_out_of_range_fails(tmp_path):
+    """dangerPace.warnAtFraction must be within [0, 1]."""
+    config_data = {
+        "version": "1.0",
+        "sportCategories": {
+            "cycling": {
+                "displayName": "Cycling",
+                "stravaTypes": ["Ride"],
+                "excludedTypes": [],
+                "primaryMetric": "distance_meters",
+                "metrics": ["distance_meters"],
+                "hasDistance": True,
+                "hasElevation": True,
+                "dangerPace": {
+                    "valuePerDay": 20,
+                    "unit": "miles",
+                    "warnAtFraction": 1.5,
+                },
+            }
+        },
+    }
+    config_path = tmp_path / "sport_types.json"
+    with config_path.open("w") as f:
+        json.dump(config_data, f)
+
+    with pytest.raises(ValueError, match="Invalid sport config schema"):
+        SportConfig(config_path)
+
+
 def test_empty_strava_types_fails(tmp_path):
     """Test that empty strava_types list is rejected."""
     config_data = {
