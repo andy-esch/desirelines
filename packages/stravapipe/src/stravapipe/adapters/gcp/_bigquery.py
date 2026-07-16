@@ -26,8 +26,15 @@ class ActivitiesWriter(WriteActivities):
     # https://cloud.google.com/bigquery/quotas#write-api-limits
     _MAX_BATCH_SIZE: int = 10_000
 
-    # Column definitions for MERGE queries (single source of truth)
-    # These are all columns that can be updated/inserted, excluding 'id' (the key)
+    # Column definitions for MERGE queries (single source of truth).
+    # Every column that can be updated/inserted, excluding 'id' (the key).
+    #
+    # This must stay in parity with the BQ schema (schemas/bigquery/
+    # activities_full.json, via the generated proto descriptor) — a column
+    # missing here lands NULL in `activities` no matter what staging holds,
+    # because the MERGE only propagates what this tuple names.
+    # test_merge_columns_match_proto_descriptor enforces the parity; keep the
+    # order aligned with the proto so the two read side by side.
     _MERGE_COLUMNS: tuple[str, ...] = (
         "external_id",
         "upload_id",
@@ -44,27 +51,54 @@ class ActivitiesWriter(WriteActivities):
         "start_date",
         "start_date_local",
         "timezone",
+        "start_latlng",
+        "end_latlng",
         "achievement_count",
-        "athlete_count",
-        "average_speed",
-        "calories",
+        "kudos_count",
         "comment_count",
+        "athlete_count",
+        "photo_count",
+        "total_photo_count",
+        "map",
+        "trainer",
         "commute",
-        "embed_token",
+        "manual",
+        "private",
         "flagged",
-        "has_heartrate",
+        "workout_type",
+        "upload_id_str",
+        "average_speed",
+        "max_speed",
         "has_kudoed",
         "hide_from_home",
-        "kudos_count",
-        "manual",
-        "map",
-        "max_speed",
-        "photo_count",
+        "gear_id",
+        "kilojoules",
+        "average_watts",
+        "device_watts",
+        "max_watts",
+        "weighted_average_watts",
+        "description",
         "photos",
+        "gear",
+        "calories",
+        "segment_efforts",
+        "device_name",
+        "embed_token",
+        "splits_metric",
+        "splits_standard",
+        "laps",
+        "best_efforts",
+        "average_cadence",
+        "has_heartrate",
         "pr_count",
-        "private",
-        "total_photo_count",
-        "trainer",
+        "suffer_score",
+        "stats_visibility",
+        "display_hide_heartrate_option",
+        "heartrate_opt_out",
+        "average_heartrate",
+        "max_heartrate",
+        "available_zones",
+        "visibility",
     )
 
     def __init__(
