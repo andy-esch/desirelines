@@ -52,7 +52,7 @@ const FIXTURE_CONFIG: SportConfig = {
       metrics: ["time_minutes"],
       hasDistance: false,
       hasElevation: false,
-      dangerPace: { valuePerDay: 2, unit: "hours" },
+      dangerPace: { valuePerDay: 2, unit: "hours", warnAtFraction: 0.9 },
     },
     swimming: {
       displayName: "Swimming",
@@ -102,6 +102,17 @@ describe("useDangerThresholds", () => {
     const { result } = renderHook(() => useDangerThresholds());
 
     expect(result.current.getThreshold("cycling")).toBe(Infinity);
+  });
+
+  it("returns each sport's warnAtFraction, defaulting to 0.75", () => {
+    preferencesRef.current = null;
+    sportConfigRef.current = FIXTURE_CONFIG;
+    const { result } = renderHook(() => useDangerThresholds());
+
+    expect(result.current.getWarnAtFraction("yoga")).toBe(0.9); // configured
+    expect(result.current.getWarnAtFraction("cycling")).toBe(0.75); // dangerPace, no fraction
+    expect(result.current.getWarnAtFraction("swimming")).toBe(0.75); // no dangerPace
+    expect(result.current.getWarnAtFraction("unknown")).toBe(0.75); // absent sport
   });
 });
 

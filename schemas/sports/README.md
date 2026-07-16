@@ -47,7 +47,10 @@ The database stores Strava's `sport_type` as-is without validation. Filtering to
 `miles | kilometers | meters | feet | hours | minutes | sessions` — the value
 is converted into the user's preferred display unit at read time, so always
 state it in whatever unit is most natural to maintain (e.g. `miles` for the US
-default, `hours` for time sports).
+default, `hours` for time sports). The optional `warnAtFraction` (0–1, default
+`0.75`) sets how close to the threshold the pacing chart's danger-zone overlay
+appears — higher warns later; e.g. yoga uses `0.9` because 2 hr/day is more
+achievable than a distance sport's ceiling.
 
 `goalDefaults` is optional per-sport goal tuning read by the web client's
 `getMetricConfig`; backends load and pass it through without interpreting it.
@@ -76,7 +79,7 @@ This file is synced to three packages via `just sync-schemas`. Each consumer dep
 | `dangerPace` | Loaded, passed through | Loaded, ignored | Danger-zone rendering in charts |
 | `goalDefaults` | Loaded, passed through | Loaded, ignored | Per-sport goal tuning in `getMetricConfig` |
 
-**Note:** The backend packages (`apigateway`, `stravapipe`) are synced automatically via `just sync-sport-config`. The web package's demo fixture (`packages/web/src/data/fixtures/index.ts`) must be updated **manually** to match this file.
+**Note:** The backend packages (`apigateway`, `stravapipe`) are synced automatically via `just sync-sport-config`. The web app reads this config from the public `/sports/config` endpoint — there is no separate synced web fixture. The one remaining **manual-sync** surface is the demo data generator's `DEMO_SPORT_CONFIG` (`packages/web/src/constants/demoConfig.ts`), which still hard-codes per-sport metadata (Strava types, primary metric) and must be updated by hand when adding a sport.
 
 ### Source files
 

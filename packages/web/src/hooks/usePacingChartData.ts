@@ -35,7 +35,7 @@ export function usePacingChartData({
   showFullYear,
   sport = "cycling",
 }: UsePacingChartDataProps) {
-  const { getThreshold } = useDangerThresholds();
+  const { getThreshold, getWarnAtFraction } = useDangerThresholds();
 
   // 1. Date range calculations
   const startDate = new Date(Date.UTC(year, 0, 1));
@@ -108,6 +108,7 @@ export function usePacingChartData({
 
   // 6. Danger zone calculations
   const dangerThreshold = getThreshold(sport);
+  const warnAtFraction = getWarnAtFraction(sport);
 
   const maxActualPace = Math.max(...actualPacing.map((p) => p.y), currentValues.actual, 0);
   const maxGoalPace = Math.max(...currentValues.goals.map((g) => g.value), 0);
@@ -115,8 +116,18 @@ export function usePacingChartData({
   // Decide whether to draw the danger zone *first* — Y-axis sizing depends on it.
   // Showing the overlay when the user is comfortably below the threshold just
   // squashes the meaningful pacing data into the bottom of the chart.
-  const showDangerZone = shouldShowDangerZone(maxActualPace, maxGoalPace, dangerThreshold);
-  const naturalYMax = calculatePacingYAxisMax(maxActualPace, maxGoalPace, dangerThreshold);
+  const showDangerZone = shouldShowDangerZone(
+    maxActualPace,
+    maxGoalPace,
+    dangerThreshold,
+    warnAtFraction
+  );
+  const naturalYMax = calculatePacingYAxisMax(
+    maxActualPace,
+    maxGoalPace,
+    dangerThreshold,
+    warnAtFraction
+  );
 
   return {
     // Date range

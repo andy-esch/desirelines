@@ -94,6 +94,11 @@ type SportCategory struct {
 type DangerPace struct {
 	ValuePerDay float64 `json:"valuePerDay" validate:"required"`
 	Unit        string  `json:"unit" validate:"required"`
+	// WarnAtFraction is the optional fraction of the threshold at which the
+	// frontend's pacing chart starts showing the "danger zone" overlay
+	// (defaults to 0.75 when omitted). Loaded and passed through verbatim, but
+	// range-validated at startup so a misconfigured registry fails fast.
+	WarnAtFraction *float64 `json:"warnAtFraction,omitempty" validate:"omitempty,gte=0,lte=1"`
 }
 
 // GoalDefaults is optional per-sport goal tuning consumed by the frontend. Each

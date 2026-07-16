@@ -103,7 +103,7 @@
       "metrics": ["time_minutes", "activities", "activity_ids"],
       "hasDistance": false,
       "hasElevation": false,
-      "dangerPace": { "valuePerDay": 2, "unit": "hours" }
+      "dangerPace": { "valuePerDay": 2, "unit": "hours", "warnAtFraction": 0.9 }
     },
     "workout": {
       "displayName": "Workout",
