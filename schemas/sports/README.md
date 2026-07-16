@@ -79,7 +79,7 @@ This file is synced to three packages via `just sync-schemas`. Each consumer dep
 | `dangerPace` | Loaded, passed through | Loaded, ignored | Danger-zone rendering in charts |
 | `goalDefaults` | Loaded, passed through | Loaded, ignored | Per-sport goal tuning in `getMetricConfig` |
 
-**Note:** The backend packages (`apigateway`, `stravapipe`) are synced automatically via `just sync-sport-config`. The web package's demo fixture (`packages/web/src/data/fixtures/index.ts`) must be updated **manually** to match this file.
+**Note:** The backend packages (`apigateway`, `stravapipe`) are synced automatically via `just sync-sport-config`. The web app reads this config from the public `/sports/config` endpoint — there is no separate synced web fixture. The one remaining **manual-sync** surface is the demo data generator's `DEMO_SPORT_CONFIG` (`packages/web/src/constants/demoConfig.ts`), which still hard-codes per-sport metadata (Strava types, primary metric) and must be updated by hand when adding a sport.
 
 ### Source files
 
