@@ -47,7 +47,13 @@ resource "google_cloud_run_v2_service" "dispatcher" {
       min_instance_count = 0
     }
 
-    max_instance_request_concurrency = 1 # Serialize webhook processing to avoid token refresh races
+    # Serialize webhook processing. Two independent reasons now depend on this:
+    #   1. avoids token-refresh races (the original reason), and
+    #   2. makes the in-process allowlist/token caches' read-through-then-Put
+    #      pattern race-free (see adapters/cache/token_store.go DefaultTokenCacheTTL).
+    # Raising this (or max_instance_count) requires a per-key generation check in
+    # the cache read-through first, or a stale entry can be re-cached for a full TTL.
+    max_instance_request_concurrency = 1
 
     containers {
       image = "${local.image_base_url}/dispatcher:${var.deployment_version}"
@@ -89,6 +95,19 @@ resource "google_cloud_run_v2_service" "dispatcher" {
       env {
         name  = "FIRESTORE_DATABASE"
         value = google_firestore_database.user_configs.name
+      }
+
+      # Firestore-lookup cache kill switches. Default "5m"; set to "0" to disable a
+      # cache in place during a suspected-staleness incident (GitOps apply, no code
+      # change). See packages/dispatcher/config/config.go.
+      env {
+        name  = "ALLOWLIST_CACHE_TTL"
+        value = var.app_config.dispatcher_allowlist_cache_ttl
+      }
+
+      env {
+        name  = "TOKEN_CACHE_TTL"
+        value = var.app_config.dispatcher_token_cache_ttl
       }
 
       startup_probe {

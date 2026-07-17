@@ -621,6 +621,37 @@ func TestHandler_AthleteDeauth(t *testing.T) {
 		}
 	})
 
+	t.Run("Deauth invalidates the allowlist cache for the owner", func(t *testing.T) {
+		// F2 wiring: without this, a straggler webhook after deauth would read a
+		// stale cached allowed=true, find tokens gone, and trip the HIGH orphan alert.
+		mockTokens := &portstest.MockTokenStore{}
+		mockAllow := portstest.NewAllowAllMockAllowlist()
+		tt := handleEventTestCase{
+			method:      "POST",
+			contentType: "application/json",
+			payload: webhookproto.StravaWebhookJSON{
+				AspectType:     "update",
+				EventTime:      testEventTime,
+				ObjectID:       testOwnerID,
+				ObjectType:     "athlete",
+				OwnerID:        testOwnerID,
+				SubscriptionID: testSubscriptionID,
+				Updates:        map[string]any{"authorized": "false"},
+			},
+			mockSubID:      testSubscriptionID,
+			mockTokenStore: mockTokens,
+			mockAllowlist:  mockAllow,
+			expectedStatus: http.StatusOK,
+			expectedBody:   "acknowledged",
+		}
+		runHandleEventTest(t, &tt)
+
+		want := strconv.FormatInt(testOwnerID, 10)
+		if len(mockAllow.InvalidatedWith) != 1 || mockAllow.InvalidatedWith[0] != want {
+			t.Errorf("expected allowlist Invalidate(%q) on deauth, got %v", want, mockAllow.InvalidatedWith)
+		}
+	})
+
 	t.Run("Deauth update with BOOLEAN authorized false deletes tokens (type-drift)", func(t *testing.T) {
 		mockTokens := &portstest.MockTokenStore{}
 		tt := handleEventTestCase{

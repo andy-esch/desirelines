@@ -18,6 +18,18 @@ const (
 
 	// DefaultMaxRequestBodySize is the default maximum request body size (1MB)
 	DefaultMaxRequestBodySize int64 = 1 << 20
+
+	// DefaultAllowlistCacheTTL is applied when ALLOWLIST_CACHE_TTL is unset. Only
+	// positive decisions are cached and deauth invalidates them explicitly, so the
+	// TTL is a backstop bounding the false-orphan window if an invalidation is ever
+	// missed — not the primary consistency mechanism. Set the env var to "0" to
+	// disable the cache.
+	DefaultAllowlistCacheTTL = 5 * time.Minute
+
+	// DefaultTokenCacheTTL is applied when TOKEN_CACHE_TTL is unset. Bounds staleness
+	// against out-of-process token writes the in-process cache can't see (apigateway
+	// re-auth); local mutations invalidate directly. Set the env var to "0" to disable.
+	DefaultTokenCacheTTL = 5 * time.Minute
 )
 
 // Config holds non-secret configuration for the dispatcher.
@@ -32,6 +44,11 @@ type Config struct {
 	WriteTimeout           time.Duration
 	ReadHeaderTimeout      time.Duration
 	MaxRequestBodySize     int64
+	// AllowlistCacheTTL / TokenCacheTTL: 0 disables the respective cache, so a
+	// suspected staleness bug can be ruled out in prod by setting the env var to
+	// "0" and redeploying — no code change, no rollback.
+	AllowlistCacheTTL time.Duration
+	TokenCacheTTL     time.Duration
 }
 
 // LoadConfig loads non-secret configuration from environment variables.
@@ -79,6 +96,19 @@ func LoadConfig() (*Config, error) {
 		return nil, err
 	}
 
+	// AllowZero, not parseDurationEnv: "0" is the documented kill switch (disable
+	// the cache), so it must parse to 0, not fail-closed the way a bad HTTP
+	// timeout should. Unset still takes the 5m default; negative is still rejected.
+	allowlistCacheTTL, err := parseDurationEnvAllowZero("ALLOWLIST_CACHE_TTL", DefaultAllowlistCacheTTL)
+	if err != nil {
+		return nil, err
+	}
+
+	tokenCacheTTL, err := parseDurationEnvAllowZero("TOKEN_CACHE_TTL", DefaultTokenCacheTTL)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Config{
 		GCPProjectID:           gcpProjectID,
 		GCPPubSubTopicID:       gcpPubSubTopicID,
@@ -88,6 +118,8 @@ func LoadConfig() (*Config, error) {
 		WriteTimeout:           writeTimeout,
 		ReadHeaderTimeout:      readHeaderTimeout,
 		MaxRequestBodySize:     maxBodySize,
+		AllowlistCacheTTL:      allowlistCacheTTL,
+		TokenCacheTTL:          tokenCacheTTL,
 	}, nil
 }
 
@@ -104,6 +136,25 @@ func parseDurationEnv(key string, defaultValue time.Duration) (time.Duration, er
 	}
 	if d <= 0 {
 		return 0, fmt.Errorf("%s must be positive", key)
+	}
+	return d, nil
+}
+
+// parseDurationEnvAllowZero is parseDurationEnv for values where zero is a valid
+// "disable" signal rather than a misconfiguration: unset takes the default,
+// "0"/"0s" parses to 0 (caller treats it as disabled), and only a negative value
+// is an error. Used by the cache-TTL kill switches.
+func parseDurationEnvAllowZero(key string, defaultValue time.Duration) (time.Duration, error) {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue, nil
+	}
+	d, err := time.ParseDuration(value)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s: %w", key, err)
+	}
+	if d < 0 {
+		return 0, fmt.Errorf("%s must not be negative", key)
 	}
 	return d, nil
 }

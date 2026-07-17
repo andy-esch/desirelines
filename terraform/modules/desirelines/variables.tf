@@ -131,6 +131,11 @@ variable "app_config" {
     log_level         = string
     frontend_url      = optional(string, "")
     auth_callback_url = optional(string, "")
+    # Dispatcher Firestore-lookup cache TTLs (Go duration strings, e.g. "5m").
+    # "0" disables the respective cache — the incident kill switch for a suspected
+    # staleness bug, settable via GitOps with no code change.
+    dispatcher_allowlist_cache_ttl = optional(string, "5m")
+    dispatcher_token_cache_ttl     = optional(string, "5m")
   })
   default = {
     log_level = "INFO"

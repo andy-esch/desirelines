@@ -18,12 +18,14 @@ import (
 	"time"
 
 	"cloud.google.com/go/firestore"
+	cacheadapter "github.com/andy-esch/desirelines/packages/dispatcher/adapters/cache"
 	envadapter "github.com/andy-esch/desirelines/packages/dispatcher/adapters/env"
 	firestoreadapter "github.com/andy-esch/desirelines/packages/dispatcher/adapters/firestore"
 	httpadapter "github.com/andy-esch/desirelines/packages/dispatcher/adapters/http"
 	"github.com/andy-esch/desirelines/packages/dispatcher/adapters/pubsub"
 	"github.com/andy-esch/desirelines/packages/dispatcher/adapters/strava"
 	"github.com/andy-esch/desirelines/packages/dispatcher/config"
+	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
 	"github.com/andy-esch/desirelines/packages/shared/allowlist"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/andy-esch/desirelines/packages/shared/otel"
@@ -229,8 +231,31 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 	}
 	log.Info("Firestore client initialized", "database", cfg.FirestoreDatabase)
 
-	tokenStore := firestoreadapter.NewTokenStore(firestoreClient, log, firestoreHist, tracer)
-	allowChecker := allowlist.NewFirestoreChecker(firestoreClient, log)
+	// Both lookups below sit on the SYNCHRONOUS webhook path, strictly serial
+	// before Strava can be called (~45ms allowlist + ~42ms tokens), and both read
+	// data that changes rarely. Cache them to widen the margin against Strava's
+	// ~2s webhook timeout and cut Firestore read volume.
+	//
+	// Each cache can be disabled independently by setting its TTL env var to "0",
+	// so a suspected staleness bug is one redeploy away from being ruled out.
+	var tokenStore ports.TokenStore = firestoreadapter.NewTokenStore(firestoreClient, log, firestoreHist, tracer)
+	if cfg.TokenCacheTTL > 0 {
+		// IMPORTANT: one instance, shared by the Strava client (which reads and
+		// refreshes tokens) and the HTTP handler (which deletes them on deauth).
+		// Two wrappers would mean the handler's DeleteTokens invalidates a cache
+		// the Strava client never reads — a deauthed athlete's webhooks would keep
+		// succeeding against a dead grant until the TTL lapsed.
+		tokenStore = cacheadapter.NewTokenStore(tokenStore, cfg.TokenCacheTTL, 0, log)
+	}
+
+	var allowChecker allowlist.Checker = allowlist.NewFirestoreChecker(firestoreClient, log)
+	if cfg.AllowlistCacheTTL > 0 {
+		allowChecker = allowlist.NewCachingChecker(allowChecker, cfg.AllowlistCacheTTL, 0, log)
+	}
+	log.Info("Firestore lookup caches configured",
+		"allowlist_cache_ttl", cfg.AllowlistCacheTTL,
+		"token_cache_ttl", cfg.TokenCacheTTL,
+	)
 
 	secretProvider := envadapter.NewDefaultSecretCache(log)
 

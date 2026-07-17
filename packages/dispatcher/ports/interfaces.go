@@ -53,6 +53,17 @@ type TokenStore interface {
 	DeleteTokens(ctx context.Context, athleteID int64) error
 }
 
+// TokenInvalidator is optionally implemented by a TokenStore that caches reads.
+// It lets a caller drop a cached entry it has just learned is stale — most
+// importantly the Strava client on a rejected refresh, where the poison would
+// otherwise be re-served until the cache TTL lapses, and where a fresh token may
+// already exist in Firestore (written out-of-process by the apigateway on
+// re-auth, which this in-process cache cannot see). A non-caching TokenStore does
+// not implement this, so callers type-assert and no-op when it's absent.
+type TokenInvalidator interface {
+	Invalidate(athleteID int64)
+}
+
 // StravaClient defines the outbound port for fetching activity data from the Strava API.
 type StravaClient interface {
 	// FetchActivity retrieves the raw JSON for a Strava activity by ID,
