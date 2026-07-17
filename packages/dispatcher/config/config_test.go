@@ -294,3 +294,55 @@ func TestParseLogLevel(t *testing.T) {
 		})
 	}
 }
+
+// The cache kill switch: TOKEN_CACHE_TTL / ALLOWLIST_CACHE_TTL = "0" must DISABLE
+// the cache (parse to 0), not fail LoadConfig. Regression guard — before the fix,
+// parseDurationEnv rejected 0 and setting the documented kill switch crashed the
+// dispatcher at boot instead of disabling the cache.
+func TestLoadConfig_CacheTTLKillSwitch(t *testing.T) {
+	setRequired := func(t *testing.T) {
+		t.Setenv("GCP_PROJECT_ID", "test-project")
+		t.Setenv("GCP_PUBSUB_TOPIC", "test-topic")
+		t.Setenv("GCP_PUBSUB_DEAUTH_TOPIC", "test-deauth-topic")
+		t.Setenv("FIRESTORE_DATABASE", "test-db")
+	}
+
+	t.Run("zero disables, does not error", func(t *testing.T) {
+		setRequired(t)
+		t.Setenv("TOKEN_CACHE_TTL", "0")
+		t.Setenv("ALLOWLIST_CACHE_TTL", "0")
+
+		cfg, err := LoadConfig()
+		if err != nil {
+			t.Fatalf("LoadConfig with TTL=0 failed (kill switch must not crash boot): %v", err)
+		}
+		if cfg.TokenCacheTTL != 0 {
+			t.Errorf("TokenCacheTTL = %v, want 0", cfg.TokenCacheTTL)
+		}
+		if cfg.AllowlistCacheTTL != 0 {
+			t.Errorf("AllowlistCacheTTL = %v, want 0", cfg.AllowlistCacheTTL)
+		}
+	})
+
+	t.Run("unset takes the default", func(t *testing.T) {
+		setRequired(t)
+		unsetEnv(t, "TOKEN_CACHE_TTL")
+		unsetEnv(t, "ALLOWLIST_CACHE_TTL")
+
+		cfg, err := LoadConfig()
+		if err != nil {
+			t.Fatalf("LoadConfig failed: %v", err)
+		}
+		if cfg.TokenCacheTTL != DefaultTokenCacheTTL {
+			t.Errorf("TokenCacheTTL = %v, want default %v", cfg.TokenCacheTTL, DefaultTokenCacheTTL)
+		}
+	})
+
+	t.Run("negative is rejected", func(t *testing.T) {
+		setRequired(t)
+		t.Setenv("TOKEN_CACHE_TTL", "-5m")
+		if _, err := LoadConfig(); err == nil {
+			t.Error("LoadConfig accepted a negative TTL; want an error")
+		}
+	})
+}

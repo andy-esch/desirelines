@@ -625,6 +625,15 @@ func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter,
 		)
 	}
 
+	// Drop any cached allowlist decision for this owner. The deletion service
+	// removes the allowlist doc out of process (a few seconds later), which this
+	// in-process cache can't observe; without this a straggler webhook in the
+	// window would read a stale allowed=true, find tokens gone, and trip the HIGH
+	// orphan alert. No-ops when the checker isn't a caching one.
+	if inv, ok := h.allowlist.(allowlist.Invalidator); ok {
+		inv.Invalidate(strconv.FormatInt(webhook.OwnerId, 10))
+	}
+
 	// Publish to the dedicated deauth topic. CONTRACT: the deauth signal is the *topic
 	// identity*, not the body — the published payload carries the athlete event (owner_id,
 	// aspect/object type) but no explicit `authorized:false` flag. Consumers act on receipt

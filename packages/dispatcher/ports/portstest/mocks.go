@@ -187,6 +187,8 @@ type MockAllowlist struct {
 	Err error
 	// CalledWith records the athlete IDs IsAllowed was called with.
 	CalledWith []string
+	// InvalidatedWith records the athlete IDs Invalidate was called with.
+	InvalidatedWith []string
 }
 
 // NewAllowAllMockAllowlist returns a MockAllowlist preconfigured to allow
@@ -212,4 +214,12 @@ func (m *MockAllowlist) CalledCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return len(m.CalledWith)
+}
+
+// Invalidate records the athlete ID, letting MockAllowlist satisfy
+// allowlist.Invalidator so the deauth-invalidation wiring is testable.
+func (m *MockAllowlist) Invalidate(athleteID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.InvalidatedWith = append(m.InvalidatedWith, athleteID)
 }

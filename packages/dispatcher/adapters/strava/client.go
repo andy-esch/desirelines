@@ -569,6 +569,14 @@ func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *s
 		// recommendation for the M1 rate-limit case).
 		if errors.Is(err, errRefreshTokenRejected) {
 			trace.SpanFromContext(ctx).SetAttributes(attribute.Bool("strava.refresh_rejected", true))
+			// The tokens we read are known-bad: Strava rejected the refresh token.
+			// If the store caches reads, drop the entry so the next attempt re-reads
+			// Firestore rather than re-serving the poison for a full TTL — the
+			// apigateway may already have written fresh tokens on re-auth (a write
+			// this in-process cache can't see). No-op on a non-caching store.
+			if inv, ok := c.tokenStore.(ports.TokenInvalidator); ok {
+				inv.Invalidate(ownerID)
+			}
 			return nil, err
 		}
 		lastErr = err
