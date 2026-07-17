@@ -218,6 +218,7 @@ output "alert_policy_ids" {
   value = {
     dlq_bq_inserter               = google_monitoring_alert_policy.dlq_bq_inserter.id
     dlq_postgres_writer           = google_monitoring_alert_policy.dlq_postgres_writer.id
+    dlq_deletion_service          = google_monitoring_alert_policy.dlq_deletion_service.id
     service_5xx                   = google_monitoring_alert_policy.service_5xx_errors.id
     apigateway_auth_failure_surge = google_monitoring_alert_policy.apigateway_auth_failure_surge.id
     apigateway_not_found_surge    = google_monitoring_alert_policy.apigateway_not_found_surge.id

@@ -747,7 +747,8 @@ resource "google_secret_manager_secret_iam_member" "postgres_writer_postgres_acc
 # Deletion Service IAM
 # ==============================================================================
 # Deletion service needs: Firestore (delete user docs), PostgreSQL (delete activities),
-# BigQuery (archive + delete), and Firebase Auth (delete user).
+# and BigQuery (archive + delete). It does NOT delete Firebase Auth users — no
+# identitytoolkit grant exists and deletion_service_app deletes only those stores.
 
 # Deletion service needs Firestore access to delete user documents
 resource "google_project_iam_member" "deletion_service_firestore" {

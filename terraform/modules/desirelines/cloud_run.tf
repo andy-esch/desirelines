@@ -731,6 +731,14 @@ resource "google_cloud_run_v2_service" "deletion_service" {
         value = var.app_config.log_level
       }
 
+      # Match bq-inserter/postgres-writer: without this, setup_logging falls back
+      # to unstructured basicConfig, so this service's deletion audit trail loses
+      # severity mapping and queryable jsonPayload fields in Cloud Logging.
+      env {
+        name  = "ENABLE_CLOUD_LOGGING"
+        value = "true"
+      }
+
       env {
         name  = "ENABLE_OTEL_METRICS"
         value = "true"
