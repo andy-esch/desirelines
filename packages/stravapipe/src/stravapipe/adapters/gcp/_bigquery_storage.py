@@ -482,7 +482,7 @@ class BigQueryStorageWriter:
         backfill chunking the cap is comfortably out of reach.
 
         Empty list is a no-op (no stream opened) to keep the caller
-        contract symmetric with the legacy ``insert_rows_json`` path.
+        contract symmetric with the row-insert path this replaced.
         """
         if not activities:
             return

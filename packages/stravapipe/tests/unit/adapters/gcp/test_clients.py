@@ -22,52 +22,6 @@ class TestBigQueryClientWrapper:
         mock_client_class.assert_called_once_with(project="test-project")
 
     @patch("stravapipe.adapters.gcp._clients.BigQueryClient")
-    def test_insert_rows_json_success(self, mock_client_class):
-        # This test covers line 27: successful insertion logging
-        mock_client_instance = MagicMock()
-        mock_client_class.return_value = mock_client_instance
-        mock_client_instance.insert_rows_json.return_value = []  # No errors
-
-        wrapper = BigQueryClientWrapper(project_id="test-project")
-        test_rows = [{"id": 1, "name": "test"}, {"id": 2, "name": "test2"}]
-
-        wrapper.insert_rows_json(
-            test_rows, dataset_name="test_dataset", table_name="test_table"
-        )
-
-        expected_table_id = "test-project.test_dataset.test_table"
-        mock_client_instance.insert_rows_json.assert_called_once_with(
-            expected_table_id, test_rows
-        )
-
-    @patch("stravapipe.adapters.gcp._clients.BigQueryClient")
-    def test_insert_rows_json_with_errors(self, mock_client_class):
-        # This test covers lines 21-26: error handling path
-        mock_client_instance = MagicMock()
-        mock_client_class.return_value = mock_client_instance
-
-        # Mock errors returned from BigQuery
-        mock_errors = [{"error": "field_error"}, {"error": "type_error"}]
-        mock_client_instance.insert_rows_json.return_value = mock_errors
-
-        wrapper = BigQueryClientWrapper(project_id="test-project")
-        test_rows = [{"id": 1, "name": "test"}]
-
-        with pytest.raises(BigQueryError) as exc_info:
-            wrapper.insert_rows_json(
-                test_rows, dataset_name="test_dataset", table_name="test_table"
-            )
-
-        expected_table_id = "test-project.test_dataset.test_table"
-        expected_message = f"Failed to insert 1 rows into {expected_table_id}"
-
-        assert str(exc_info.value) == expected_message
-        assert exc_info.value.errors == mock_errors
-        mock_client_instance.insert_rows_json.assert_called_once_with(
-            expected_table_id, test_rows
-        )
-
-    @patch("stravapipe.adapters.gcp._clients.BigQueryClient")
     def test_execute_merge_query_success(self, mock_client_class):
         # Test successful merge query execution
         mock_client_instance = MagicMock()
