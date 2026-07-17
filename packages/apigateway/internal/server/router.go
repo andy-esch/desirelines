@@ -105,10 +105,37 @@ func IsTileRequest(r *http.Request) bool {
 func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, logger *slog.Logger) chi.Router {
 	r := chi.NewRouter()
 
-	// Essential middleware
+	// MIDDLEWARE ORDER CONTRACT. chi runs Use-registered middleware
+	// outermost-first, so anything registered *after* the limiter is skipped when
+	// the limiter rejects (it writes the 429 and returns without calling next).
+	// Three constraints pin this order:
+	//
+	//  1. CloudRunRealIP must precede the limiter — the limiter keys per-IP
+	//     buckets off r.RemoteAddr and would otherwise bucket every request from
+	//     Cloud Run's front end together.
+	//  2. SecurityHeaders + CORS must precede the limiter, so a global 429 carries
+	//     Access-Control-Allow-Origin and a browser can actually read it (and the
+	//     Retry-After the limiter computes). Registered after, the response is
+	//     opaque cross-origin and surfaces as a network error instead of a 429.
+	//     Neither depends on the client IP, so they sit safely between the two.
+	//     This matches the tile limiter (scoped inside /v1) and the auth limiter
+	//     (inside /auth), both of which already reject inside CORS coverage.
+	//  3. The logger/metrics + span-stamp middleware stay *inside* the limiter, so
+	//     a 429 short-circuits before them. Deliberate, and the same call the
+	//     dispatcher documents at its own r.Use(rateLimiter.Middleware): folding
+	//     fast rejects into http/request.duration would drag the latency
+	//     distribution toward zero exactly during a flood. Rejections are observable
+	//     via desirelines.io/ratelimit/rejected{reason,limiter} instead.
+	//
+	// Consequence of (2): CORSMiddleware short-circuits OPTIONS preflight, so
+	// preflights no longer consume rate-limit tokens. Intended — a preflight does
+	// no downstream work, and a rate-limited preflight fails opaquely and takes the
+	// real request down with it. Same behavior the tile/auth limiters already have.
 	r.Use(chiMiddleware.RequestID)
 	r.Use(gcplog.BridgeRequestID)
 	r.Use(gcplog.CloudRunRealIP)
+	r.Use(SecurityHeaders)
+	r.Use(CORSMiddleware(cfg.CORSHandler))
 	if cfg.RateLimiter != nil {
 		r.Use(cfg.RateLimiter.Middleware)
 	}
@@ -122,10 +149,6 @@ func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, 
 	r.Use(otel.TraceIDResponseHeader)
 	r.Use(gcplog.HTTPRequestLoggerWithMetrics(logger, cfg.HTTPHistogram))
 	r.Use(chiMiddleware.Recoverer)
-
-	// Security and CORS headers for all routes
-	r.Use(SecurityHeaders)
-	r.Use(CORSMiddleware(cfg.CORSHandler))
 
 	// Root-level endpoints (health checks)
 	r.Get("/health", public.Health)

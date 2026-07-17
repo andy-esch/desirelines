@@ -517,3 +517,132 @@ func TestNewRouter_AuthRateLimiterScopedToAuth(t *testing.T) {
 		}
 	})
 }
+
+// TestGlobalRateLimit429CarriesCORSHeaders pins the middleware-order contract
+// documented at the top of NewRouter: SecurityHeaders + CORS must run OUTSIDE the
+// global rate limiter.
+//
+// Regression: the limiter was registered above CORS, and chi runs Use-registered
+// middleware outermost-first, so a global 429 (written by the limiter, which
+// returns without calling next) skipped CORSMiddleware entirely. The response had
+// no Access-Control-Allow-Origin, so a cross-origin browser couldn't read it — the
+// app saw an opaque network error instead of a 429 it could act on, and the
+// Retry-After the limiter computes was unreachable.
+func TestGlobalRateLimit429CarriesCORSHeaders(t *testing.T) {
+	ctx := context.Background()
+	logger := slog.Default()
+
+	c, err := cors.NewHandler([]string{"https://example.com"}, logger, false)
+	if err != nil {
+		t.Fatalf("cors.NewHandler: %v", err)
+	}
+
+	// 1 req/s, burst 1 — the second request in quick succession is rejected.
+	globalLimiter := ratelimit.New(ctx, &ratelimit.Config{
+		Rate:            1,
+		Burst:           1,
+		CleanupInterval: time.Hour,
+		TTL:             time.Hour,
+	}, logger)
+
+	router := NewRouter(
+		RouterConfig{
+			CORSHandler:    c,
+			AuthMiddleware: &mockAuthMiddleware{},
+			RateLimiter:    globalLimiter,
+		},
+		PublicRoutes{
+			Health:      func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) },
+			Ready:       func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) },
+			SportConfig: func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) },
+		},
+		noopAuthRoutes(),
+		logger,
+	)
+
+	get := func() *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, "/v1/sports/config", nil)
+		req.RemoteAddr = "203.0.113.10:1234"
+		req.Header.Set("Origin", "https://example.com")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		return w
+	}
+
+	// Burn the single token; this one is allowed and must carry CORS.
+	if first := get(); first.Code != http.StatusOK {
+		t.Fatalf("first request: status = %d, want 200", first.Code)
+	} else if got := first.Header().Get("Access-Control-Allow-Origin"); got != "https://example.com" {
+		t.Fatalf("first request: Access-Control-Allow-Origin = %q, want https://example.com", got)
+	}
+
+	// Second request is rejected by the limiter. The 429 is the whole point: it must
+	// still be readable cross-origin.
+	rejected := get()
+	if rejected.Code != http.StatusTooManyRequests {
+		t.Fatalf("second request: status = %d, want 429 (limiter should reject)", rejected.Code)
+	}
+	if got := rejected.Header().Get("Access-Control-Allow-Origin"); got != "https://example.com" {
+		t.Errorf("429 Access-Control-Allow-Origin = %q, want https://example.com — a 429 without CORS is unreadable to the browser", got)
+	}
+	if got := rejected.Header().Get("Retry-After"); got == "" {
+		t.Error("429 Retry-After is empty — the limiter computes it, so it must survive to the client")
+	}
+	// SecurityHeaders sits alongside CORS above the limiter; assert it too so a
+	// future reorder that drops one but not the other still fails.
+	if got := rejected.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Errorf("429 X-Content-Type-Options = %q, want nosniff", got)
+	}
+}
+
+// TestPreflightBypassesGlobalRateLimiter documents a deliberate consequence of the
+// ordering above: CORSMiddleware short-circuits OPTIONS, so preflights resolve
+// before the limiter and never consume a token. Intended — a preflight does no
+// downstream work, and a rate-limited preflight fails opaquely and takes the real
+// request with it. If this ever needs to change, the limiter must learn to emit
+// CORS headers itself rather than moving CORS back inside it.
+func TestPreflightBypassesGlobalRateLimiter(t *testing.T) {
+	ctx := context.Background()
+	logger := slog.Default()
+
+	c, err := cors.NewHandler([]string{"https://example.com"}, logger, false)
+	if err != nil {
+		t.Fatalf("cors.NewHandler: %v", err)
+	}
+
+	// Burst 1: if preflights consumed tokens, the 2nd of these would 429.
+	globalLimiter := ratelimit.New(ctx, &ratelimit.Config{
+		Rate:            1,
+		Burst:           1,
+		CleanupInterval: time.Hour,
+		TTL:             time.Hour,
+	}, logger)
+
+	router := NewRouter(
+		RouterConfig{
+			CORSHandler:    c,
+			AuthMiddleware: &mockAuthMiddleware{},
+			RateLimiter:    globalLimiter,
+		},
+		PublicRoutes{
+			Health:      func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) },
+			Ready:       func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) },
+			SportConfig: func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) },
+		},
+		noopAuthRoutes(),
+		logger,
+	)
+
+	for i := 0; i < 3; i++ {
+		req := httptest.NewRequest(http.MethodOptions, "/v1/sports/config", nil)
+		req.RemoteAddr = "203.0.113.20:1234"
+		req.Header.Set("Origin", "https://example.com")
+		req.Header.Set("Access-Control-Request-Method", "GET")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		if w.Code == http.StatusTooManyRequests {
+			t.Fatalf("preflight %d was rate limited (status 429); preflights must resolve in CORS before the limiter", i)
+		}
+	}
+}
