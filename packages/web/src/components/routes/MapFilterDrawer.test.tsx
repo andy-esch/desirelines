@@ -28,6 +28,7 @@ function renderDrawer(over: Partial<MapFilterDrawerProps> = {}) {
     totals: TOTALS,
     totalCount: 300,
     activeFilterCount: 0,
+    canReset: false,
     onReset,
     onShowAll,
     distanceUnit: "miles",
@@ -96,16 +97,32 @@ describe("MapFilterDrawer", () => {
     expect(screen.queryByRole("button", { name: /reset filters/i })).not.toBeInTheDocument();
   });
 
+  it("hides the reset control when the filters are already the defaults", () => {
+    // A fresh load on multi-year data constrains the set (badge shows 1) but reset
+    // would restore the current-year default that is *already applied* — a no-op.
+    // Reset affordances gate on canReset, never on activeFilterCount.
+    renderDrawer({ activeFilterCount: 1, canReset: false });
+    expect(screen.getByText("1")).toBeInTheDocument(); // badge still shown
+    expect(screen.queryByRole("button", { name: /reset filters/i })).not.toBeInTheDocument();
+  });
+
+  it("shows the reset control when nothing is constrained but reset would still act", () => {
+    // The Show-all state: constrains nothing (no badge), yet reset would narrow
+    // back to this year, so the affordance is real.
+    renderDrawer({ activeFilterCount: 0, canReset: true });
+    expect(screen.getByRole("button", { name: /reset filters/i })).toBeInTheDocument();
+  });
+
   it("resets when the reset control is clicked", async () => {
     const user = userEvent.setup();
-    const { onReset } = renderDrawer({ activeFilterCount: 2 });
+    const { onReset } = renderDrawer({ activeFilterCount: 2, canReset: true });
     await user.click(screen.getByRole("button", { name: /reset filters/i }));
     expect(onReset).toHaveBeenCalledTimes(1);
   });
 
   it("parks keyboard focus on the panel (not <body>) when a reset control unmounts", async () => {
     const user = userEvent.setup();
-    renderDrawer({ activeFilterCount: 2 });
+    renderDrawer({ activeFilterCount: 2, canReset: true });
     // The reset link disappears once filters clear; focus must land on the labelled
     // region rather than falling back to document.body.
     await user.click(screen.getByRole("button", { name: /reset filters/i }));
@@ -119,6 +136,7 @@ describe("MapFilterDrawer", () => {
       totals: TOTALS,
       totalCount: 300,
       activeFilterCount: 0,
+      canReset: false,
       onReset: vi.fn(),
       onShowAll: vi.fn(),
       distanceUnit: "miles",

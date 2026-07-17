@@ -57,6 +57,32 @@ export function mapPresetSports(visibleSports: string[], presentSports: string[]
   return visibleSports.filter((s) => presentSet.has(s));
 }
 
+/**
+ * Whether `filters` differs from `defaultRouteFilters(now)` — i.e. whether a
+ * reset would actually change something.
+ *
+ * Deliberately distinct from "is the view constrained" (see `activeFilterCount`
+ * in useRouteFilters, which measures against the data *domain*). The two disagree
+ * in both directions: a fresh current-year load on multi-year data constrains the
+ * set but is the default, and Show-all constrains nothing but is not the default.
+ * Reset affordances gate on this; badges gate on the count.
+ *
+ * NOTE: `filtersToSearch` in activityFilterSearch.ts encodes the same
+ * default-relative predicate field-by-field (it omits anything at its default, so
+ * it yields `{}` exactly when this returns false). Adding a filter dimension means
+ * updating both — keep them in step.
+ */
+export function differsFromDefaults(filters: RouteFilterState, now: Date = new Date()): boolean {
+  const def = defaultRouteFilters(now);
+  return (
+    filters.sports.length > 0 ||
+    filters.distanceRange !== null ||
+    filters.regionId !== null ||
+    filters.dateRange[0] !== def.dateRange[0] ||
+    filters.dateRange[1] !== def.dateRange[1]
+  );
+}
+
 /** Default filters: current year, all sports/regions, no distance constraint. */
 export function defaultRouteFilters(now: Date = new Date()): RouteFilterState {
   return {

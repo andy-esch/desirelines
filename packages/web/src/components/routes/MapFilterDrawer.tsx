@@ -41,8 +41,16 @@ export interface MapFilterDrawerProps {
   totals: ActivityTotals;
   /** Size of the full dataset, for the "of N" context line. */
   totalCount: number;
-  /** Number of active (non-default) filter dimensions; shown as a badge. */
+  /** Number of dimensions actually constraining the set; shown as a badge. */
   activeFilterCount: number;
+  /**
+   * Whether the filters differ from the defaults, i.e. whether `onReset` would
+   * change anything. Distinct from `activeFilterCount > 0`: a fresh load
+   * constrains (badge) but has nothing to reset, and Show-all constrains nothing
+   * (no badge) yet reset would still narrow back to this year. Gate reset
+   * affordances on this so they never render as no-ops.
+   */
+  canReset: boolean;
   /** Reset filters to the defaults (current year, all sports/regions). */
   onReset: () => void;
   /** Widen to all activities (full date range, no filters) — the zero-result recourse. */
@@ -152,6 +160,7 @@ export default function MapFilterDrawer({
   totals,
   totalCount,
   activeFilterCount,
+  canReset,
   onReset,
   onShowAll,
   distanceUnit,
@@ -259,7 +268,7 @@ export default function MapFilterDrawer({
   const announcedSummary = useDebouncedValue(liveSummary, 500);
 
   // Keep keyboard focus in the drawer when a reset control unmounts on activation
-  // (activeFilterCount → 0, or zero-result → stats view) — otherwise focus falls to
+  // (canReset → false, or zero-result → stats view) — otherwise focus falls to
   // <body>. The panel region is always present + labelled ("Activity filters") while
   // open, so it's a safe, orienting anchor.
   const resetAndKeepFocus = () => {
@@ -412,7 +421,7 @@ export default function MapFilterDrawer({
                   <Button variant="outline" size="sm" onClick={showAllAndKeepFocus}>
                     Show all activities
                   </Button>
-                  {activeFilterCount > 0 && (
+                  {canReset && (
                     <Button variant="ghost" size="sm" onClick={resetAndKeepFocus}>
                       Reset to this year
                     </Button>
@@ -448,7 +457,7 @@ export default function MapFilterDrawer({
                   <Stat label="Elevation" value={stats.elevation} />
                 </div>
               </div>
-              {activeFilterCount > 0 && (
+              {canReset && (
                 <Button
                   variant="link"
                   onClick={resetAndKeepFocus}

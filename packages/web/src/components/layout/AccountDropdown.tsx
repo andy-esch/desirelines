@@ -284,7 +284,10 @@ export function AccountDropdown({
             >
               Theme
             </div>
-            <div className="flex gap-0.5">
+            {/* menuitemradio + aria-checked, not menuitem: these are a single-select
+                group, so the active theme must be exposed programmatically — the
+                border/background treatment below conveys it to sighted users only. */}
+            <div className="flex gap-0.5" role="group" aria-label="Theme">
               {[
                 { mode: "light" as const, icon: <SunIcon size={13} />, label: "Light" },
                 { mode: "dark" as const, icon: <MoonIcon size={13} />, label: "Dark" },
@@ -293,7 +296,8 @@ export function AccountDropdown({
                 <button
                   key={mode}
                   type="button"
-                  role="menuitem"
+                  role="menuitemradio"
+                  aria-checked={theme === mode}
                   onClick={() => setTheme(mode)}
                   title={label}
                   aria-label={`${label} theme`}
