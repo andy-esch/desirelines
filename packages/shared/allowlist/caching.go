@@ -2,7 +2,6 @@ package allowlist
 
 import (
 	"context"
-	"log/slog"
 	"time"
 
 	"github.com/andy-esch/desirelines/packages/shared/ttlcache"
@@ -37,9 +36,8 @@ const DefaultCacheMaxEntries = 10_000
 // A "cached checker:" layer would add no information and would sit in the middle
 // of every allowlist error message.
 type CachingChecker struct {
-	inner  Checker
-	cache  *ttlcache.Cache[string, bool]
-	logger *slog.Logger
+	inner Checker
+	cache *ttlcache.Cache[string, bool]
 }
 
 // Invalidator is optionally implemented by a Checker that caches decisions. A
@@ -64,14 +62,13 @@ var (
 // unset-default belongs to the caller's config layer, which alone can distinguish
 // "unset" from an explicit "0" (disable). maxEntries <= 0 still takes the package
 // default (a memory cap, not a behavior toggle).
-func NewCachingChecker(inner Checker, ttl time.Duration, maxEntries int, logger *slog.Logger) *CachingChecker {
+func NewCachingChecker(inner Checker, ttl time.Duration, maxEntries int) *CachingChecker {
 	if maxEntries <= 0 {
 		maxEntries = DefaultCacheMaxEntries
 	}
 	return &CachingChecker{
-		inner:  inner,
-		cache:  ttlcache.New[string, bool](ttlcache.Config{TTL: ttl, MaxEntries: maxEntries}),
-		logger: logger,
+		inner: inner,
+		cache: ttlcache.New[string, bool](ttlcache.Config{TTL: ttl, MaxEntries: maxEntries}),
 	}
 }
 
@@ -101,18 +98,12 @@ func (c *CachingChecker) IsAllowed(ctx context.Context, athleteID string) (bool,
 
 	if _, ok := c.cache.Get(athleteID); ok {
 		// Only "allowed" is ever stored, so a hit is unconditionally true.
-		span.SetAttributes(
-			attribute.Bool("cache.hit", true),
-			attribute.String("cache.name", "allowlist"),
-		)
+		stampCacheHit(span, true)
 		return true, nil
 	}
 
 	allowed, err := c.inner.IsAllowed(ctx, athleteID)
-	span.SetAttributes(
-		attribute.Bool("cache.hit", false),
-		attribute.String("cache.name", "allowlist"),
-	)
+	stampCacheHit(span, false)
 	if err != nil {
 		//nolint:wrapcheck // Transparent decorator — see the note on the type.
 		return false, err
@@ -122,6 +113,15 @@ func (c *CachingChecker) IsAllowed(ctx context.Context, athleteID string) (bool,
 		c.cache.Put(athleteID, true)
 	}
 	return allowed, nil
+}
+
+// stampCacheHit records the cache outcome on the active span, so a hit is visible
+// in the trace as an attribute and not merely as an absent Firestore child span.
+func stampCacheHit(span trace.Span, hit bool) {
+	span.SetAttributes(
+		attribute.Bool("cache.hit", hit),
+		attribute.String("cache.name", "allowlist"),
+	)
 }
 
 // Invalidate drops the cached decision for athleteID, so the next IsAllowed

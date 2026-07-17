@@ -3,7 +3,6 @@ package allowlist_test
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"sync"
 	"testing"
 	"time"
@@ -45,7 +44,7 @@ var _ allowlist.Checker = (*countingChecker)(nil)
 
 func TestSecondCheckWithinTTLSkipsTheChecker(t *testing.T) {
 	inner := &countingChecker{allowed: true}
-	c := allowlist.NewCachingChecker(inner, time.Minute, 10, slog.Default())
+	c := allowlist.NewCachingChecker(inner, time.Minute, 10)
 	ctx := context.Background()
 
 	for i := 0; i < 3; i++ {
@@ -68,7 +67,7 @@ func TestSecondCheckWithinTTLSkipsTheChecker(t *testing.T) {
 // full TTL. Strays are rare, so failing fresh here costs nothing on any hot path.
 func TestNegativeDecisionsAreNotCached(t *testing.T) {
 	inner := &countingChecker{allowed: false}
-	c := allowlist.NewCachingChecker(inner, time.Minute, 10, slog.Default())
+	c := allowlist.NewCachingChecker(inner, time.Minute, 10)
 	ctx := context.Background()
 
 	for i := 0; i < 3; i++ {
@@ -89,7 +88,7 @@ func TestNegativeDecisionsAreNotCached(t *testing.T) {
 // consequence of not caching the earlier "not allowed" reads.
 func TestNewlyAddedAthleteIsNotRejectedByAStaleNegative(t *testing.T) {
 	inner := &countingChecker{allowed: false}
-	c := allowlist.NewCachingChecker(inner, time.Minute, 10, slog.Default())
+	c := allowlist.NewCachingChecker(inner, time.Minute, 10)
 	ctx := context.Background()
 
 	if allowed, err := c.IsAllowed(ctx, "123"); err != nil || allowed {
@@ -105,7 +104,7 @@ func TestNewlyAddedAthleteIsNotRejectedByAStaleNegative(t *testing.T) {
 // re-reads Firestore (where the deletion service has since removed the doc).
 func TestInvalidateAfterAllowedForcesReRead(t *testing.T) {
 	inner := &countingChecker{allowed: true}
-	c := allowlist.NewCachingChecker(inner, time.Minute, 10, slog.Default())
+	c := allowlist.NewCachingChecker(inner, time.Minute, 10)
 	ctx := context.Background()
 
 	if allowed, err := c.IsAllowed(ctx, "123"); err != nil || !allowed { // cache the allow
@@ -128,7 +127,7 @@ func TestInvalidateAfterAllowedForcesReRead(t *testing.T) {
 // every retry inside the window — the retries would never reach Firestore.
 func TestErrorsAreNotCached(t *testing.T) {
 	inner := &countingChecker{allowed: false, err: errors.New("firestore unavailable")}
-	c := allowlist.NewCachingChecker(inner, time.Minute, 10, slog.Default())
+	c := allowlist.NewCachingChecker(inner, time.Minute, 10)
 	ctx := context.Background()
 
 	if _, err := c.IsAllowed(ctx, "123"); err == nil {
@@ -150,7 +149,7 @@ func TestErrorsAreNotCached(t *testing.T) {
 
 func TestDecisionsAreKeyedPerAthlete(t *testing.T) {
 	inner := &countingChecker{allowed: true}
-	c := allowlist.NewCachingChecker(inner, time.Minute, 10, slog.Default())
+	c := allowlist.NewCachingChecker(inner, time.Minute, 10)
 	ctx := context.Background()
 
 	if _, err := c.IsAllowed(ctx, "111"); err != nil {
@@ -168,7 +167,7 @@ func TestDecisionsAreKeyedPerAthlete(t *testing.T) {
 
 func TestEntryExpiresAfterTTL(t *testing.T) {
 	inner := &countingChecker{allowed: true}
-	c := allowlist.NewCachingChecker(inner, 10*time.Millisecond, 10, slog.Default())
+	c := allowlist.NewCachingChecker(inner, 10*time.Millisecond, 10)
 	ctx := context.Background()
 
 	if _, err := c.IsAllowed(ctx, "123"); err != nil {
@@ -194,7 +193,7 @@ func TestEntryExpiresAfterTTL(t *testing.T) {
 // passes through — this is the kill switch, and it must actually kill.
 func TestZeroTTLDisablesTheCache(t *testing.T) {
 	inner := &countingChecker{allowed: true}
-	c := allowlist.NewCachingChecker(inner, 0, 0, slog.Default())
+	c := allowlist.NewCachingChecker(inner, 0, 0)
 	ctx := context.Background()
 
 	for i := 0; i < 3; i++ {

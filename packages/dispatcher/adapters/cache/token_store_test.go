@@ -3,7 +3,6 @@ package cache_test
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"sync"
 	"testing"
 	"time"
@@ -105,7 +104,7 @@ func tokenData(access string) *stravatoken.Data {
 
 func newStore(t *testing.T, inner ports.TokenStore, ttl time.Duration) *cache.TokenStore {
 	t.Helper()
-	return cache.NewTokenStore(inner, ttl, 0, slog.Default())
+	return cache.NewTokenStore(inner, ttl, 0)
 }
 
 // The point of the whole exercise: a repeat read inside the TTL must not reach

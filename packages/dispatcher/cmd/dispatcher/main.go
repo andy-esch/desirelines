@@ -245,12 +245,12 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 		// Two wrappers would mean the handler's DeleteTokens invalidates a cache
 		// the Strava client never reads — a deauthed athlete's webhooks would keep
 		// succeeding against a dead grant until the TTL lapsed.
-		tokenStore = cacheadapter.NewTokenStore(tokenStore, cfg.TokenCacheTTL, 0, log)
+		tokenStore = cacheadapter.NewTokenStore(tokenStore, cfg.TokenCacheTTL, 0)
 	}
 
 	var allowChecker allowlist.Checker = allowlist.NewFirestoreChecker(firestoreClient, log)
 	if cfg.AllowlistCacheTTL > 0 {
-		allowChecker = allowlist.NewCachingChecker(allowChecker, cfg.AllowlistCacheTTL, 0, log)
+		allowChecker = allowlist.NewCachingChecker(allowChecker, cfg.AllowlistCacheTTL, 0)
 	}
 	log.Info("Firestore lookup caches configured",
 		"allowlist_cache_ttl", cfg.AllowlistCacheTTL,

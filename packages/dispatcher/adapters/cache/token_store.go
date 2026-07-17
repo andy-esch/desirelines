@@ -7,7 +7,6 @@ package cache
 
 import (
 	"context"
-	"log/slog"
 	"time"
 
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
@@ -45,9 +44,8 @@ const DefaultTokenCacheMaxEntries = 10_000
 // REQUIRES a per-key generation check in the read-through first. Documented at both
 // ends; see cloud_run.tf.
 type TokenStore struct {
-	inner  ports.TokenStore
-	cache  *ttlcache.Cache[int64, stravatoken.Data]
-	logger *slog.Logger
+	inner ports.TokenStore
+	cache *ttlcache.Cache[int64, stravatoken.Data]
 }
 
 // Errors from the inner store are returned VERBATIM, never wrapped. Callers match
@@ -70,14 +68,13 @@ var (
 // (→ default) from an explicit "0" (→ disable). Rewriting 0→default here is what
 // made the documented kill switch silently a no-op. maxEntries <= 0 still takes
 // the package default (a cap, not a behavior toggle).
-func NewTokenStore(inner ports.TokenStore, ttl time.Duration, maxEntries int, logger *slog.Logger) *TokenStore {
+func NewTokenStore(inner ports.TokenStore, ttl time.Duration, maxEntries int) *TokenStore {
 	if maxEntries <= 0 {
 		maxEntries = DefaultTokenCacheMaxEntries
 	}
 	return &TokenStore{
-		inner:  inner,
-		cache:  ttlcache.New[int64, stravatoken.Data](ttlcache.Config{TTL: ttl, MaxEntries: maxEntries}),
-		logger: logger,
+		inner: inner,
+		cache: ttlcache.New[int64, stravatoken.Data](ttlcache.Config{TTL: ttl, MaxEntries: maxEntries}),
 	}
 }
 
