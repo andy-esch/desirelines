@@ -893,6 +893,23 @@ resource "google_monitoring_alert_policy" "webhook_events_absent" {
 #   duration=0s  → single event (use when one occurrence is the signal).
 #   duration > 0 → sustained rate (use when one-offs are noise).
 
+# Alert-shape convention for the owner_check alerts below:
+#
+#   - duration = "0s" + trigger { count = 1 }  → fire on the FIRST event.
+#     For one-shot signals where a single occurrence is the whole story
+#     (orphan tokens here; unknown_sport_type_detected in monitoring.tf).
+#
+#   - duration > "0s", default trigger         → sustained-rate gate.
+#     For operational noise filters where only a persistent condition is
+#     actionable (owner_check_error below; latency and error-rate alerts).
+#
+# Picking the wrong shape fails silently — a one-shot signal behind a
+# sustained-rate gate is an alert that never fires. The mechanism: ALIGN_RATE
+# turns a single counter increment into a non-zero rate for one alignment
+# window only, then back to zero. Any duration longer than that window
+# therefore demands consecutive events across multiple windows, which a
+# one-shot signal by definition never produces.
+
 # HIGH: Orphan tokens — an allowlisted athlete's webhook arrived but the
 # dispatcher had no Firestore tokens for them. This indicates real data loss
 # (Firestore wipe, deauth/re-auth race, partial migration) rather than the
@@ -937,6 +954,16 @@ resource "google_monitoring_alert_policy" "webhook_owner_check_orphan" {
          OAuth flow. Webhooks resume on the next event.
       4. If it recurs without an obvious cause, suspect a deletion bug
          (search recent commits to `dispatcher/adapters/firestore/`).
+
+      **Alert shape**: authored to fire on the FIRST orphan event — orphan is
+      a one-shot signal of real data loss, not a sustained-rate condition. Do
+      not raise `duration` above `0s`. ALIGN_RATE turns one event into a
+      non-zero rate for a single 60s window, so any longer duration would
+      require orphan events in consecutive minutes and this alert would never
+      fire on the failure mode it exists to catch. Compare
+      `webhook_owner_check_error` (sustained-rate, MEDIUM) and
+      `unknown_sport_type_detected` in monitoring.tf (the single-event
+      template).
     EOT
   }
 
@@ -953,6 +980,14 @@ resource "google_monitoring_alert_policy" "webhook_owner_check_orphan" {
         alignment_period     = "60s"
         per_series_aligner   = "ALIGN_RATE"
         cross_series_reducer = "REDUCE_SUM"
+      }
+
+      # Explicit rather than implicit: GCP defaults to count = 1, so this
+      # changes no behavior. It states the single-event intent in the code so
+      # the pairing with duration = "0s" reads as deliberate, matching
+      # unknown_sport_type_detected.
+      trigger {
+        count = 1
       }
     }
   }
