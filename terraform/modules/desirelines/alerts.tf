@@ -76,6 +76,63 @@ resource "google_monitoring_alert_policy" "dlq_bq_inserter" {
   }
 }
 
+# CRITICAL: DLQ Messages Detected (Deletion Service)
+# The GDPR / Strava API Agreement §5.4 deauth path: a terminally-failed user-data
+# deletion (5 delivery attempts exhausted) lands here. This is the most
+# compliance-sensitive DLQ in the system, yet it was the only one without a
+# depth alert — the `old_messages` alert covers the delivery sub during retries
+# but auto-closes once the message moves to the DLQ, leaving no active page.
+# NOTE: dlq_bq_inserter / dlq_postgres_writer / dlq_deletion_service are now
+# identical but for the subscription + prose; a for_each over the three services
+# is the natural next refactor (see 2026-07-17-terraform-ci M1 tightening), left
+# out here to keep the change purely additive (no state migration of the two
+# existing production alerts).
+resource "google_monitoring_alert_policy" "dlq_deletion_service" {
+  display_name = "🚨 DLQ: Deletion Service Has Messages"
+  combiner     = "OR"
+
+  documentation {
+    content = <<-EOT
+      **Runbook**: docs/runbooks/dlq-deletion-service.md
+
+      **CRITICAL**: The Deletion Service Dead Letter Queue has messages.
+
+      A user-data deletion (Strava deauthorization) has failed all delivery
+      attempts. This is a compliance-sensitive failure — user data may not have
+      been deleted within the required window.
+
+      **Action Required**:
+      1. Check DLQ messages in PubSub console
+      2. Review Deletion Service logs for errors
+      3. Verify PostgreSQL / BigQuery / Firestore connectivity for the failed delete
+
+      Dashboard: ${google_monitoring_dashboard.desirelines_observability.id}
+    EOT
+  }
+
+  conditions {
+    display_name = "Deletion Service DLQ has messages"
+
+    condition_threshold {
+      filter          = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"${google_pubsub_subscription.deletion_service_dlq.name}\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
+      duration        = "60s"
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0
+
+      aggregations {
+        alignment_period   = "60s"
+        per_series_aligner = "ALIGN_MEAN"
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+
+  alert_strategy {
+    auto_close = "1800s" # Auto-resolve after 30 minutes of no messages
+  }
+}
+
 # CRITICAL: DLQ Messages Detected (PostgreSQL Writer)
 resource "google_monitoring_alert_policy" "dlq_postgres_writer" {
   display_name = "🚨 DLQ: PostgreSQL Writer Has Messages"

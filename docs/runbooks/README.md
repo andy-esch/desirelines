@@ -11,6 +11,7 @@ look**, **Likely causes** (ranked), **Quick mitigations**, **If still stuck**.
 
 - [DLQ: BQ Inserter has messages](dlq-bq-inserter.md)
 - [DLQ: PostgreSQL Writer has messages](dlq-postgres-writer.md)
+- [DLQ: Deletion Service has messages](dlq-deletion-service.md)
 - [Cloud Run 5xx errors on non-SLO services](service-5xx-server-errors.md)
 - [apigateway /api/health uptime failing](apigateway-uptime-failing.md)
 - [frontend root uptime failing](frontend-uptime-failing.md)
