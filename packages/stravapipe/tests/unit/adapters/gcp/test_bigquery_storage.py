@@ -26,6 +26,7 @@ from google.cloud.bigquery_storage_v1.exceptions import StreamClosedError
 from google.protobuf.descriptor import FieldDescriptor
 import pytest
 
+from stravapipe.adapters.gcp._bigquery import ActivitiesWriter
 from stravapipe.adapters.gcp._bigquery_storage import (
     _TIMESTAMP_PATHS,
     BigQueryStorageWriter,
@@ -220,6 +221,25 @@ class TestSchemaParity:
                     f"proto repeated={proto_repeated}"
                 )
         assert not mismatches, "REPEATED mode mismatches: " + "; ".join(mismatches)
+
+    def test_merge_columns_match_proto_descriptor(self):
+        """``_MERGE_COLUMNS`` must name every top-level schema column.
+
+        The MERGE only propagates the columns this tuple names, so one
+        missing from it lands NULL in ``activities`` regardless of what
+        staging holds — silently, since staging is populated from the full
+        descriptor. This drifted to 36-of-64 for ~10 months undetected;
+        this test is what makes that loud.
+        """
+        proto_fields = {f.name for f in bq_activities_pb2.Activity.DESCRIPTOR.fields}
+        merge_set = set(ActivitiesWriter._MERGE_COLUMNS) | {"id"}
+        assert proto_fields == merge_set, (
+            "_MERGE_COLUMNS in _bigquery.py diverges from the BQ schema.\n"
+            f"Missing from MERGE (would silently write NULL): "
+            f"{sorted(proto_fields - merge_set)}\n"
+            f"In MERGE but not in schema (would error): "
+            f"{sorted(merge_set - proto_fields)}"
+        )
 
 
 class TestFlattenDescriptor:
