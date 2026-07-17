@@ -475,6 +475,7 @@ export default function RoutesPage() {
               totals={routeFilters.totals}
               totalCount={activities.length}
               activeFilterCount={routeFilters.activeFilterCount}
+              canReset={routeFilters.canReset}
               onReset={routeFilters.reset}
               onShowAll={routeFilters.showAll}
               distanceUnit={distanceUnit}

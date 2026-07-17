@@ -96,7 +96,13 @@ export function searchToFilters(search: ActivityFilterSearch, now: Date): RouteF
   };
 }
 
-/** Serialize `RouteFilterState` → URL search, omitting anything at its default. */
+/**
+ * Serialize `RouteFilterState` → URL search, omitting anything at its default.
+ *
+ * The omit-if-default predicate below mirrors `differsFromDefaults` in
+ * routeFilters.ts field-for-field (this yields `{}` exactly when that returns
+ * false). Adding a filter dimension means updating both.
+ */
 export function filtersToSearch(filters: RouteFilterState, now: Date): ActivityFilterSearch {
   const def = defaultRouteFilters(now);
   const out: ActivityFilterSearch = {};

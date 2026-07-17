@@ -5,6 +5,7 @@ import {
   type RouteFilterState,
   type ActivityTotals,
   defaultRouteFilters,
+  differsFromDefaults,
   filterMapActivities,
   summarizeMapActivities,
   activityDistanceDomain,
@@ -34,8 +35,15 @@ export interface UseRouteFiltersResult {
   dateDomain: [string, string];
   /** How many filter dimensions are constraining the set (drives the badge). */
   activeFilterCount: number;
-  /** Whether any filter deviates from the defaults. */
+  /** Shorthand for `activeFilterCount > 0` — whether the view is constrained. */
   isFiltered: boolean;
+  /**
+   * Whether `reset()` would change anything, i.e. the filters differ from the
+   * defaults. NOT interchangeable with `isFiltered` — the two disagree in both
+   * directions (a fresh load is constrained but not resettable; Show-all is
+   * resettable but not constrained). Gate reset affordances on this.
+   */
+  canReset: boolean;
   /** Replace sports (app categories); `[]` = all sports. */
   setSports: (sports: string[]) => void;
   /** Add/remove a single sport from the selection. */
@@ -187,12 +195,18 @@ export function useRouteFilters(
   );
   const totals = useMemo(() => summarizeMapActivities(filteredActivities), [filteredActivities]);
 
-  // A dimension is "active" when it actually constrains the set. Date is compared
-  // against the default current-year range (so the badge stays 0 on a fresh load);
-  // distance against the full data domain (a slider parked at [0, max] is *not* a
-  // constraint, mirroring the date treatment — not merely `distanceRange !== null`).
+  // A dimension is "active" when it actually constrains the set — i.e. when it
+  // narrows the data *domain*. Every dimension is measured that way, date included:
+  // a slider parked at [0, max] or a window spanning the full date domain excludes
+  // nothing, so neither counts.
+  //
+  // Date was previously measured against the default current-year range so the badge
+  // read 0 on a fresh load. That broke the invariant above: `showAll()` sets the date
+  // window to the full domain, which for multi-year data is != this Jan 1, so the
+  // un-filter action reported 1 active filter and offered a Reset for a view that
+  // excludes nothing. Domain-relative is the honest reading — on multi-year data a
+  // fresh current-year load genuinely IS constrained, and now says so.
   const activeFilterCount = useMemo(() => {
-    const [defStart, defEnd] = yearRange(now.getFullYear(), now);
     let count = 0;
     if (filters.sports.length > 0) count += 1;
     if (
@@ -202,9 +216,20 @@ export function useRouteFilters(
       count += 1;
     }
     if (filters.regionId !== null) count += 1;
-    if (filters.dateRange[0] !== defStart || filters.dateRange[1] !== defEnd) count += 1;
+    if (filters.dateRange[0] > dateDomain[0] || filters.dateRange[1] < dateDomain[1]) count += 1;
     return count;
-  }, [filters, now, distanceDomain]);
+  }, [filters, distanceDomain, dateDomain]);
+
+  // Whether reset() would change anything. Deliberately NOT the same question as
+  // activeFilterCount — the two disagree at both ends:
+  //
+  //   fresh load    → constrains (count 1, badge shown) but reset is a no-op (false)
+  //   after showAll → constrains nothing (count 0, no badge) but reset would narrow
+  //                   back to this year, so it's a real action (true)
+  //
+  // Gate reset affordances on this; gate badges/"filtered" copy on the count.
+  // Conflating them is what produced the phantom Reset this hook used to show.
+  const canReset = useMemo(() => differsFromDefaults(filters, now), [filters, now]);
 
   return {
     filters,
@@ -216,6 +241,7 @@ export function useRouteFilters(
     dateDomain,
     activeFilterCount,
     isFiltered: activeFilterCount > 0,
+    canReset,
     setSports,
     toggleSport,
     setDistanceRange,

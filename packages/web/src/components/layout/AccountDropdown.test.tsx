@@ -71,7 +71,16 @@ describe("AccountDropdown", () => {
     );
 
     openMenu();
-    const items = screen.getAllByRole("menuitem");
+    // Enumerate the whole menuitem family in DOM order, not just role="menuitem":
+    // the theme picker's buttons are `menuitemradio` (single-select group) and sit
+    // between the plain items, so they're part of the arrow-key sequence the
+    // component navigates. Querying only "menuitem" would skip them and test a
+    // narrower path than the user walks.
+    const items = Array.from(
+      screen
+        .getByRole("menu")
+        .querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemradio"]')
+    );
     expect(items.length).toBeGreaterThanOrEqual(3);
 
     const secondToLast = items.at(-2);
@@ -84,6 +93,33 @@ describe("AccountDropdown", () => {
     // Fixed: advances to the next (last) item. Buggy: would reset to items[0].
     expect(document.activeElement).toBe(last);
     expect(document.activeElement).not.toBe(items[0]);
+  });
+
+  it("exposes the active theme programmatically, not just visually", () => {
+    // The active theme was conveyed only by border/background colour, so a screen
+    // reader user couldn't tell which was selected. useTheme is mocked to "system".
+    const onSignIn = vi.fn().mockResolvedValue(undefined);
+    const onSignOut = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <AccountDropdown user={{ uid: "abc" } as never} onSignIn={onSignIn} onSignOut={onSignOut} />
+    );
+
+    openMenu();
+
+    const themeGroup = screen.getByRole("group", { name: /theme/i });
+    expect(themeGroup).toBeInTheDocument();
+
+    const radios = screen.getAllByRole("menuitemradio");
+    expect(radios).toHaveLength(3);
+
+    expect(screen.getByRole("menuitemradio", { name: /system theme/i })).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+    for (const name of [/light theme/i, /dark theme/i]) {
+      expect(screen.getByRole("menuitemradio", { name })).toHaveAttribute("aria-checked", "false");
+    }
   });
 
   it("closes the menu after a successful sign-out", async () => {
