@@ -145,6 +145,8 @@ resource "google_monitoring_alert_policy" "unknown_sport_type_detected" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/unknown-sport-type-detected.md
+
       **HIGH**: apigateway or stravapipe just saw a Strava `sport_type` value
       that has no entry in `schemas/sports/sport_types.json`. The activity
       was bucketed into the "other" category so the user can still see it in

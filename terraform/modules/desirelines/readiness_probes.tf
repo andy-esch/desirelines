@@ -84,6 +84,8 @@ resource "google_monitoring_alert_policy" "apigateway_readiness_failing" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/apigateway-readiness-failing.md
+
       **HIGH**: 3 consecutive hourly readiness probes against
       `/api/ready` have failed in the last 4 hours. This typically means
       Postgres (Neon) is down, the connection pool is misconfigured, or
@@ -270,6 +272,8 @@ resource "google_monitoring_alert_policy" "python_readiness_failing" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/python-readiness-failing.md
+
       **HIGH**: 3 consecutive hourly readiness probes against a Python
       service `/ready` have failed in the last 4 hours. The `service` label
       on the alert tells you which one (${join(" / ", keys(local.python_readiness_targets))}).

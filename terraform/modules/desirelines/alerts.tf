@@ -38,6 +38,8 @@ resource "google_monitoring_alert_policy" "dlq_bq_inserter" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/dlq-bq-inserter.md
+
       **CRITICAL**: The BQ Inserter Dead Letter Queue has messages.
 
       This indicates that activities are failing to be inserted into BigQuery.
@@ -81,6 +83,8 @@ resource "google_monitoring_alert_policy" "dlq_postgres_writer" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/dlq-postgres-writer.md
+
       **CRITICAL**: The PostgreSQL Writer Dead Letter Queue has messages.
 
       This indicates that activities are failing to be written to PostgreSQL.
@@ -144,6 +148,8 @@ resource "google_monitoring_alert_policy" "apigateway_auth_failure_surge" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/apigateway-auth-failure-surge.md
+
       **HIGH**: apigateway is returning 401 or 403 at >10/min sustained for
       5 minutes. Most likely an external actor probing authenticated
       endpoints — credential stuffing, OAuth code injection on the
@@ -196,6 +202,8 @@ resource "google_monitoring_alert_policy" "apigateway_not_found_surge" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/apigateway-not-found-surge.md
+
       **MEDIUM**: apigateway is returning 404 at >5/min sustained for
       5 minutes. Almost always a bot probing for common attack paths
       (`/wp-admin`, `/.git/config`, `/.env`, etc.) since legitimate
@@ -245,6 +253,8 @@ resource "google_monitoring_alert_policy" "apigateway_rate_limited_surge" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/apigateway-rate-limited-surge.md
+
       **HIGH**: apigateway's rate-limiter middleware is returning 429 at
       >5/min sustained for 5 minutes. Either an external flood/DOS
       attempt or a misbehaving legitimate client looping a request.
@@ -294,6 +304,8 @@ resource "google_monitoring_alert_policy" "dispatcher_bad_request_surge" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/dispatcher-bad-request-surge.md
+
       **HIGH**: dispatcher is returning 400 (Bad Request) at >5/min
       sustained for 5 minutes. Legitimate Strava webhook payloads are
       well-formed; bursts of 400 indicate someone is hitting the
@@ -368,6 +380,8 @@ resource "google_monitoring_alert_policy" "service_5xx_errors" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/service-5xx-server-errors.md
+
       **CRITICAL**: One of the non-SLO Cloud Run services is returning
       5xx at >2% of its request volume.
 
@@ -457,6 +471,8 @@ resource "google_monitoring_alert_policy" "old_messages" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/pubsub-old-unacked-messages.md
+
       **HIGH PRIORITY**: Messages are not being processed in a timely manner.
 
       Oldest unacked message is older than 5 minutes, indicating a processing backlog.
@@ -543,6 +559,8 @@ resource "google_monitoring_alert_policy" "postgres_pool_exhaustion" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/postgres-pool-exhaustion.md
+
       **HIGH**: apigateway's Postgres connection pool has ≥4 connections in use
       (default max is 5 via `DB_POOL_MAX_CONNS`). Sustained exhaustion causes
       request queueing and rising `postgres/query.duration` tails.
@@ -591,6 +609,8 @@ resource "google_monitoring_alert_policy" "strava_api_latency" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/strava-api-latency.md
+
       **MEDIUM**: P99 Strava API call duration sustained above 1500ms for ≥10 minutes.
       Strava's own latency dominates here; if this fires often, check Strava's status
       page before assuming it's us.
@@ -633,6 +653,8 @@ resource "google_monitoring_alert_policy" "http_request_latency" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/http-request-latency.md
+
       **MEDIUM**: P99 HTTP request duration (dispatcher + apigateway) sustained
       above 15s for ≥10 minutes.
 
@@ -682,6 +704,8 @@ resource "google_monitoring_alert_policy" "postgres_query_latency" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/postgres-query-latency.md
+
       **MEDIUM**: P99 Postgres query duration sustained above 15s for ≥10
       minutes. Typical queries are fast (~50ms; indexed lookups).
 
@@ -731,6 +755,8 @@ resource "google_monitoring_alert_policy" "firestore_operation_latency" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/firestore-operation-latency.md
+
       **MEDIUM**: P99 Firestore operation duration sustained above 1000ms for ≥10 minutes.
 
       Threshold confirmed 2026-05-16 from 7-day observed P99 of 492.5ms (worst
@@ -770,6 +796,8 @@ resource "google_monitoring_alert_policy" "pubsub_publish_latency" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/pubsub-publish-latency.md
+
       **MEDIUM**: P99 PubSub publish duration sustained above 500ms for ≥10 minutes.
       Publish should be sub-100ms typically; sustained slowness here blocks the
       dispatcher's webhook response path.
@@ -824,6 +852,8 @@ resource "google_monitoring_alert_policy" "webhook_events_absent" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/webhook-events-absent.md
+
       **CRITICAL**: No `workload.googleapis.com/desirelines.io/webhook/events` increments observed in
       the last 24 hours. Real failure modes:
 
@@ -893,6 +923,23 @@ resource "google_monitoring_alert_policy" "webhook_events_absent" {
 #   duration=0s  → single event (use when one occurrence is the signal).
 #   duration > 0 → sustained rate (use when one-offs are noise).
 
+# Alert-shape convention for the owner_check alerts below:
+#
+#   - duration = "0s" + trigger { count = 1 }  → fire on the FIRST event.
+#     For one-shot signals where a single occurrence is the whole story
+#     (orphan tokens here; unknown_sport_type_detected in monitoring.tf).
+#
+#   - duration > "0s", default trigger         → sustained-rate gate.
+#     For operational noise filters where only a persistent condition is
+#     actionable (owner_check_error below; latency and error-rate alerts).
+#
+# Picking the wrong shape fails silently — a one-shot signal behind a
+# sustained-rate gate is an alert that never fires. The mechanism: ALIGN_RATE
+# turns a single counter increment into a non-zero rate for one alignment
+# window only, then back to zero. Any duration longer than that window
+# therefore demands consecutive events across multiple windows, which a
+# one-shot signal by definition never produces.
+
 # HIGH: Orphan tokens — an allowlisted athlete's webhook arrived but the
 # dispatcher had no Firestore tokens for them. This indicates real data loss
 # (Firestore wipe, deauth/re-auth race, partial migration) rather than the
@@ -915,6 +962,8 @@ resource "google_monitoring_alert_policy" "webhook_owner_check_orphan" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/webhook-owner-check-orphan.md
+
       **HIGH**: Dispatcher received a webhook for an athlete who IS on the
       allowlist but has no Firestore tokens. The event was acked (Strava will
       not retry) but nothing else happened. Possible causes:
@@ -937,6 +986,16 @@ resource "google_monitoring_alert_policy" "webhook_owner_check_orphan" {
          OAuth flow. Webhooks resume on the next event.
       4. If it recurs without an obvious cause, suspect a deletion bug
          (search recent commits to `dispatcher/adapters/firestore/`).
+
+      **Alert shape**: authored to fire on the FIRST orphan event — orphan is
+      a one-shot signal of real data loss, not a sustained-rate condition. Do
+      not raise `duration` above `0s`. ALIGN_RATE turns one event into a
+      non-zero rate for a single 60s window, so any longer duration would
+      require orphan events in consecutive minutes and this alert would never
+      fire on the failure mode it exists to catch. Compare
+      `webhook_owner_check_error` (sustained-rate, MEDIUM) and
+      `unknown_sport_type_detected` in monitoring.tf (the single-event
+      template).
     EOT
   }
 
@@ -953,6 +1012,14 @@ resource "google_monitoring_alert_policy" "webhook_owner_check_orphan" {
         alignment_period     = "60s"
         per_series_aligner   = "ALIGN_RATE"
         cross_series_reducer = "REDUCE_SUM"
+      }
+
+      # Explicit rather than implicit: GCP defaults to count = 1, so this
+      # changes no behavior. It states the single-event intent in the code so
+      # the pairing with duration = "0s" reads as deliberate, matching
+      # unknown_sport_type_detected.
+      trigger {
+        count = 1
       }
     }
   }
@@ -978,6 +1045,8 @@ resource "google_monitoring_alert_policy" "webhook_owner_check_error" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/webhook-owner-check-error.md
+
       **MEDIUM**: Dispatcher's allowlist check is returning errors at >1/min
       sustained. The handler fail-closes with 500 (Strava retries up to 3×),
       but past the retry cap legitimate events are dropped.

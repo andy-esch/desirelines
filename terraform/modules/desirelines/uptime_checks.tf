@@ -92,6 +92,8 @@ resource "google_monitoring_alert_policy" "apigateway_uptime" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/apigateway-uptime-failing.md
+
       **CRITICAL**: apigateway `/api/health` uptime check is failing across
       multiple probe regions. Note that the underlying probe runs every 15
       minutes, so detection of an outage may lag by up to ~17 minutes.
@@ -140,6 +142,8 @@ resource "google_monitoring_alert_policy" "frontend_uptime" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/frontend-uptime-failing.md
+
       **CRITICAL**: Firebase Hosting frontend uptime check has failed for ≥2 minutes.
 
       Likely causes:

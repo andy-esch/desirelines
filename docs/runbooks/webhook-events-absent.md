@@ -28,8 +28,10 @@
   for webhook arrival.
 - Re-create the Strava webhook subscription if missing (see
   `docs/guides/strava-webhook.md`).
-- Force OAuth token refresh from Firestore (procedure: TBD per
-  ops-page Q3).
+- Force OAuth token refresh — see
+  [Force an OAuth token refresh](../guides/operations.md#force-an-oauth-token-refresh).
+  Short version: there is no admin-side refresh; the athlete must re-authorize
+  through the app's sign-in flow.
 
 **If still stuck**: check dispatcher's `custom.googleapis.com/desirelines.io/webhook/events` raw
 data in Cloud Monitoring metrics explorer — is the metric stream

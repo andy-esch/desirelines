@@ -124,6 +124,8 @@ resource "google_monitoring_alert_policy" "slo_4_apigateway_availability_fast_bu
 
   documentation {
     content   = <<-EOT
+      **Runbook**: docs/runbooks/slo-4-apigateway-availability.md
+
       The apigateway availability SLO is burning fast. At the current rate
       the 30-day error budget will be exhausted in ~2 days.
 
@@ -169,6 +171,8 @@ resource "google_monitoring_alert_policy" "slo_4_apigateway_availability_slow_bu
 
   documentation {
     content   = <<-EOT
+      **Runbook**: docs/runbooks/slo-4-apigateway-availability.md
+
       The apigateway availability SLO is burning slowly — sustained mild
       degradation. At 6× normal rate, the 30-day error budget would deplete
       in ~5 days.
@@ -239,6 +243,8 @@ resource "google_monitoring_alert_policy" "slo_1_dispatcher_availability_fast_bu
 
   documentation {
     content   = <<-EOT
+      **Runbook**: docs/runbooks/slo-1-dispatcher-availability.md
+
       The dispatcher availability SLO is burning fast. At the current rate
       the 30-day error budget will be exhausted in ~2 days.
 
@@ -282,6 +288,8 @@ resource "google_monitoring_alert_policy" "slo_1_dispatcher_availability_slow_bu
 
   documentation {
     content   = <<-EOT
+      **Runbook**: docs/runbooks/slo-1-dispatcher-availability.md
+
       The dispatcher availability SLO is burning slowly — sustained mild
       degradation. Lower urgency than fast-burn; investigate next session.
 
@@ -358,6 +366,8 @@ resource "google_monitoring_alert_policy" "slo_5_apigateway_latency_fast_burn" {
 
   documentation {
     content   = <<-EOT
+      **Runbook**: docs/runbooks/slo-5-apigateway-latency.md
+
       The apigateway latency SLO is burning fast. Sustained slow responses
       are pushing /v1/* p95 above 1 second. At the current rate the 30-day
       error budget will be exhausted in ~2 days.
@@ -403,6 +413,8 @@ resource "google_monitoring_alert_policy" "slo_5_apigateway_latency_slow_burn" {
 
   documentation {
     content   = <<-EOT
+      **Runbook**: docs/runbooks/slo-5-apigateway-latency.md
+
       The apigateway latency SLO is burning slowly — sustained mild
       latency degradation. Lower urgency than fast-burn; investigate
       next session.
@@ -505,6 +517,8 @@ resource "google_monitoring_alert_policy" "slo_2_webhook_ingest_success_fast_bur
 
   documentation {
     content   = <<-EOT
+      **Runbook**: docs/runbooks/slo-2-webhook-ingest-success.md
+
       The webhook ingest success SLO is burning fast. Activity events are
       ending up in the postgres-writer DLQ at a sustained rate. At the
       current rate the 30-day error budget will be exhausted in ~2 days.
@@ -552,6 +566,8 @@ resource "google_monitoring_alert_policy" "slo_2_webhook_ingest_success_slow_bur
 
   documentation {
     content   = <<-EOT
+      **Runbook**: docs/runbooks/slo-2-webhook-ingest-success.md
+
       The webhook ingest success SLO is burning slowly — sustained mild
       DLQ activity. Lower urgency than fast-burn; investigate next session.
 
