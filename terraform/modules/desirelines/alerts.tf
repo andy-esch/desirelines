@@ -38,6 +38,8 @@ resource "google_monitoring_alert_policy" "dlq_bq_inserter" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/dlq-bq-inserter.md
+
       **CRITICAL**: The BQ Inserter Dead Letter Queue has messages.
 
       This indicates that activities are failing to be inserted into BigQuery.
@@ -81,6 +83,8 @@ resource "google_monitoring_alert_policy" "dlq_postgres_writer" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/dlq-postgres-writer.md
+
       **CRITICAL**: The PostgreSQL Writer Dead Letter Queue has messages.
 
       This indicates that activities are failing to be written to PostgreSQL.
@@ -144,6 +148,8 @@ resource "google_monitoring_alert_policy" "apigateway_auth_failure_surge" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/apigateway-auth-failure-surge.md
+
       **HIGH**: apigateway is returning 401 or 403 at >10/min sustained for
       5 minutes. Most likely an external actor probing authenticated
       endpoints — credential stuffing, OAuth code injection on the
@@ -196,6 +202,8 @@ resource "google_monitoring_alert_policy" "apigateway_not_found_surge" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/apigateway-not-found-surge.md
+
       **MEDIUM**: apigateway is returning 404 at >5/min sustained for
       5 minutes. Almost always a bot probing for common attack paths
       (`/wp-admin`, `/.git/config`, `/.env`, etc.) since legitimate
@@ -245,6 +253,8 @@ resource "google_monitoring_alert_policy" "apigateway_rate_limited_surge" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/apigateway-rate-limited-surge.md
+
       **HIGH**: apigateway's rate-limiter middleware is returning 429 at
       >5/min sustained for 5 minutes. Either an external flood/DOS
       attempt or a misbehaving legitimate client looping a request.
@@ -294,6 +304,8 @@ resource "google_monitoring_alert_policy" "dispatcher_bad_request_surge" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/dispatcher-bad-request-surge.md
+
       **HIGH**: dispatcher is returning 400 (Bad Request) at >5/min
       sustained for 5 minutes. Legitimate Strava webhook payloads are
       well-formed; bursts of 400 indicate someone is hitting the
@@ -368,6 +380,8 @@ resource "google_monitoring_alert_policy" "service_5xx_errors" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/service-5xx-server-errors.md
+
       **CRITICAL**: One of the non-SLO Cloud Run services is returning
       5xx at >2% of its request volume.
 
@@ -457,6 +471,8 @@ resource "google_monitoring_alert_policy" "old_messages" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/pubsub-old-unacked-messages.md
+
       **HIGH PRIORITY**: Messages are not being processed in a timely manner.
 
       Oldest unacked message is older than 5 minutes, indicating a processing backlog.
@@ -543,6 +559,8 @@ resource "google_monitoring_alert_policy" "postgres_pool_exhaustion" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/postgres-pool-exhaustion.md
+
       **HIGH**: apigateway's Postgres connection pool has ≥4 connections in use
       (default max is 5 via `DB_POOL_MAX_CONNS`). Sustained exhaustion causes
       request queueing and rising `postgres/query.duration` tails.
@@ -591,6 +609,8 @@ resource "google_monitoring_alert_policy" "strava_api_latency" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/strava-api-latency.md
+
       **MEDIUM**: P99 Strava API call duration sustained above 1500ms for ≥10 minutes.
       Strava's own latency dominates here; if this fires often, check Strava's status
       page before assuming it's us.
@@ -633,6 +653,8 @@ resource "google_monitoring_alert_policy" "http_request_latency" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/http-request-latency.md
+
       **MEDIUM**: P99 HTTP request duration (dispatcher + apigateway) sustained
       above 15s for ≥10 minutes.
 
@@ -682,6 +704,8 @@ resource "google_monitoring_alert_policy" "postgres_query_latency" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/postgres-query-latency.md
+
       **MEDIUM**: P99 Postgres query duration sustained above 15s for ≥10
       minutes. Typical queries are fast (~50ms; indexed lookups).
 
@@ -731,6 +755,8 @@ resource "google_monitoring_alert_policy" "firestore_operation_latency" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/firestore-operation-latency.md
+
       **MEDIUM**: P99 Firestore operation duration sustained above 1000ms for ≥10 minutes.
 
       Threshold confirmed 2026-05-16 from 7-day observed P99 of 492.5ms (worst
@@ -770,6 +796,8 @@ resource "google_monitoring_alert_policy" "pubsub_publish_latency" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/pubsub-publish-latency.md
+
       **MEDIUM**: P99 PubSub publish duration sustained above 500ms for ≥10 minutes.
       Publish should be sub-100ms typically; sustained slowness here blocks the
       dispatcher's webhook response path.
@@ -824,6 +852,8 @@ resource "google_monitoring_alert_policy" "webhook_events_absent" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/webhook-events-absent.md
+
       **CRITICAL**: No `workload.googleapis.com/desirelines.io/webhook/events` increments observed in
       the last 24 hours. Real failure modes:
 
@@ -932,6 +962,8 @@ resource "google_monitoring_alert_policy" "webhook_owner_check_orphan" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/webhook-owner-check-orphan.md
+
       **HIGH**: Dispatcher received a webhook for an athlete who IS on the
       allowlist but has no Firestore tokens. The event was acked (Strava will
       not retry) but nothing else happened. Possible causes:
@@ -1013,6 +1045,8 @@ resource "google_monitoring_alert_policy" "webhook_owner_check_error" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/webhook-owner-check-error.md
+
       **MEDIUM**: Dispatcher's allowlist check is returning errors at >1/min
       sustained. The handler fail-closes with 500 (Strava retries up to 3×),
       but past the retry cap legitimate events are dropped.
