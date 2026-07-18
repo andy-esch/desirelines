@@ -6,17 +6,12 @@ import { getUserSettings } from "../utils/units";
 import { useUserConfig } from "../hooks/useUserConfig";
 import { useSportConfig } from "../hooks/useSportConfig";
 import { PageLayout } from "../components/layout/PageLayout";
-
-type TimeRange = "2w" | "4w" | "2m" | "6m" | "ytd" | "all";
-
-const TIME_RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
-  { value: "2w", label: "2 Weeks" },
-  { value: "4w", label: "4 Weeks" },
-  { value: "2m", label: "2 Months" },
-  { value: "6m", label: "6 Months" },
-  { value: "ytd", label: "Year to Date" },
-  { value: "all", label: "All Time" },
-];
+import {
+  type TimeRange,
+  TIME_RANGE_OPTIONS,
+  coerceTimeRange,
+  calculateDateRange,
+} from "../utils/timeRange";
 
 const FALLBACK_SPORT_OPTIONS = [
   { value: "", label: "All Sports" },
@@ -24,43 +19,6 @@ const FALLBACK_SPORT_OPTIONS = [
   { value: "running", label: "Running" },
   { value: "yoga", label: "Yoga" },
 ];
-
-function calculateDateRange(range: TimeRange): { from?: string; to?: string } {
-  const today = new Date();
-  const toDate = today.toISOString().split("T")[0]!;
-
-  switch (range) {
-    case "2w": {
-      const from = new Date(today);
-      from.setDate(from.getDate() - 14);
-      return { from: from.toISOString().split("T")[0]!, to: toDate };
-    }
-    case "4w": {
-      const from = new Date(today);
-      from.setDate(from.getDate() - 28);
-      return { from: from.toISOString().split("T")[0]!, to: toDate };
-    }
-    case "2m": {
-      const from = new Date(today);
-      from.setDate(from.getDate() - 60);
-      return { from: from.toISOString().split("T")[0]!, to: toDate };
-    }
-    case "6m": {
-      const from = new Date(today);
-      from.setDate(from.getDate() - 180);
-      return { from: from.toISOString().split("T")[0]!, to: toDate };
-    }
-    case "ytd": {
-      const from = new Date(today.getFullYear(), 0, 1);
-      return { from: from.toISOString().split("T")[0]!, to: toDate };
-    }
-    case "all":
-    default:
-      return {};
-  }
-}
-
-const VALID_RANGES: TimeRange[] = ["2w", "4w", "2m", "6m", "ytd", "all"];
 
 const ActivitiesPage = () => {
   const search = useSearch({ from: "/activities" });
@@ -82,9 +40,7 @@ const ActivitiesPage = () => {
   }, [sportConfig]);
 
   // Derive filter values from URL (single source of truth)
-  const selectedRange: TimeRange = VALID_RANGES.includes(search.range as TimeRange)
-    ? (search.range as TimeRange)
-    : "4w";
+  const selectedRange: TimeRange = coerceTimeRange(search.range, "4w");
   const selectedSport = search.sport || "";
 
   // Calculate date range based on selection
