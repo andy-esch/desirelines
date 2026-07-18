@@ -189,7 +189,7 @@ export default function ChartsPage() {
               id="chartsTimeRange"
               className="form-select form-select-sm"
               value={selectedRange}
-              onChange={(e) => setSearch({ range: e.target.value as TimeRange })}
+              onChange={(e) => setSearch({ range: coerceTimeRange(e.target.value, "ytd") })}
               style={{ width: "auto" }}
             >
               {TIME_RANGE_OPTIONS.map((o) => (

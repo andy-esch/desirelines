@@ -120,4 +120,23 @@ describe("ChartsPage", () => {
     await renderChartsPage();
     expect(screen.getByRole("heading", { name: "Charts" })).toBeInTheDocument();
   });
+
+  it("shows the loading state while the activity set is still paging in", async () => {
+    mockAllActivities([], { isLoading: true });
+    await renderChartsPage();
+    expect(screen.getByLabelText(/loading chart data/i)).toBeInTheDocument();
+  });
+
+  it("surfaces an error with a working Retry instead of masking it as loading", async () => {
+    const user = userEvent.setup();
+    const retry = vi.fn();
+    mockAllActivities([], { error: new Error("Network Error"), retry });
+    await renderChartsPage();
+
+    // ChartContainer must render the error alert (not a perpetual spinner) so the
+    // user can recover — this guards against the loading/error masking regression.
+    expect(screen.getByRole("alert")).toHaveTextContent(/network error/i);
+    await user.click(screen.getByRole("button", { name: /retry/i }));
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
 });

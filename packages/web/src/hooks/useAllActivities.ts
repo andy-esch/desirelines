@@ -47,7 +47,10 @@ export function useAllActivities(
       queryKey: ["activities", "all", user?.uid, pagedFilter],
       queryFn: async ({ pageParam, signal }) =>
         fetchActivities({ ...pagedFilter, cursor: pageParam }, signal),
-      getNextPageParam: (lastPage) => lastPage.nextCursor,
+      // `|| undefined` guards the auto-page loop: nextCursor is an optional string,
+      // so a present-but-empty "" would read as a live cursor and drive fetchNextPage
+      // forever. Any falsy cursor → undefined ends paging cleanly.
+      getNextPageParam: (lastPage) => lastPage.nextCursor || undefined,
       initialPageParam: undefined as string | undefined,
       enabled: !authLoading && !!user,
       staleTime: 5 * 60 * 1000,
