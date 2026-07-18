@@ -13,8 +13,11 @@ const DEMO_ACTIVITIES_CACHE_KEY = "demo-activities";
 
 /**
  * Get or generate demo activities, cached in sessionStorage for cross-page consistency.
+ *
+ * Exported so the Charts view's page-to-completion hook returns the same demo set
+ * (single source of demo truth across the Activities-group views).
  */
-function getSessionDemoActivities(): ActivitySummary[] {
+export function getSessionDemoActivities(): ActivitySummary[] {
   const currentYear = getCurrentYear();
 
   try {
@@ -92,7 +95,9 @@ export function useActivities(filter: Omit<ActivityListFilter, "cursor">): UseAc
 
   const { data, fetchNextPage, hasNextPage, isFetching, isFetchingNextPage, error, refetch } =
     useInfiniteQuery({
-      queryKey: ["activities", filter],
+      // uid namespaces the cache so a second user on the same browser isn't served
+      // the first user's activities within staleTime (project convention).
+      queryKey: ["activities", user?.uid, filter],
       queryFn: async ({ pageParam, signal }) => {
         return fetchActivities({ ...filter, cursor: pageParam }, signal);
       },
