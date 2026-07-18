@@ -25,7 +25,7 @@ runs:
   using: composite
   steps:
     - name: Post to Slack
-      uses: slackapi/slack-github-action@v3
+      uses: slackapi/slack-github-action@v4
       with:
         webhook: ${{ inputs.webhook }}
         webhook-type: incoming-webhook
