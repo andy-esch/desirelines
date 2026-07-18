@@ -96,5 +96,6 @@ def load_strava_secrets() -> dict[str, str]:
             if os.getenv(env_name):
                 logger.info("config: loaded %s from environment", env_name)
 
-    # Return mapped dictionary
-    return {secret_mapping[k]: v for k, v in raw_secrets.items() if k in secret_mapping}
+    # Remap infra secret names → config keys. Every key in raw_secrets is drawn
+    # from secret_names (== secret_mapping keys), so no membership guard is needed.
+    return {secret_mapping[k]: v for k, v in raw_secrets.items()}

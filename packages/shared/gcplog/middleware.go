@@ -168,11 +168,9 @@ func WithCloudTraceContext(next http.Handler) http.Handler {
 // GetTraceContext retrieves the trace context from the request context.
 // Returns nil if no trace context is available.
 func GetTraceContext(ctx context.Context) *TraceContext {
-	val := ctx.Value(traceContextKey{})
-	if val == nil {
-		return nil
-	}
-	tc, ok := val.(*TraceContext)
+	// No explicit val == nil pre-check: a nil interface asserts to (nil, false),
+	// which the ok branch already handles.
+	tc, ok := ctx.Value(traceContextKey{}).(*TraceContext)
 	if !ok {
 		return nil
 	}

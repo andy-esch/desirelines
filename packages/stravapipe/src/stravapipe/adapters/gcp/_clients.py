@@ -39,40 +39,6 @@ class BigQueryClientWrapper:
         """Fetch dataset metadata. Used as a lightweight readiness probe."""
         return self._client.get_dataset(dataset_id)
 
-    def insert_rows_json(
-        self, rows: list[dict[str, Any]], *, dataset_name: str, table_name: str
-    ) -> None:
-        """Insert each dict in rows as a new row in `dataset.table_name`
-        https://cloud.google.com/bigquery/docs/samples/bigquery-table-insert-rows#bigquery_table_insert_rows-python
-        """
-        table_id = f"{self.project_id}.{dataset_name}.{table_name}"
-        errors = self._client.insert_rows_json(table_id, rows)
-        if len(errors) > 0:
-            logger.error("BigQuery insertion errors for %s: %s", table_id, errors)
-            raise BigQueryError(
-                f"Failed to insert {len(rows)} rows into {table_id}", errors
-            )
-        logger.info("Successfully inserted %s rows into %s.", len(rows), table_id)
-
-    def execute_query(
-        self,
-        query: str,
-        query_parameters: Sequence[ScalarQueryParameter | ArrayQueryParameter]
-        | None = None,
-    ) -> list[Any]:
-        """Execute a SELECT query and return the result rows.
-
-        Args:
-            query: SQL query string with optional @param placeholders
-            query_parameters: List of BigQuery query parameters
-
-        Returns:
-            List of BigQuery Row objects
-        """
-        job_config = QueryJobConfig(query_parameters=query_parameters or [])
-        result = self._client.query(query, job_config=job_config).result()
-        return list(result)
-
     def execute_merge_query(
         self,
         query: str,
