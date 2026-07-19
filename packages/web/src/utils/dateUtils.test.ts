@@ -3,7 +3,8 @@ import {
   toLocalDateString,
   parseLocalDate,
   parseLocalDateStrict,
-  getCurrentLocalDate,
+  getTodayUtcAnchored,
+  getTodayLocalMidnight,
   getTodayString,
   addDays,
   isSameDay,
@@ -117,9 +118,9 @@ describe("parseLocalDateStrict", () => {
   });
 });
 
-describe("getCurrentLocalDate", () => {
+describe("getTodayUtcAnchored", () => {
   it("returns a Date object at UTC midnight", () => {
-    const result = getCurrentLocalDate();
+    const result = getTodayUtcAnchored();
     expect(result).toBeInstanceOf(Date);
     expect(result.getUTCHours()).toBe(0);
     expect(result.getUTCMinutes()).toBe(0);
@@ -127,13 +128,39 @@ describe("getCurrentLocalDate", () => {
     expect(result.getUTCMilliseconds()).toBe(0);
   });
 
-  it("matches the current local year, month, and day (in UTC)", () => {
+  it("matches the current local calendar date, read via UTC methods", () => {
     const now = new Date();
-    const result = getCurrentLocalDate();
-    // The UTC components should reflect today's local calendar date
+    const result = getTodayUtcAnchored();
     expect(result.getUTCFullYear()).toBe(now.getFullYear());
     expect(result.getUTCMonth()).toBe(now.getMonth());
     expect(result.getUTCDate()).toBe(now.getDate());
+  });
+});
+
+describe("getTodayLocalMidnight", () => {
+  it("returns a Date object at local midnight", () => {
+    const result = getTodayLocalMidnight();
+    expect(result).toBeInstanceOf(Date);
+    expect(result.getHours()).toBe(0);
+    expect(result.getMinutes()).toBe(0);
+    expect(result.getSeconds()).toBe(0);
+    expect(result.getMilliseconds()).toBe(0);
+  });
+
+  it("matches the current local calendar date, read via local methods", () => {
+    const now = new Date();
+    const result = getTodayLocalMidnight();
+    expect(result.getFullYear()).toBe(now.getFullYear());
+    expect(result.getMonth()).toBe(now.getMonth());
+    expect(result.getDate()).toBe(now.getDate());
+  });
+
+  it("is safe with the local-time helpers: toLocalDateString round-trips to today", () => {
+    // The reason this variant exists. In a UTC-negative timezone (the suite is pinned
+    // to one — see vite.config.ts), the UTC-anchored variant would fail this, since
+    // toLocalDateString reads its UTC-midnight instant back as the previous local day.
+    expect(toLocalDateString(getTodayLocalMidnight())).toBe(getTodayString());
+    expect(toLocalDateString(addDays(getTodayLocalMidnight(), -1))).not.toBe(getTodayString());
   });
 });
 

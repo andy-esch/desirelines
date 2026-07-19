@@ -27,7 +27,7 @@ import {
 } from "../utils/goalCalculations";
 import { getMetricConfig, generateYAxisTicks } from "../config/metricConfig";
 import { GOAL_COLORS } from "../constants/chartColors";
-import { getCurrentLocalDate } from "../utils/dateUtils";
+import { getTodayUtcAnchored } from "../utils/dateUtils";
 import { useDangerThresholds } from "./useDangerThresholds";
 
 const MS_PER_DAY = 86400000;
@@ -106,7 +106,7 @@ export function useCumulativeChartData({
   const startDate = new Date(Date.UTC(year, 0, 1));
   const endDate = new Date(Date.UTC(year, 11, 31));
   const lastEntry = distanceData.at(-1);
-  const latestDate = lastEntry === undefined ? getCurrentLocalDate() : new Date(lastEntry.x);
+  const latestDate = lastEntry === undefined ? getTodayUtcAnchored() : new Date(lastEntry.x);
   const displayEndDate = showFullYear ? endDate : latestDate;
 
   // 2. Metric calculations

@@ -10,7 +10,8 @@ import type { TimeRange } from "../../utils/dataNormalization";
 import { convertDistance, formatDistance, formatImpactPct } from "../../utils/units";
 
 import { getTimeRangeCutoff as getCutoff } from "../../utils/chartUtils";
-import { formatDisplayDate, toLocalDateString as toLocal } from "../../utils/dateUtils";
+import { toLocalDateString as toLocal } from "../../utils/dateUtils";
+import { formatActivityDate } from "../../utils/formatActivityDate";
 
 /** Height of the thead row in px */
 const HEADER_HEIGHT = 22;
@@ -339,7 +340,7 @@ export default function RecentActivitiesList({
                     className="text-slate-light text-right ps-1 pe-0 py-0 align-middle"
                     style={{ whiteSpace: "nowrap" }}
                   >
-                    {formatDisplayDate(new Date(activity.startDateLocal))}
+                    {formatActivityDate(activity.startDateLocal)}
                   </td>
                 </tr>
               );

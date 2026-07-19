@@ -204,7 +204,13 @@ function AchievementLegend({ achievements }: { achievements: GoalAchievement[] }
           <span style={{ color: "var(--color-chart-tooltip-muted)" }}>
             {achievement.goalLabel}{" "}
             <span style={{ color: "var(--color-chart-tooltip-label)" }}>
-              {formatDisplayDate(achievement.date)}
+              {/* achievement.date is a UTC-midnight chart date; render it in UTC per the
+                  chart pipeline's date convention (see useCumulativeChartData header). */}
+              {formatDisplayDate(achievement.date, {
+                month: "short",
+                day: "numeric",
+                timeZone: "UTC",
+              })}
             </span>
           </span>
         </div>

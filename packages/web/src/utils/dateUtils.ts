@@ -1,18 +1,37 @@
 /**
  * Date Utilities
  *
- * Shared date formatting and parsing functions used across the application.
- * These utilities handle local timezone correctly to avoid common pitfalls
- * with JavaScript Date objects.
+ * Shared date formatting/parsing for the web app. Read this before touching dates:
+ * there are TWO deliberate conventions here, and MIXING them is the source of the
+ * timezone off-by-one bugs this module exists to prevent.
  *
- * KEY DESIGN DECISIONS:
- * - All functions work in LOCAL timezone, not UTC
- * - Date strings use YYYY-MM-DD format (ISO 8601 date portion)
- * - Parsing functions handle the "midnight UTC vs local" problem
+ * THE INVARIANT
+ * Activity dates come from Strava's `start_date_local` — the athlete's WALL-CLOCK
+ * time, delivered stamped with a misleading `Z` and stored as-if-UTC through the whole
+ * pipeline. Never round-trip such a value (or a derived "today") through the OTHER
+ * convention. Every bug in this space is the same shape: build a Date in one
+ * convention, then read or format it in the other.
  *
- * COMMON PITFALL AVOIDED:
- * `new Date("2026-01-15")` creates midnight UTC, which can be
- * "2026-01-14 7:00 PM" in US timezones. These utilities prevent this.
+ * CONVENTION A — local-string (calendar dates and the range filters; the default)
+ * For anything derived from `start_date_local` or shown to the athlete:
+ *   - today            -> getTodayLocalMidnight()
+ *   - format a Date    -> toLocalDateString(d)   (never d.toISOString())
+ *   - advance a Date   -> addDays(d, n)
+ *   - display a string -> slice "YYYY-MM-DD" and build new Date(y, m-1, d) from the
+ *                         parts (see formatActivityDate); do NOT new Date(startDateLocal)
+ *   - read a Date back -> LOCAL getters (getFullYear/getMonth/getDate)
+ *
+ * CONVENTION B — UTC-midnight (the chart-data pipeline only)
+ * Chart points parse "YYYY-MM-DD" as UTC midnight and build boundaries with Date.UTC();
+ * see the useCumulativeChartData.ts header.
+ *   - today             -> getTodayUtcAnchored()
+ *   - build a boundary  -> new Date(Date.UTC(y, m, d))
+ *   - read a Date back  -> UTC getters (getUTCFullYear/...) and getTime()
+ *   - format for display -> Intl with { timeZone: "UTC" }
+ *
+ * COMMON PITFALL: `new Date("2026-01-15")` is midnight UTC, i.e. "2026-01-14 19:00" in
+ * US timezones. Mixing a UTC-anchored/parsed Date with local getters/formatters (or
+ * vice versa) shifts the day. Pick a convention and stay in it.
  *
  * @see https://stackoverflow.com/questions/7556591/is-the-javascript-date-object-always-one-day-off
  */
@@ -105,20 +124,36 @@ export function parseLocalDateStrict(dateStr: string): Date {
 }
 
 /**
- * Get today's calendar date as a UTC-midnight Date object.
+ * Today's local calendar date, anchored to **UTC midnight**.
  *
- * Reads the user's local year/month/day and returns a Date at UTC midnight
- * for that calendar date. This aligns with the app-wide convention that all
- * chart dates are UTC timestamps (see useCumulativeChartData.ts header).
+ * Reads the user's local year/month/day and returns a Date at UTC midnight for that
+ * calendar date. Belongs to the chart-pipeline convention where all dates are UTC
+ * timestamps (see the useCumulativeChartData.ts header): the API's "YYYY-MM-DD"
+ * strings parse as UTC midnight via `new Date(str)`, and boundaries use `Date.UTC()`,
+ * so "today" must be UTC-anchored to compare correctly.
  *
- * Why UTC? The API returns "YYYY-MM-DD" strings from `start_date_local`,
- * which JS parses as UTC midnight. All computed boundaries use `Date.UTC()`.
- * Returning local midnight here would cause off-by-one errors when the
- * local timezone offset shifts the Date into the previous/next UTC day.
+ * READ IT WITH UTC METHODS ONLY (`getUTCFullYear`/`getUTCMonth`/`getUTCDate`/`getTime`).
+ * Do NOT pass it to the local-time helpers {@link addDays} or {@link toLocalDateString}:
+ * in UTC-negative timezones (the Americas) the UTC-midnight instant reads back through
+ * local `getDate()` as the *previous* day, shifting the result. For that (local-string)
+ * convention use {@link getTodayLocalMidnight}.
  */
-export function getCurrentLocalDate(): Date {
+export function getTodayUtcAnchored(): Date {
   const now = new Date();
   return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+}
+
+/**
+ * Today's local calendar date, anchored to **local midnight**.
+ *
+ * The counterpart to {@link getTodayUtcAnchored} for the local-string convention: safe
+ * to advance with {@link addDays} and format with {@link toLocalDateString} (both work
+ * in local time). Use this whenever "today" flows through those helpers — e.g. the
+ * Activities/Charts range filters in `timeRange.ts`.
+ */
+export function getTodayLocalMidnight(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
 }
 
 /**

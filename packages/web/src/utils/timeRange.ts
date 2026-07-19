@@ -4,7 +4,7 @@
  * `{ from, to }` local-date window for the activities list API. Extracted so the
  * table and the charts derive identical windows from the same param.
  */
-import { toLocalDateString, addDays } from "./dateUtils";
+import { toLocalDateString, addDays, getTodayLocalMidnight } from "./dateUtils";
 
 export type TimeRange = "2w" | "4w" | "2m" | "6m" | "ytd" | "all";
 
@@ -32,12 +32,10 @@ export function coerceTimeRange(value: unknown, fallback: TimeRange): TimeRange 
  * timezones — e.g. YTD's Jan-1 start becoming the prior Dec 31).
  */
 export function calculateDateRange(range: TimeRange): { from?: string; to?: string } {
-  // Anchor to LOCAL midnight today. addDays() and toLocalDateString() both work in
-  // local time, so the basis must too: getCurrentLocalDate() anchors to UTC midnight,
-  // which in UTC-negative zones (the Americas) reads back through local getDate() as
-  // the *previous* day, shifting every relative "from" a day early.
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // Local-midnight basis so addDays()/toLocalDateString() (both local-time) stay on the
+  // athlete's calendar day. getTodayUtcAnchored() would shift the window a day early in
+  // UTC-negative zones — see its doc for why.
+  const today = getTodayLocalMidnight();
   const toDate = toLocalDateString(today);
   const daysAgo = (days: number) => ({
     from: toLocalDateString(addDays(today, -days)),
