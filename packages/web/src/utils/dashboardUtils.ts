@@ -15,7 +15,7 @@ import {
   minutesToHours,
   type MetricType,
 } from "../utils/units";
-import { getSpectrumColor } from "../utils/chartColors";
+import { SPORT_COLORS, DEFAULT_SPORT_COLOR } from "../utils/sportConfig";
 
 export interface SportGoalData {
   sport: string;
@@ -33,8 +33,6 @@ export interface SportGoalData {
 
 interface TransformOptions {
   sport: string;
-  index: number;
-  totalSports: number;
   metrics: MetricsEntry[] | undefined;
   goalsData: GoalsForYear | null | undefined;
   demoGoals: { conservative: number; target: number; stretch: number } | undefined;
@@ -51,20 +49,10 @@ interface TransformOptions {
  * 2. Calculates the current YTD value from the metrics timeseries.
  * 3. Determines the target goal value (prioritizing user-set goals over defaults).
  * 4. Calculates the "impact goal" (most conservative goal) for status indicators.
- * 5. Assigns spectrum-based colors based on the sport's position.
+ * 5. Attaches the sport's fixed identity color from `SPORT_COLORS`.
  */
 export function transformToSportGoalData(options: TransformOptions): SportGoalData {
-  const {
-    sport,
-    index,
-    totalSports,
-    metrics,
-    goalsData,
-    demoGoals,
-    sportConfig,
-    userSettings,
-    isAuthMode,
-  } = options;
+  const { sport, metrics, goalsData, demoGoals, sportConfig, userSettings, isAuthMode } = options;
 
   const metricConfig = getMetricConfig(sport, sportConfig);
   const primaryMetric = getPrimaryMetric(sport, sportConfig);
@@ -122,7 +110,7 @@ export function transformToSportGoalData(options: TransformOptions): SportGoalDa
   return {
     sport,
     displayName: getSportDisplayName(sport, sportConfig),
-    color: getSpectrumColor(index, totalSports),
+    color: SPORT_COLORS[sport] ?? DEFAULT_SPORT_COLOR,
     currentValue,
     targetGoal,
     metricUnit: metricCfg.chartLabel,

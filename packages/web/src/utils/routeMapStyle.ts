@@ -10,7 +10,7 @@ import type { SportConfig } from "../api/activities";
  * sport registry (`sportConfig.sportCategories[*].stravaTypes`), then to that
  * category's color via the caller-supplied `sportColors` (app-category → color).
  *
- * The caller passes the **NEON spectrum** colors (`utils/chartColors`
+ * The caller passes the **NEON spectrum** colors (`utils/spectrumColors`
  * `getSpectrumColor`), the same scheme the dashboard sparklines use — each sport
  * gets a color by its position across Magenta→Cyan→Green→Yellow→Orange — so the
  * map lines, the filter chips, and the sparklines all share one styling. (Keying

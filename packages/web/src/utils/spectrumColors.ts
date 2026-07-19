@@ -1,9 +1,21 @@
 /**
- * NEON spectrum color utilities for chart visualizations.
+ * NEON spectrum ramp — positional color generation.
  *
- * Provides interpolated color generation across a neon spectrum
- * (Magenta -> Cyan -> Green -> Yellow -> Orange) for sparklines,
- * goal charts, and weekly summaries.
+ * Interpolates across a neon spectrum (Magenta -> Cyan -> Green -> Yellow -> Orange)
+ * to produce N evenly-spaced colors. Used by the sparklines, weekly summary, goals
+ * list, and routes map.
+ *
+ * Named for the ramp, not for "charts", because there is a second and unrelated
+ * `constants/chartColors.ts` (the goal-ladder + data-line colors) — two modules with
+ * the same basename was a standing confusion.
+ *
+ * NOTE: `getSpectrumColor(index, total)` assigns color by *rank among the sports
+ * currently present*, so changing the sport set repaints the survivors. That is a
+ * known issue: the agreed direction is for each sport to own a frozen stop on this
+ * ramp instead, keeping the ramp as the generator but making the color stable per
+ * sport. Until then this module stays positional.
+ *
+ * @see sportConfig.ts - Fixed per-sport identity colors (charts, chips, badges)
  */
 
 /**
@@ -59,13 +71,4 @@ function getInterpolatedSpectrumColor(
 export function getSpectrumColor(index: number, total: number): string {
   const c = getInterpolatedSpectrumColor(index, total);
   return `rgb(${c.r}, ${c.g}, ${c.b})`;
-}
-
-/**
- * Get a darker version of a spectrum color for text labels.
- * Reduces brightness by 50% while maintaining the hue.
- */
-export function getSpectrumTextColor(index: number, total: number): string {
-  const c = getInterpolatedSpectrumColor(index, total);
-  return `rgb(${Math.round(c.r * 0.5)}, ${Math.round(c.g * 0.5)}, ${Math.round(c.b * 0.5)})`;
 }

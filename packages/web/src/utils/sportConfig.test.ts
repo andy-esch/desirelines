@@ -175,3 +175,33 @@ describe("filterValidSports", () => {
     expect(filterValidSports([], mockSportConfig)).toEqual([]);
   });
 });
+
+describe("SPORT_COLORS palette invariants", () => {
+  /**
+   * Every sport in the canonical registry needs a color.
+   *
+   * This is the guarantee that would otherwise require putting colors in
+   * `schemas/sports/sport_types.json` — cheaper here, because reaching the web from
+   * the registry would mean an apigateway struct + API contract change just to carry a
+   * presentation concern. If a sport is added upstream and nobody picks a color, this
+   * fails instead of the sport silently rendering in the grey fallback.
+   *
+   * `other` is excluded on purpose: it is the catch-all bucket, and DEFAULT_SPORT_COLOR
+   * is the right answer for it.
+   */
+  it("covers every sport in the canonical registry", async () => {
+    const registry = await import("../../../../schemas/sports/sport_types.json");
+    const sports = Object.keys(registry.default.sportCategories).filter((s) => s !== "other");
+
+    // Guard against the check passing vacuously if the import shape ever changes.
+    expect(sports.length).toBeGreaterThan(10);
+
+    const missing = sports.filter((s) => !SPORT_COLORS[s]);
+    expect(missing, `sports with no SPORT_COLORS entry: ${missing.join(", ")}`).toEqual([]);
+  });
+
+  it("has no duplicate colors", () => {
+    const values = Object.values(SPORT_COLORS);
+    expect(new Set(values).size).toBe(values.length);
+  });
+});

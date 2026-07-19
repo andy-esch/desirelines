@@ -32,8 +32,7 @@ import { getUserSettings } from "../utils/units";
 import { getConfig } from "../lib/config";
 import { buildTileTemplateUrl, buildApiBaseUrl } from "../api/map";
 import { buildSportColorExpression } from "../utils/routeMapStyle";
-import { DEFAULT_SPORT_COLOR } from "../utils/sportConfig";
-import { getSpectrumColor } from "../utils/chartColors";
+import { SPORT_COLORS, DEFAULT_SPORT_COLOR } from "../utils/sportConfig";
 import { useIsMobile } from "../hooks/useIsMobile";
 import { useRefreshMapData } from "../hooks/useRefreshMapData";
 import MapLoadingState from "../components/routes/MapLoadingState";
@@ -164,20 +163,19 @@ export default function RoutesPage() {
     [isMobile]
   );
 
-  // App-category sports present in the data, in a stable order. Each gets a NEON
-  // spectrum color by its position — the SAME full-brightness `getSpectrumColor`
-  // the dashboard sparklines use (Magenta→Cyan→Green→Yellow→Orange), in BOTH
-  // themes, so the map lines/chips match the dashboard's brightness exactly. (The
-  // glow underlay carries legibility on the basemap, so no darkening for light.)
+  // App-category sports present in the data, in a stable order. Each takes its fixed
+  // `SPORT_COLORS` identity color, in BOTH themes, so a sport reads the same here as on
+  // the charts and the dashboard. (These were positional spectrum colors, which meant
+  // filtering the map repainted whichever sports remained.) The glow underlay carries
+  // legibility on the basemap, so no darkening for light.
   const orderedSports = useMemo(
     () => [...new Set(activities.map((a) => a.sport))].sort(),
     [activities]
   );
   const sportColors = useMemo(() => {
-    const total = orderedSports.length;
     const map: Record<string, string> = {};
-    orderedSports.forEach((sport, i) => {
-      map[sport] = getSpectrumColor(i, total);
+    orderedSports.forEach((sport) => {
+      map[sport] = SPORT_COLORS[sport] ?? DEFAULT_SPORT_COLOR;
     });
     return map;
   }, [orderedSports]);

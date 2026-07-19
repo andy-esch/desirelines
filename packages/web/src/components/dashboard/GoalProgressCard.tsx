@@ -103,11 +103,15 @@ function SportProgressRow({ sport, yearContext }: SportProgressRowProps) {
   return (
     <div className="mb-2">
       <div className="flex justify-between items-center mb-1">
+        {/* Neutral label, not the sport color: full-brightness neon as text is
+            unreadable on the light ground. The RaceTrack directly below is already
+            drawn in `sport.color`, so identity is carried by that mark and the label
+            doesn't need to repeat it. `text-body-text` is explicit because the global
+            `a` rule would otherwise tint this link accent-cyan. */}
         <Link
           to="/$sport/$year"
           params={{ sport: sport.sport, year: String(yearContext.year) }}
-          className="text-sm"
-          style={{ color: sport.color }}
+          className="text-sm text-body-text"
         >
           {sport.displayName}
         </Link>

@@ -22,7 +22,6 @@ interface SportMetaItem {
   sport: string;
   displayName: string;
   color: string;
-  textColor: string;
   lastActivityYear: number;
   isDistanceSport: boolean;
   isTimeSport: boolean;
@@ -161,17 +160,22 @@ function UnifiedSparklineTooltip({
 
 /**
  * Legend showing sport names with links to sport pages.
+ *
+ * The label wears a neutral text token, never the series color: a darkened spectrum
+ * color was unreadable on the light ground (the same neon-as-text failure fixed on
+ * the sport chips). The colored dash beside it carries the identity, so the pairing
+ * still reads — and `text-body-text` is needed explicitly here because the global
+ * `a` rule would otherwise tint these links accent-cyan.
  */
 function SparklineLegend({ sportMeta }: { sportMeta: SportMetaItem[] }) {
   return (
     <div className="flex flex-wrap gap-2 mb-2" style={{ fontSize: "0.75rem" }}>
-      {sportMeta.map(({ sport, displayName, color, textColor, lastActivityYear }) => (
+      {sportMeta.map(({ sport, displayName, color, lastActivityYear }) => (
         <Link
           key={sport}
           to="/$sport/$year"
           params={{ sport, year: String(lastActivityYear) }}
-          className="flex items-center gap-1"
-          style={{ color: textColor }}
+          className="flex items-center gap-1 text-body-text"
           title={displayName}
         >
           <span

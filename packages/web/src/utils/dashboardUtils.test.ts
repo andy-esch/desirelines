@@ -27,8 +27,6 @@ describe("dashboardUtils", () => {
   it("transforms distance-based sports correctly (meters to miles)", () => {
     const result = transformToSportGoalData({
       sport: "cycling",
-      index: 0,
-      totalSports: 1,
       metrics: [{ date: "2026-01-01", distance: 1609.34 }], // 1 mile
       goalsData: {
         goals: [
@@ -51,8 +49,6 @@ describe("dashboardUtils", () => {
   it("uses demo goals when not in auth mode", () => {
     const result = transformToSportGoalData({
       sport: "cycling",
-      index: 0,
-      totalSports: 1,
       metrics: [],
       goalsData: undefined,
       demoGoals: { conservative: 100, target: 200, stretch: 300 },
@@ -69,8 +65,6 @@ describe("dashboardUtils", () => {
   it("calculates impact goal as the smallest user goal", () => {
     const result = transformToSportGoalData({
       sport: "cycling",
-      index: 0,
-      totalSports: 1,
       metrics: [],
       goalsData: {
         goals: [
