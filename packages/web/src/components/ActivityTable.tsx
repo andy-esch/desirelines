@@ -10,7 +10,7 @@ import {
   type ElevationUnit,
 } from "../utils/units";
 import { SPORT_COLORS } from "../utils/sportConfig";
-import { formatDisplayDate } from "../utils/dateUtils";
+import { formatActivityDate } from "../utils/formatActivityDate";
 import NeonSpinner from "./NeonSpinner";
 import { ExternalLinkIcon } from "./ui/ExternalLinkIcon";
 import { MapPinIcon } from "./ui/MapPinIcon";
@@ -140,11 +140,7 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
               {activities.map((activity) => (
                 <tr key={activity.id}>
                   <td className="whitespace-nowrap">
-                    {formatDisplayDate(new Date(activity.startDateLocal), {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
+                    {formatActivityDate(activity.startDateLocal, { year: true })}
                   </td>
                   <td>
                     <a

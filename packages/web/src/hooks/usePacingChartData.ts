@@ -6,7 +6,7 @@ import { GOAL_COLORS } from "../constants/chartColors";
 import { calculatePacingYAxisMax, shouldShowDangerZone } from "../utils/chartScaling";
 import { useDangerThresholds } from "./useDangerThresholds";
 
-import { getCurrentLocalDate } from "../utils/dateUtils";
+import { getTodayUtcAnchored } from "../utils/dateUtils";
 
 interface UsePacingChartDataProps {
   year: number;
@@ -41,7 +41,7 @@ export function usePacingChartData({
   const startDate = new Date(Date.UTC(year, 0, 1));
   const endDate = new Date(Date.UTC(year, 11, 31));
   const lastEntry = distanceData.at(-1);
-  const latestDate = lastEntry === undefined ? getCurrentLocalDate() : new Date(lastEntry.x);
+  const latestDate = lastEntry === undefined ? getTodayUtcAnchored() : new Date(lastEntry.x);
   const displayEndDate = showFullYear ? endDate : latestDate;
 
   // 2. Calculate actual pacing data

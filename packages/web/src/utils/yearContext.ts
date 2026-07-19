@@ -47,17 +47,17 @@ export interface YearContext {
   shouldShowProgress: boolean;
 }
 
-import { getCurrentLocalDate } from "./dateUtils";
+import { getTodayUtcAnchored } from "./dateUtils";
 
 /**
  * Create a YearContext for the given year
  * Calculates all year-related flags and time metrics
  */
 export function createYearContext(year: number): YearContext {
-  // getCurrentLocalDate() returns today's calendar date at UTC midnight
-  // (see dateUtils.ts). Use .getTime() directly for day arithmetic since
+  // getTodayUtcAnchored() returns today's calendar date at UTC midnight
+  // (see dateUtils.ts). Use .getTime()/UTC getters for day arithmetic since
   // the value is already a clean UTC-midnight timestamp.
-  const today = getCurrentLocalDate();
+  const today = getTodayUtcAnchored();
   const currentYear = today.getUTCFullYear();
 
   const isCurrentYear = year === currentYear;

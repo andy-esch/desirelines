@@ -5,6 +5,14 @@ import tailwindcss from "@tailwindcss/vite";
 import { execSync } from "child_process";
 import { fileURLToPath, URL } from "node:url";
 
+// In test runs, pin the timezone to a UTC-negative zone (the sole athlete's) so
+// timezone off-by-one bugs surface in CI too — CI otherwise runs UTC, where the
+// local-vs-UTC-midnight distinction collapses and the bug hides. Respects an explicit
+// TZ override. `pool: "forks"` workers inherit this env, set here before they spawn.
+if (process.env.VITEST) {
+  process.env.TZ ??= "America/New_York";
+}
+
 // Get git commit hash for versioning
 let commitHash = "unknown";
 try {
@@ -40,9 +48,7 @@ export default defineConfig(({ mode }) => {
     // A secret sk.* token can't be URL-restricted — never let one into a bundle.
     const mapboxToken = env.VITE_MAPBOX_TOKEN ?? "";
     if (mapboxToken && !mapboxToken.startsWith("pk.")) {
-      throw new Error(
-        "VITE_MAPBOX_TOKEN must be a public pk.* token (never a secret sk.* token)."
-      );
+      throw new Error("VITE_MAPBOX_TOKEN must be a public pk.* token (never a secret sk.* token).");
     }
 
     if (missing.length > 0) {
