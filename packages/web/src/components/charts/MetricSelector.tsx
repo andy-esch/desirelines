@@ -1,4 +1,5 @@
 import { getMetricDisplayLabel } from "../../config/metricConfig";
+import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
 
 interface MetricSelectorProps {
   /** Available metric IDs for this sport (e.g., ["distance_meters", "time_minutes", "elevation_meters"]) */
@@ -10,10 +11,8 @@ interface MetricSelectorProps {
 }
 
 /**
- * Button group for selecting which metric to display in charts.
- *
- * Shows available metrics for a sport as toggle buttons.
- * Uses Bootstrap button group styling consistent with the view toggle.
+ * Single-select toggle for which metric a chart displays. Shared by the Charts view and
+ * the sport detail pages. Renders nothing when there's only one metric to choose.
  *
  * @example
  * ```tsx
@@ -29,29 +28,24 @@ export default function MetricSelector({
   selectedMetric,
   onMetricChange,
 }: MetricSelectorProps) {
-  // Don't render if only one metric available
   if (availableMetrics.length <= 1) {
     return null;
   }
 
   return (
-    <div className="btn-group btn-group-sm" role="group" aria-label="Select metric">
-      {availableMetrics.map((metricId) => {
-        const isSelected = selectedMetric === metricId;
-        const label = getMetricDisplayLabel(metricId);
-
-        return (
-          <button
-            key={metricId}
-            type="button"
-            className={`btn ${isSelected ? "btn-secondary" : "btn-outline-secondary"}`}
-            onClick={() => onMetricChange(metricId)}
-            aria-pressed={isSelected}
-          >
-            {label}
-          </button>
-        );
-      })}
-    </div>
+    <ToggleGroup
+      value={[selectedMetric]}
+      onValueChange={(vals) => {
+        const v = vals[0];
+        if (v) onMetricChange(v); // ignore deselect-to-empty; a metric is always active
+      }}
+      aria-label="Select metric"
+    >
+      {availableMetrics.map((metricId) => (
+        <ToggleGroupItem key={metricId} value={metricId}>
+          {getMetricDisplayLabel(metricId)}
+        </ToggleGroupItem>
+      ))}
+    </ToggleGroup>
   );
 }
