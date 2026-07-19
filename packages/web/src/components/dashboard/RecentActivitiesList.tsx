@@ -46,9 +46,16 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
   return { r: (n >> 16) & 0xff, g: (n >> 8) & 0xff, b: n & 0xff };
 }
 
-/** Impact glow color endpoints */
-const IMPACT_COLOR_START = hexToRgb("#718096"); // slate-light
-const IMPACT_COLOR_END = hexToRgb("#ff00ff"); // accent-magenta
+/**
+ * Impact glow color endpoints.
+ *
+ * These stay literal because the ramp is interpolated numerically in JS, which a
+ * CSS custom property can't feed. Note the start is slate-light's DARK value, so
+ * the ramp does not currently adapt to the light theme — fixing that needs the
+ * runtime token resolver (the same one Mapbox will need), not a literal swap.
+ */
+const IMPACT_COLOR_START = hexToRgb("#718096"); // slate-light (dark-theme value)
+const IMPACT_COLOR_END = hexToRgb("#ff00ff"); // neon-magenta (not accent-magenta, which flips)
 /** Impact percentage at which glow reaches full intensity */
 const IMPACT_FULL_PCT = 2;
 /** Maximum glow radius in px */
@@ -73,7 +80,9 @@ function getImpactStyle(pct: number | null): React.CSSProperties | undefined {
   return {
     color: `rgb(${r}, ${g}, ${b})`,
     textShadow:
-      t > IMPACT_GLOW_THRESHOLD ? `0 0 ${glowRadius}px rgba(255, 0, 255, ${glowAlpha})` : undefined,
+      t > IMPACT_GLOW_THRESHOLD
+        ? `0 0 ${glowRadius}px color-mix(in srgb, var(--color-neon-magenta) ${glowAlpha * 100}%, transparent)`
+        : undefined,
   };
 }
 

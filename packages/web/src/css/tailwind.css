@@ -17,8 +17,14 @@
   --color-slate-light: #778899;
   --color-slate-lighter: #a0aec0;
 
-  /* === Accent: Cyan — primary interactive color === */
-  --color-accent-cyan: #00d4ff;
+  /* === Accent: Cyan — primary interactive color ===
+     `--color-brand-cyan` is the PRIMITIVE: the fixed full-brightness value, the same
+     in both themes. `--color-accent-cyan` is the SEMANTIC token derived from it, and
+     it flips to a WCAG-safe teal in light mode. Chrome that must stay bright in both
+     themes (logo, avatar, glows) references the primitive directly; anything that
+     should adapt to the theme references the accent. */
+  --color-brand-cyan: #00d4ff;
+  --color-accent-cyan: var(--color-brand-cyan);
   --color-accent-cyan-hover: #00b8e6;
   --color-accent-cyan-glow: rgba(0, 212, 255, 0.15);
   --color-accent-cyan-text: #1a202c;
@@ -27,11 +33,34 @@
   --color-accent-magenta: #ff00ff;
   --color-accent-magenta-glow: rgba(255, 0, 255, 0.15);
 
-  /* === Neon — full-brightness for charts, skeletons, animations === */
+  /* === Neon — full-brightness PRIMITIVES for charts, skeletons, animations ===
+     These never flip by theme: full-brightness neon is the brand, and it reads on
+     both grounds (light-mode legibility is earned with outlines/neutral labels, not
+     by dimming these — see --color-chart-mark-outline below). Nothing outside this
+     block and the role tokens beneath it should name a raw neon value. */
   --color-neon-cyan: rgb(0, 255, 255);
   --color-neon-magenta: rgb(255, 0, 255);
   --color-neon-purple: rgb(180, 0, 255);
   --color-neon-green: rgb(0, 255, 128);
+  --color-neon-yellow: rgb(255, 200, 0);
+  --color-neon-orange: rgb(255, 95, 31);
+  --color-neon-lime: #39ff14;
+  /* Pure yellow — used only by the logo slash, and deliberately NOT the same as
+     --color-neon-yellow (255,200,0). Kept distinct to preserve the mark exactly;
+     consolidate the two if the logo is ever restyled. */
+  --color-neon-yellow-pure: rgb(255, 255, 0);
+
+  /* Ink for text/marks sitting ON a bright neon fill. Fixed in both themes, because
+     the fill is bright in both — this is why it can't be --color-bg-body.
+     NOTE: --color-sport-on (#0b1120) does the same job with a slightly different
+     value; converge them when the style guide is reconciled. */
+  --color-on-neon: #1a202c;
+
+  /* Activity-intensity ramp (calendar heatmap): soft purple → neon magenta. */
+  --color-intensity-1: rgb(180, 130, 200);
+  --color-intensity-2: rgb(200, 100, 220);
+  --color-intensity-3: rgb(220, 60, 255);
+  --color-intensity-4: var(--color-neon-magenta);
 
   /* === Status — semantic feedback colors === */
   --color-danger: #dc3545;

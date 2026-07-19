@@ -5,6 +5,7 @@ import { ExternalLinkIcon } from "../ui/ExternalLinkIcon";
 import type { MapActivity } from "../../api/map";
 import { formatDistance, type DistanceUnit } from "../../utils/units";
 import { formatActivityDate } from "../../utils/formatActivityDate";
+import { DEFAULT_SPORT_COLOR } from "../../utils/sportConfig";
 
 /** Keep the list compact so the filters above it stay in view. */
 const PAGE_SIZE = 5;
@@ -22,8 +23,6 @@ export interface MapActivityListProps {
   /** Row click → select on the map (highlight + fit). */
   onSelect: (activity: MapActivity) => void;
 }
-
-const FALLBACK_COLOR = "rgb(150, 150, 150)";
 
 function stravaUrl(activityId: number): string {
   return `https://www.strava.com/activities/${activityId}`;
@@ -169,7 +168,7 @@ export default function MapActivityList({
                   <span
                     aria-hidden="true"
                     className="size-2 shrink-0 rounded-full"
-                    style={{ backgroundColor: sportColors[a.sport] ?? FALLBACK_COLOR }}
+                    style={{ backgroundColor: sportColors[a.sport] ?? DEFAULT_SPORT_COLOR }}
                   />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-body-text" title={a.name}>

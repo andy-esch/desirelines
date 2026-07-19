@@ -22,10 +22,10 @@ type SportFilterMode = "all" | "visible";
 /** Color scale for activity intensity (NEON purple/magenta theme) */
 const INTENSITY_COLORS = [
   "var(--color-slate-light)", // 0 activities - muted gray
-  "rgb(180, 130, 200)", // 1 activity - soft purple
-  "rgb(200, 100, 220)", // 2-3 activities - medium purple
-  "rgb(220, 60, 255)", // 4-5 activities - bright purple
-  "rgb(255, 0, 255)", // 6+ activities - neon magenta
+  "var(--color-intensity-1)", // 1 activity - soft purple
+  "var(--color-intensity-2)", // 2-3 activities - medium purple
+  "var(--color-intensity-3)", // 4-5 activities - bright purple
+  "var(--color-intensity-4)", // 6+ activities - neon magenta
 ] as const;
 
 /** Get color for activity count */

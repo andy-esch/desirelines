@@ -21,9 +21,21 @@ export default function Logo({
         alignItems: "baseline",
       }}
     >
-      <span style={{ color: "rgba(0, 255, 255, 0.7)" }}>desire</span>
-      <span style={{ color: "rgba(255, 255, 0, 0.9)", fontSize: "1.2em", fontWeight: 400 }}>/</span>
-      <span style={{ color: "rgba(255, 0, 255, 0.7)" }}>lines</span>
+      <span style={{ color: "color-mix(in srgb, var(--color-neon-cyan) 70%, transparent)" }}>
+        desire
+      </span>
+      <span
+        style={{
+          color: "color-mix(in srgb, var(--color-neon-yellow-pure) 90%, transparent)",
+          fontSize: "1.2em",
+          fontWeight: 400,
+        }}
+      >
+        /
+      </span>
+      <span style={{ color: "color-mix(in srgb, var(--color-neon-magenta) 70%, transparent)" }}>
+        lines
+      </span>
     </span>
   );
 }
