@@ -587,7 +587,11 @@ export default function RoutesPage() {
           {/* Deep-link focus banner: the map is pinned to one activity. Offers the
               way back to the full map (also clears the ?activity= param). */}
           {focusId != null && (
-            <div className="absolute left-1/2 top-2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full bg-slate-dark/85 px-3 py-1 text-xs text-slate-light backdrop-blur-sm">
+            <div className="pill-neon absolute left-1/2 top-2 z-10 flex -translate-x-1/2 items-center gap-2.5 rounded-full border bg-slate-dark/85 px-3.5 py-1.5 text-xs text-slate-light backdrop-blur-sm">
+              <span
+                aria-hidden="true"
+                className="pill-neon-dot h-1.5 w-1.5 shrink-0 rounded-full"
+              />
               <span>
                 {datasetLoading
                   ? "Loading activity…"
@@ -598,7 +602,7 @@ export default function RoutesPage() {
               <button
                 type="button"
                 onClick={exitFocus}
-                className="font-medium text-accent-cyan hover:underline"
+                className="font-medium text-accent-cyan transition-[text-shadow] hover:underline hover:[text-shadow:0_0_8px_var(--color-accent-cyan-glow)]"
               >
                 Show all
               </button>
