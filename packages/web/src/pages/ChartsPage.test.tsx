@@ -55,7 +55,7 @@ async function renderChartsPage(initialRoute = "/charts") {
     component: ChartsPage,
     validateSearch: (search: Record<string, unknown>) => ({
       range: typeof search.range === "string" ? search.range : undefined,
-      sport: typeof search.sport === "string" ? search.sport : undefined,
+      sports: typeof search.sports === "string" ? search.sports : undefined,
     }),
   });
   const router = createRouter({
@@ -138,5 +138,19 @@ describe("ChartsPage", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(/network error/i);
     await user.click(screen.getByRole("button", { name: /retry/i }));
     expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the active-filter pill for a non-default range + sport", async () => {
+    mockAllActivities([activity({ sport: "cycling", hasRoute: true })]);
+    await renderChartsPage("/charts?range=6m&sports=cycling");
+    expect(screen.getByRole("button", { name: /clear filters/i })).toBeInTheDocument();
+    expect(document.body.textContent).toContain("6 Months");
+    expect(document.body.textContent).toContain("Cycling");
+  });
+
+  it("hides the active-filter pill when filters are at their defaults", async () => {
+    mockAllActivities([activity({ sport: "cycling", hasRoute: true })]);
+    await renderChartsPage(); // "/charts" → ytd default, no sport = no filter
+    expect(screen.queryByRole("button", { name: /clear filters/i })).not.toBeInTheDocument();
   });
 });

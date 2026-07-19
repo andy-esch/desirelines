@@ -4,6 +4,7 @@ import { PageLayout } from "../components/layout/PageLayout";
 import ChartContainer from "../components/charts/ChartContainer";
 import MetricSelector from "../components/charts/MetricSelector";
 import ActivityVolumeChart from "../components/charts/ActivityVolumeChart";
+import ActiveFilterPill, { activeFilterLabels } from "../components/ActiveFilterPill";
 import { useAllActivities } from "../hooks/useAllActivities";
 import { useSportConfig } from "../hooks/useSportConfig";
 import { useUserConfig } from "../hooks/useUserConfig";
@@ -35,6 +36,10 @@ const FALLBACK_SPORT_OPTIONS = [
   { value: "running", label: "Running" },
   { value: "yoga", label: "Yoga" },
 ];
+
+// Charts opens on year-to-date (more history than the table's 4w). Single source so the
+// URL fallback and the "is a filter active?" pill logic can't drift apart.
+const DEFAULT_RANGE: TimeRange = "ytd";
 
 // MetricSelector labels via getMetricDisplayLabel, which only maps the API metric
 // keys — so use those (not "distance"/"time"/"sessions", which fall through to raw
@@ -70,9 +75,10 @@ export default function ChartsPage() {
     return [{ value: "", label: "All Sports" }, ...options];
   }, [sportConfig]);
 
-  // URL is the source of truth for the shared Activities-group filters.
-  const selectedRange: TimeRange = coerceTimeRange(search.range, "ytd");
-  const selectedSport = search.sport ?? "";
+  // URL is the source of truth for the shared Activities-group filters. `sports` is the
+  // shared param name (plural, matching the map); this single-select view uses the first.
+  const selectedRange: TimeRange = coerceTimeRange(search.range, DEFAULT_RANGE);
+  const selectedSport = search.sports?.split(",")[0] ?? "";
   const [metricId, setMetricId] = useState<MetricId>("distance_meters");
   const [typeFilter, setTypeFilter] = useState<ActivityTypeFilter>("all");
   const metric = METRIC_ID_TO_BUCKET[metricId];
@@ -158,19 +164,35 @@ export default function ChartsPage() {
     count: "Activities",
   }[metric];
 
-  const setSearch = (patch: { range?: TimeRange; sport?: string }) => {
+  const setSearch = (patch: { range?: TimeRange; sports?: string }) => {
     void navigate({
       to: "/charts",
       search: (prev) => {
         const next = { ...prev, ...patch };
-        if (!next.sport) delete next.sport; // strip empty ?sport= (All Sports) from the URL
+        if (!next.sports) delete next.sports; // strip empty ?sports= (All Sports) from the URL
         return next;
       },
     });
   };
 
+  // Active, non-default filters (range ≠ the ytd default, or a specific sport) drive the
+  // floating pill so a left-over/bookmarked filter never reads as missing data.
+  const activeFilters = useMemo(
+    () =>
+      activeFilterLabels(
+        selectedRange,
+        DEFAULT_RANGE,
+        selectedSport,
+        TIME_RANGE_OPTIONS,
+        sportOptions
+      ),
+    [selectedRange, selectedSport, sportOptions]
+  );
+  const clearFilters = () => void navigate({ to: "/charts", search: {} });
+
   return (
     <PageLayout background="activities">
+      <ActiveFilterPill filters={activeFilters} onClear={clearFilters} />
       <div className="px-4 md:px-6 py-6 max-w-6xl mx-auto">
         <div className="mb-3">
           <h1 className="h3 mb-0 font-display">Charts</h1>
@@ -189,7 +211,7 @@ export default function ChartsPage() {
               id="chartsTimeRange"
               className="form-select form-select-sm"
               value={selectedRange}
-              onChange={(e) => setSearch({ range: coerceTimeRange(e.target.value, "ytd") })}
+              onChange={(e) => setSearch({ range: coerceTimeRange(e.target.value, DEFAULT_RANGE) })}
               style={{ width: "auto" }}
             >
               {TIME_RANGE_OPTIONS.map((o) => (
@@ -208,7 +230,7 @@ export default function ChartsPage() {
               id="chartsSport"
               className="form-select form-select-sm"
               value={selectedSport}
-              onChange={(e) => setSearch({ sport: e.target.value })}
+              onChange={(e) => setSearch({ sports: e.target.value })}
               style={{ width: "auto" }}
             >
               {sportOptions.map((o) => (

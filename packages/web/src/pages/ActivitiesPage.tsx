@@ -6,6 +6,7 @@ import { getUserSettings } from "../utils/units";
 import { useUserConfig } from "../hooks/useUserConfig";
 import { useSportConfig } from "../hooks/useSportConfig";
 import { PageLayout } from "../components/layout/PageLayout";
+import ActiveFilterPill, { activeFilterLabels } from "../components/ActiveFilterPill";
 import {
   type TimeRange,
   TIME_RANGE_OPTIONS,
@@ -19,6 +20,10 @@ const FALLBACK_SPORT_OPTIONS = [
   { value: "running", label: "Running" },
   { value: "yoga", label: "Yoga" },
 ];
+
+// List opens on the last 4 weeks. Single source so the URL fallback and the pill's
+// "is a filter active?" logic can't drift apart.
+const DEFAULT_RANGE: TimeRange = "4w";
 
 const ActivitiesPage = () => {
   const search = useSearch({ from: "/activities" });
@@ -39,9 +44,10 @@ const ActivitiesPage = () => {
     return [{ value: "", label: "All Sports" }, ...options];
   }, [sportConfig]);
 
-  // Derive filter values from URL (single source of truth)
-  const selectedRange: TimeRange = coerceTimeRange(search.range, "4w");
-  const selectedSport = search.sport || "";
+  // Derive filter values from URL (single source of truth). `sports` is the shared param
+  // name (plural, matching the map); this single-select view uses the first.
+  const selectedRange: TimeRange = coerceTimeRange(search.range, DEFAULT_RANGE);
+  const selectedSport = search.sports?.split(",")[0] ?? "";
 
   // Calculate date range based on selection
   const dateRange = useMemo(() => calculateDateRange(selectedRange), [selectedRange]);
@@ -71,14 +77,30 @@ const ActivitiesPage = () => {
     void navigate({
       to: "/activities",
       search: (prev) => {
-        const { sport: _omit, ...rest } = prev;
-        return newSport ? { ...rest, sport: newSport } : rest;
+        const { sports: _omit, ...rest } = prev;
+        return newSport ? { ...rest, sports: newSport } : rest;
       },
     });
   };
 
+  // Active, non-default filters (range ≠ the 4w default, or a specific sport) drive the
+  // floating pill so a left-over/bookmarked filter never reads as missing data.
+  const activeFilters = useMemo(
+    () =>
+      activeFilterLabels(
+        selectedRange,
+        DEFAULT_RANGE,
+        selectedSport,
+        TIME_RANGE_OPTIONS,
+        sportOptions
+      ),
+    [selectedRange, selectedSport, sportOptions]
+  );
+  const clearFilters = () => void navigate({ to: "/activities", search: {} });
+
   return (
     <PageLayout background="activities">
+      <ActiveFilterPill filters={activeFilters} onClear={clearFilters} />
       <div className="px-4 md:px-6 py-6 max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-3">
