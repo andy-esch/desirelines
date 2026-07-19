@@ -77,6 +77,29 @@ describe("Navigation", () => {
       expect(screen.getByRole("menuitem", { name: "List" })).toHaveAttribute("href", "/activities");
     });
 
+    it("carries the shared ?range=/?sports= filters across Activities-group switches", async () => {
+      await renderNav(<Navigation />, { route: "/charts?range=6m&sports=cycling" });
+      await userEvent.click(screen.getByRole("button", { name: /Activities/ }));
+      const listHref =
+        (await screen.findByRole("menuitem", { name: "List" })).getAttribute("href") ?? "";
+      expect(listHref).toContain("/activities");
+      expect(listHref).toContain("range=6m");
+      expect(listHref).toContain("sports=cycling");
+      const chartsHref =
+        screen.getByRole("menuitem", { name: "Charts" }).getAttribute("href") ?? "";
+      expect(chartsHref).toContain("range=6m");
+      expect(chartsHref).toContain("sports=cycling");
+    });
+
+    it("carries the map's ?sports= straight through to Charts (shared param)", async () => {
+      await renderNav(<Navigation />, { route: "/routes?sports=running" });
+      await userEvent.click(screen.getByRole("button", { name: /Activities/ }));
+      const chartsHref =
+        (await screen.findByRole("menuitem", { name: "Charts" })).getAttribute("href") ?? "";
+      expect(chartsHref).toContain("/charts");
+      expect(chartsHref).toContain("sports=running");
+    });
+
     it("highlights the Activities dropdown when on one of its views", async () => {
       await renderNav(<Navigation />, { route: "/charts" });
       expect(screen.getByRole("button", { name: /Activities/ })).toHaveClass("active");

@@ -36,7 +36,7 @@ async function renderActivitiesPage(initialRoute = "/activities") {
     component: ActivitiesPage,
     validateSearch: (search: Record<string, unknown>) => ({
       range: typeof search.range === "string" ? search.range : undefined,
-      sport: typeof search.sport === "string" ? search.sport : undefined,
+      sports: typeof search.sports === "string" ? search.sports : undefined,
     }),
   });
   const routeTree = rootRoute.addChildren([activitiesRoute]);
@@ -189,7 +189,7 @@ describe("ActivitiesPage", () => {
     it("reads initial filter from URL", async () => {
       const useActivitiesSpy = vi.spyOn(useActivitiesModule, "useActivities");
 
-      await renderActivitiesPage("/activities?range=2m&sport=running");
+      await renderActivitiesPage("/activities?range=2m&sports=running");
 
       expect(useActivitiesSpy).toHaveBeenCalledWith(expect.objectContaining({ sport: "running" }));
     });
