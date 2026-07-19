@@ -41,8 +41,21 @@
   /* === Body text === */
   --color-body-text: #e2e8f0;
 
+  /* === Sport marks — scaffolding that keeps the full-brightness SPORT_COLORS
+     legible without muting them. 14 of 16 fall under 3:1 on the light ground, so
+     the neon moves into dots/fills/outlines and the LABEL goes neutral.
+     --color-sport-on is deliberately NOT theme-flipped: it's the ink for a label
+     sitting on a bright neon fill, and that fill is bright in both themes (bg-body
+     can't do this job — it's light in light mode). === */
+  --color-chip-hairline: rgba(148, 163, 184, 0.28);
+  --color-sport-on: #0b1120;
+
   /* === Chart colors — grid, axes, tooltips, data lines === */
   --color-chart-grid: rgba(255, 255, 255, 0.12);
+  /* Outline on sport-colored marks. Dark: the page ground, which reads as the
+     hairline separating stacked segments. Light: ink, so the neon fill has a
+     boundary that clears 3:1 against #f0f4f8. */
+  --color-chart-mark-outline: #0f1724;
   --color-chart-axis: #718096;
   --color-chart-tick: #718096;
   --color-chart-actual-line: #ffffff;
@@ -100,7 +113,10 @@ html:not(.dark) {
 
   --color-body-text: #1e293b;
 
+  --color-chip-hairline: rgba(15, 23, 42, 0.22);
+
   --color-chart-grid: rgba(0, 0, 0, 0.1);
+  --color-chart-mark-outline: #1e293b;
   --color-chart-axis: #94a3b8;
   --color-chart-tick: #64748b;
   --color-chart-actual-line: #1e293b;
@@ -684,11 +700,28 @@ html:not(.dark) {
     color: #000;
     white-space: nowrap;
   }
-  /* --sport-color is set via inline style on the badge element (see ActivityTable.tsx) */
+  /* --sport-color is set via inline style on the badge element (see ActivityTable.tsx).
+     Same treatment as the sport chips: the neon is a glowing dot + tinted hairline, and
+     the label is a neutral token — as the sport color it sat under 3:1 on the light
+     ground for 14 of the 16 sports. */
   .badge-sport {
-    color: var(--sport-color);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45em;
+    color: var(--color-body-text);
     background-color: color-mix(in srgb, var(--sport-color) 15%, transparent);
-    border: 1px solid color-mix(in srgb, var(--sport-color) 30%, transparent);
+    border: 1px solid color-mix(in srgb, var(--sport-color) 55%, var(--color-chip-hairline));
+  }
+  .badge-sport::before {
+    content: "";
+    flex: none;
+    width: 0.5em;
+    height: 0.5em;
+    border-radius: 50%;
+    background-color: var(--sport-color);
+    box-shadow:
+      0 0 7px var(--sport-color),
+      0 0 2px var(--sport-color);
   }
 
   /* --- Alerts --- */

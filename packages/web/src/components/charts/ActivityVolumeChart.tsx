@@ -106,10 +106,11 @@ export default function ActivityVolumeChart({
               dataKey={s.key}
               stackId="volume"
               fill={sportColor(s.sport)}
-              // Thin page-bg ring separates stacked fills. Uses --color-bg-body
-              // (theme-aware, defined) — the earlier --color-chart-surface was
-              // undefined, which SVG treats as `none`, so segments bled together.
-              stroke="var(--color-bg-body)"
+              // Thin ring around each stacked fill, doing two jobs at once. Dark: it
+              // resolves to the page ground and just separates segments. Light: it goes
+              // to ink, giving the neon fill a boundary that clears 3:1 against
+              // #f0f4f8 — which --color-bg-body could not do, being light there.
+              stroke="var(--color-chart-mark-outline)"
               strokeWidth={1}
               isAnimationActive={false}
             />
@@ -122,7 +123,9 @@ export default function ActivityVolumeChart({
           <span key={s.key} className="inline-flex items-center gap-1.5">
             <span
               aria-hidden="true"
-              className="inline-block h-2.5 w-2.5 rounded-sm"
+              // Same outline as the bars: invisible against the dark ground, an ink
+              // boundary in light mode so a 10px neon square is still a legible mark.
+              className="inline-block h-2.5 w-2.5 rounded-sm ring-1 ring-chart-mark-outline"
               style={{ backgroundColor: sportColor(s.sport) }}
             />
             {getSportDisplayName(s.sport, sportConfig)}
@@ -207,6 +210,11 @@ function VolumeTooltip({
                 height: "8px",
                 borderRadius: "2px",
                 backgroundColor: sportColor(r.meta!.sport),
+                // Same outline as the bars and legend. This one earns its keep on the
+                // near-white light tooltip, where an 8px neon square is ~1.3:1; in dark
+                // it's a faint hairline against the tooltip fill rather than invisible,
+                // which is the intended cost of keeping one token for all sport marks.
+                boxShadow: "0 0 0 1px var(--color-chart-mark-outline)",
                 flexShrink: 0,
               }}
             />
