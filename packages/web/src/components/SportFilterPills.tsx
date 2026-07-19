@@ -27,6 +27,11 @@ interface SportFilterPillsProps {
  * not every category — plus the current URL selection if it falls outside that set, so the
  * filter stays representable. (Colors use the fixed `SPORT_COLORS` so a chip matches the
  * chart bar beside it; unifying with the map's positional colors is a separate task.)
+ *
+ * The sport color is an accent, not the text: full-brightness neon on the light ground
+ * fails 3:1 for 14 of the 16 sports, so an unselected chip pairs a neutral label with a
+ * glowing dot + neon-tinted hairline, and a selected one turns the neon into the fill.
+ * That keeps the palette acid-bright in both themes without muting it to make it legible.
  */
 export default function SportFilterPills({
   sportOptions,
@@ -58,11 +63,27 @@ export default function SportFilterPills({
             value={o.value}
             style={{ "--chip": color } as CSSProperties}
             className={cn(
-              "border border-[var(--chip)] bg-transparent text-[var(--chip)]",
-              "hover:bg-transparent hover:text-[var(--chip)]",
-              "data-[pressed]:bg-[var(--chip)] data-[pressed]:text-bg-body"
+              "group",
+              // Unselected: the label is a neutral theme token, never the sport color —
+              // the neon is carried by the glowing dot and a hairline tinted toward it.
+              "border border-[color-mix(in_srgb,var(--chip)_55%,var(--color-chip-hairline))]",
+              "bg-transparent text-foreground",
+              "hover:bg-[color-mix(in_srgb,var(--chip)_10%,transparent)] hover:text-foreground",
+              // Selected: neon becomes the fill. The label pins to a fixed dark ink
+              // rather than bg-body, which is *light* in light mode (light-on-neon).
+              "data-[pressed]:border-transparent data-[pressed]:bg-[var(--chip)] data-[pressed]:text-sport-on"
             )}
           >
+            <span
+              aria-hidden="true"
+              className={cn(
+                "size-2 shrink-0 rounded-full bg-[var(--chip)]",
+                "shadow-[0_0_7px_var(--chip),0_0_2px_var(--chip)]",
+                // On the bright fill the glow has nothing to glow against; the dot
+                // inverts to the label ink so the chip's width doesn't shift on toggle.
+                "group-data-[pressed]:bg-sport-on group-data-[pressed]:shadow-none"
+              )}
+            />
             {o.label}
           </ToggleGroupItem>
         );
