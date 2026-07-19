@@ -347,6 +347,26 @@ html:not(.dark) {
     text-shadow: 0 0 2px rgba(255, 255, 255, 0.8);
   }
 
+  /* --- Map deep-link pill: neon border + glow. Dark values match the base
+         accent; light-mode overrides crank the cyan so it doesn't wash out
+         against the pale (light-slate) pill. --- */
+  .pill-neon {
+    border-color: rgba(0, 212, 255, 0.4);
+    box-shadow: 0 0 18px var(--color-accent-cyan-glow);
+  }
+  .pill-neon-dot {
+    background-color: var(--color-accent-cyan);
+    box-shadow: 0 0 6px var(--color-accent-cyan);
+  }
+  html:not(.dark) .pill-neon {
+    border-color: rgba(0, 184, 230, 0.75);
+    box-shadow: 0 0 20px rgba(0, 184, 230, 0.4);
+  }
+  html:not(.dark) .pill-neon-dot {
+    background-color: #00b8e6;
+    box-shadow: 0 0 8px rgba(0, 184, 230, 0.85);
+  }
+
   /* --- Demo Mode Banner --- */
 
   .alert-demo {
