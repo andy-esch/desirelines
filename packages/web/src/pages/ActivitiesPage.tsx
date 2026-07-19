@@ -5,8 +5,17 @@ import { useActivities } from "../hooks/useActivities";
 import { getUserSettings } from "../utils/units";
 import { useUserConfig } from "../hooks/useUserConfig";
 import { useSportConfig } from "../hooks/useSportConfig";
+import { useVisibleSports } from "../hooks/useVisibleSports";
 import { PageLayout } from "../components/layout/PageLayout";
 import ActiveFilterPill, { activeFilterLabels } from "../components/ActiveFilterPill";
+import SportFilterPills from "../components/SportFilterPills";
+import {
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from "../components/ui/select";
 import {
   type TimeRange,
   TIME_RANGE_OPTIONS,
@@ -35,6 +44,7 @@ const ActivitiesPage = () => {
 
   // Derive sport filter options from config (fallback while loading)
   const { sportConfig } = useSportConfig();
+  const { visibleSports } = useVisibleSports();
   const sportOptions = useMemo(() => {
     if (!sportConfig) return FALLBACK_SPORT_OPTIONS;
     const options = Object.entries(sportConfig.sportCategories).map(([key, cat]) => ({
@@ -108,43 +118,41 @@ const ActivitiesPage = () => {
         </div>
 
         {/* Filters */}
-        <div className="flex items-center gap-6 mb-6">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 mb-6">
           <div className="flex items-center gap-2">
-            <label htmlFor="timeRange" className="text-slate-light text-sm mb-0">
+            <span id="activitiesTimeLabel" className="text-slate-light text-sm">
               Time:
-            </label>
-            <select
-              id="timeRange"
-              className="form-select form-select-sm"
+            </span>
+            <Select
               value={selectedRange}
-              onChange={(e) => handleRangeChange(e.target.value as TimeRange)}
-              style={{ width: "auto" }}
+              onValueChange={(v) => handleRangeChange(coerceTimeRange(v, DEFAULT_RANGE))}
             >
-              {TIME_RANGE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger aria-labelledby="activitiesTimeLabel" className="w-auto">
+                <SelectValue>
+                  {(v) => TIME_RANGE_OPTIONS.find((o) => o.value === v)?.label ?? ""}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {TIME_RANGE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="flex items-center gap-2">
-            <label htmlFor="sportFilter" className="text-slate-light text-sm mb-0">
+            <span id="activitiesSportLabel" className="text-slate-light text-sm">
               Sport:
-            </label>
-            <select
-              id="sportFilter"
-              className="form-select form-select-sm"
-              value={selectedSport}
-              onChange={(e) => handleSportChange(e.target.value)}
-              style={{ width: "auto" }}
-            >
-              {sportOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            </span>
+            <SportFilterPills
+              sportOptions={sportOptions}
+              visibleSports={visibleSports}
+              selected={selectedSport}
+              onChange={handleSportChange}
+              labelledBy="activitiesSportLabel"
+            />
           </div>
         </div>
 

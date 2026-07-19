@@ -23,6 +23,9 @@ vi.mock("../hooks/useUserConfig", () => ({
 vi.mock("../hooks/useSportConfig", () => ({
   useSportConfig: () => ({ sportConfig: null, isLoading: false }),
 }));
+vi.mock("../hooks/useVisibleSports", () => ({
+  useVisibleSports: () => ({ visibleSports: ["cycling", "running", "yoga"] }),
+}));
 
 function activity(over: Partial<ActivitySummary>): ActivitySummary {
   return {

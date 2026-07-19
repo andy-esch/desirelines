@@ -23,6 +23,9 @@ vi.mock("../hooks/useUserConfig", () => ({
 vi.mock("../hooks/useSportConfig", () => ({
   useSportConfig: () => ({ sportConfig: null, isLoading: false }),
 }));
+vi.mock("../hooks/useVisibleSports", () => ({
+  useVisibleSports: () => ({ visibleSports: ["cycling", "running", "yoga"] }),
+}));
 
 /**
  * Create a router with an /activities route that has validateSearch
@@ -87,8 +90,8 @@ describe("ActivitiesPage", () => {
       await renderActivitiesPage();
 
       expect(screen.getByText("Activities")).toBeInTheDocument();
-      expect(screen.getByLabelText("Time:")).toBeInTheDocument();
-      expect(screen.getByLabelText("Sport:")).toBeInTheDocument();
+      expect(screen.getByText("Time:")).toBeInTheDocument();
+      expect(screen.getByText("Sport:")).toBeInTheDocument();
     });
 
     it("shows activities when authenticated", async () => {
@@ -120,64 +123,51 @@ describe("ActivitiesPage", () => {
       });
     });
 
-    it("renders time range filter", async () => {
+    it("renders the time-range select showing the current range", async () => {
       await renderActivitiesPage();
 
-      expect(screen.getByLabelText("Time:")).toBeInTheDocument();
-      expect(screen.getByRole("combobox", { name: "Time:" })).toBeInTheDocument();
+      // Default route → 4w; the Select trigger shows its label (options are portaled).
+      expect(screen.getByText("4 Weeks")).toBeInTheDocument();
     });
 
-    it("renders sport filter", async () => {
+    it("renders a colored pill per visible sport (no dropdown, no All-Sports chip)", async () => {
       await renderActivitiesPage();
 
-      expect(screen.getByLabelText("Sport:")).toBeInTheDocument();
-      expect(screen.getByRole("combobox", { name: "Sport:" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Cycling" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Running" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Yoga" })).toBeInTheDocument();
+      // "All sports" is the empty selection (deselect), not its own chip.
+      expect(screen.queryByRole("button", { name: "All Sports" })).not.toBeInTheDocument();
     });
 
-    it("has all time range options", async () => {
+    it("offers every time-range preset when opened", async () => {
+      const user = userEvent.setup();
       await renderActivitiesPage();
 
-      const timeSelect = screen.getByRole("combobox", { name: "Time:" });
-      expect(timeSelect).toContainElement(screen.getByText("2 Weeks"));
-      expect(timeSelect).toContainElement(screen.getByText("4 Weeks"));
-      expect(timeSelect).toContainElement(screen.getByText("2 Months"));
-      expect(timeSelect).toContainElement(screen.getByText("6 Months"));
-      expect(timeSelect).toContainElement(screen.getByText("Year to Date"));
-      expect(timeSelect).toContainElement(screen.getByText("All Time"));
+      await user.click(screen.getByText("4 Weeks")); // open the select
+      expect(await screen.findByRole("option", { name: "2 Weeks" })).toBeInTheDocument();
+      expect(screen.getByRole("option", { name: "2 Months" })).toBeInTheDocument();
+      expect(screen.getByRole("option", { name: "6 Months" })).toBeInTheDocument();
+      expect(screen.getByRole("option", { name: "Year to Date" })).toBeInTheDocument();
+      expect(screen.getByRole("option", { name: "All Time" })).toBeInTheDocument();
     });
 
-    it("has all sport options", async () => {
+    it("has no sport pill pressed by default (all sports)", async () => {
       await renderActivitiesPage();
 
-      const sportSelect = screen.getByRole("combobox", { name: "Sport:" });
-      expect(sportSelect).toContainElement(screen.getByText("All Sports"));
-      expect(sportSelect).toContainElement(screen.getByText("Cycling"));
-      expect(sportSelect).toContainElement(screen.getByText("Running"));
-      expect(sportSelect).toContainElement(screen.getByText("Yoga"));
+      expect(screen.getByRole("button", { name: "Cycling" })).toHaveAttribute(
+        "aria-pressed",
+        "false"
+      );
     });
 
-    it("defaults to 4 weeks time range", async () => {
-      await renderActivitiesPage();
-
-      const timeSelect = screen.getByRole("combobox", { name: "Time:" });
-      expect(timeSelect).toHaveValue("4w");
-    });
-
-    it("defaults to all sports", async () => {
-      await renderActivitiesPage();
-
-      const sportSelect = screen.getByRole("combobox", { name: "Sport:" });
-      expect(sportSelect).toHaveValue("");
-    });
-
-    it("calls useActivities with filter when sport changes", async () => {
+    it("calls useActivities with the filter when a sport pill is selected", async () => {
       const user = userEvent.setup();
       const useActivitiesSpy = vi.spyOn(useActivitiesModule, "useActivities");
 
       await renderActivitiesPage();
 
-      const sportSelect = screen.getByRole("combobox", { name: "Sport:" });
-      await user.selectOptions(sportSelect, "cycling");
+      await user.click(screen.getByRole("button", { name: "Cycling" }));
 
       await waitFor(() => {
         expect(useActivitiesSpy).toHaveBeenCalledWith(

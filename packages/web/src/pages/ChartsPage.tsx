@@ -5,9 +5,19 @@ import ChartContainer from "../components/charts/ChartContainer";
 import MetricSelector from "../components/charts/MetricSelector";
 import ActivityVolumeChart from "../components/charts/ActivityVolumeChart";
 import ActiveFilterPill, { activeFilterLabels } from "../components/ActiveFilterPill";
+import SportFilterPills from "../components/SportFilterPills";
+import {
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from "../components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "../components/ui/toggle-group";
 import { useAllActivities } from "../hooks/useAllActivities";
 import { useSportConfig } from "../hooks/useSportConfig";
 import { useUserConfig } from "../hooks/useUserConfig";
+import { useVisibleSports } from "../hooks/useVisibleSports";
 import {
   aggregateActivities,
   toChartData,
@@ -65,6 +75,7 @@ export default function ChartsPage() {
   const { data: preferences } = useUserConfig("preferences");
   const userSettings = getUserSettings(preferences);
   const { sportConfig } = useSportConfig();
+  const { visibleSports } = useVisibleSports();
 
   const sportOptions = useMemo(() => {
     if (!sportConfig) return FALLBACK_SPORT_OPTIONS;
@@ -201,67 +212,64 @@ export default function ChartsPage() {
           </p>
         </div>
 
-        {/* Shared range + sport filters, plus the metric toggle. */}
+        {/* Shared range + sport filters, plus the type + metric toggles. */}
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3 mb-6">
           <div className="flex items-center gap-2">
-            <label htmlFor="chartsTimeRange" className="text-slate-light text-sm mb-0">
+            <span id="chartsTimeLabel" className="text-slate-light text-sm">
               Time:
-            </label>
-            <select
-              id="chartsTimeRange"
-              className="form-select form-select-sm"
+            </span>
+            <Select
               value={selectedRange}
-              onChange={(e) => setSearch({ range: coerceTimeRange(e.target.value, DEFAULT_RANGE) })}
-              style={{ width: "auto" }}
+              onValueChange={(v) => setSearch({ range: coerceTimeRange(v, DEFAULT_RANGE) })}
             >
-              {TIME_RANGE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger aria-labelledby="chartsTimeLabel" className="w-auto">
+                <SelectValue>
+                  {(v) => TIME_RANGE_OPTIONS.find((o) => o.value === v)?.label ?? ""}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {TIME_RANGE_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="flex items-center gap-2">
-            <label htmlFor="chartsSport" className="text-slate-light text-sm mb-0">
+            <span id="chartsSportLabel" className="text-slate-light text-sm">
               Sport:
-            </label>
-            <select
-              id="chartsSport"
-              className="form-select form-select-sm"
-              value={selectedSport}
-              onChange={(e) => setSearch({ sports: e.target.value })}
-              style={{ width: "auto" }}
-            >
-              {sportOptions.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="btn-group btn-group-sm" role="group" aria-label="Filter by activity type">
-            {TYPE_OPTIONS.map((o) => (
-              <button
-                key={o.value}
-                type="button"
-                className={`btn ${typeFilter === o.value ? "btn-secondary" : "btn-outline-secondary"}`}
-                aria-pressed={typeFilter === o.value}
-                onClick={() => setTypeFilter(o.value)}
-              >
-                {o.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="ms-auto">
-            <MetricSelector
-              availableMetrics={[...METRIC_IDS]}
-              selectedMetric={metricId}
-              onMetricChange={(id) => setMetricId(id as MetricId)}
+            </span>
+            <SportFilterPills
+              sportOptions={sportOptions}
+              visibleSports={visibleSports}
+              selected={selectedSport}
+              onChange={(s) => setSearch({ sports: s })}
+              labelledBy="chartsSportLabel"
             />
           </div>
+
+          <ToggleGroup
+            value={[typeFilter]}
+            onValueChange={(vals) => {
+              const v = vals[0];
+              if (v) setTypeFilter(v as ActivityTypeFilter); // a type is always active
+            }}
+            aria-label="Filter by activity type"
+          >
+            {TYPE_OPTIONS.map((o) => (
+              <ToggleGroupItem key={o.value} value={o.value}>
+                {o.label}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+
+          <MetricSelector
+            availableMetrics={[...METRIC_IDS]}
+            selectedMetric={metricId}
+            onMetricChange={(id) => setMetricId(id as MetricId)}
+          />
         </div>
 
         <ChartContainer
