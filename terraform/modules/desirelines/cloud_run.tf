@@ -5,6 +5,24 @@
 locals {
   image_base_url = var.external_artifact_registry
 
+  # Image reference per service, preferring an immutable digest.
+  #
+  # A digest reference is byte-identical across commits that did not change the image, so
+  # Terraform sees no diff and creates no Cloud Run revision — which is the whole point
+  # (see `image_digests` in variables.tf). The tag form is the fallback for local or
+  # manual applies where no digest was resolved.
+  #
+  # Defined once and reused by all six container blocks below; previously each one
+  # interpolated the tag inline, so a change had to be made in six places.
+  image_ref = {
+    for name in ["dispatcher", "apigateway", "stravapipe"] :
+    name => (
+      lookup(var.image_digests, name, "") != ""
+      ? "${var.external_artifact_registry}/${name}@${var.image_digests[name]}"
+      : "${var.external_artifact_registry}/${name}:${var.deployment_version}"
+    )
+  }
+
   # Secrets for API Gateway OAuth flow
   api_gateway_oauth_secrets = {
     "INFISICAL_STRAVA_CLIENT_ID"     = google_secret_manager_secret.strava_client_id.secret_id
@@ -56,7 +74,7 @@ resource "google_cloud_run_v2_service" "dispatcher" {
     max_instance_request_concurrency = 1
 
     containers {
-      image = "${local.image_base_url}/dispatcher:${var.deployment_version}"
+      image = local.image_ref.dispatcher
 
       resources {
         limits = {
@@ -189,7 +207,7 @@ resource "google_cloud_run_v2_service" "api_gateway" {
     }
 
     containers {
-      image = "${local.image_base_url}/apigateway:${var.deployment_version}"
+      image = local.image_ref.apigateway
 
       resources {
         limits = {
@@ -356,7 +374,7 @@ resource "google_cloud_run_v2_service" "bq_inserter" {
     }
 
     containers {
-      image = "${local.image_base_url}/stravapipe:${var.deployment_version}"
+      image = local.image_ref.stravapipe
 
       command = ["uvicorn"]
       args    = ["stravapipe.cloudrun.bq_inserter_app:app", "--host", "0.0.0.0", "--port", "8080"]
@@ -462,7 +480,7 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
     }
 
     containers {
-      image = "${local.image_base_url}/stravapipe:${var.deployment_version}"
+      image = local.image_ref.stravapipe
 
       command = ["uvicorn"]
       args    = ["stravapipe.cloudrun.postgres_writer_app:app", "--host", "0.0.0.0", "--port", "8080"]
@@ -584,7 +602,7 @@ resource "google_cloud_run_v2_job" "backfill" {
       timeout = "3600s" # 1 hour max for large backfills
 
       containers {
-        image = "${local.image_base_url}/stravapipe:${var.deployment_version}"
+        image = local.image_ref.stravapipe
 
         command = ["python"]
         args    = ["-m", "stravapipe.cloudrun.backfill_job"]
@@ -697,7 +715,7 @@ resource "google_cloud_run_v2_service" "deletion_service" {
     }
 
     containers {
-      image = "${local.image_base_url}/stravapipe:${var.deployment_version}"
+      image = local.image_ref.stravapipe
 
       command = ["uvicorn"]
       args    = ["stravapipe.cloudrun.deletion_service_app:app", "--host", "0.0.0.0", "--port", "8080"]

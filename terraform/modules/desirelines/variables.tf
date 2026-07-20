@@ -92,6 +92,37 @@ variable "deployment_version" {
   }
 }
 
+# Per-service image digests, resolved from tags by the deploy pipeline.
+#
+# WHY THIS EXISTS: `deployment_version` is a git SHA, so the image reference string
+# changes on every commit even when the built bytes are identical. Terraform diffs the
+# string and creates a new Cloud Run revision for every service on every push — a real
+# traffic-shifting rollout for a service that did not change. Referencing an immutable
+# digest instead makes Terraform's own diff engine the guard: same bytes, no diff, no
+# revision.
+#
+# This is about deploy churn, not supply-chain immutability — Cloud Run already resolves
+# a tag to a digest and pins each revision to it.
+#
+# Empty (the default) falls back to tag-based references, which preserves local/manual
+# `terraform apply`. The deploy pipeline is expected to always populate it; if it stops,
+# the no-op revisions come back silently.
+variable "image_digests" {
+  description = "Map of service name (dispatcher/apigateway/stravapipe) to image digest, e.g. {dispatcher = \"sha256:abc...\"}. Empty falls back to tag-based image references."
+  type        = map(string)
+  default     = {}
+
+  validation {
+    condition     = alltrue([for d in values(var.image_digests) : can(regex("^sha256:[a-f0-9]{64}$", d))])
+    error_message = "Each image digest must be a full sha256 digest, e.g. 'sha256:' followed by 64 lowercase hex characters."
+  }
+
+  validation {
+    condition     = alltrue([for k in keys(var.image_digests) : contains(["dispatcher", "apigateway", "stravapipe"], k)])
+    error_message = "image_digests keys must be one of: dispatcher, apigateway, stravapipe."
+  }
+}
+
 variable "external_artifact_registry" {
   description = "Artifact Registry URL for container images. Format: REGION-docker.pkg.dev/PROJECT_ID/REPO_NAME"
   type        = string
