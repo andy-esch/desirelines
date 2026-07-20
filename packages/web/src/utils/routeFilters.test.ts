@@ -77,6 +77,28 @@ describe("domains", () => {
     ).toEqual(["2024-03-02", "2026-06-22"]);
     expect(activityDateDomain([], NOW)).toEqual(["2026-06-22", "2026-06-22"]);
   });
+
+  it("skips dateless activities instead of letting them anchor the domain", () => {
+    // MapActivitySchema defaults startDateLocal to "" when protojson omits it, and
+    // "" < "2024-03-02" in string ordering — so without a guard one dateless row
+    // drags the slider domain back to the empty string.
+    expect(
+      activityDateDomain(
+        [
+          act({ startDateLocal: "" }),
+          act({ startDateLocal: "2024-03-02T00:00:00" }),
+          act({ startDateLocal: "2026-01-01T00:00:00" }),
+        ],
+        NOW
+      )
+    ).toEqual(["2024-03-02", "2026-06-22"]);
+  });
+
+  it("falls back to [today, today] when every activity is dateless", () => {
+    expect(
+      activityDateDomain([act({ startDateLocal: "" }), act({ startDateLocal: "" })], NOW)
+    ).toEqual(["2026-06-22", "2026-06-22"]);
+  });
 });
 
 describe("matchesFilters", () => {

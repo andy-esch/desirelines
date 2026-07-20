@@ -1,4 +1,5 @@
 import type { MapActivity } from "../api/map";
+import { ymdToDay, dayToYmd } from "./dayIndex";
 
 // These aggregations run on activities already validated + coerced by zod at the API
 // boundary (`api/map.ts` MapActivitySchema): ids/scalars are finite numbers and
@@ -60,17 +61,7 @@ export function rankedSportBreakdown(
   );
 }
 
-// --- date helpers (UTC day math → TZ-safe) -------------------------------------
-function ymdToDay(ymd: string): number {
-  const [y, m, d] = ymd.slice(0, 10).split("-").map(Number);
-  return Math.round(Date.UTC(y || 1970, (m || 1) - 1, d || 1) / 86_400_000);
-}
-function dayToYmd(day: number): string {
-  const dt = new Date(day * 86_400_000);
-  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(
-    dt.getUTCDate()
-  ).padStart(2, "0")}`;
-}
+// --- date helpers: see utils/dayIndex.ts (UTC day math → TZ-safe) ---------------
 /** Monday (ISO week start) for the week containing `ymd`, as YYYY-MM-DD. */
 function weekStartYmd(ymd: string): string {
   const day = ymdToDay(ymd);
