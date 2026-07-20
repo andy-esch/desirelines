@@ -18,8 +18,8 @@ locals {
     for name in ["dispatcher", "apigateway", "stravapipe"] :
     name => (
       lookup(var.image_digests, name, "") != ""
-      ? "${var.external_artifact_registry}/${name}@${var.image_digests[name]}"
-      : "${var.external_artifact_registry}/${name}:${var.deployment_version}"
+      ? "${local.image_base_url}/${name}@${var.image_digests[name]}"
+      : "${local.image_base_url}/${name}:${var.deployment_version}"
     )
   }
 
