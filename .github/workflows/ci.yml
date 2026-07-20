@@ -29,6 +29,7 @@ jobs:
   validation:
     name: Validation
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout code
@@ -122,6 +123,7 @@ jobs:
   pants-python:
     name: Python
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout code
@@ -146,6 +148,12 @@ jobs:
           named-caches-hash: ${{ hashFiles('packages/stravapipe/uv.lock', 'pants.toml') }}
           cache-lmdb-store: true
           base-branch: main
+
+      # Needed by the dependency-audit step below; Pants vendors its own Python
+      # env and does not put `uv` on PATH. Same action/version the
+      # integration-tests job uses.
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8.3.2
 
       - name: Test with coverage
         run: "pants --tag='-integration' test --use-coverage packages/stravapipe::"
@@ -185,6 +193,7 @@ jobs:
   go-quality:
     name: Go (${{ matrix.package }})
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -254,6 +263,7 @@ jobs:
   web-quality:
     name: Web/React
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: ./packages/web
@@ -533,6 +543,7 @@ jobs:
   terraform-validate:
     name: Terraform
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout code
