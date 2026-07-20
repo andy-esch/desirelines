@@ -122,7 +122,29 @@ func parseFlags() *Config {
 			"and 0 does not mean unlimited", config.RateLimit)
 	}
 
+	// Both dates are interpolated straight into the BigQuery WHERE clause, so an
+	// unparseable value does not error — it silently changes which window gets
+	// backfilled (and is a query-injection seam besides). Validate the format here,
+	// where the operator still sees the mistake, rather than after N replayed events.
+	validateDateFlag("-start-date", config.StartDate)
+	validateDateFlag("-end-date", config.EndDate)
+	if config.StartDate != "" && config.EndDate != "" && config.StartDate > config.EndDate {
+		log.Fatalf("-start-date (%s) must not be after -end-date (%s)",
+			config.StartDate, config.EndDate)
+	}
+
 	return config
+}
+
+// validateDateFlag rejects anything that is not an exact YYYY-MM-DD calendar date.
+// Empty is allowed: both flags are optional and an empty value omits its bound.
+func validateDateFlag(name, value string) {
+	if value == "" {
+		return
+	}
+	if _, err := time.Parse(time.DateOnly, value); err != nil {
+		log.Fatalf("%s must be YYYY-MM-DD (got %q)", name, value)
+	}
 }
 
 func queryMissingActivities(ctx context.Context, config *Config) ([]ActivityRow, error) {

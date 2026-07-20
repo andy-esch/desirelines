@@ -158,6 +158,11 @@ jobs:
       - name: Test with coverage
         run: "pants --tag='-integration' test --use-coverage packages/stravapipe::"
 
+      # fail_ci_if_error is false on every codecov step: this flag governs the
+      # *upload*, not coverage thresholds (those stay enforced by Codecov's own
+      # status checks). Leaving it true made a Codecov outage or rate-limit able to
+      # block a merge — seven separate third-party dependencies on the critical path
+      # for information that is advisory.
       - name: Upload Python coverage
         uses: codecov/codecov-action@v7
         with:
@@ -165,7 +170,7 @@ jobs:
           files: ./dist/coverage/python/coverage.xml
           flags: python
           name: python-coverage
-          fail_ci_if_error: true
+          fail_ci_if_error: false
 
       - name: Lint
         run: "pants lint packages/stravapipe::"
@@ -228,7 +233,7 @@ jobs:
           files: ./packages/${{ matrix.package }}/coverage.out
           flags: go-${{ matrix.package }}
           name: go-${{ matrix.package }}-coverage
-          fail_ci_if_error: true
+          fail_ci_if_error: false
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v9
@@ -301,7 +306,7 @@ jobs:
           files: ./packages/web/coverage/lcov.info
           flags: web
           name: web-coverage
-          fail_ci_if_error: true
+          fail_ci_if_error: false
 
       # Verified clean at time of adding, so this gates rather than blocks.
       - name: Audit npm dependencies
@@ -396,7 +401,7 @@ jobs:
           files: ./packages/apigateway/coverage.integration.out
           flags: go-apigateway-integration
           name: go-apigateway-integration-coverage
-          fail_ci_if_error: true
+          fail_ci_if_error: false
 
       - name: Install Python dependencies
         working-directory: packages/stravapipe
@@ -416,7 +421,7 @@ jobs:
           files: ./packages/stravapipe/coverage.integration.xml
           flags: python-integration
           name: python-integration-coverage
-          fail_ci_if_error: true
+          fail_ci_if_error: false
 
   # ===========================================================================
   # Firestore Integration Tests: Go (Admin SDK) + Web (client SDK)
@@ -515,7 +520,7 @@ jobs:
           files: ./packages/apigateway/coverage.firestore.out,./packages/dispatcher/coverage.firestore.out,./packages/shared/coverage.firestore.out
           flags: go-firestore-integration
           name: go-firestore-integration-coverage
-          fail_ci_if_error: true
+          fail_ci_if_error: false
 
       - name: Install web dependencies
         working-directory: packages/web
@@ -535,7 +540,7 @@ jobs:
           files: ./packages/web/coverage-integration/lcov.info
           flags: web-integration
           name: web-integration-coverage
-          fail_ci_if_error: true
+          fail_ci_if_error: false
 
   # ===========================================================================
   # Terraform: Format, Init, Validate

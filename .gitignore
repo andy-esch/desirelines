@@ -193,6 +193,11 @@ build/
 
 # Build output
 /bin/
+
+# `go build ./...` in a main package drops an extension-less binary named after its
+# directory, which nothing above matches — that is how a 31MB Mach-O executable was
+# committed to scripts/ops/backfills/ (7c8db04e). Ignore the known ones by name.
+scripts/ops/backfills/backfills
 /pkg/
 /vendor/
 
