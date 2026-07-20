@@ -117,7 +117,7 @@ export default function SportBreakdownChart({
                   </div>
                   <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
                     <div
-                      className="h-full rounded-full bg-[var(--bar)]"
+                      className="sport-mark h-full rounded-full bg-[var(--bar)]"
                       style={{ width: `${pct}%` }}
                     />
                   </div>

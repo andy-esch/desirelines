@@ -136,6 +136,9 @@ function UnifiedSparklineTooltip({
                 height: 8,
                 borderRadius: "50%",
                 background: meta.color,
+                // The tooltip surface is near-white in light mode, where several sport
+                // colors sit close to 1:1 against it.
+                boxShadow: "0 0 0 1px var(--color-chart-mark-outline)",
                 flexShrink: 0,
               }}
             />

@@ -73,7 +73,11 @@ export interface Rgb {
  * callers can fall back rather than render a broken color.
  */
 export function parseRgb(color: string): Rgb | null {
-  const hex = color.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  // Trim once, up front: `getComputedStyle().getPropertyValue()` commonly returns a
+  // leading space, and anchoring the rgb() pattern against an untrimmed string made it
+  // silently return null for exactly the input this function exists to handle.
+  const value = color.trim();
+  const hex = value.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
   if (hex) {
     const h = hex[1]!;
     const full =
@@ -86,7 +90,7 @@ export function parseRgb(color: string): Rgb | null {
     const n = parseInt(full, 16);
     return { r: (n >> 16) & 0xff, g: (n >> 8) & 0xff, b: n & 0xff };
   }
-  const fn = color.match(/^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/i);
+  const fn = value.match(/^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/i);
   if (fn) {
     return { r: Math.round(+fn[1]!), g: Math.round(+fn[2]!), b: Math.round(+fn[3]!) };
   }

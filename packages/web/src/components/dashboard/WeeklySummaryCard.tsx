@@ -84,7 +84,7 @@ export default function WeeklySummaryCard() {
                     height: 8,
                     borderRadius: "50%",
                     backgroundColor: sport.color,
-                    boxShadow: `0 0 3px ${sport.color}`,
+                    boxShadow: `0 0 0 1px var(--color-chart-mark-outline), 0 0 3px ${sport.color}`,
                     marginRight: 8,
                     flexShrink: 0,
                   }}

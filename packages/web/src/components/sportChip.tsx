@@ -25,7 +25,10 @@ export const sportChipClass = cn(
   "border border-[color-mix(in_srgb,var(--chip)_55%,var(--color-chip-hairline))]",
   "bg-transparent text-foreground",
   "hover:bg-[color-mix(in_srgb,var(--chip)_10%,transparent)] hover:text-foreground",
-  "data-[pressed]:border-transparent data-[pressed]:bg-[var(--chip)] data-[pressed]:text-sport-on"
+  // The pressed border is the mark outline, not transparent: a bright fill can sit at
+  // ~1:1 against the light ground, so a transparent border let the whole chip melt into
+  // the page.
+  "data-[pressed]:border-chart-mark-outline data-[pressed]:bg-[var(--chip)] data-[pressed]:text-sport-on"
 );
 
 /**
@@ -39,7 +42,7 @@ export function SportChipDot() {
     <span
       aria-hidden="true"
       className={cn(
-        "size-2 shrink-0 rounded-full bg-[var(--chip)]",
+        "sport-mark size-2 shrink-0 rounded-full bg-[var(--chip)]",
         "shadow-[0_0_7px_var(--chip),0_0_2px_var(--chip)]",
         "group-data-[pressed]:bg-sport-on group-data-[pressed]:shadow-none"
       )}

@@ -114,7 +114,7 @@ export default function RaceTrack({
           transform: "translateY(-50%)",
           height: 2,
           backgroundColor: trackColor,
-          boxShadow: `0 0 4px ${trackColor}`,
+          boxShadow: `0 0 0 1px var(--color-chart-mark-outline), 0 0 4px ${trackColor}`,
         }}
       >
         {/* Left endcap */}

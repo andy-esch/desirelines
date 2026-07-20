@@ -76,15 +76,20 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     applyTheme(resolvedTheme);
   }, [resolvedTheme]);
 
-  // Listen for system preference changes when in "system" mode
+  // Track the OS preference AT ALL TIMES, not just in "system" mode.
+  //
+  // Listening only while in system mode lets `systemPref` go stale: switch to manual
+  // dark, change the OS to light, then pick "System" again — `resolvedTheme` would
+  // resolve against the months-old preference and the effect below would re-apply the
+  // wrong theme, overwriting the correct one `setTheme` had just applied.
+  //
+  // The theme is still only *applied* from here when the OS is actually driving it;
+  // in manual mode `resolvedTheme` ignores `systemPref`, so nothing re-renders.
   useEffect(() => {
-    if (theme !== "system") return;
-
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    // Same eager-apply reasoning as setTheme above.
     const handler = () => {
       const next = getSystemPreference();
-      applyTheme(next);
+      if (theme === "system") applyTheme(next);
       setSystemPref(next);
     };
     mq.addEventListener("change", handler);

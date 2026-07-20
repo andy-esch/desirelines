@@ -392,6 +392,18 @@ html:not(.dark) {
     text-shadow: 0 0 2px rgba(255, 255, 255, 0.8);
   }
 
+  /* --- Sport marks: light-mode boundary ---
+     A neon fill on the light ground can sit at ~1:1 contrast (golf and racket_sports
+     are literally invisible), so any mark painted in a sport colour needs a boundary.
+     Uses `outline` rather than `box-shadow` so it composes with the glow shadows these
+     marks already carry, and a negative offset so it never changes layout.
+     On dark this resolves to the page ground and is imperceptible, matching the chart
+     bars. Chart bars/legend/tooltip swatches set the same token directly. */
+  .sport-mark {
+    outline: 1px solid var(--color-chart-mark-outline);
+    outline-offset: -1px;
+  }
+
   /* --- Map deep-link pill: neon border + glow. Dark values match the base
          accent; light-mode overrides crank the cyan so it doesn't wash out
          against the pale (light-slate) pill. --- */
@@ -748,7 +760,9 @@ html:not(.dark) {
     height: 0.5em;
     border-radius: 50%;
     background-color: var(--sport-color);
+    /* Ring first, then the glow — the neon fill needs a boundary on the light ground. */
     box-shadow:
+      0 0 0 1px var(--color-chart-mark-outline),
       0 0 7px var(--sport-color),
       0 0 2px var(--sport-color);
   }
