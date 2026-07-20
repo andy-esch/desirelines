@@ -1,65 +1,159 @@
 # Desirelines Style Guide
 
-Quick reference for the NEON-inspired design system.
+The north star for UI work. New work gets checked against this; when reality and this
+document disagree, one of them is a bug.
 
-## Colors
+## Direction
 
-### UI Colors (toned-down)
+**80s / neon, and unapologetic about it** — lasers, acid brightness, glow, synthwave. The
+failure mode to guard against is drift toward generic "modern slick" web design: muted
+palettes, tasteful greys, safe neutrals. That drift is usually justified as accessibility,
+and that justification is wrong — see the first rule below.
 
-| Variable              | Hex                    | Use                   |
-| --------------------- | ---------------------- | --------------------- |
-| `--slate-dark`        | `#2d3748`              | Header bg             |
-| `--slate`             | `#4a5568`              | Borders, cards        |
-| `--slate-light`       | `#718096`              | Muted text            |
-| `--slate-lighter`     | `#a0aec0`              | Subtle text           |
-| `--accent-cyan`       | `#00d4ff`              | Links, buttons, focus |
-| `--accent-cyan-hover` | `#00b8e6`              | Hover states          |
-| `--accent-cyan-glow`  | `rgba(0,212,255,0.15)` | Focus rings           |
-| `--accent-magenta`    | `#ff00ff`              | Link underlines only  |
+Restraint applies to **legibility**, not to **intensity**. Text must be readable and marks
+must be distinguishable; neither requires dimming the palette.
 
-### Chart Colors (full NEON - data only)
+## The color system
 
-| Color      | RGB              | Goal         |
-| ---------- | ---------------- | ------------ |
-| Cyan       | `rgb(0,255,255)` | Conservative |
-| Green-Cyan | `rgb(0,255,128)` | Moderate     |
-| Magenta    | `rgb(255,0,255)` | Target       |
-| Yellow     | `rgb(255,200,0)` | Ambitious    |
-| Pink       | `rgb(255,0,128)` | Stretch      |
+Three layers. Each may reference the layer above it, never below.
 
-## Buttons
+**1. Primitives** — the raw brand values, stated once, in `src/css/tailwind.css`. These do
+not change with the theme.
 
-| Class                | Use                        | Example           |
-| -------------------- | -------------------------- | ----------------- |
-| `.btn-accent`        | Primary CTA (1-2 per page) | Sign In, Try Demo |
-| `.btn-outline-slate` | Secondary actions          | Add Goal, Edit    |
-| `.btn-ghost-slate`   | Tertiary/minor             | Load More, Cancel |
-| `.btn-time-range`    | Toggle groups              | Time selectors    |
+| Token | Value |
+| --- | --- |
+| `--color-brand-cyan` | `#00d4ff` |
+| `--color-neon-cyan` | `rgb(0, 255, 255)` |
+| `--color-neon-magenta` | `rgb(255, 0, 255)` |
+| `--color-neon-purple` | `rgb(180, 0, 255)` |
+| `--color-neon-green` | `rgb(0, 255, 128)` |
+| `--color-neon-yellow` | `rgb(255, 200, 0)` |
+| `--color-neon-orange` | `rgb(255, 95, 31)` |
+| `--color-neon-lime` | `#39ff14` |
 
-## Components
+**2. Roles** — what a color *means*. These flip with the theme. There are three separate
+accent roles and conflating them is the most common mistake:
 
-**Links:** Cyan, no underline. Hover: magenta underline.
+| Role | Token | Job |
+| --- | --- | --- |
+| Interactive | `--color-accent-cyan` | Links, buttons, focus. **Mutes to a WCAG-safe teal `#0891b2` in light** so controls stay legible. |
+| Decorative | `--color-neon-accent` (+ `-border`, `-glow`) | Pill borders, glows, status dots. **Stays bright in light (`#00b8e6`)** — it must not inherit the interactive mute. |
+| Data | `SPORT_COLORS` (`src/utils/sportConfig.ts`) | Encodes which sport a mark is. Never chrome. |
 
-**Focus:** Cyan border + `--accent-cyan-glow` ring.
+Plus the scaffolding that makes full-brightness neon legible:
+`--color-chart-mark-outline`, `--color-chip-hairline`, `--color-sport-on`, `--color-on-neon`.
 
-**Cards:** `--slate-light` border, lightens on hover.
+**3. Components** — consume roles only. **No component may name a raw color value.**
+Exceptions are pure white/black and generic neutrals (`#666` fallbacks, black shadows),
+which are not theme decisions.
 
-**Progress bars:** `.progress-neon` + `.progress-bar-neon` with dynamic glow.
+To re-theme the app, edit layer 1 and the light overrides. That is the whole point of the
+layering; if a change requires touching component files, the layering has been violated.
 
-**Demo banner:** `.alert-demo` - transparent cyan tint.
+### Helpers
+
+`src/utils/colorTokens.ts` — `tint(token, pct)` and `alpha(color, pct)` emit `color-mix`;
+use them instead of writing `rgba()` literals. `resolveThemeColor(token, fallback)` reads a
+resolved value for consumers that cannot take `var()` (Mapbox style expressions, numeric
+interpolation, `<meta>` tags). It is a point-in-time read — callers that must react to theme
+changes depend on `useTheme().resolvedTheme`.
 
 ## Rules
 
-- Full NEON = charts only
-- UI = toned-down cyan/magenta
-- Max 1 `.btn-accent` per section
-- Update both `variables.css` and `uiColors.ts` when changing colors
+**1. Neon is an accent, never the text.** A sport-colored control pairs a *neutral* label
+with a glowing color dot, a hairline mixed toward the color, and a full-brightness fill when
+selected. Because the color never carries the legibility burden, it never has to be dimmed
+to earn it. This replaces the old "full NEON = charts only, UI = toned-down" rule, which was
+itself a driver of the drift.
+
+Reference implementation: `src/components/sportChip.tsx`.
+
+**2. Every neon mark needs a boundary in light mode.** On the light ground several sport
+colors sit at ~1:1 contrast — `golf` and `racket_sports` are literally invisible without
+one. Any mark painted in a sport color gets `.sport-mark` (or the equivalent stroke/ring),
+which resolves to ink in light and to the page ground — imperceptible — in dark.
+
+Dark has no such fallback, so the palette itself is floored at 3:1 against the dark ground.
+
+**3. Color follows the entity, never its rank.** A sport's color is fixed. Never derive it
+from position among the currently-visible sports: filtering would repaint the survivors.
+
+**4. Past ~8 simultaneous series, color stops working.** No palette discriminates beyond
+that. Fold the tail into "Other", facet, or use small multiples — do not generate more hues.
+
+**5. A Tailwind utility beats a component class.** The utilities layer wins over the
+components layer, so `shadow-lg` on an element silently replaces a `.pill-neon` glow, and
+`border-transparent` kills a mark outline. When a component class provides decorative neon,
+check that no utility on the same element overrides it. This has bitten twice.
+
+**6. Identity is never carried by color alone.** Labels, legends, and text carry meaning;
+color reinforces it.
+
+## The sport palette
+
+16 fixed per-sport colors in `src/utils/sportConfig.ts`. They were computed, not chosen:
+greedy farthest-point selection maximizing worst-case CIE76 ΔE across normal vision,
+deuteranopia and protanopia, with a 3:1 dark-ground contrast floor.
+
+Invariants, enforced by `src/utils/sportConfig.test.ts`:
+
+- every sport in `schemas/sports/sport_types.json` has a color
+- no duplicates
+- every pair ≥ 12 ΔE under both dichromacies (the shipped palette is at 15.3)
+- every color ≥ 3:1 against the dark ground
+
+**If you change a value here, the tests are the check** — the constraints are invisible in
+normal vision.
+
+## Theming
+
+Dark is the `:root` default; light is an override under `html:not(.dark)`. **There are no
+`dark:` Tailwind utilities in this app** — theme differences go through tokens, or through
+an `html:not(.dark)`-scoped rule when a token cannot express it.
+
+`ThemeProvider` applies the class eagerly on change (not only in an effect), because
+consumers that read resolved token values would otherwise render one theme behind.
+
+## Components
+
+**Buttons:** `.btn-accent` (primary CTA, max one per section), `.btn-outline-slate`
+(secondary), `.btn-ghost-slate` (tertiary), `.btn-time-range` (toggle groups). Also
+available: `.btn-secondary`, `.btn-icon`, `.btn-link`, `.btn-close`, `.btn-sm`,
+`.btn-group`, and `.btn-outline-{danger,success,warning,secondary}`.
+
+**Links:** cyan, no underline. Hover: magenta underline.
+
+**Focus:** cyan ring via `--color-accent-cyan`.
+
+**Cards / glass panels:** `--color-slate-light` border, lightens on hover.
+
+**Neon pills:** `.pill-neon` + `.pill-neon-dot` — the map deep-link pill and the
+active-filter pill. Theme-aware via the decorative tokens; do not add elevation utilities
+(rule 5).
+
+**Sport chips:** `sportChipClass` + `<SportChipDot />` from `src/components/sportChip.tsx`.
+
+**Demo banner:** `.alert-demo`.
+
+**shadcn/Base UI primitives** ship modern-neutral and are themed onto our tokens via the
+`@theme inline` alias block in `tailwind.css`. New primitives need that mapping, not their
+own palette.
 
 ## Files
 
-| File                           | Purpose                         |
-| ------------------------------ | ------------------------------- |
-| `src/css/variables.css`        | CSS variables (source of truth) |
-| `src/css/dashboard.css`        | Component styles                |
-| `src/constants/uiColors.ts`    | TypeScript constants            |
-| `src/constants/chartColors.ts` | Chart NEON colors               |
+| File | Purpose |
+| --- | --- |
+| `src/css/tailwind.css` | **Source of truth** — primitives, role tokens, light overrides, component classes |
+| `src/utils/sportConfig.ts` | `SPORT_COLORS` — per-sport data palette |
+| `src/utils/colorTokens.ts` | `tint` / `alpha` / `resolveThemeColor` helpers |
+| `src/constants/chartColors.ts` | Goal-ladder + data-line colors (distinct from sport colors) |
+| `src/constants/sportGradients.ts` | Per-sport page backdrops, derived from `SPORT_COLORS` |
+
+## Known drift
+
+Candidates for pull-back toward the direction, not yet scheduled:
+
+- The shadcn migration left several primitives reading modern-neutral rather than neon.
+- `--color-sport-on` (`#0b1120`) and `--color-on-neon` (`#1a202c`) duplicate one job.
+- Sparkline and map line marks are distinguished by hue alone (rule 6).
+- Thin neon marks — sparkline dashes, `RaceTrack` bars — remain low-contrast on light.
