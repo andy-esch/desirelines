@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Slider } from "../ui/slider";
 import { Input } from "../ui/input";
+import { ymdToDay, dayToYmd } from "../../utils/dayIndex";
 
 export interface MapTimeRangeFilterProps {
   /** `[earliest, today]` (YYYY-MM-DD) — the full selectable domain. */
@@ -12,18 +13,6 @@ export interface MapTimeRangeFilterProps {
   disabled?: boolean;
 }
 
-/** Day index (UTC, TZ-safe) from a YYYY-MM-DD string. */
-function ymdToDay(ymd: string): number {
-  const [y, m, d] = ymd.slice(0, 10).split("-").map(Number);
-  return Math.round(Date.UTC(y || 1970, (m || 1) - 1, d || 1) / 86_400_000);
-}
-function dayToYmd(day: number): string {
-  const dt = new Date(day * 86_400_000);
-  const y = dt.getUTCFullYear();
-  const m = String(dt.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(dt.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
 /**

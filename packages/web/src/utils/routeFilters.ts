@@ -101,8 +101,23 @@ export function activityDistanceDomain(activities: MapActivity[]): [number, numb
 }
 
 /**
- * [earliest local date, today] for the time-range slider / date inputs domain.
- * Falls back to [today, today] when there are no activities.
+ * Whether a value looks like a usable `YYYY-MM-DD` prefix.
+ *
+ * `MapActivitySchema` defaults `startDateLocal` to `""` when protojson omits it, so a
+ * dateless row is expected data rather than a corruption. It must be skipped before any
+ * min/max date comparison: `"" < "2026-07-20"` is `true` in string ordering, so a single
+ * dateless activity would otherwise win every comparison.
+ */
+function isDateLike(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}/.test(value);
+}
+
+/**
+ * The `[earliest, today]` domain backing the time-range slider and date inputs.
+ *
+ * Dateless activities are skipped rather than treated as the beginning of time. With no
+ * dated activities at all the domain collapses to `[today, today]`, which the slider
+ * renders as a single valid point — preferable to a range starting at the empty string.
  */
 export function activityDateDomain(
   activities: MapActivity[],
@@ -112,6 +127,7 @@ export function activityDateDomain(
   let earliest = today;
   for (const a of activities) {
     const d = toLocalDate(a.startDateLocal);
+    if (!isDateLike(d)) continue;
     if (d < earliest) earliest = d;
   }
   return [earliest, today];
