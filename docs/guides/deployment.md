@@ -38,10 +38,41 @@ Terraform environments (`dev/`, `prod/`) live in the private deploy repo where s
 
 1. `desirelines` CI builds Docker images and pushes to Artifact Registry
 2. `trigger-deploy` job sends `repository_dispatch` to `desirelines-deploy`
-3. Deploy repo auto-applies terraform for dev, updates `.deployed/dev.json`
+3. Deploy repo resolves each image tag to its **immutable digest**, then auto-applies
+   terraform for dev and updates `.deployed/dev.json`
 4. Web frontend is built and deployed to Firebase Hosting
 
 See [ci.md](./ci.md) for workflow details.
+
+#### Why deploys reference image digests
+
+Cloud Run services are deployed by digest (`image@sha256:…`), not by tag. The images are
+tagged with the git SHA, so a tag-based reference **changes on every commit** — Terraform
+diffs the string and rolls a new revision for *every* service on *every* push, including
+services whose code did not change. Each of those is a real traffic-shifting rollout, so an
+unchanged service carried full rollout risk for nothing.
+
+Referencing the digest makes Terraform's own diff the guard: identical bytes produce an
+identical reference, so there is no diff and no revision.
+
+Two details worth knowing:
+
+- **This is about deploy churn, not supply-chain immutability.** Cloud Run already resolves
+  a tag to a digest and pins each revision to it, so the running bytes were always fixed.
+  What was not fixed was Terraform's view of them.
+- **Digests are resolved from the registry**, via
+  `gcloud artifacts docker images describe … --format='value(image_summary.digest)'` — not
+  from `docker/build-push-action`'s `digest` output, which is unreliable under buildx with
+  GitHub Actions caching.
+
+`deployment_version` is unchanged and still carries the git SHA: it is the provenance record
+and is still used for Cloud Function source packages.
+
+**dev and prod differ here, deliberately.** dev passes digests per-apply via `-var` (its
+tfvars is a record written *after* a successful apply). Prod's tfvars *is* the reviewed
+deployment request — `create-prod-pr` writes it, `plan-prod` plans it, and the merge applies
+exactly that — so prod will carry digests **in tfvars** rather than as an apply-time
+override. Prod is a separate, later change; today it still deploys by tag.
 
 ---
 
