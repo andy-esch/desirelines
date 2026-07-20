@@ -9,51 +9,26 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from "./routes/__root";
-import { Route as SettingsRouteImport } from "./routes/settings";
-import { Route as RoutesRouteImport } from "./routes/routes";
-import { Route as OriginsRouteImport } from "./routes/origins";
-import { Route as DashboardRouteImport } from "./routes/dashboard";
-import { Route as ChartsRouteImport } from "./routes/charts";
-import { Route as ActivitiesRouteImport } from "./routes/activities";
-import { Route as SportRouteImport } from "./routes/$sport";
 import { Route as IndexRouteImport } from "./routes/index";
-import { Route as DemoIndexRouteImport } from "./routes/demo/index";
+import { Route as SportRouteImport } from "./routes/$sport";
+import { Route as ActivitiesRouteImport } from "./routes/activities";
+import { Route as ChartsRouteImport } from "./routes/charts";
+import { Route as DashboardRouteImport } from "./routes/dashboard";
+import { Route as OriginsRouteImport } from "./routes/origins";
+import { Route as RoutesRouteImport } from "./routes/routes";
+import { Route as SettingsRouteImport } from "./routes/settings";
 import { Route as SportIndexRouteImport } from "./routes/$sport.index";
-import { Route as DemoSportRouteImport } from "./routes/demo/$sport";
-import { Route as AuthErrorRouteImport } from "./routes/auth/error";
-import { Route as AuthCompleteRouteImport } from "./routes/auth/complete";
 import { Route as SportYearRouteImport } from "./routes/$sport.$year";
+import { Route as AuthCompleteRouteImport } from "./routes/auth/complete";
+import { Route as AuthErrorRouteImport } from "./routes/auth/error";
+import { Route as DemoIndexRouteImport } from "./routes/demo/index";
+import { Route as DemoSportRouteImport } from "./routes/demo/$sport";
 import { Route as DemoSportIndexRouteImport } from "./routes/demo/$sport.index";
 import { Route as DemoSportYearRouteImport } from "./routes/demo/$sport.$year";
 
-const SettingsRoute = SettingsRouteImport.update({
-  id: "/settings",
-  path: "/settings",
-  getParentRoute: () => rootRouteImport,
-} as any);
-const RoutesRoute = RoutesRouteImport.update({
-  id: "/routes",
-  path: "/routes",
-  getParentRoute: () => rootRouteImport,
-} as any);
-const OriginsRoute = OriginsRouteImport.update({
-  id: "/origins",
-  path: "/origins",
-  getParentRoute: () => rootRouteImport,
-} as any);
-const DashboardRoute = DashboardRouteImport.update({
-  id: "/dashboard",
-  path: "/dashboard",
-  getParentRoute: () => rootRouteImport,
-} as any);
-const ChartsRoute = ChartsRouteImport.update({
-  id: "/charts",
-  path: "/charts",
-  getParentRoute: () => rootRouteImport,
-} as any);
-const ActivitiesRoute = ActivitiesRouteImport.update({
-  id: "/activities",
-  path: "/activities",
+const IndexRoute = IndexRouteImport.update({
+  id: "/",
+  path: "/",
   getParentRoute: () => rootRouteImport,
 } as any);
 const SportRoute = SportRouteImport.update({
@@ -61,14 +36,34 @@ const SportRoute = SportRouteImport.update({
   path: "/$sport",
   getParentRoute: () => rootRouteImport,
 } as any);
-const IndexRoute = IndexRouteImport.update({
-  id: "/",
-  path: "/",
+const ActivitiesRoute = ActivitiesRouteImport.update({
+  id: "/activities",
+  path: "/activities",
   getParentRoute: () => rootRouteImport,
 } as any);
-const DemoIndexRoute = DemoIndexRouteImport.update({
-  id: "/demo/",
-  path: "/demo/",
+const ChartsRoute = ChartsRouteImport.update({
+  id: "/charts",
+  path: "/charts",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const DashboardRoute = DashboardRouteImport.update({
+  id: "/dashboard",
+  path: "/dashboard",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const OriginsRoute = OriginsRouteImport.update({
+  id: "/origins",
+  path: "/origins",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const RoutesRoute = RoutesRouteImport.update({
+  id: "/routes",
+  path: "/routes",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const SettingsRoute = SettingsRouteImport.update({
+  id: "/settings",
+  path: "/settings",
   getParentRoute: () => rootRouteImport,
 } as any);
 const SportIndexRoute = SportIndexRouteImport.update({
@@ -76,9 +71,14 @@ const SportIndexRoute = SportIndexRouteImport.update({
   path: "/",
   getParentRoute: () => SportRoute,
 } as any);
-const DemoSportRoute = DemoSportRouteImport.update({
-  id: "/demo/$sport",
-  path: "/demo/$sport",
+const SportYearRoute = SportYearRouteImport.update({
+  id: "/$year",
+  path: "/$year",
+  getParentRoute: () => SportRoute,
+} as any);
+const AuthCompleteRoute = AuthCompleteRouteImport.update({
+  id: "/auth/complete",
+  path: "/auth/complete",
   getParentRoute: () => rootRouteImport,
 } as any);
 const AuthErrorRoute = AuthErrorRouteImport.update({
@@ -86,15 +86,15 @@ const AuthErrorRoute = AuthErrorRouteImport.update({
   path: "/auth/error",
   getParentRoute: () => rootRouteImport,
 } as any);
-const AuthCompleteRoute = AuthCompleteRouteImport.update({
-  id: "/auth/complete",
-  path: "/auth/complete",
+const DemoIndexRoute = DemoIndexRouteImport.update({
+  id: "/demo/",
+  path: "/demo/",
   getParentRoute: () => rootRouteImport,
 } as any);
-const SportYearRoute = SportYearRouteImport.update({
-  id: "/$year",
-  path: "/$year",
-  getParentRoute: () => SportRoute,
+const DemoSportRoute = DemoSportRouteImport.update({
+  id: "/demo/$sport",
+  path: "/demo/$sport",
+  getParentRoute: () => rootRouteImport,
 } as any);
 const DemoSportIndexRoute = DemoSportIndexRouteImport.update({
   id: "/",
@@ -232,46 +232,11 @@ export interface RootRouteChildren {
 
 declare module "@tanstack/react-router" {
   interface FileRoutesByPath {
-    "/settings": {
-      id: "/settings";
-      path: "/settings";
-      fullPath: "/settings";
-      preLoaderRoute: typeof SettingsRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/routes": {
-      id: "/routes";
-      path: "/routes";
-      fullPath: "/routes";
-      preLoaderRoute: typeof RoutesRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/origins": {
-      id: "/origins";
-      path: "/origins";
-      fullPath: "/origins";
-      preLoaderRoute: typeof OriginsRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/dashboard": {
-      id: "/dashboard";
-      path: "/dashboard";
-      fullPath: "/dashboard";
-      preLoaderRoute: typeof DashboardRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/charts": {
-      id: "/charts";
-      path: "/charts";
-      fullPath: "/charts";
-      preLoaderRoute: typeof ChartsRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/activities": {
-      id: "/activities";
-      path: "/activities";
-      fullPath: "/activities";
-      preLoaderRoute: typeof ActivitiesRouteImport;
+    "/": {
+      id: "/";
+      path: "/";
+      fullPath: "/";
+      preLoaderRoute: typeof IndexRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     "/$sport": {
@@ -281,18 +246,46 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof SportRouteImport;
       parentRoute: typeof rootRouteImport;
     };
-    "/": {
-      id: "/";
-      path: "/";
-      fullPath: "/";
-      preLoaderRoute: typeof IndexRouteImport;
+    "/activities": {
+      id: "/activities";
+      path: "/activities";
+      fullPath: "/activities";
+      preLoaderRoute: typeof ActivitiesRouteImport;
       parentRoute: typeof rootRouteImport;
     };
-    "/demo/": {
-      id: "/demo/";
-      path: "/demo";
-      fullPath: "/demo/";
-      preLoaderRoute: typeof DemoIndexRouteImport;
+    "/charts": {
+      id: "/charts";
+      path: "/charts";
+      fullPath: "/charts";
+      preLoaderRoute: typeof ChartsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/dashboard": {
+      id: "/dashboard";
+      path: "/dashboard";
+      fullPath: "/dashboard";
+      preLoaderRoute: typeof DashboardRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/origins": {
+      id: "/origins";
+      path: "/origins";
+      fullPath: "/origins";
+      preLoaderRoute: typeof OriginsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/routes": {
+      id: "/routes";
+      path: "/routes";
+      fullPath: "/routes";
+      preLoaderRoute: typeof RoutesRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/settings": {
+      id: "/settings";
+      path: "/settings";
+      fullPath: "/settings";
+      preLoaderRoute: typeof SettingsRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     "/$sport/": {
@@ -302,11 +295,18 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof SportIndexRouteImport;
       parentRoute: typeof SportRoute;
     };
-    "/demo/$sport": {
-      id: "/demo/$sport";
-      path: "/demo/$sport";
-      fullPath: "/demo/$sport";
-      preLoaderRoute: typeof DemoSportRouteImport;
+    "/$sport/$year": {
+      id: "/$sport/$year";
+      path: "/$year";
+      fullPath: "/$sport/$year";
+      preLoaderRoute: typeof SportYearRouteImport;
+      parentRoute: typeof SportRoute;
+    };
+    "/auth/complete": {
+      id: "/auth/complete";
+      path: "/auth/complete";
+      fullPath: "/auth/complete";
+      preLoaderRoute: typeof AuthCompleteRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     "/auth/error": {
@@ -316,19 +316,19 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof AuthErrorRouteImport;
       parentRoute: typeof rootRouteImport;
     };
-    "/auth/complete": {
-      id: "/auth/complete";
-      path: "/auth/complete";
-      fullPath: "/auth/complete";
-      preLoaderRoute: typeof AuthCompleteRouteImport;
+    "/demo/": {
+      id: "/demo/";
+      path: "/demo";
+      fullPath: "/demo/";
+      preLoaderRoute: typeof DemoIndexRouteImport;
       parentRoute: typeof rootRouteImport;
     };
-    "/$sport/$year": {
-      id: "/$sport/$year";
-      path: "/$year";
-      fullPath: "/$sport/$year";
-      preLoaderRoute: typeof SportYearRouteImport;
-      parentRoute: typeof SportRoute;
+    "/demo/$sport": {
+      id: "/demo/$sport";
+      path: "/demo/$sport";
+      fullPath: "/demo/$sport";
+      preLoaderRoute: typeof DemoSportRouteImport;
+      parentRoute: typeof rootRouteImport;
     };
     "/demo/$sport/": {
       id: "/demo/$sport/";
