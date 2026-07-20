@@ -194,7 +194,7 @@ jobs:
         run: pants test ::
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v7
         with:
           files: dist/coverage/python/coverage.xml
 ```

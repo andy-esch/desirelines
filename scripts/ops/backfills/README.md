@@ -6,7 +6,7 @@ Scripts for backfilling and migrating production data.
 
 | Script                                                           | Purpose                                                       | Status    |
 | ---------------------------------------------------------------- | ------------------------------------------------------------- | --------- |
-| [`backfill_from_strava.py`](#backfill-from-strava)               | Backfill activities from Strava API → BigQuery                | ✅ Active |
+| [`backfill_from_strava.py`](#backfill-from-strava)               | Backfill activities from Strava API → BigQuery                | ⛔ Broken / deprecated — use the BackfillService Cloud Run Job |
 | [`backfill_bq_to_postgres.py`](#backfill-bigquery-to-postgresql) | Migrate activities from BigQuery → PostgreSQL                 | ✅ Active                     |
 | [`backfill_routes_bq_to_postgres.py`](#backfill-routes)          | Backfill activity routes from BigQuery polylines → PostgreSQL | ✅ Active                     |
 | [`load_census_regions.py`](#load-census-regions)                 | Load US Census CBSA + county boundaries → `desirelines.regions` | ✅ Active                   |
@@ -22,6 +22,11 @@ Scripts for backfilling and migrating production data.
 ## Backfill from Strava
 
 **Script**: `backfill_from_strava.py`
+
+> **⛔ Broken and deprecated — do not run.** `STRAVA_REFRESH_TOKEN` was removed during the
+> Infisical cleanup, so this script cannot authenticate. Use the **BackfillService Cloud Run
+> Job**, which handles per-user tokens via Firestore. The usage below is retained only for
+> reference while the script still exists in the tree.
 
 Fetches activities from Strava API and inserts into BigQuery.
 

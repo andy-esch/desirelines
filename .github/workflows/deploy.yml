@@ -24,6 +24,7 @@ jobs:
   build-images:
     name: Build ${{ matrix.image }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -106,6 +107,7 @@ jobs:
   trigger-deploy:
     name: Trigger deploy repo
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: [build-images]
 
     steps:
@@ -146,6 +148,7 @@ jobs:
   tag-terraform-modules:
     name: Tag Terraform modules
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
 
