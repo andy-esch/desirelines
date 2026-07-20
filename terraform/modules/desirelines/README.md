@@ -10,7 +10,7 @@ Main Terraform module for the Desirelines project. Provisions all GCP resources 
 | `pubsub_subscriptions.tf` | Push subscriptions (activity + deauth), dead letter queues |
 | `main.tf` | Pub/Sub topics (activity_events, deauth_events, dead_letter), BigQuery dataset/tables, Firestore database, Cloud Storage, GCP APIs |
 | `firebase_hosting.tf` | Firebase Hosting site, custom domain, web app config |
-| `image_validation.tf` | Container image tag validation pre-apply |
+| `image_validation.tf` | Container image tag validation pre-apply (tag-based; complements the digest references below) |
 | `monitoring.tf` | Monitoring alerts and notification channels |
 
 ## Usage
@@ -43,8 +43,8 @@ module "desirelines" {
 | Name | Version |
 | ---- | ------- |
 | <a name="provider_external"></a> [external](#provider\_external) | 2.4.0 |
-| <a name="provider_google"></a> [google](#provider\_google) | 7.33.0 |
-| <a name="provider_google-beta"></a> [google-beta](#provider\_google-beta) | 7.33.0 |
+| <a name="provider_google"></a> [google](#provider\_google) | 7.40.0 |
+| <a name="provider_google-beta"></a> [google-beta](#provider\_google-beta) | 7.40.0 |
 | <a name="provider_terraform"></a> [terraform](#provider\_terraform) | n/a |
 
 ## Resources
@@ -87,6 +87,7 @@ module "desirelines" {
 | [google_monitoring_alert_policy.apigateway_uptime](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy) | resource |
 | [google_monitoring_alert_policy.dispatcher_bad_request_surge](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy) | resource |
 | [google_monitoring_alert_policy.dlq_bq_inserter](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy) | resource |
+| [google_monitoring_alert_policy.dlq_deletion_service](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy) | resource |
 | [google_monitoring_alert_policy.dlq_postgres_writer](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy) | resource |
 | [google_monitoring_alert_policy.firestore_operation_latency](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy) | resource |
 | [google_monitoring_alert_policy.frontend_uptime](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy) | resource |
@@ -207,7 +208,7 @@ module "desirelines" {
 | <a name="input_gcp_project_number"></a> [gcp\_project\_number](#input\_gcp\_project\_number) | Google Cloud Project Number (needed for service account IAM) | `string` | n/a | yes |
 | <a name="input_infisical_project_id"></a> [infisical\_project\_id](#input\_infisical\_project\_id) | Infisical Project ID (used as suffix for integration Service Account) | `string` | n/a | yes |
 | <a name="input_api_gateway_allowed_origins"></a> [api\_gateway\_allowed\_origins](#input\_api\_gateway\_allowed\_origins) | Comma-separated list of allowed CORS origins for API Gateway | `string` | `""` | no |
-| <a name="input_app_config"></a> [app\_config](#input\_app\_config) | Application configuration values from Infisical | <pre>object({<br/>    log_level         = string<br/>    frontend_url      = optional(string, "")<br/>    auth_callback_url = optional(string, "")<br/>  })</pre> | <pre>{<br/>  "log_level": "INFO"<br/>}</pre> | no |
+| <a name="input_app_config"></a> [app\_config](#input\_app\_config) | Application configuration values from Infisical | <pre>object({<br/>    log_level         = string<br/>    frontend_url      = optional(string, "")<br/>    auth_callback_url = optional(string, "")<br/>    # Dispatcher Firestore-lookup cache TTLs (Go duration strings, e.g. "5m").<br/>    # "0" disables the respective cache — the incident kill switch for a suspected<br/>    # staleness bug, settable via GitOps with no code change.<br/>    dispatcher_allowlist_cache_ttl = optional(string, "5m")<br/>    dispatcher_token_cache_ttl     = optional(string, "5m")<br/>  })</pre> | <pre>{<br/>  "log_level": "INFO"<br/>}</pre> | no |
 | <a name="input_bigquery_location"></a> [bigquery\_location](#input\_bigquery\_location) | BigQuery dataset location | `string` | `"US"` | no |
 | <a name="input_deployment_version"></a> [deployment\_version](#input\_deployment\_version) | Version tag for all deployed code (Cloud Run images and Cloud Function source packages). Typically a git SHA for code provenance and observability (e.g., 'b30d6ea' or 'latest') | `string` | `"latest"` | no |
 | <a name="input_developer_email"></a> [developer\_email](#input\_developer\_email) | Email of the developer account for BigQuery console access (optional) | `string` | `null` | no |
@@ -215,6 +216,7 @@ module "desirelines" {
 | <a name="input_enable_application_metric_alerts"></a> [enable\_application\_metric\_alerts](#input\_enable\_application\_metric\_alerts) | Gate for alert policies that reference custom OTel application metrics (postgres pool exhaustion, Strava/HTTP/Postgres/Firestore/PubSub latency tails). These policies target custom.googleapis.com/desirelines.io/* metric descriptors, which are auto-created by the OTel GCP exporter the first time the app emits each metric — so on a first-ever deploy they don't exist yet and `google_monitoring_alert_policy` returns 404 when it tries to bind to them. Leave false on the initial deploy; after the services have run long enough to flush at least one metrics batch (≥ 60s), flip true on a follow-up apply. | `bool` | `false` | no |
 | <a name="input_firestore_location"></a> [firestore\_location](#input\_firestore\_location) | Firestore database location (region ID, e.g., 'us-central1') | `string` | `"us-central1"` | no |
 | <a name="input_gcp_region"></a> [gcp\_region](#input\_gcp\_region) | Default GCP region | `string` | `"us-central1"` | no |
+| <a name="input_image_digests"></a> [image\_digests](#input\_image\_digests) | Map of service name (dispatcher/apigateway/stravapipe) to image digest, e.g. {dispatcher = "sha256:abc..."}. Empty falls back to tag-based image references. | `map(string)` | `{}` | no |
 | <a name="input_project_name"></a> [project\_name](#input\_project\_name) | Name of the project (used for resource naming) | `string` | `"desirelines"` | no |
 | <a name="input_readiness_probe_schedule"></a> [readiness\_probe\_schedule](#input\_readiness\_probe\_schedule) | Cron schedule (UTC) for the Cloud Scheduler /api/ready probe against apigateway. Default is hourly. Each invocation wakes Neon's compute for the 5-min idle window, so this is the dominant DB-active driver after stealth wakes are removed. NOTE: dropping below hourly requires retuning google\_monitoring\_alert\_policy.apigateway\_readiness\_failing — its 4h alignment window assumes ≥3 hourly samples per evaluation; reducing cadence balloons alert latency. | `string` | `"0 * * * *"` | no |
 | <a name="input_slack_notification_channel_id"></a> [slack\_notification\_channel\_id](#input\_slack\_notification\_channel\_id) | Full resource ID of an externally-managed Slack notification channel (format: projects/<project>/notificationChannels/<id>). Created once via GCP Console → Monitoring → Notification Channels → Slack OAuth flow; the channel is not managed by Terraform because the OAuth token is issued through the Console and kept out of state. Leave null to skip Slack notifications for this environment. | `string` | `null` | no |
