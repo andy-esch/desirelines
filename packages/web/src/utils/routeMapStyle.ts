@@ -10,12 +10,11 @@ import type { SportConfig } from "../api/activities";
  * sport registry (`sportConfig.sportCategories[*].stravaTypes`), then to that
  * category's color via the caller-supplied `sportColors` (app-category → color).
  *
- * The caller passes the **NEON spectrum** colors (`utils/spectrumColors`
- * `getSpectrumColor`), the same scheme the dashboard sparklines use — each sport
- * gets a color by its position across Magenta→Cyan→Green→Yellow→Orange — so the
- * map lines, the filter chips, and the sparklines all share one styling. (Keying
- * by raw type stays here because that's what the tile carries; the spectrum index
- * is resolved per app-category in the page, where the dataset is known.)
+ * The caller passes the fixed per-sport `SPORT_COLORS` identity palette, so map lines,
+ * the filter chips, the charts and the sparklines all show a sport in the same color.
+ * (These used to be positional spectrum colors, which meant filtering the map repainted
+ * whichever sports remained. Keying by raw type stays here because that's what the tile
+ * carries; the app-category lookup is resolved in the page.)
  *
  * Categories absent from `sportColors` (not present in the dataset) and unmapped
  * raw types fall back to `fallbackColor`. Returns a flat `fallbackColor` when

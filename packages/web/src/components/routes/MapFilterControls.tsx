@@ -9,6 +9,7 @@ import { type RouteFilterState, yearRange } from "../../utils/routeFilters";
 import type { RegionSummary } from "../../api/map";
 import { convertDistance, getDistanceLabel, type DistanceUnit } from "../../utils/units";
 import { SportVisibilityHint } from "../SportVisibilityHint";
+import { sportChipClass, SportChipDot } from "../sportChip";
 
 /** A selectable sport: app-category key + display label + legend color. */
 export interface SportOption {
@@ -307,18 +308,16 @@ export default function MapFilterControls({
             className="flex-wrap"
           >
             {sportOptions.map((s) => (
-              // Each chip wears its sport's NEON spectrum color (same as the map
-              // line): outlined + colored when off, filled when selected.
+              // Same treatment as the Charts/List sport chips: neutral label, glowing
+              // sport-color dot, neon fill when selected. The label used to wear the
+              // sport color itself, which is unreadable on the light ground.
               <ToggleGroupItem
                 key={s.value}
                 value={s.value}
                 style={{ "--chip": s.color } as CSSProperties}
-                className={cn(
-                  "border border-[var(--chip)] bg-transparent text-[var(--chip)] transition-colors",
-                  "hover:bg-transparent hover:text-[var(--chip)]",
-                  "data-[pressed]:bg-[var(--chip)] data-[pressed]:text-bg-body"
-                )}
+                className={cn(sportChipClass, "transition-colors")}
               >
+                <SportChipDot />
                 {s.label}
               </ToggleGroupItem>
             ))}

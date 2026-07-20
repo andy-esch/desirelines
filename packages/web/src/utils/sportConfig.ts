@@ -13,7 +13,6 @@
  * - `getPrimaryMetric` has reserved parameter for future user preferences
  *
  * @see constants/chartColors.ts - For goal/chart line colors
- * @see spectrumColors.ts - For the positional NEON ramp (map, sparklines)
  */
 
 import type { SportConfig } from "../api/activities";
