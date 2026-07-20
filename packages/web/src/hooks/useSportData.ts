@@ -31,7 +31,7 @@ export interface SportDataResult {
  * ```
  */
 export function useSportData(year: number, sport: string): SportDataResult {
-  const { loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const {
     sportConfig,
     isLoading: configLoading,
@@ -49,9 +49,14 @@ export function useSportData(year: number, sport: string): SportDataResult {
     error: metricsError,
     refetch,
   } = useQuery({
-    queryKey: ["sportMetrics", year, sport, tz],
+    // `user?.uid` scopes the cache per user — without it, a logged-out→logged-in
+    // transition can serve the previous user's metrics from cache.
+    queryKey: ["sportMetrics", year, sport, tz, user?.uid],
     queryFn: ({ signal }) => fetchSportMetrics({ year, sport, tz, signal }),
-    enabled: !authLoading && isValidSport,
+    // `!!user` matters because /$sport has no auth guard — only a slug-pattern
+    // check — so an unauthenticated visit would otherwise fire an API call that
+    // can only 401. Demo data is served by the separate /demo/* routes.
+    enabled: !authLoading && !!user && isValidSport,
   });
 
   return {

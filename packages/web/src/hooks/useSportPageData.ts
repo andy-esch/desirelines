@@ -30,8 +30,8 @@ import {
 import {
   generateDefaultGoals,
   estimateYearEndDistance,
-  goalToDisplay,
-  goalToStorage,
+  toDisplayGoal,
+  toStoredGoal,
   type GoalUnitContext,
   type Goals,
 } from "../utils/goalCalculations";
@@ -240,14 +240,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
     const ctx: GoalUnitContext = { hasDistance, isTime, distanceUnit };
 
     return {
-      goals: generatedGoals.map((goal) => ({
-        id: goal.id,
-        value: goalToStorage(goal.value, ctx),
-        label: goal.label,
-        metric: goal.metric,
-        createdAt: goal.createdAt,
-        updatedAt: goal.updatedAt,
-      })),
+      goals: generatedGoals.map((goal) => toStoredGoal(goal, ctx)),
       storageVersion: GOAL_STORAGE_VERSION,
     };
     /* eslint-disable react-hooks/preserve-manual-memoization -- intentional: new Date() is impure, compiler can't auto-memoize */
@@ -302,14 +295,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   // gap from harden-user-config-goal-data-integrity #2.
   const goalCtx: GoalUnitContext = { hasDistance, isTime, distanceUnit };
   const goals: Goals = goalsData?.goals
-    ? goalsData.goals.map((g) => ({
-        id: g.id,
-        value: goalToDisplay(g.value, goalCtx),
-        label: g.label,
-        metric: g.metric,
-        createdAt: g.createdAt,
-        updatedAt: g.updatedAt,
-      }))
+    ? goalsData.goals.map((g) => toDisplayGoal(g, goalCtx))
     : [];
 
   // Handle goals change: pure unit conversion. All proto metadata
@@ -321,14 +307,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   // persisting partial records.
   const handleGoalsChange = async (newGoals: Goals) => {
     const updatedGoalsForYear: GoalsForYear = {
-      goals: newGoals.map((goal) => ({
-        id: goal.id,
-        value: goalToStorage(goal.value, goalCtx),
-        label: goal.label,
-        metric: goal.metric,
-        createdAt: goal.createdAt,
-        updatedAt: goal.updatedAt,
-      })),
+      goals: newGoals.map((goal) => toStoredGoal(goal, goalCtx)),
       storageVersion: GOAL_STORAGE_VERSION,
     };
     await updateGoals(updatedGoalsForYear);

@@ -112,6 +112,16 @@ func parseFlags() *Config {
 
 	flag.Parse()
 
+	// Reject a non-positive rate limit rather than computing a delay from it.
+	// `time.Duration(float64(time.Second) / 0)` is +Inf, whose int64 conversion is
+	// undefined in Go; a non-positive result makes time.Sleep return immediately, so
+	// `-rate-limit 0` silently removed ALL throttling against the prod dispatcher —
+	// the opposite of what someone typing 0 ("no limit") would expect.
+	if config.RateLimit <= 0 {
+		log.Fatalf("-rate-limit must be greater than 0 (got %v); it is requests per second, "+
+			"and 0 does not mean unlimited", config.RateLimit)
+	}
+
 	return config
 }
 

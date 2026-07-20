@@ -514,7 +514,12 @@ html:not(.dark) {
 /* Neon gradient text — clip a background gradient to text.
    Override --neon-gradient to customise the gradient per-page. */
 @utility neon-gradient-text {
-  --neon-gradient: linear-gradient(135deg, #ff00ff, #00ffff, #00ff80);
+  --neon-gradient: linear-gradient(
+    135deg,
+    var(--color-neon-magenta),
+    var(--color-neon-cyan),
+    var(--color-neon-green)
+  );
   background: var(--neon-gradient);
   -webkit-background-clip: text;
   background-clip: text;
@@ -523,24 +528,24 @@ html:not(.dark) {
 
 /* Neon glow text — solid color + text-shadow glow */
 @utility neon-glow-pink {
-  color: rgb(255, 0, 255);
+  color: var(--color-neon-magenta);
   text-shadow:
-    0 0 10px rgb(255, 0, 255),
-    0 0 20px rgba(255, 0, 255, 0.5);
+    0 0 10px var(--color-neon-magenta),
+    0 0 20px color-mix(in srgb, var(--color-neon-magenta) 50%, transparent);
 }
 
 @utility neon-glow-cyan {
-  color: rgb(0, 255, 255);
+  color: var(--color-neon-cyan);
   text-shadow:
-    0 0 10px rgb(0, 255, 255),
-    0 0 20px rgba(0, 255, 255, 0.5);
+    0 0 10px var(--color-neon-cyan),
+    0 0 20px color-mix(in srgb, var(--color-neon-cyan) 50%, transparent);
 }
 
 @utility neon-glow-green {
-  color: rgb(0, 255, 128);
+  color: var(--color-neon-green);
   text-shadow:
-    0 0 10px rgb(0, 255, 128),
-    0 0 20px rgba(0, 255, 128, 0.5);
+    0 0 10px var(--color-neon-green),
+    0 0 20px color-mix(in srgb, var(--color-neon-green) 50%, transparent);
 }
 
 /* Subtle neon gradient backdrop via ::before pseudo-element */
@@ -552,9 +557,9 @@ html:not(.dark) {
     inset: 0;
     background: linear-gradient(
       135deg,
-      rgba(255, 0, 255, 0.05),
-      rgba(0, 255, 255, 0.05),
-      rgba(0, 255, 128, 0.05)
+      color-mix(in srgb, var(--color-neon-magenta) 5%, transparent),
+      color-mix(in srgb, var(--color-neon-cyan) 5%, transparent),
+      color-mix(in srgb, var(--color-neon-green) 5%, transparent)
     );
     border-radius: 0.5rem;
     z-index: -1;
