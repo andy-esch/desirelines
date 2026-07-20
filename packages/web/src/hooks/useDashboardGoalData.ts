@@ -113,12 +113,9 @@ export function useDashboardGoalData(): {
 
   // --- 3. Transform to UI Model ---
 
-  const totalSports = validSports.length;
   const sportData = validSports.map((sport, index) => {
     return transformToSportGoalData({
       sport,
-      index,
-      totalSports,
       metrics: user ? metricsQuery.data?.[sport] : demoMetrics?.[sport],
       goalsData: goalsQueries[index]?.data,
       demoGoals: demoGoals?.[sport],

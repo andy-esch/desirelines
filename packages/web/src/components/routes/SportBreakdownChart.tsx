@@ -10,6 +10,7 @@ import {
   type BreakdownMetric,
   type SportBreakdownRow,
 } from "../../utils/mapInsights";
+import { DEFAULT_SPORT_COLOR } from "../../utils/sportConfig";
 
 export interface SportBreakdownChartProps {
   /** The currently-filtered activities (same set the map + summary show). */
@@ -24,8 +25,6 @@ export interface SportBreakdownChartProps {
   /** Click a bar → toggle that sport in the filter (cross-filter). */
   onToggleSport: (sport: string) => void;
 }
-
-const FALLBACK_COLOR = "rgb(150, 150, 150)";
 
 function formatRowValue(
   row: SportBreakdownRow,
@@ -92,7 +91,7 @@ export default function SportBreakdownChart({
           {rows.map((row) => {
             const value = breakdownValue(row, metric);
             const pct = max > 0 ? Math.max(2, (value / max) * 100) : 0;
-            const color = sportColors[row.sport] ?? FALLBACK_COLOR;
+            const color = sportColors[row.sport] ?? DEFAULT_SPORT_COLOR;
             const isSelected = selectedSports.includes(row.sport);
             const dimmed = selectedSports.length > 0 && !isSelected;
             return (
@@ -118,7 +117,7 @@ export default function SportBreakdownChart({
                   </div>
                   <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
                     <div
-                      className="h-full rounded-full bg-[var(--bar)]"
+                      className="sport-mark h-full rounded-full bg-[var(--bar)]"
                       style={{ width: `${pct}%` }}
                     />
                   </div>

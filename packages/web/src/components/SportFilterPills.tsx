@@ -1,7 +1,7 @@
 import { useMemo, type CSSProperties } from "react";
 import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 import { SPORT_COLORS, DEFAULT_SPORT_COLOR } from "../utils/sportConfig";
-import { cn } from "@/lib/utils";
+import { sportChipClass, SportChipDot } from "./sportChip";
 
 interface SportOption {
   value: string;
@@ -62,28 +62,9 @@ export default function SportFilterPills({
             key={o.value}
             value={o.value}
             style={{ "--chip": color } as CSSProperties}
-            className={cn(
-              "group",
-              // Unselected: the label is a neutral theme token, never the sport color —
-              // the neon is carried by the glowing dot and a hairline tinted toward it.
-              "border border-[color-mix(in_srgb,var(--chip)_55%,var(--color-chip-hairline))]",
-              "bg-transparent text-foreground",
-              "hover:bg-[color-mix(in_srgb,var(--chip)_10%,transparent)] hover:text-foreground",
-              // Selected: neon becomes the fill. The label pins to a fixed dark ink
-              // rather than bg-body, which is *light* in light mode (light-on-neon).
-              "data-[pressed]:border-transparent data-[pressed]:bg-[var(--chip)] data-[pressed]:text-sport-on"
-            )}
+            className={sportChipClass}
           >
-            <span
-              aria-hidden="true"
-              className={cn(
-                "size-2 shrink-0 rounded-full bg-[var(--chip)]",
-                "shadow-[0_0_7px_var(--chip),0_0_2px_var(--chip)]",
-                // On the bright fill the glow has nothing to glow against; the dot
-                // inverts to the label ink so the chip's width doesn't shift on toggle.
-                "group-data-[pressed]:bg-sport-on group-data-[pressed]:shadow-none"
-              )}
-            />
+            <SportChipDot />
             {o.label}
           </ToggleGroupItem>
         );

@@ -199,7 +199,6 @@ describe("useMultiSportChartData", () => {
 
       result.current.sportMeta.forEach((meta) => {
         expect(meta.color).toMatch(/^rgb\(\d+, \d+, \d+\)$/);
-        expect(meta.textColor).toMatch(/^rgb\(\d+, \d+, \d+\)$/);
       });
     });
 
@@ -209,25 +208,6 @@ describe("useMultiSportChartData", () => {
       const colors = result.current.sportMeta.map((m) => m.color);
       const uniqueColors = new Set(colors);
       expect(uniqueColors.size).toBe(colors.length);
-    });
-
-    it("text colors are darker than main colors", () => {
-      const { result } = renderHook(() => useMultiSportChartData("2weeks"));
-
-      result.current.sportMeta.forEach((meta) => {
-        // Parse RGB values
-        const mainMatch = meta.color.match(/rgb\((\d+), (\d+), (\d+)\)/);
-        const textMatch = meta.textColor.match(/rgb\((\d+), (\d+), (\d+)\)/);
-
-        if (mainMatch && textMatch) {
-          const mainSum =
-            parseInt(mainMatch[1]!) + parseInt(mainMatch[2]!) + parseInt(mainMatch[3]!);
-          const textSum =
-            parseInt(textMatch[1]!) + parseInt(textMatch[2]!) + parseInt(textMatch[3]!);
-          // Text color should be darker (lower sum of RGB values)
-          expect(textSum).toBeLessThanOrEqual(mainSum);
-        }
-      });
     });
   });
 

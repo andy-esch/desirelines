@@ -1,4 +1,5 @@
 import type { MetricUnit } from "../../utils/units";
+import { tint } from "../../utils/colorTokens";
 
 interface ProgressSummaryProps {
   /** Current cumulative value (distance or session count) */
@@ -34,7 +35,7 @@ export default function ProgressSummary({
         <span className="text-slate-light">Est. Year-End</span>
         <span
           className="font-semibold font-display"
-          style={{ textShadow: "0 0 12px rgba(0, 212, 255, 0.2)" }}
+          style={{ textShadow: `0 0 12px ${tint("--color-brand-cyan", 20)}` }}
         >
           {formatValue(estimatedYearEnd)}
         </span>

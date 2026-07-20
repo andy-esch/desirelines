@@ -1,8 +1,13 @@
 import type { DailyActivity } from "../api/activities";
 import type { SportConfig } from "../utils/sportConfig";
 import { toDailyArray, normalizeToRange } from "./chartUtils";
-import { getSpectrumColor, getSpectrumTextColor } from "./chartColors";
-import { getSportDisplayName, isDistanceSport, isTimeSport } from "./sportConfig";
+import {
+  SPORT_COLORS,
+  DEFAULT_SPORT_COLOR,
+  getSportDisplayName,
+  isDistanceSport,
+  isTimeSport,
+} from "./sportConfig";
 
 /** Midpoint value used for days with no activity in normalized (0-1) sparkline display */
 const NORMALIZED_BASELINE = 0.5;
@@ -84,15 +89,17 @@ export function mergeSparklineData(sparklineData: ProcessedSportData[]) {
 }
 
 /**
- * Generates metadata for each sport, including spectrum colors.
+ * Generates metadata for each sport, including its spectrum color.
+ *
+ * `color` is for the series MARK only. There is deliberately no text color here:
+ * legend labels wear a neutral text token, so identity is carried by the mark
+ * beside the label rather than by tinting the label itself.
  */
 export function getSportMetadata(sparklineData: ProcessedSportData[]) {
-  const total = sparklineData.length;
-  return sparklineData.map((data, index) => ({
+  return sparklineData.map((data) => ({
     sport: data.sport,
     displayName: data.displayName,
-    color: getSpectrumColor(index, total),
-    textColor: getSpectrumTextColor(index, total),
+    color: SPORT_COLORS[data.sport] ?? DEFAULT_SPORT_COLOR,
     lastActivityYear: data.lastActivityYear,
     isDistanceSport: data.isDistanceSport,
     isTimeSport: data.isTimeSport,

@@ -10,6 +10,8 @@ import type { TimeRange } from "../../utils/dataNormalization";
 import { convertDistance, formatDistance, formatImpactPct } from "../../utils/units";
 
 import { getTimeRangeCutoff as getCutoff } from "../../utils/chartUtils";
+import { parseRgb, resolveThemeColor, type Rgb } from "../../utils/colorTokens";
+import { useTheme } from "../../contexts/ThemeContext";
 import { toLocalDateString as toLocal } from "../../utils/dateUtils";
 import { formatActivityDate } from "../../utils/formatActivityDate";
 
@@ -40,15 +42,21 @@ function formatDuration(seconds: number): string {
   return `${mins}m`;
 }
 
-/** Parse a hex color string (e.g. "#718096") into RGB components */
-function hexToRgb(hex: string): { r: number; g: number; b: number } {
-  const n = parseInt(hex.slice(1), 16);
-  return { r: (n >> 16) & 0xff, g: (n >> 8) & 0xff, b: n & 0xff };
-}
-
-/** Impact glow color endpoints */
-const IMPACT_COLOR_START = hexToRgb("#718096"); // slate-light
-const IMPACT_COLOR_END = hexToRgb("#ff00ff"); // accent-magenta
+/**
+ * Impact glow ramp endpoints, as tokens.
+ *
+ * The ramp is interpolated numerically in JS, so it can't consume `var(...)` — the
+ * values are resolved at render time instead, which is what makes it theme-aware.
+ * It previously interpolated from a hard-coded `#718096` and so stayed a dark-theme
+ * gray on the light ground. (That literal was labelled "slate-light" but is actually
+ * `--color-chart-tick`'s dark value; slate-light is `#778899`. Now genuinely
+ * slate-light, the muted-text role this column wants — an imperceptible shift in
+ * dark, correct in light.)
+ */
+const IMPACT_START_TOKEN = "--color-slate-light";
+const IMPACT_START_FALLBACK = "#778899";
+const IMPACT_END_TOKEN = "--color-neon-magenta";
+const IMPACT_END_FALLBACK = "#ff00ff";
 /** Impact percentage at which glow reaches full intensity */
 const IMPACT_FULL_PCT = 2;
 /** Maximum glow radius in px */
@@ -60,20 +68,29 @@ const IMPACT_GLOW_THRESHOLD = 0.05;
 
 /**
  * Compute inline styles for the impact percentage column.
- * Interpolates from slate (0%) to magenta (2%+) with a glow effect.
+ * Interpolates from muted slate (0%) to magenta (2%+) with a glow effect.
+ *
+ * Endpoints are passed in rather than read here so the resolve happens once per
+ * theme in the component, not once per row.
  */
-function getImpactStyle(pct: number | null): React.CSSProperties | undefined {
+function getImpactStyle(
+  pct: number | null,
+  startRgb: Rgb,
+  endRgb: Rgb
+): React.CSSProperties | undefined {
   if (pct == null) return undefined;
   const t = Math.min(Math.max(pct / IMPACT_FULL_PCT, 0), 1);
-  const r = Math.round(IMPACT_COLOR_START.r + (IMPACT_COLOR_END.r - IMPACT_COLOR_START.r) * t);
-  const g = Math.round(IMPACT_COLOR_START.g + (IMPACT_COLOR_END.g - IMPACT_COLOR_START.g) * t);
-  const b = Math.round(IMPACT_COLOR_START.b + (IMPACT_COLOR_END.b - IMPACT_COLOR_START.b) * t);
+  const r = Math.round(startRgb.r + (endRgb.r - startRgb.r) * t);
+  const g = Math.round(startRgb.g + (endRgb.g - startRgb.g) * t);
+  const b = Math.round(startRgb.b + (endRgb.b - startRgb.b) * t);
   const glowRadius = IMPACT_GLOW_RADIUS * t;
   const glowAlpha = IMPACT_GLOW_ALPHA * t;
   return {
     color: `rgb(${r}, ${g}, ${b})`,
     textShadow:
-      t > IMPACT_GLOW_THRESHOLD ? `0 0 ${glowRadius}px rgba(255, 0, 255, ${glowAlpha})` : undefined,
+      t > IMPACT_GLOW_THRESHOLD
+        ? `0 0 ${glowRadius}px color-mix(in srgb, var(--color-neon-magenta) ${glowAlpha * 100}%, transparent)`
+        : undefined,
   };
 }
 
@@ -89,6 +106,28 @@ export default function RecentActivitiesList({
   const { user } = useAuth();
   const navigate = useNavigate();
   const [page, setPage] = useState(0);
+
+  // Re-resolved when the theme flips: resolveThemeColor is a point-in-time read of the
+  // DOM, and `resolvedTheme` is the only thing that changes its answer. The linter
+  // can't see that — the dependency is real but not lexically referenced, and dropping
+  // it would freeze the ramp at whichever theme rendered first.
+  const { resolvedTheme } = useTheme();
+  const impactRamp = useMemo(
+    () => ({
+      start: parseRgb(resolveThemeColor(IMPACT_START_TOKEN, IMPACT_START_FALLBACK)) ?? {
+        r: 0x77,
+        g: 0x88,
+        b: 0x99,
+      },
+      end: parseRgb(resolveThemeColor(IMPACT_END_TOKEN, IMPACT_END_FALLBACK)) ?? {
+        r: 0xff,
+        g: 0x00,
+        b: 0xff,
+      },
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [resolvedTheme]
+  );
 
   // Dynamically measure container height to compute page size
   const containerRef = useRef<HTMLDivElement>(null);
@@ -316,7 +355,7 @@ export default function RecentActivitiesList({
                     style={{
                       whiteSpace: "nowrap",
                       fontSize: "0.75rem",
-                      ...getImpactStyle(impactPct),
+                      ...getImpactStyle(impactPct, impactRamp.start, impactRamp.end),
                     }}
                     title={impactTooltip}
                   >

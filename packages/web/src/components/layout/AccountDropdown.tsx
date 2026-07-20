@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Link } from "@tanstack/react-router";
 import type { User } from "../../hooks/useAuth";
 import { useUserProfile } from "../../hooks/useUserProfile";
+import { tint } from "../../utils/colorTokens";
 import {
   CheckIcon,
   ChevronDownIcon,
@@ -32,18 +33,18 @@ interface AccountDropdownProps {
  */
 const UserIcon = () => (
   <svg width="28" height="28" viewBox="0 0 20 20">
-    <circle cx="10" cy="10" r="9.5" fill="#e2e8f0" />
+    <circle cx="10" cy="10" r="9.5" fill="var(--color-header-text)" />
     <path
       d="M6 7.5 A4 4 0 1 0 14 7.5"
       fill="none"
-      stroke="#00d4ff"
+      stroke="var(--color-brand-cyan)"
       strokeWidth="1"
       strokeLinecap="round"
     />
     <path
       d="M5.5 7.5 L5.5 5 L14.5 5 L14.5 7.5"
       fill="none"
-      stroke="#ff00ff"
+      stroke="var(--color-neon-magenta)"
       strokeWidth="1"
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -51,7 +52,7 @@ const UserIcon = () => (
     <path
       d="M4 17 C4 14 6.5 12.5 10 12.5 C13.5 12.5 16 14 16 17"
       fill="none"
-      stroke="#39ff14"
+      stroke="var(--color-neon-lime)"
       strokeWidth="1"
       strokeLinecap="round"
     />
@@ -312,7 +313,9 @@ export function AccountDropdown({
                     borderColor:
                       theme === mode ? "var(--color-header-accent)" : "var(--color-header-border)",
                     borderRadius: "0.25rem",
-                    background: theme === mode ? "rgba(0, 212, 255, 0.15)" : "transparent",
+                    // brand-cyan, not accent-cyan-glow: this dropdown lives in the
+                    // header, which is pinned dark, so it must not flip with the theme.
+                    background: theme === mode ? tint("--color-brand-cyan", 15) : "transparent",
                     color:
                       theme === mode
                         ? "var(--color-header-accent)"

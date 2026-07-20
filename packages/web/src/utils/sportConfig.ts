@@ -12,7 +12,7 @@
  * - Helpers are pure functions for easy testing
  * - `getPrimaryMetric` has reserved parameter for future user preferences
  *
- * @see chartColors.ts - For goal/chart line colors
+ * @see constants/chartColors.ts - For goal/chart line colors
  */
 
 import type { SportConfig } from "../api/activities";
@@ -25,44 +25,58 @@ export interface SportMetricsInfo {
 }
 
 /**
- * Sport colors for chart visualizations (sparklines, etc.)
+ * Per-sport identity colors — one sport, one color, everywhere.
  *
- * Grouped by category for visual coherence:
- * - Endurance: Cyan/Blue family
- * - Outdoor/Adventure: Green/Teal family
- * - Fitness/Mind-Body: Magenta/Pink family
- * - Ball/Racket Sports: Yellow/Orange family
- * - Alternative Transport: Purple family
+ * This is the app's single sport palette: charts, chips, `/activities` badges, the
+ * dashboard sparklines, the goals list, and the map all read from it. A sport's color
+ * is fixed, never derived from its rank among whichever sports happen to be visible,
+ * so changing the filter never repaints the sports that remain.
  *
- * Colors are NEON (full brightness) to match chart color philosophy.
- * Each color is distinct and readable on both light and dark backgrounds.
+ * DESIGN NOTES
+ *
+ * Full-brightness NEON, deliberately. Light-mode legibility is earned with neutral
+ * labels and dark outlines (see `--color-chart-mark-outline`), never by dimming these
+ * — muting the palette was explicitly rejected.
+ *
+ * Colors are NOT grouped by sport family. The previous grouping (cyan endurance, green
+ * outdoor, magenta fitness…) is exactly what made the palette fail for colorblind
+ * users: same-family hues collapse together. Worst case was yoga vs. wheelchair at
+ * 1.1 ΔE under deuteranopia — indistinguishable.
+ *
+ * These values were computed, not picked by eye: greedy farthest-point selection over a
+ * full-saturation neon gamut, maximizing the *worst-case* CIE76 ΔE across normal vision,
+ * deuteranopia, and protanopia simultaneously. Every one of the 120 pairs clears
+ * 15.3 ΔE. `swimming` and `walking` are additionally constrained to blue and green hue
+ * bands so they stay intuitive, which cost nothing.
+ *
+ * The gamut is also floored at 3:1 contrast against the DARK background. Light mode can
+ * lean on `--color-chart-mark-outline`, but dark mode has no such fallback — that token
+ * resolves to the page ground there — so a mark that is too dark has nothing to save it.
+ * The tightest is watersports at 3.10:1.
+ *
+ * The five sports below marked "anchor" are pinned to the values the dashboard sparkline
+ * already showed, so that panel is unchanged by the move to fixed colors.
+ *
+ * If you change a value here, re-check colorblind separation — the constraint is not
+ * visible by looking at the palette in normal vision.
  */
 export const SPORT_COLORS: Record<string, string> = {
-  // Endurance - Cyan/Blue family
-  cycling: "rgb(0, 255, 255)", // Electric Cyan
-  running: "rgb(0, 200, 255)", // Sky Blue
-  swimming: "rgb(0, 150, 255)", // Ocean Blue
-  ebike: "rgb(100, 220, 255)", // Light Cyan
-
-  // Outdoor/Adventure - Green/Teal family
-  hiking: "rgb(0, 255, 128)", // Neon Green
-  walking: "rgb(100, 255, 150)", // Light Green
-  winter_sports: "rgb(150, 255, 200)", // Mint
-  watersports: "rgb(0, 200, 180)", // Teal
-
-  // Fitness/Mind-Body - Magenta/Pink family
-  yoga: "rgb(255, 0, 255)", // Magenta
-  workout: "rgb(255, 100, 200)", // Hot Pink
-  climbing: "rgb(200, 50, 255)", // Purple-Pink
-
-  // Ball/Racket Sports - Yellow/Orange family
-  racket_sports: "rgb(255, 200, 0)", // Neon Yellow
-  team_sports: "rgb(255, 150, 50)", // Orange
-  golf: "rgb(200, 255, 100)", // Lime
-
-  // Alternative Transport - Purple family
-  skating: "rgb(180, 100, 255)", // Lavender
-  wheelchair: "rgb(150, 150, 255)", // Periwinkle
+  cycling: "rgb(255, 0, 255)", // Magenta        (anchor)
+  ebike: "rgb(235, 0, 152)", // Deep Pink — next to cycling, its parent sport
+  running: "rgb(0, 255, 255)", // Electric Cyan  (anchor)
+  walking: "rgb(102, 255, 186)", // Mint
+  hiking: "rgb(255, 200, 0)", // Neon Yellow    (anchor)
+  swimming: "rgb(0, 129, 235)", // Ocean Blue
+  yoga: "rgb(0, 255, 128)", // Neon Green     (anchor)
+  workout: "rgb(255, 95, 31)", // Orange         (anchor)
+  watersports: "rgb(138, 20, 255)", // Violet
+  winter_sports: "rgb(255, 61, 110)", // Coral
+  golf: "rgb(232, 255, 102)", // Lime
+  racket_sports: "rgb(255, 255, 20)", // Acid Yellow
+  team_sports: "rgb(255, 61, 71)", // Red
+  skating: "rgb(233, 143, 255)", // Orchid
+  climbing: "rgb(235, 0, 211)", // Fuchsia
+  wheelchair: "rgb(20, 255, 220)", // Aqua
 } as const;
 
 /** Fallback color for unknown sports */

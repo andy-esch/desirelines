@@ -2,10 +2,10 @@ import { useId } from "react";
 
 /** Neon colors for random spinner selection */
 const NEON_COLORS = [
-  "rgb(0, 255, 255)",
-  "rgb(255, 0, 255)",
-  "rgb(0, 255, 128)",
-  "rgb(180, 0, 255)",
+  "var(--color-neon-cyan)",
+  "var(--color-neon-magenta)",
+  "var(--color-neon-green)",
+  "var(--color-neon-purple)",
 ] as const;
 
 interface NeonSpinnerProps {

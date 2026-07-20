@@ -27,9 +27,9 @@ export function Footer() {
       style={{
         background: `linear-gradient(
           135deg,
-          rgba(255, 0, 255, 0.12),
-          rgba(0, 255, 255, 0.12),
-          rgba(0, 255, 128, 0.12)
+          color-mix(in srgb, var(--color-neon-magenta) 12%, transparent),
+          color-mix(in srgb, var(--color-neon-cyan) 12%, transparent),
+          color-mix(in srgb, var(--color-neon-green) 12%, transparent)
         )`,
         borderTop: "1px solid var(--color-surface-border)",
         fontSize: "0.85rem",

@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import { useWeeklySummary } from "../../hooks/useWeeklySummary";
 import { formatMetricDisplayValue, formatHoursMinutes } from "../../utils/units";
+import { tint } from "../../utils/colorTokens";
 import Skeleton from "../Skeleton";
 
 /**
@@ -83,7 +84,7 @@ export default function WeeklySummaryCard() {
                     height: 8,
                     borderRadius: "50%",
                     backgroundColor: sport.color,
-                    boxShadow: `0 0 3px ${sport.color}`,
+                    boxShadow: `0 0 0 1px var(--color-chart-mark-outline), 0 0 3px ${sport.color}`,
                     marginRight: 8,
                     flexShrink: 0,
                   }}
@@ -147,31 +148,31 @@ function getAchievementStyle(pct: number): CSSProperties {
   // >= 100%: Neon green (goal achieved)
   if (pct >= 100) {
     return {
-      backgroundColor: "rgba(0, 255, 128, 0.9)",
-      color: "#1a202c",
-      boxShadow: "0 0 6px rgba(0, 255, 128, 0.6)",
+      backgroundColor: tint("--color-neon-green", 90),
+      color: "var(--color-on-neon)",
+      boxShadow: `0 0 6px ${tint("--color-neon-green", 60)}`,
     };
   }
   // >= 75%: Electric cyan (on track)
   if (pct >= 75) {
     return {
-      backgroundColor: "rgba(0, 212, 255, 0.85)",
-      color: "#1a202c",
-      boxShadow: "0 0 5px rgba(0, 212, 255, 0.5)",
+      backgroundColor: tint("--color-brand-cyan", 85),
+      color: "var(--color-on-neon)",
+      boxShadow: `0 0 5px ${tint("--color-brand-cyan", 50)}`,
     };
   }
   // >= 50%: Neon yellow-orange (halfway)
   if (pct >= 50) {
     return {
-      backgroundColor: "rgba(255, 200, 0, 0.85)",
-      color: "#1a202c",
-      boxShadow: "0 0 4px rgba(255, 200, 0, 0.4)",
+      backgroundColor: tint("--color-neon-yellow", 85),
+      color: "var(--color-on-neon)",
+      boxShadow: `0 0 4px ${tint("--color-neon-yellow", 40)}`,
     };
   }
   // < 50%: Muted magenta (behind)
   return {
-    backgroundColor: "rgba(180, 0, 255, 0.5)",
+    backgroundColor: tint("--color-neon-purple", 50),
     color: "#fff",
-    boxShadow: "0 0 3px rgba(180, 0, 255, 0.3)",
+    boxShadow: `0 0 3px ${tint("--color-neon-purple", 30)}`,
   };
 }

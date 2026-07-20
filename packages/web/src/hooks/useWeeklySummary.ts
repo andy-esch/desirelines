@@ -6,7 +6,7 @@ import { useVisibleSports } from "./useVisibleSports";
 import { useSportConfig } from "./useSportConfig";
 import { useUserConfig } from "./useUserConfig";
 import { useDailySportData } from "./useDailySportData";
-import { getSpectrumColor } from "../utils/chartColors";
+import { SPORT_COLORS, DEFAULT_SPORT_COLOR } from "../utils/sportConfig";
 import { generateDemoGoals } from "../utils/demoDataGenerator";
 import { filterValidSports, getSportDisplayName, getPrimaryMetric } from "../utils/sportConfig";
 import { getMetricConfig, getMetricConfigByMetricId } from "../config/metricConfig";
@@ -131,7 +131,8 @@ export function useWeeklySummary(): {
 
   // Combine into WeeklySportTotal array
   const sportTotals = useMemo(() => {
-    const total = validSports.length;
+    // `index` is still needed to line each sport up with its goals query — it is no
+    // longer used for color, which is now fixed per sport.
     return validSports.map((sport, index) => {
       const metricConfig = getMetricConfig(sport, sportConfig);
       const primaryMetric = getPrimaryMetric(sport, sportConfig);
@@ -190,7 +191,7 @@ export function useWeeklySummary(): {
       return {
         sport,
         displayName: getSportDisplayName(sport, sportConfig),
-        color: getSpectrumColor(index, total),
+        color: SPORT_COLORS[sport] ?? DEFAULT_SPORT_COLOR,
         weeklyTotal,
         weeklyGoal,
         achievementPct,
