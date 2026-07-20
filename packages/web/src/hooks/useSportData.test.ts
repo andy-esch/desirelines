@@ -140,9 +140,14 @@ describe("useSportData", () => {
     expect(result.current.sportConfig).toBeNull();
   });
 
-  it("fetches from API when auth is ready (unauthenticated)", async () => {
-    const mockMetrics = [{ date: "2025-01-01", distance: 50 }];
-
+  it("does not call the API when unauthenticated", async () => {
+    // The metrics endpoint is auth-only: the client interceptor logs
+    // "Request will proceed without auth token and likely receive 401" when there
+    // is no user, so firing here could only ever 401. Unauthenticated visitors are
+    // served by the separate /demo/$sport routes instead.
+    //
+    // This previously asserted the opposite — that the call *was* made — which
+    // encoded the bug rather than the intent (audit 2026-07-18-frontend-refinements H1).
     vi.spyOn(useAuthModule, "useAuth").mockReturnValue({
       user: null,
       loading: false,
@@ -151,7 +156,9 @@ describe("useSportData", () => {
       error: null,
     });
 
-    vi.spyOn(activitiesApi, "fetchSportMetrics").mockResolvedValue(mockMetrics);
+    vi.spyOn(activitiesApi, "fetchSportMetrics").mockResolvedValue([
+      { date: "2025-01-01", distance: 50 },
+    ]);
 
     const { result } = renderHook(() => useSportData(2025, "cycling"), {
       wrapper: createWrapper(),
@@ -161,14 +168,10 @@ describe("useSportData", () => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    expect(result.current.metrics).toEqual(mockMetrics);
+    expect(activitiesApi.fetchSportMetrics).not.toHaveBeenCalled();
+    expect(result.current.metrics).toBeNull();
+    // Sport config is public and still loads — only the per-user metrics are gated.
     expect(result.current.sportConfig).toEqual(mockConfig);
-    expect(activitiesApi.fetchSportMetrics).toHaveBeenCalledWith({
-      year: 2025,
-      sport: "cycling",
-      tz: "America/New_York",
-      signal: expect.any(AbortSignal),
-    });
   });
 
   it("fetches from API when user is authenticated", async () => {
@@ -269,8 +272,10 @@ describe("useSportData", () => {
     const mockMetrics2025 = [{ date: "2025-01-01", distance: 100 }];
     const mockMetrics2024 = [{ date: "2024-01-01", distance: 200 }];
 
+    // Authenticated: the metrics query is auth-gated, so an unauthenticated setup
+    // would test nothing here. This test is about the year key, not about auth.
     vi.spyOn(useAuthModule, "useAuth").mockReturnValue({
-      user: null,
+      user: { uid: "user-123", email: "test@example.com", displayName: "Test" },
       loading: false,
       signIn: vi.fn(),
       signOut: vi.fn(),
@@ -307,8 +312,10 @@ describe("useSportData", () => {
     const mockCyclingMetrics = [{ date: "2025-01-01", distance: 100 }];
     const mockRunningMetrics = [{ date: "2025-01-01", distance: 50 }];
 
+    // Authenticated: the metrics query is auth-gated, so an unauthenticated setup
+    // would test nothing here. This test is about the sport key, not about auth.
     vi.spyOn(useAuthModule, "useAuth").mockReturnValue({
-      user: null,
+      user: { uid: "user-123", email: "test@example.com", displayName: "Test" },
       loading: false,
       signIn: vi.fn(),
       signOut: vi.fn(),

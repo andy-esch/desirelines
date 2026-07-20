@@ -139,6 +139,34 @@ active-filter pill. Theme-aware via the decorative tokens; do not add elevation 
 `@theme inline` alias block in `tailwind.css`. New primitives need that mapping, not their
 own palette.
 
+## Neon treatments
+
+The vocabulary for "make this feel like the direction". All of these are **decorative**, so
+rules 1, 5 and 6 apply: never the only carrier of meaning, and check that no Tailwind utility
+on the same element overrides them.
+
+| Utility | Effect | Reach for it when |
+| --- | --- | --- |
+| `neon-gradient-text` | Magenta → cyan → green clipped to text | Page-level titles and hero numbers. One per view; it stops reading as special if repeated. |
+| `neon-glow-cyan` / `-pink` / `-green` | Solid neon + layered text-shadow | A single emphatic value or label. Not body copy — the glow costs legibility at small sizes. |
+| `neon-backdrop` | Low-alpha gradient wash via `::before` | Giving a panel atmosphere without competing with its contents. |
+| `page-bg-*` | Per-view gradient ground | Already applied per route; extend the set rather than inventing a one-off. |
+| `.pill-neon` + `.pill-neon-dot` | Bordered pill with glow and a live dot | Floating status/filter indicators. |
+| `.sport-mark` | Theme-aware boundary on a sport-colored mark | Any data mark. Not decorative — required, see rule 2. |
+
+**Where intensity belongs:** page grounds, chrome that frames content (pills, rules,
+dividers), state changes (focus, active, selected), and single hero values. Loud framing
+around calm content is the house style.
+
+**Where restraint belongs:** running text, dense tables, and anything a user reads for more
+than a moment. Restraint here means *not applying an effect* — it does not mean reaching for
+a duller color. If a surface feels illegible, the fix is a neutral label or a boundary
+(rules 1 and 2), not a muted palette. That distinction is the whole thesis: the palette
+stays acid; the scaffolding does the work.
+
+**A treatment is not a token.** These utilities compose primitives; they don't define colors.
+Adding a new effect means adding a utility here, never a literal in a component.
+
 ## Files
 
 | File | Purpose |

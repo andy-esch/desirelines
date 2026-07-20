@@ -43,6 +43,24 @@ export function goalToDisplay(storageValue: number, ctx: GoalUnitContext): numbe
 }
 
 /**
+ * Convert a whole goal to canonical storage units, carrying its metadata through.
+ *
+ * Only `value` changes; `id`, `label`, `metric`, `createdAt` and `updatedAt` are
+ * preserved exactly. These wrappers exist because the same six-field literal was
+ * hand-written at three call sites, which is a standing invitation to drop a field
+ * on one of them — a real hazard here, since a missing `metric` or `createdAt`
+ * persists straight to Firestore.
+ */
+export function toStoredGoal<T extends { value: number }>(goal: T, ctx: GoalUnitContext): T {
+  return { ...goal, value: goalToStorage(goal.value, ctx) };
+}
+
+/** Inverse of `toStoredGoal`. */
+export function toDisplayGoal<T extends { value: number }>(goal: T, ctx: GoalUnitContext): T {
+  return { ...goal, value: goalToDisplay(goal.value, ctx) };
+}
+
+/**
  * Calculate the number of days in a year using UTC to avoid DST issues
  * @param year - The year to calculate for
  * @returns 365 for regular years, 366 for leap years

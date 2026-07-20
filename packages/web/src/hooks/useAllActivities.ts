@@ -69,8 +69,17 @@ export function useAllActivities(
   const activities = useMemo(() => {
     if (authLoading) return [];
     if (!user) return demoActivities;
+    // Hold the set empty until paging completes, which is what this hook's contract
+    // already promised ("Empty until complete") but the implementation did not do.
+    // Exposing partial pages made every downstream aggregation re-run once per page
+    // over a growing array — O(P²) work across the load for a result nobody sees,
+    // since `isLoading` keeps a spinner up the whole time.
+    //
+    // An errored load is the exception: expose whatever landed, so a partial set is
+    // still inspectable behind the error + Retry rather than silently empty.
+    if (hasNextPage && !error) return [];
     return data?.pages.flatMap((page) => page.activities) ?? [];
-  }, [user, data, demoActivities, authLoading]);
+  }, [user, data, demoActivities, authLoading, hasNextPage, error]);
 
   return {
     activities,
