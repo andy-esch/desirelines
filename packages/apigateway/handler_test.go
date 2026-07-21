@@ -27,6 +27,7 @@ import (
 	activitiesv1 "github.com/andy-esch/desirelines/packages/apigateway/types/generated/activitiesv1"
 	"github.com/andy-esch/desirelines/packages/shared/ratelimit"
 	"github.com/go-chi/chi/v5"
+	"google.golang.org/protobuf/proto"
 	"gopkg.in/yaml.v3"
 )
 
@@ -1421,4 +1422,87 @@ func TestValidateDateRange(t *testing.T) {
 			t.Error("expected error for range > 366 days")
 		}
 	})
+}
+
+// TestOpenAPISchemaFieldsMatchProtoJSON guards the response-field half of the
+// spec contract. TestRoutesMatchOpenAPISpec above compares paths and methods
+// only, so nothing caught openapi.yaml documenting snake_case field names for
+// years while the gateway marshals with protojson (UseProtoNames: false) and
+// emits camelCase — a client generated from the spec looked for fields the API
+// never returns. This asserts every documented property of a protobuf-backed
+// schema is a real protojson field name.
+//
+// Only schemas served through respondProtobuf belong here. Responses built from
+// hand-written Go structs (RegionSummary, HealthResponse, Error, SportCategory)
+// are marshaled by encoding/json and follow their struct tags instead.
+func TestOpenAPISchemaFieldsMatchProtoJSON(t *testing.T) {
+	schemaMessages := map[string]proto.Message{
+		"Activity":                    &activitiesv1.Activity{},
+		"ActivitySummary":             &activitiesv1.ActivitySummary{},
+		"ActivityListResponse":        &activitiesv1.ListActivitiesResponse{},
+		"ActivityBucket":              &activitiesv1.ActivityBucket{},
+		"AggregateActivitiesResponse": &activitiesv1.AggregateActivitiesResponse{},
+		"MapActivity":                 &activitiesv1.MapActivity{},
+		"YearMetadata":                &generated.YearMetadata{},
+		"SportTotals":                 &generated.SportTotals{},
+		"SportMetrics":                &generated.SportMetrics{},
+		"CumulativeMetricsEntry":      &generated.CumulativeMetricsEntry{},
+		"DailySummary":                &generated.DailySummary{},
+		"DailyActivity":               &generated.DailyActivity{},
+		"AllSportsMetrics":            &generated.AllSportsMetrics{},
+		"AllSportsDailySummary":       &generated.AllSportsDailySummary{},
+	}
+
+	specData, err := os.ReadFile("openapi.yaml")
+	if err != nil {
+		t.Fatalf("failed to read openapi.yaml: %v", err)
+	}
+	var spec struct {
+		Components struct {
+			Schemas map[string]struct {
+				Properties map[string]interface{} `yaml:"properties"`
+				Required   []string               `yaml:"required"`
+			} `yaml:"schemas"`
+		} `yaml:"components"`
+	}
+	if unmarshalErr := yaml.Unmarshal(specData, &spec); unmarshalErr != nil {
+		t.Fatalf("failed to parse openapi.yaml: %v", unmarshalErr)
+	}
+
+	for schemaName, msg := range schemaMessages {
+		t.Run(schemaName, func(t *testing.T) {
+			schema, ok := spec.Components.Schemas[schemaName]
+			if !ok {
+				t.Fatalf("openapi.yaml has no schema %q", schemaName)
+			}
+
+			// protojson (UseProtoNames: false) emits each field's JSON name.
+			fields := msg.ProtoReflect().Descriptor().Fields()
+			wire := make(map[string]bool, fields.Len())
+			for i := range fields.Len() {
+				wire[fields.Get(i).JSONName()] = true
+			}
+
+			for prop := range schema.Properties {
+				if !wire[prop] {
+					t.Errorf("schema documents %q, which is not a protojson field name (proto emits %v)",
+						prop, sortedKeys(wire))
+				}
+			}
+			for _, req := range schema.Required {
+				if !wire[req] {
+					t.Errorf("schema marks %q required, but it is not a protojson field name", req)
+				}
+			}
+		})
+	}
+}
+
+func sortedKeys(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	slices.Sort(out)
+	return out
 }

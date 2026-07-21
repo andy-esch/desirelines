@@ -92,23 +92,31 @@ variable "deployment_version" {
   }
 }
 
-# Per-service image digests, resolved from tags by the deploy pipeline.
+# Per-service image digests — the images this environment actually runs.
 #
-# WHY THIS EXISTS: `deployment_version` is a git SHA, so the image reference string
-# changes on every commit even when the built bytes are identical. Terraform diffs the
-# string and creates a new Cloud Run revision for every service on every push — a real
-# traffic-shifting rollout for a service that did not change. Referencing an immutable
-# digest instead makes Terraform's own diff engine the guard: same bytes, no diff, no
-# revision.
+# WHY THIS EXISTS: `deployment_version` is a git SHA, so a tag reference changes on every
+# commit even when the built bytes are identical. Terraform diffs the string and creates
+# a new Cloud Run revision for every service on every push — a real traffic-shifting
+# rollout for a service that did not change. Referencing an immutable digest instead
+# makes Terraform's own diff engine the guard: same bytes, no diff, no revision.
 #
-# This is about deploy churn, not supply-chain immutability — Cloud Run already resolves
-# a tag to a digest and pins each revision to it.
+# WHY IT IS COMMITTED per environment rather than passed only at apply time: a value
+# supplied by one code path makes the rendered image reference depend on who ran the
+# plan, so every other plan — scheduled drift detection, a local `terraform plan`, a
+# promotion PR — renders the tag form instead and reports every Cloud Run service and
+# job as changed. Committing the digests also means git records the exact bytes each
+# environment runs: a revert restores an image, a promotion PR shows the image change in
+# its diff, and drift detection compares live infrastructure against declared intent
+# rather than against whatever a mutable tag happens to point at today.
 #
-# Empty (the default) falls back to tag-based references, which preserves local/manual
-# `terraform apply`. The deploy pipeline is expected to always populate it; if it stops,
-# the no-op revisions come back silently.
+# This is about deploy churn and provenance, not supply-chain immutability — Cloud Run
+# already resolves a tag to a digest and pins each revision to it.
+#
+# Empty (the default) falls back to tag-based references. That is a bootstrap path, for
+# the first apply in an environment whose tfvars has no digests yet; the deploy pipeline
+# writes them on success. If it stops, the no-op revisions come back.
 variable "image_digests" {
-  description = "Map of service name (dispatcher/apigateway/stravapipe) to image digest, e.g. {dispatcher = \"sha256:abc...\"}. Empty falls back to tag-based image references."
+  description = "Map of service name (dispatcher/apigateway/stravapipe) to the image digest that environment runs, e.g. {dispatcher = \"sha256:abc...\"}. Committed to tfvars by the deploy pipeline. Empty falls back to tag-based references (bootstrap only)."
   type        = map(string)
   default     = {}
 

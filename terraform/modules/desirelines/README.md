@@ -10,7 +10,7 @@ Main Terraform module for the Desirelines project. Provisions all GCP resources 
 | `pubsub_subscriptions.tf` | Push subscriptions (activity + deauth), dead letter queues |
 | `main.tf` | Pub/Sub topics (activity_events, deauth_events, dead_letter), BigQuery dataset/tables, Firestore database, Cloud Storage, GCP APIs |
 | `firebase_hosting.tf` | Firebase Hosting site, custom domain, web app config |
-| `image_validation.tf` | Container image tag validation pre-apply (tag-based; complements the digest references below) |
+| `image_validation.tf` | Pre-apply check that every image reference a plan intends to deploy exists in Artifact Registry |
 | `monitoring.tf` | Monitoring alerts and notification channels |
 
 ## Usage
@@ -216,7 +216,7 @@ module "desirelines" {
 | <a name="input_enable_application_metric_alerts"></a> [enable\_application\_metric\_alerts](#input\_enable\_application\_metric\_alerts) | Gate for alert policies that reference custom OTel application metrics (postgres pool exhaustion, Strava/HTTP/Postgres/Firestore/PubSub latency tails). These policies target custom.googleapis.com/desirelines.io/* metric descriptors, which are auto-created by the OTel GCP exporter the first time the app emits each metric — so on a first-ever deploy they don't exist yet and `google_monitoring_alert_policy` returns 404 when it tries to bind to them. Leave false on the initial deploy; after the services have run long enough to flush at least one metrics batch (≥ 60s), flip true on a follow-up apply. | `bool` | `false` | no |
 | <a name="input_firestore_location"></a> [firestore\_location](#input\_firestore\_location) | Firestore database location (region ID, e.g., 'us-central1') | `string` | `"us-central1"` | no |
 | <a name="input_gcp_region"></a> [gcp\_region](#input\_gcp\_region) | Default GCP region | `string` | `"us-central1"` | no |
-| <a name="input_image_digests"></a> [image\_digests](#input\_image\_digests) | Map of service name (dispatcher/apigateway/stravapipe) to image digest, e.g. {dispatcher = "sha256:abc..."}. Empty falls back to tag-based image references. | `map(string)` | `{}` | no |
+| <a name="input_image_digests"></a> [image\_digests](#input\_image\_digests) | Map of service name (dispatcher/apigateway/stravapipe) to the image digest that environment runs, e.g. {dispatcher = "sha256:abc..."}. Committed to tfvars by the deploy pipeline. Empty falls back to tag-based references (bootstrap only). | `map(string)` | `{}` | no |
 | <a name="input_project_name"></a> [project\_name](#input\_project\_name) | Name of the project (used for resource naming) | `string` | `"desirelines"` | no |
 | <a name="input_readiness_probe_schedule"></a> [readiness\_probe\_schedule](#input\_readiness\_probe\_schedule) | Cron schedule (UTC) for the Cloud Scheduler /api/ready probe against apigateway. Default is hourly. Each invocation wakes Neon's compute for the 5-min idle window, so this is the dominant DB-active driver after stealth wakes are removed. NOTE: dropping below hourly requires retuning google\_monitoring\_alert\_policy.apigateway\_readiness\_failing — its 4h alignment window assumes ≥3 hourly samples per evaluation; reducing cadence balloons alert latency. | `string` | `"0 * * * *"` | no |
 | <a name="input_slack_notification_channel_id"></a> [slack\_notification\_channel\_id](#input\_slack\_notification\_channel\_id) | Full resource ID of an externally-managed Slack notification channel (format: projects/<project>/notificationChannels/<id>). Created once via GCP Console → Monitoring → Notification Channels → Slack OAuth flow; the channel is not managed by Terraform because the OAuth token is issued through the Console and kept out of state. Leave null to skip Slack notifications for this environment. | `string` | `null` | no |
@@ -231,7 +231,7 @@ module "desirelines" {
 | <a name="output_bigquery_table_full_id"></a> [bigquery\_table\_full\_id](#output\_bigquery\_table\_full\_id) | Full ID of the activities BigQuery table (project:dataset.table) |
 | <a name="output_bigquery_table_id"></a> [bigquery\_table\_id](#output\_bigquery\_table\_id) | ID of the activities BigQuery table |
 | <a name="output_cloud_run_urls"></a> [cloud\_run\_urls](#output\_cloud\_run\_urls) | Cloud Run service URLs (stable, do not change on redeploy) |
-| <a name="output_deployment_info"></a> [deployment\_info](#output\_deployment\_info) | Deployment provenance: image registry and version tag |
+| <a name="output_deployment_info"></a> [deployment\_info](#output\_deployment\_info) | Deployment provenance: image registry, version tag, and the exact image reference deployed per service |
 | <a name="output_firebase_custom_domain"></a> [firebase\_custom\_domain](#output\_firebase\_custom\_domain) | Custom domain for Firebase Hosting (production only) |
 | <a name="output_firebase_hosting_site_id"></a> [firebase\_hosting\_site\_id](#output\_firebase\_hosting\_site\_id) | Firebase Hosting site ID for web application |
 | <a name="output_firebase_hosting_url"></a> [firebase\_hosting\_url](#output\_firebase\_hosting\_url) | Default Firebase Hosting URL for web application |

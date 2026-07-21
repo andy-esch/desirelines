@@ -152,11 +152,18 @@ def _emit_field(col: dict[str, Any], field_number: int, out: _Emit) -> None:
         prefix = "optional "
 
     # Add a tag comment for TIMESTAMP/JSON so readers know the BQ semantics.
+    #
+    # Exactly ONE space before `//`: this file is generated, but it still lives
+    # under schemas/proto, so `just format` runs `buf format -w` over it. buf
+    # normalizes trailing comments to a single space, so emitting two would make
+    # format and `--check` disagree — running `just format` would leave this file
+    # dirty and fail `just verify-schemas` until it was regenerated. Keep the
+    # generator's output byte-identical to buf's canonical form.
     suffix = ""
     if bq_type == "TIMESTAMP":
-        suffix = "  // BQ TIMESTAMP — micros since epoch"
+        suffix = " // BQ TIMESTAMP — micros since epoch"
     elif bq_type == "JSON":
-        suffix = "  // BQ JSON — JSON-encoded string"
+        suffix = " // BQ JSON — JSON-encoded string"
 
     out.write(f"{prefix}{type_name} {name} = {field_number};{suffix}")
 

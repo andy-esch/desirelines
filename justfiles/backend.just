@@ -257,3 +257,23 @@ proto-breaking:
 proto-fmt:
     @echo "🎨 Formatting protobuf files..."
     buf format -w schemas/proto
+
+# Verify protobuf files are buf-formatted, without mutating the working tree.
+# Exits non-zero with the diff printed if any file needs reformatting.
+#
+# This also guards a subtler trap: bq_activities.proto is GENERATED
+# (schemas/bigquery/generate_proto.py) but still lives under schemas/proto, so
+# `buf format` rewrites it too. If the generator's output ever drifts from buf's
+# canonical form, `just format` silently dirties the file and the next
+# `just verify-schemas` fails with a confusing "BQ proto out of sync". Catching
+# it here names the real cause at PR time instead.
+proto-fmt-check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "🎨 Checking proto formatting with buf..."
+    if ! buf format -d --exit-code schemas/proto; then
+        echo "❌ Protos not formatted. Run 'just proto-fmt' and commit."
+        echo "   If the diff is in a GENERATED proto (e.g. bq_activities.proto),"
+        echo "   fix the generator's output instead — see generate_proto.py."
+        exit 1
+    fi

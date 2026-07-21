@@ -67,6 +67,9 @@ jobs:
       - name: Lint proto files
         run: just proto-lint
 
+      - name: Check proto formatting
+        run: just proto-fmt-check
+
       - name: Check proto breaking changes
         if: github.event_name == 'pull_request'
         run: |
