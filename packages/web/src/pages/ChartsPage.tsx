@@ -14,13 +14,12 @@ import {
   SelectValue,
 } from "../components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "../components/ui/toggle-group";
-import { useAllActivities } from "../hooks/useAllActivities";
+import { useActivityBuckets } from "../hooks/useActivityBuckets";
 import { useSportConfig } from "../hooks/useSportConfig";
 import { useSportOptions } from "../hooks/useSportOptions";
 import { useUserConfig } from "../hooks/useUserConfig";
 import { useVisibleSports } from "../hooks/useVisibleSports";
 import {
-  aggregateActivities,
   toChartData,
   filterBucketsByType,
   monthsInRange,
@@ -91,11 +90,10 @@ export default function ChartsPage() {
     [dateRange.from, dateRange.to, selectedSports]
   );
 
-  const { activities, isLoading, error, retry } = useAllActivities(filter);
-
   // All buckets for the range+sport (before the geography filter) — this drives
   // the reconciliation caption so it always shows the full outdoor/indoor split.
-  const buckets = useMemo(() => aggregateActivities(activities), [activities]);
+  // Aggregated server-side (SQL) when signed in; demo mode aggregates client-side.
+  const { buckets, isLoading, error, retry } = useActivityBuckets(filter);
 
   // The continuous month axis for the selected range, so empty months still show.
   const monthAxis = useMemo(

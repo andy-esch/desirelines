@@ -57,6 +57,9 @@ func (m *mockRepo) GetActivityByID(ctx context.Context, userID string, id int64)
 func (m *mockRepo) ListActivities(ctx context.Context, filter repository.ActivityListFilter) (*activitiesv1.ListActivitiesResponse, error) {
 	return nil, m.err
 }
+func (m *mockRepo) AggregateActivities(ctx context.Context, filter repository.ActivityAggregateFilter) ([]*activitiesv1.ActivityBucket, error) {
+	return nil, m.err
+}
 func (m *mockRepo) GetMapTile(ctx context.Context, userID string, z, x, y int) ([]byte, error) {
 	return m.tile, m.err
 }

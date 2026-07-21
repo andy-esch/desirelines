@@ -57,6 +57,14 @@ type ActivityRepository interface {
 	// Used by: GET /activities
 	ListActivities(ctx context.Context, filter ActivityListFilter) (*activitiesv1.ListActivitiesResponse, error)
 
+	// AggregateActivities returns (month × sport × geographic) buckets with
+	// summed measures, sorted by month, sport, geographic. Bucket sport is the
+	// raw Strava sport_type; the handler re-keys by category
+	// (GetCategoryForStravaType) and merges buckets that collapse onto the
+	// same category (e.g. Ride + VirtualRide → cycling).
+	// Used by: GET /activities/summary
+	AggregateActivities(ctx context.Context, filter ActivityAggregateFilter) ([]*activitiesv1.ActivityBucket, error)
+
 	// GetMapTile returns a Mapbox Vector Tile (ST_AsMVT bytes) of the user's
 	// activity routes for the given z/x/y, in real-world coordinates. Includes
 	// only geo-bearing activities (those with >=1 region tag), so virtual/indoor

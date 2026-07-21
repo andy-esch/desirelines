@@ -552,7 +552,7 @@ func (h *Handler) HandleGetActivity(w http.ResponseWriter, r *http.Request) {
 }
 
 // HandleListActivities serves a paginated list of activities.
-// GET /activities?from=2025-01-01&to=2025-12-31&sport=cycling&limit=20&cursor=...
+// GET /activities?from=2025-01-01&to=2025-12-31&sports=cycling,running&limit=20&cursor=...
 func (h *Handler) HandleListActivities(w http.ResponseWriter, r *http.Request) {
 	userID, ok := h.getUserID(w, r)
 	if !ok {

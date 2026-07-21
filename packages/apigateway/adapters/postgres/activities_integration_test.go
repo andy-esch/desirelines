@@ -747,6 +747,146 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 	})
 }
 
+// TestIntegration_AggregateActivities exercises the monthly aggregate against
+// real SQL, with fixtures chosen to pin the geographic-classification
+// predicate: an activity is geographic only when it has none of the
+// trainer/manual/Virtual markers AND a stored activity_routes row. The key
+// case is a trainer ride WITH stored geometry (a virtual ride whose fake
+// polyline was decoded) — region tagging would call it geographic; the full
+// predicate must not.
+func TestIntegration_AggregateActivities(t *testing.T) {
+	connString := os.Getenv("POSTGRES_CONNECTION_STRING")
+	if connString == "" {
+		t.Skip("POSTGRES_CONNECTION_STRING not set, skipping integration tests")
+	}
+
+	ctx := context.Background()
+	pool, err := pgxpool.New(ctx, connString)
+	if err != nil {
+		t.Fatalf("failed to create pool: %v", err)
+	}
+	defer pool.Close()
+
+	withTestTxRaw(t, pool, func(tx pgx.Tx, repo *postgres.ActivityRepository) {
+		type fixture struct {
+			id               int64
+			activityType     string
+			sport            string
+			start            time.Time
+			distance         float64
+			movingTime       int32
+			trainer, manual  bool
+			hasRouteGeometry bool
+		}
+		fixtures := []fixture{
+			// Plain outdoor ride with geometry → geographic.
+			{3001, "Ride", "Ride", time.Date(2024, 3, 5, 8, 0, 0, 0, time.UTC), 10000, 1800, false, false, true},
+			// Trainer ride WITH stored geometry → still non-geographic (the predicate case).
+			{3002, "Ride", "Ride", time.Date(2024, 3, 12, 8, 0, 0, 0, time.UTC), 20000, 3600, true, false, true},
+			// VirtualRide, no geometry → non-geographic.
+			{3003, "VirtualRide", "VirtualRide", time.Date(2024, 3, 19, 8, 0, 0, 0, time.UTC), 30000, 2400, false, false, false},
+			// Run with no geometry (e.g. treadmill/manual-less indoor) → non-geographic.
+			{3004, "Run", "Run", time.Date(2024, 3, 20, 8, 0, 0, 0, time.UTC), 5000, 1500, false, false, false},
+			// Outdoor ride in the next month → its own bucket.
+			{3005, "Ride", "Ride", time.Date(2024, 4, 2, 8, 0, 0, 0, time.UTC), 12000, 2000, false, false, true},
+		}
+		for _, f := range fixtures {
+			if _, err := tx.Exec(ctx, `
+				INSERT INTO desirelines.activities (
+					id, user_id, name, type, sport, start_date_local, year,
+					distance, moving_time, elapsed_time, total_elevation_gain,
+					trainer, manual
+				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+			`, f.id, "agg-user", "Fixture", f.activityType, f.sport, f.start, f.start.Year(),
+				f.distance, f.movingTime, f.movingTime+100, float64(0), f.trainer, f.manual,
+			); err != nil {
+				t.Fatalf("failed to insert fixture %d: %v", f.id, err)
+			}
+			if f.hasRouteGeometry {
+				if _, err := tx.Exec(ctx, `
+					INSERT INTO desirelines.activity_routes (activity_id, route)
+					VALUES ($1, ST_GeomFromText('LINESTRING(-71.06 42.35, -71.05 42.36)', 4326))
+				`, f.id); err != nil {
+					t.Fatalf("failed to insert route for fixture %d: %v", f.id, err)
+				}
+			}
+		}
+
+		t.Run("buckets by month, raw sport, and the full geographic predicate", func(t *testing.T) {
+			buckets, err := repo.AggregateActivities(ctx, repository.ActivityAggregateFilter{UserID: "agg-user"})
+			if err != nil {
+				t.Fatalf("AggregateActivities failed: %v", err)
+			}
+
+			type want struct {
+				month, sport string
+				geographic   bool
+				count        int32
+				movingTime   int32
+				distance     float64
+			}
+			wants := []want{
+				{"2024-03", "Ride", false, 1, 3600, 20000}, // the trainer ride, despite its geometry
+				{"2024-03", "Ride", true, 1, 1800, 10000},
+				{"2024-03", "Run", false, 1, 1500, 5000},
+				{"2024-03", "VirtualRide", false, 1, 2400, 30000},
+				{"2024-04", "Ride", true, 1, 2000, 12000},
+			}
+			if len(buckets) != len(wants) {
+				t.Fatalf("expected %d buckets, got %d: %+v", len(wants), len(buckets), buckets)
+			}
+			var total int32
+			for i, w := range wants {
+				b := buckets[i]
+				if b.Month != w.month || b.Sport != w.sport || b.Geographic != w.geographic ||
+					b.Count != w.count || b.MovingTimeSeconds != w.movingTime || b.DistanceMeters != w.distance {
+					t.Errorf("bucket %d: expected %+v, got %+v", i, w, b)
+				}
+				total += b.Count
+			}
+			// Reconciliation: geographic + non-geographic covers every activity.
+			if total != int32(len(fixtures)) {
+				t.Errorf("expected bucket counts to total %d, got %d", len(fixtures), total)
+			}
+		})
+
+		t.Run("applies date and sport-type filters", func(t *testing.T) {
+			from, to := "2024-03-01", "2024-03-31"
+			buckets, err := repo.AggregateActivities(ctx, repository.ActivityAggregateFilter{
+				UserID:     "agg-user",
+				From:       &from,
+				To:         &to,
+				SportTypes: []string{"Ride", "VirtualRide"},
+			})
+			if err != nil {
+				t.Fatalf("AggregateActivities failed: %v", err)
+			}
+			// March only, rides only: trainer Ride (false), outdoor Ride (true), VirtualRide (false).
+			if len(buckets) != 3 {
+				t.Fatalf("expected 3 buckets, got %d: %+v", len(buckets), buckets)
+			}
+			for _, b := range buckets {
+				if b.Month != "2024-03" {
+					t.Errorf("expected only 2024-03 buckets, got %s", b.Month)
+				}
+				if b.Sport == "Run" {
+					t.Errorf("expected no Run buckets, got %+v", b)
+				}
+			}
+		})
+
+		t.Run("isolates users", func(t *testing.T) {
+			buckets, err := repo.AggregateActivities(ctx, repository.ActivityAggregateFilter{UserID: "someone-else"})
+			if err != nil {
+				t.Fatalf("AggregateActivities failed: %v", err)
+			}
+			if len(buckets) != 0 {
+				t.Errorf("expected no buckets for another user, got %d", len(buckets))
+			}
+		})
+	})
+}
+
 // findMetricsEntry finds a timeseries entry by date, failing the test if not found.
 func findMetricsEntry(t *testing.T, entries []*generated.CumulativeMetricsEntry, date string) *generated.CumulativeMetricsEntry {
 	t.Helper()

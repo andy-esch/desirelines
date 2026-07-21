@@ -1,29 +1,22 @@
-import type { ActivitySummary } from "../api/activities";
+import type { ActivitySummary, ActivityBucket } from "../api/activities";
 
 /**
  * One aggregated cell of the Charts view: a (month × sport × geographic) group
  * with its summed measures.
  *
- * This is the **A→B contract**. The `/charts` view aggregates the activities list
- * client-side into these buckets (data source "A", `aggregateActivities` below);
- * the later backend endpoint (data source "B") returns this exact shape from SQL,
- * so the chart never changes when the source is swapped. Keep this interface and
- * the B endpoint's row shape in lockstep.
+ * The bucket shape is the generated proto type — the same rows
+ * `GET /v1/activities/summary` returns from SQL — re-exported here so the
+ * client-side aggregation below cannot drift from it. Signed in, the chart
+ * reads the endpoint; signed out (demo mode, no backend) it aggregates the
+ * generated activity set with `aggregateActivities`. Both paths therefore feed
+ * the chart identical rows.
+ *
+ * Note the two differ in how `geographic` is decided: the server applies the
+ * full predicate (no trainer/manual flag, not a Virtual type, and stored route
+ * geometry), while the client can only see `hasRoute`. That is acceptable
+ * precisely because the client path is demo-only.
  */
-export interface ActivityBucket {
-  /** Calendar month "YYYY-MM" in the athlete's local time (no timezone shift). */
-  month: string;
-  /** App sport-category key (running, cycling, yoga, …). */
-  sport: string;
-  /** True when the activity has real geography (hasRoute) — i.e. appears on the map. */
-  geographic: boolean;
-  /** Number of activities in this group. */
-  count: number;
-  /** Summed moving time (seconds). */
-  movingTimeSeconds: number;
-  /** Summed distance (meters). Zero for distance-less sports (yoga, strength). */
-  distanceMeters: number;
-}
+export type { ActivityBucket };
 
 /**
  * Aggregate a flat activity list into (month × sport × geographic) buckets.

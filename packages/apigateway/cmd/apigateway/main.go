@@ -420,16 +420,17 @@ func buildRouter(deps *Dependencies) http.Handler {
 	}
 
 	authRoutes := server.AuthenticatedRoutes{
-		GetMetadata:     activitiesHandler.HandleMetadata,
-		GetMetrics:      activitiesHandler.HandleMetrics,
-		GetSource:       activitiesHandler.HandleSource,
-		GetMapTile:      activitiesHandler.HandleMapTile,
-		GetMapTileJSON:  activitiesHandler.HandleMapTileJSON,
-		GetMapRegions:   activitiesHandler.HandleMapRegions,
-		GetMapDataset:   activitiesHandler.HandleMapDataset,
-		ListActivities:  activitiesHandler.HandleListActivities,
-		GetActivityByID: activitiesHandler.HandleGetActivity,
-		SyntheticFault:  syntheticHandler.Fault,
+		GetMetadata:        activitiesHandler.HandleMetadata,
+		GetMetrics:         activitiesHandler.HandleMetrics,
+		GetSource:          activitiesHandler.HandleSource,
+		GetMapTile:         activitiesHandler.HandleMapTile,
+		GetMapTileJSON:     activitiesHandler.HandleMapTileJSON,
+		GetMapRegions:      activitiesHandler.HandleMapRegions,
+		GetMapDataset:      activitiesHandler.HandleMapDataset,
+		ListActivities:     activitiesHandler.HandleListActivities,
+		GetActivitySummary: activitiesHandler.HandleActivitySummary,
+		GetActivityByID:    activitiesHandler.HandleGetActivity,
+		SyntheticFault:     syntheticHandler.Fault,
 	}
 
 	return server.NewRouter(routerCfg, publicRoutes, authRoutes, deps.logger)

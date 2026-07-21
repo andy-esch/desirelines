@@ -1133,6 +1133,90 @@ func (r *ActivityRepository) GetMapDataset(ctx context.Context, userID string) (
 	return activities, nil
 }
 
+// AggregateActivities returns (month × sport × geographic) buckets over the
+// filtered activities, grouped by the raw `sport` column (the caller re-keys
+// by category). Months bucket on start_date_local as stored — athlete-local
+// wall clock, no timezone conversion. Geographic classification is the full
+// predicate, not region tagging: an activity is geographic only when it
+// carries none of the trainer/manual/Virtual markers AND has stored route
+// geometry, so a virtual ride with a fake polyline stays non-geographic.
+func (r *ActivityRepository) AggregateActivities(ctx context.Context, filter repository.ActivityAggregateFilter) (buckets []*activitiesv1.ActivityBucket, retErr error) {
+	ctx, spanDone := otel.StartSpan(ctx, r.tracer, "repository.activities.aggregate",
+		attribute.String("db.system", dbSystem),
+		attribute.String("db.name", dbName),
+		attribute.String("db.operation", dbOpSelect),
+		attribute.String("enduser.id", filter.UserID),
+		attribute.Int("sport_count", len(filter.SportTypes)),
+	)
+	done := otel.RecordDuration(ctx, r.histogram, attribute.String("operation", "aggregate"))
+	defer func() {
+		trace.SpanFromContext(ctx).SetAttributes(attribute.Int("result.row_count", len(buckets)))
+		done(retErr)
+		spanDone(retErr)
+	}()
+
+	qb := newQueryBuilder(`
+		SELECT
+			to_char(date_trunc('month', start_date_local), 'YYYY-MM') AS month,
+			sport,
+			(NOT trainer AND NOT manual AND type NOT LIKE 'Virtual%'
+				AND ar.activity_id IS NOT NULL) AS geographic,
+			COUNT(*)::int AS count,
+			COALESCE(SUM(moving_time), 0)::int AS moving_time_seconds,
+			COALESCE(SUM(distance), 0)::float8 AS distance_meters
+		FROM desirelines.activities
+		LEFT JOIN desirelines.activity_routes ar ON ar.activity_id = activities.id
+		WHERE 1=1
+	`)
+
+	// Filter by user ID (required for query isolation)
+	qb.AddCondition(" AND user_id = $%d", filter.UserID)
+
+	if filter.From != nil {
+		qb.AddCondition(" AND start_date_local >= $%d::date", *filter.From)
+	}
+
+	if filter.To != nil {
+		// Add 1 day to make 'to' inclusive (end of day)
+		qb.AddCondition(" AND start_date_local < ($%d::date + interval '1 day')", *filter.To)
+	}
+
+	// Filter on 'sport' column which contains Strava sport_type values
+	if len(filter.SportTypes) > 0 {
+		qb.AddCondition(" AND sport = ANY($%d)", filter.SportTypes)
+	}
+
+	qb.append(" GROUP BY 1, 2, 3 ORDER BY 1, 2, 3")
+
+	rows, retErr := r.db.Query(ctx, qb.query, qb.args...)
+	if retErr != nil {
+		return nil, fmt.Errorf("query activity aggregate: %w", retErr)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var month, sport string
+		var geographic bool
+		var count, movingTime int32
+		var distance float64
+		if retErr = rows.Scan(&month, &sport, &geographic, &count, &movingTime, &distance); retErr != nil {
+			return nil, fmt.Errorf("scan aggregate row: %w", retErr)
+		}
+		buckets = append(buckets, &activitiesv1.ActivityBucket{
+			Month:             month,
+			Sport:             sport,
+			Geographic:        geographic,
+			Count:             count,
+			MovingTimeSeconds: movingTime,
+			DistanceMeters:    distance,
+		})
+	}
+	if retErr = rows.Err(); retErr != nil {
+		return nil, fmt.Errorf("iterate aggregate rows: %w", retErr)
+	}
+	return buckets, nil
+}
+
 // encodeCursor encodes an ActivityCursor to a base64 string.
 // Format: "timestamp|id" encoded as URL-safe base64.
 func encodeCursor(cursor *repository.ActivityCursor) string {

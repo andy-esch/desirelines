@@ -45,19 +45,22 @@ func (m *mockAuthMiddleware) Middleware(next http.Handler) http.Handler {
 
 // mockActivityRepository is a mock implementation of repository.ActivityRepository
 type mockActivityRepository struct {
-	pingErr         error
-	closeErr        error
-	sportMetrics    *generated.SportMetrics
-	sportMetricsErr error
-	dailySummary    *generated.DailySummary
-	dailySummaryErr error
-	yearMetadata    *generated.YearMetadata
-	yearMetadataErr error
-	activity        *activitiesv1.Activity
-	activityErr     error
-	activityList    *activitiesv1.ListActivitiesResponse
-	activityListErr error
-	lastListFilter  *repository.ActivityListFilter
+	pingErr             error
+	closeErr            error
+	sportMetrics        *generated.SportMetrics
+	sportMetricsErr     error
+	dailySummary        *generated.DailySummary
+	dailySummaryErr     error
+	yearMetadata        *generated.YearMetadata
+	yearMetadataErr     error
+	activity            *activitiesv1.Activity
+	activityErr         error
+	activityList        *activitiesv1.ListActivitiesResponse
+	activityListErr     error
+	lastListFilter      *repository.ActivityListFilter
+	activityBuckets     []*activitiesv1.ActivityBucket
+	activityBucketsErr  error
+	lastAggregateFilter *repository.ActivityAggregateFilter
 }
 
 func (m *mockActivityRepository) Ping(ctx context.Context) error {
@@ -95,6 +98,11 @@ func (m *mockActivityRepository) GetActivityByID(ctx context.Context, userID str
 func (m *mockActivityRepository) ListActivities(ctx context.Context, filter repository.ActivityListFilter) (*activitiesv1.ListActivitiesResponse, error) {
 	m.lastListFilter = &filter
 	return m.activityList, m.activityListErr
+}
+
+func (m *mockActivityRepository) AggregateActivities(ctx context.Context, filter repository.ActivityAggregateFilter) ([]*activitiesv1.ActivityBucket, error) {
+	m.lastAggregateFilter = &filter
+	return m.activityBuckets, m.activityBucketsErr
 }
 
 func (m *mockActivityRepository) GetMapTile(ctx context.Context, userID string, z, x, y int) ([]byte, error) {
@@ -165,14 +173,15 @@ func newTestRouterWithDB(activityRepo repository.ActivityRepository, allowedOrig
 	}
 
 	authRoutes := server.AuthenticatedRoutes{
-		GetMetadata:     activitiesHandler.HandleMetadata,
-		GetMetrics:      activitiesHandler.HandleMetrics,
-		GetSource:       activitiesHandler.HandleSource,
-		GetMapTile:      activitiesHandler.HandleMapTile,
-		GetMapRegions:   activitiesHandler.HandleMapRegions,
-		GetMapDataset:   activitiesHandler.HandleMapDataset,
-		ListActivities:  activitiesHandler.HandleListActivities,
-		GetActivityByID: activitiesHandler.HandleGetActivity,
+		GetMetadata:        activitiesHandler.HandleMetadata,
+		GetMetrics:         activitiesHandler.HandleMetrics,
+		GetSource:          activitiesHandler.HandleSource,
+		GetMapTile:         activitiesHandler.HandleMapTile,
+		GetMapRegions:      activitiesHandler.HandleMapRegions,
+		GetMapDataset:      activitiesHandler.HandleMapDataset,
+		ListActivities:     activitiesHandler.HandleListActivities,
+		GetActivitySummary: activitiesHandler.HandleActivitySummary,
+		GetActivityByID:    activitiesHandler.HandleGetActivity,
 	}
 
 	return server.NewRouter(routerCfg, publicRoutes, authRoutes, logger)
@@ -1060,6 +1069,150 @@ func TestHandlerListActivitiesSportsFilter(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHandlerActivitySummary(t *testing.T) {
+	logger := slog.Default()
+	sportConfig, err := config.NewSportConfig("")
+	if err != nil {
+		t.Fatalf("failed to load sport config: %v", err)
+	}
+
+	type bucketJSON struct {
+		Month             string  `json:"month"`
+		Sport             string  `json:"sport"`
+		Geographic        bool    `json:"geographic"`
+		Count             int32   `json:"count"`
+		MovingTimeSeconds int32   `json:"movingTimeSeconds"`
+		DistanceMeters    float64 `json:"distanceMeters"`
+	}
+	getBuckets := func(t *testing.T, body []byte) []bucketJSON {
+		t.Helper()
+		var response struct {
+			Buckets []bucketJSON `json:"buckets"`
+		}
+		if jsonErr := json.Unmarshal(body, &response); jsonErr != nil {
+			t.Fatalf("failed to unmarshal response: %v", jsonErr)
+		}
+		return response.Buckets
+	}
+
+	t.Run("merges raw sport_type buckets onto one category", func(t *testing.T) {
+		// Ride and VirtualRide both map to cycling and must merge into one
+		// (month, cycling, geographic) cell with summed measures.
+		mockRepo := &mockActivityRepository{activityBuckets: []*activitiesv1.ActivityBucket{
+			{Month: "2026-05", Sport: "Ride", Geographic: false, Count: 2, MovingTimeSeconds: 3600, DistanceMeters: 50000},
+			{Month: "2026-05", Sport: "VirtualRide", Geographic: false, Count: 1, MovingTimeSeconds: 1800, DistanceMeters: 30000},
+			{Month: "2026-05", Sport: "Run", Geographic: true, Count: 1, MovingTimeSeconds: 2400, DistanceMeters: 8000},
+		}}
+		router := newTestRouterWithDB(mockRepo, []string{}, logger)
+
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities/summary", nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected status 200, got %d", w.Code)
+		}
+		want := []bucketJSON{
+			{Month: "2026-05", Sport: "cycling", Geographic: false, Count: 3, MovingTimeSeconds: 5400, DistanceMeters: 80000},
+			{Month: "2026-05", Sport: "running", Geographic: true, Count: 1, MovingTimeSeconds: 2400, DistanceMeters: 8000},
+		}
+		if got := getBuckets(t, w.Body.Bytes()); !slices.Equal(got, want) {
+			t.Errorf("expected buckets %+v, got %+v", want, got)
+		}
+	})
+
+	t.Run("sorts merged buckets by month, sport, geographic", func(t *testing.T) {
+		mockRepo := &mockActivityRepository{activityBuckets: []*activitiesv1.ActivityBucket{
+			{Month: "2026-06", Sport: "Run", Geographic: true, Count: 1},
+			{Month: "2026-05", Sport: "Yoga", Geographic: false, Count: 1},
+			{Month: "2026-05", Sport: "Ride", Geographic: true, Count: 1},
+			{Month: "2026-05", Sport: "VirtualRide", Geographic: false, Count: 1},
+		}}
+		router := newTestRouterWithDB(mockRepo, []string{}, logger)
+
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities/summary", nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected status 200, got %d", w.Code)
+		}
+		buckets := getBuckets(t, w.Body.Bytes())
+		order := make([]string, 0, len(buckets))
+		for _, b := range buckets {
+			order = append(order, fmt.Sprintf("%s/%s/%t", b.Month, b.Sport, b.Geographic))
+		}
+		want := []string{
+			"2026-05/cycling/false", "2026-05/cycling/true",
+			"2026-05/yoga/false", "2026-06/running/true",
+		}
+		if !slices.Equal(order, want) {
+			t.Errorf("expected order %v, got %v", want, order)
+		}
+	})
+
+	t.Run("passes date and sports filters to the repository", func(t *testing.T) {
+		mockRepo := &mockActivityRepository{}
+		router := newTestRouterWithDB(mockRepo, []string{}, logger)
+
+		req := httptest.NewRequest(http.MethodGet,
+			"/v1/activities/summary?from=2026-01-01&to=2026-06-30&sports=cycling", nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected status 200, got %d", w.Code)
+		}
+		f := mockRepo.lastAggregateFilter
+		if f == nil {
+			t.Fatal("expected AggregateActivities to be called")
+		}
+		if f.From == nil || *f.From != "2026-01-01" || f.To == nil || *f.To != "2026-06-30" {
+			t.Errorf("expected date filter 2026-01-01..2026-06-30, got %+v", f)
+		}
+		if !slices.Equal(f.SportTypes, sportConfig.GetStravaTypes("cycling")) {
+			t.Errorf("expected cycling sport types, got %v", f.SportTypes)
+		}
+	})
+}
+
+func TestHandlerActivitySummaryErrors(t *testing.T) {
+	logger := slog.Default()
+
+	t.Run("returns 400 for an invalid date or sport", func(t *testing.T) {
+		for _, query := range []string{"?from=not-a-date", "?to=2026-13-99", "?sports=badminton"} {
+			mockRepo := &mockActivityRepository{}
+			router := newTestRouterWithDB(mockRepo, []string{}, logger)
+
+			req := httptest.NewRequest(http.MethodGet, "/v1/activities/summary"+query, nil)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			if w.Code != http.StatusBadRequest {
+				t.Errorf("%s: expected status 400, got %d", query, w.Code)
+			}
+		}
+	})
+
+	t.Run("returns 500 on database error", func(t *testing.T) {
+		mockRepo := &mockActivityRepository{activityBucketsErr: errors.New("database error")}
+		router := newTestRouterWithDB(mockRepo, []string{}, logger)
+
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities/summary", nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected status 500, got %d", w.Code)
+		}
+	})
 }
 
 // =============================================================================

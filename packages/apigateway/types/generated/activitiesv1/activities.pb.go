@@ -642,6 +642,222 @@ func (x *ListActivitiesResponse) GetHasMore() bool {
 	return false
 }
 
+// AggregateActivitiesRequest contains filters for the monthly activity
+// aggregate. Used for GET /activities/summary.
+type AggregateActivitiesRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Start date filter (YYYY-MM-DD), inclusive.
+	From *string `protobuf:"bytes,1,opt,name=from,proto3,oneof" json:"from,omitempty"`
+	// End date filter (YYYY-MM-DD), inclusive.
+	To *string `protobuf:"bytes,2,opt,name=to,proto3,oneof" json:"to,omitempty"`
+	// Sport-category filter (e.g. cycling, running). Empty = all sports.
+	// At most 20 categories per request.
+	Sports []string `protobuf:"bytes,3,rep,name=sports,proto3" json:"sports,omitempty"`
+}
+
+func (x *AggregateActivitiesRequest) Reset() {
+	*x = AggregateActivitiesRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_proto_desirelines_activities_v1_activities_proto_msgTypes[6]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *AggregateActivitiesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AggregateActivitiesRequest) ProtoMessage() {}
+
+func (x *AggregateActivitiesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_desirelines_activities_v1_activities_proto_msgTypes[6]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AggregateActivitiesRequest.ProtoReflect.Descriptor instead.
+func (*AggregateActivitiesRequest) Descriptor() ([]byte, []int) {
+	return file_proto_desirelines_activities_v1_activities_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *AggregateActivitiesRequest) GetFrom() string {
+	if x != nil && x.From != nil {
+		return *x.From
+	}
+	return ""
+}
+
+func (x *AggregateActivitiesRequest) GetTo() string {
+	if x != nil && x.To != nil {
+		return *x.To
+	}
+	return ""
+}
+
+func (x *AggregateActivitiesRequest) GetSports() []string {
+	if x != nil {
+		return x.Sports
+	}
+	return nil
+}
+
+// ActivityBucket is one aggregated (month x sport x geographic) group with its
+// summed measures — the exact shape the charts view consumes.
+type ActivityBucket struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Calendar month "YYYY-MM" in the athlete's local time (no timezone shift).
+	Month string `protobuf:"bytes,1,opt,name=month,proto3" json:"month,omitempty"`
+	// App sport category (running, cycling, yoga).
+	Sport string `protobuf:"bytes,2,opt,name=sport,proto3" json:"sport,omitempty"`
+	// True when the activity has real-world geography: no trainer/manual flag,
+	// not a Virtual type, and stored route geometry exists.
+	Geographic bool `protobuf:"varint,3,opt,name=geographic,proto3" json:"geographic,omitempty"`
+	// Number of activities in the group.
+	Count int32 `protobuf:"varint,4,opt,name=count,proto3" json:"count,omitempty"`
+	// Summed moving time in seconds. int32 (not int64) so protojson emits a
+	// JSON number rather than a string; 2^31 seconds is ~68 years of moving
+	// time, far beyond any real bucket.
+	MovingTimeSeconds int32 `protobuf:"varint,5,opt,name=moving_time_seconds,json=movingTimeSeconds,proto3" json:"moving_time_seconds,omitempty"`
+	// Summed distance in meters. Zero for distance-less sports.
+	DistanceMeters float64 `protobuf:"fixed64,6,opt,name=distance_meters,json=distanceMeters,proto3" json:"distance_meters,omitempty"`
+}
+
+func (x *ActivityBucket) Reset() {
+	*x = ActivityBucket{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_proto_desirelines_activities_v1_activities_proto_msgTypes[7]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ActivityBucket) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActivityBucket) ProtoMessage() {}
+
+func (x *ActivityBucket) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_desirelines_activities_v1_activities_proto_msgTypes[7]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActivityBucket.ProtoReflect.Descriptor instead.
+func (*ActivityBucket) Descriptor() ([]byte, []int) {
+	return file_proto_desirelines_activities_v1_activities_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ActivityBucket) GetMonth() string {
+	if x != nil {
+		return x.Month
+	}
+	return ""
+}
+
+func (x *ActivityBucket) GetSport() string {
+	if x != nil {
+		return x.Sport
+	}
+	return ""
+}
+
+func (x *ActivityBucket) GetGeographic() bool {
+	if x != nil {
+		return x.Geographic
+	}
+	return false
+}
+
+func (x *ActivityBucket) GetCount() int32 {
+	if x != nil {
+		return x.Count
+	}
+	return 0
+}
+
+func (x *ActivityBucket) GetMovingTimeSeconds() int32 {
+	if x != nil {
+		return x.MovingTimeSeconds
+	}
+	return 0
+}
+
+func (x *ActivityBucket) GetDistanceMeters() float64 {
+	if x != nil {
+		return x.DistanceMeters
+	}
+	return 0
+}
+
+// AggregateActivitiesResponse contains the monthly buckets, sorted by month,
+// then sport, then geographic (false before true).
+type AggregateActivitiesResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Buckets []*ActivityBucket `protobuf:"bytes,1,rep,name=buckets,proto3" json:"buckets,omitempty"`
+}
+
+func (x *AggregateActivitiesResponse) Reset() {
+	*x = AggregateActivitiesResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_proto_desirelines_activities_v1_activities_proto_msgTypes[8]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *AggregateActivitiesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AggregateActivitiesResponse) ProtoMessage() {}
+
+func (x *AggregateActivitiesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_desirelines_activities_v1_activities_proto_msgTypes[8]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AggregateActivitiesResponse.ProtoReflect.Descriptor instead.
+func (*AggregateActivitiesResponse) Descriptor() ([]byte, []int) {
+	return file_proto_desirelines_activities_v1_activities_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *AggregateActivitiesResponse) GetBuckets() []*ActivityBucket {
+	if x != nil {
+		return x.Buckets
+	}
+	return nil
+}
+
 // GetActivityRequest identifies a single activity to retrieve.
 // Used for GET /activities/{id} endpoint.
 type GetActivityRequest struct {
@@ -656,7 +872,7 @@ type GetActivityRequest struct {
 func (x *GetActivityRequest) Reset() {
 	*x = GetActivityRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_proto_desirelines_activities_v1_activities_proto_msgTypes[6]
+		mi := &file_proto_desirelines_activities_v1_activities_proto_msgTypes[9]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -669,7 +885,7 @@ func (x *GetActivityRequest) String() string {
 func (*GetActivityRequest) ProtoMessage() {}
 
 func (x *GetActivityRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_desirelines_activities_v1_activities_proto_msgTypes[6]
+	mi := &file_proto_desirelines_activities_v1_activities_proto_msgTypes[9]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -682,7 +898,7 @@ func (x *GetActivityRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetActivityRequest.ProtoReflect.Descriptor instead.
 func (*GetActivityRequest) Descriptor() ([]byte, []int) {
-	return file_proto_desirelines_activities_v1_activities_proto_rawDescGZIP(), []int{6}
+	return file_proto_desirelines_activities_v1_activities_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *GetActivityRequest) GetId() int64 {
@@ -706,7 +922,7 @@ type GetActivityResponse struct {
 func (x *GetActivityResponse) Reset() {
 	*x = GetActivityResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_proto_desirelines_activities_v1_activities_proto_msgTypes[7]
+		mi := &file_proto_desirelines_activities_v1_activities_proto_msgTypes[10]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -719,7 +935,7 @@ func (x *GetActivityResponse) String() string {
 func (*GetActivityResponse) ProtoMessage() {}
 
 func (x *GetActivityResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_desirelines_activities_v1_activities_proto_msgTypes[7]
+	mi := &file_proto_desirelines_activities_v1_activities_proto_msgTypes[10]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -732,7 +948,7 @@ func (x *GetActivityResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetActivityResponse.ProtoReflect.Descriptor instead.
 func (*GetActivityResponse) Descriptor() ([]byte, []int) {
-	return file_proto_desirelines_activities_v1_activities_proto_rawDescGZIP(), []int{7}
+	return file_proto_desirelines_activities_v1_activities_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *GetActivityResponse) GetActivity() *Activity {
@@ -858,21 +1074,47 @@ var file_proto_desirelines_activities_v1_activities_proto_rawDesc = []byte{
 	0x78, 0x74, 0x43, 0x75, 0x72, 0x73, 0x6f, 0x72, 0x88, 0x01, 0x01, 0x12, 0x19, 0x0a, 0x08, 0x68,
 	0x61, 0x73, 0x5f, 0x6d, 0x6f, 0x72, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x08, 0x52, 0x07, 0x68,
 	0x61, 0x73, 0x4d, 0x6f, 0x72, 0x65, 0x42, 0x0e, 0x0a, 0x0c, 0x5f, 0x6e, 0x65, 0x78, 0x74, 0x5f,
-	0x63, 0x75, 0x72, 0x73, 0x6f, 0x72, 0x22, 0x24, 0x0a, 0x12, 0x47, 0x65, 0x74, 0x41, 0x63, 0x74,
-	0x69, 0x76, 0x69, 0x74, 0x79, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x0e, 0x0a, 0x02,
-	0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x03, 0x52, 0x02, 0x69, 0x64, 0x22, 0x56, 0x0a, 0x13,
-	0x47, 0x65, 0x74, 0x41, 0x63, 0x74, 0x69, 0x76, 0x69, 0x74, 0x79, 0x52, 0x65, 0x73, 0x70, 0x6f,
-	0x6e, 0x73, 0x65, 0x12, 0x3f, 0x0a, 0x08, 0x61, 0x63, 0x74, 0x69, 0x76, 0x69, 0x74, 0x79, 0x18,
-	0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x23, 0x2e, 0x64, 0x65, 0x73, 0x69, 0x72, 0x65, 0x6c, 0x69,
-	0x6e, 0x65, 0x73, 0x2e, 0x61, 0x63, 0x74, 0x69, 0x76, 0x69, 0x74, 0x69, 0x65, 0x73, 0x2e, 0x76,
-	0x31, 0x2e, 0x41, 0x63, 0x74, 0x69, 0x76, 0x69, 0x74, 0x79, 0x52, 0x08, 0x61, 0x63, 0x74, 0x69,
-	0x76, 0x69, 0x74, 0x79, 0x42, 0x53, 0x5a, 0x51, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63,
-	0x6f, 0x6d, 0x2f, 0x61, 0x6e, 0x64, 0x79, 0x2d, 0x65, 0x73, 0x63, 0x68, 0x2f, 0x64, 0x65, 0x73,
-	0x69, 0x72, 0x65, 0x6c, 0x69, 0x6e, 0x65, 0x73, 0x2f, 0x70, 0x61, 0x63, 0x6b, 0x61, 0x67, 0x65,
-	0x73, 0x2f, 0x61, 0x70, 0x69, 0x67, 0x61, 0x74, 0x65, 0x77, 0x61, 0x79, 0x2f, 0x74, 0x79, 0x70,
-	0x65, 0x73, 0x2f, 0x67, 0x65, 0x6e, 0x65, 0x72, 0x61, 0x74, 0x65, 0x64, 0x2f, 0x61, 0x63, 0x74,
-	0x69, 0x76, 0x69, 0x74, 0x69, 0x65, 0x73, 0x76, 0x31, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f,
-	0x33,
+	0x63, 0x75, 0x72, 0x73, 0x6f, 0x72, 0x22, 0x72, 0x0a, 0x1a, 0x41, 0x67, 0x67, 0x72, 0x65, 0x67,
+	0x61, 0x74, 0x65, 0x41, 0x63, 0x74, 0x69, 0x76, 0x69, 0x74, 0x69, 0x65, 0x73, 0x52, 0x65, 0x71,
+	0x75, 0x65, 0x73, 0x74, 0x12, 0x17, 0x0a, 0x04, 0x66, 0x72, 0x6f, 0x6d, 0x18, 0x01, 0x20, 0x01,
+	0x28, 0x09, 0x48, 0x00, 0x52, 0x04, 0x66, 0x72, 0x6f, 0x6d, 0x88, 0x01, 0x01, 0x12, 0x13, 0x0a,
+	0x02, 0x74, 0x6f, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x48, 0x01, 0x52, 0x02, 0x74, 0x6f, 0x88,
+	0x01, 0x01, 0x12, 0x16, 0x0a, 0x06, 0x73, 0x70, 0x6f, 0x72, 0x74, 0x73, 0x18, 0x03, 0x20, 0x03,
+	0x28, 0x09, 0x52, 0x06, 0x73, 0x70, 0x6f, 0x72, 0x74, 0x73, 0x42, 0x07, 0x0a, 0x05, 0x5f, 0x66,
+	0x72, 0x6f, 0x6d, 0x42, 0x05, 0x0a, 0x03, 0x5f, 0x74, 0x6f, 0x22, 0xcb, 0x01, 0x0a, 0x0e, 0x41,
+	0x63, 0x74, 0x69, 0x76, 0x69, 0x74, 0x79, 0x42, 0x75, 0x63, 0x6b, 0x65, 0x74, 0x12, 0x14, 0x0a,
+	0x05, 0x6d, 0x6f, 0x6e, 0x74, 0x68, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x6d, 0x6f,
+	0x6e, 0x74, 0x68, 0x12, 0x14, 0x0a, 0x05, 0x73, 0x70, 0x6f, 0x72, 0x74, 0x18, 0x02, 0x20, 0x01,
+	0x28, 0x09, 0x52, 0x05, 0x73, 0x70, 0x6f, 0x72, 0x74, 0x12, 0x1e, 0x0a, 0x0a, 0x67, 0x65, 0x6f,
+	0x67, 0x72, 0x61, 0x70, 0x68, 0x69, 0x63, 0x18, 0x03, 0x20, 0x01, 0x28, 0x08, 0x52, 0x0a, 0x67,
+	0x65, 0x6f, 0x67, 0x72, 0x61, 0x70, 0x68, 0x69, 0x63, 0x12, 0x14, 0x0a, 0x05, 0x63, 0x6f, 0x75,
+	0x6e, 0x74, 0x18, 0x04, 0x20, 0x01, 0x28, 0x05, 0x52, 0x05, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x12,
+	0x2e, 0x0a, 0x13, 0x6d, 0x6f, 0x76, 0x69, 0x6e, 0x67, 0x5f, 0x74, 0x69, 0x6d, 0x65, 0x5f, 0x73,
+	0x65, 0x63, 0x6f, 0x6e, 0x64, 0x73, 0x18, 0x05, 0x20, 0x01, 0x28, 0x05, 0x52, 0x11, 0x6d, 0x6f,
+	0x76, 0x69, 0x6e, 0x67, 0x54, 0x69, 0x6d, 0x65, 0x53, 0x65, 0x63, 0x6f, 0x6e, 0x64, 0x73, 0x12,
+	0x27, 0x0a, 0x0f, 0x64, 0x69, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x5f, 0x6d, 0x65, 0x74, 0x65,
+	0x72, 0x73, 0x18, 0x06, 0x20, 0x01, 0x28, 0x01, 0x52, 0x0e, 0x64, 0x69, 0x73, 0x74, 0x61, 0x6e,
+	0x63, 0x65, 0x4d, 0x65, 0x74, 0x65, 0x72, 0x73, 0x22, 0x62, 0x0a, 0x1b, 0x41, 0x67, 0x67, 0x72,
+	0x65, 0x67, 0x61, 0x74, 0x65, 0x41, 0x63, 0x74, 0x69, 0x76, 0x69, 0x74, 0x69, 0x65, 0x73, 0x52,
+	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x43, 0x0a, 0x07, 0x62, 0x75, 0x63, 0x6b, 0x65,
+	0x74, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x29, 0x2e, 0x64, 0x65, 0x73, 0x69, 0x72,
+	0x65, 0x6c, 0x69, 0x6e, 0x65, 0x73, 0x2e, 0x61, 0x63, 0x74, 0x69, 0x76, 0x69, 0x74, 0x69, 0x65,
+	0x73, 0x2e, 0x76, 0x31, 0x2e, 0x41, 0x63, 0x74, 0x69, 0x76, 0x69, 0x74, 0x79, 0x42, 0x75, 0x63,
+	0x6b, 0x65, 0x74, 0x52, 0x07, 0x62, 0x75, 0x63, 0x6b, 0x65, 0x74, 0x73, 0x22, 0x24, 0x0a, 0x12,
+	0x47, 0x65, 0x74, 0x41, 0x63, 0x74, 0x69, 0x76, 0x69, 0x74, 0x79, 0x52, 0x65, 0x71, 0x75, 0x65,
+	0x73, 0x74, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x03, 0x52, 0x02,
+	0x69, 0x64, 0x22, 0x56, 0x0a, 0x13, 0x47, 0x65, 0x74, 0x41, 0x63, 0x74, 0x69, 0x76, 0x69, 0x74,
+	0x79, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x3f, 0x0a, 0x08, 0x61, 0x63, 0x74,
+	0x69, 0x76, 0x69, 0x74, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x23, 0x2e, 0x64, 0x65,
+	0x73, 0x69, 0x72, 0x65, 0x6c, 0x69, 0x6e, 0x65, 0x73, 0x2e, 0x61, 0x63, 0x74, 0x69, 0x76, 0x69,
+	0x74, 0x69, 0x65, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x41, 0x63, 0x74, 0x69, 0x76, 0x69, 0x74, 0x79,
+	0x52, 0x08, 0x61, 0x63, 0x74, 0x69, 0x76, 0x69, 0x74, 0x79, 0x42, 0x53, 0x5a, 0x51, 0x67, 0x69,
+	0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x61, 0x6e, 0x64, 0x79, 0x2d, 0x65, 0x73,
+	0x63, 0x68, 0x2f, 0x64, 0x65, 0x73, 0x69, 0x72, 0x65, 0x6c, 0x69, 0x6e, 0x65, 0x73, 0x2f, 0x70,
+	0x61, 0x63, 0x6b, 0x61, 0x67, 0x65, 0x73, 0x2f, 0x61, 0x70, 0x69, 0x67, 0x61, 0x74, 0x65, 0x77,
+	0x61, 0x79, 0x2f, 0x74, 0x79, 0x70, 0x65, 0x73, 0x2f, 0x67, 0x65, 0x6e, 0x65, 0x72, 0x61, 0x74,
+	0x65, 0x64, 0x2f, 0x61, 0x63, 0x74, 0x69, 0x76, 0x69, 0x74, 0x69, 0x65, 0x73, 0x76, 0x31, 0x62,
+	0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -887,26 +1129,30 @@ func file_proto_desirelines_activities_v1_activities_proto_rawDescGZIP() []byte 
 	return file_proto_desirelines_activities_v1_activities_proto_rawDescData
 }
 
-var file_proto_desirelines_activities_v1_activities_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_proto_desirelines_activities_v1_activities_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_proto_desirelines_activities_v1_activities_proto_goTypes = []interface{}{
-	(*Activity)(nil),               // 0: desirelines.activities.v1.Activity
-	(*ActivitySummary)(nil),        // 1: desirelines.activities.v1.ActivitySummary
-	(*MapActivity)(nil),            // 2: desirelines.activities.v1.MapActivity
-	(*MapDatasetResponse)(nil),     // 3: desirelines.activities.v1.MapDatasetResponse
-	(*ListActivitiesRequest)(nil),  // 4: desirelines.activities.v1.ListActivitiesRequest
-	(*ListActivitiesResponse)(nil), // 5: desirelines.activities.v1.ListActivitiesResponse
-	(*GetActivityRequest)(nil),     // 6: desirelines.activities.v1.GetActivityRequest
-	(*GetActivityResponse)(nil),    // 7: desirelines.activities.v1.GetActivityResponse
+	(*Activity)(nil),                    // 0: desirelines.activities.v1.Activity
+	(*ActivitySummary)(nil),             // 1: desirelines.activities.v1.ActivitySummary
+	(*MapActivity)(nil),                 // 2: desirelines.activities.v1.MapActivity
+	(*MapDatasetResponse)(nil),          // 3: desirelines.activities.v1.MapDatasetResponse
+	(*ListActivitiesRequest)(nil),       // 4: desirelines.activities.v1.ListActivitiesRequest
+	(*ListActivitiesResponse)(nil),      // 5: desirelines.activities.v1.ListActivitiesResponse
+	(*AggregateActivitiesRequest)(nil),  // 6: desirelines.activities.v1.AggregateActivitiesRequest
+	(*ActivityBucket)(nil),              // 7: desirelines.activities.v1.ActivityBucket
+	(*AggregateActivitiesResponse)(nil), // 8: desirelines.activities.v1.AggregateActivitiesResponse
+	(*GetActivityRequest)(nil),          // 9: desirelines.activities.v1.GetActivityRequest
+	(*GetActivityResponse)(nil),         // 10: desirelines.activities.v1.GetActivityResponse
 }
 var file_proto_desirelines_activities_v1_activities_proto_depIdxs = []int32{
 	2, // 0: desirelines.activities.v1.MapDatasetResponse.activities:type_name -> desirelines.activities.v1.MapActivity
 	1, // 1: desirelines.activities.v1.ListActivitiesResponse.activities:type_name -> desirelines.activities.v1.ActivitySummary
-	0, // 2: desirelines.activities.v1.GetActivityResponse.activity:type_name -> desirelines.activities.v1.Activity
-	3, // [3:3] is the sub-list for method output_type
-	3, // [3:3] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	7, // 2: desirelines.activities.v1.AggregateActivitiesResponse.buckets:type_name -> desirelines.activities.v1.ActivityBucket
+	0, // 3: desirelines.activities.v1.GetActivityResponse.activity:type_name -> desirelines.activities.v1.Activity
+	4, // [4:4] is the sub-list for method output_type
+	4, // [4:4] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_proto_desirelines_activities_v1_activities_proto_init() }
@@ -988,7 +1234,7 @@ func file_proto_desirelines_activities_v1_activities_proto_init() {
 			}
 		}
 		file_proto_desirelines_activities_v1_activities_proto_msgTypes[6].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetActivityRequest); i {
+			switch v := v.(*AggregateActivitiesRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1000,6 +1246,42 @@ func file_proto_desirelines_activities_v1_activities_proto_init() {
 			}
 		}
 		file_proto_desirelines_activities_v1_activities_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ActivityBucket); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_proto_desirelines_activities_v1_activities_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*AggregateActivitiesResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_proto_desirelines_activities_v1_activities_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetActivityRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_proto_desirelines_activities_v1_activities_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetActivityResponse); i {
 			case 0:
 				return &v.state
@@ -1017,13 +1299,14 @@ func file_proto_desirelines_activities_v1_activities_proto_init() {
 	file_proto_desirelines_activities_v1_activities_proto_msgTypes[2].OneofWrappers = []interface{}{}
 	file_proto_desirelines_activities_v1_activities_proto_msgTypes[4].OneofWrappers = []interface{}{}
 	file_proto_desirelines_activities_v1_activities_proto_msgTypes[5].OneofWrappers = []interface{}{}
+	file_proto_desirelines_activities_v1_activities_proto_msgTypes[6].OneofWrappers = []interface{}{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_proto_desirelines_activities_v1_activities_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   8,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

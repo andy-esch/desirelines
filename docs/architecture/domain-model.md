@@ -78,6 +78,23 @@ Year-to-date cumulative metrics per sport (distance, time, elevation, activity c
 | Frontend (proto-generated) | web | `SportMetrics`, `CumulativeMetricsEntry` | `packages/web/src/types/generated/sports_metrics.ts` |
 | Frontend (multi-sport) | web | `AllSportsMetrics` | `packages/web/src/types/generated/sports_metrics.ts` |
 
+### Activity Bucket
+
+One aggregated (month × sport × geographic) group with summed measures, backing the
+Charts view. Aggregated in SQL by `GET /v1/activities/summary`; demo mode (signed
+out, no backend) produces the same shape client-side via `aggregateActivities`.
+`geographic` is decided server-side by the full predicate — no `trainer`/`manual`
+flag, not a `Virtual%` type, and a stored `activity_routes` row — so a virtual ride
+with a fake polyline classifies as indoor/virtual.
+
+| Stage | Package | Type | File |
+|-------|---------|------|------|
+| Proto definition | schemas | `ActivityBucket`, `AggregateActivitiesResponse` | `schemas/proto/desirelines/activities/v1/activities.proto` |
+| Database query | apigateway | `AggregateActivities` (GROUP BY) | `packages/apigateway/adapters/postgres/activities.go` |
+| Go (proto-generated) | apigateway | `activitiesv1.ActivityBucket` | `packages/apigateway/types/generated/activitiesv1/activities.pb.go` |
+| Frontend (proto-generated) | web | `ActivityBucket` | `packages/web/src/types/generated/activities.ts` |
+| Frontend (client aggregation, demo) | web | `aggregateActivities` | `packages/web/src/utils/activityBuckets.ts` |
+
 ### Daily Summary
 
 Per-day activity breakdown used for bar charts and calendars.
