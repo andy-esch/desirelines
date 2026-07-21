@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import React from "react";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useActivities } from "./useActivities";
+import { useActivities, getSessionDemoActivities } from "./useActivities";
 import * as useAuthModule from "./useAuth";
 import * as activitiesApi from "../api/activities";
 
@@ -62,12 +62,31 @@ describe("useActivities", () => {
       error: null,
     });
 
-    const { result } = renderHook(() => useActivities({ limit: 20 }), {
+    const { result } = renderHook(() => useActivities({ sports: [], limit: 20 }), {
       wrapper: createWrapper(),
     });
 
     expect(result.current.isLoading).toBe(true);
     expect(result.current.activities).toEqual([]);
+    expect(result.current.hasMore).toBe(false);
+  });
+
+  it("filters the demo set client-side when signed out", () => {
+    vi.spyOn(useAuthModule, "useAuth").mockReturnValue({
+      user: null,
+      loading: false,
+      signIn: vi.fn(),
+      signOut: vi.fn(),
+      error: null,
+    });
+
+    const { result } = renderHook(() => useActivities({ sports: ["cycling"], limit: 20 }), {
+      wrapper: createWrapper(),
+    });
+
+    // Same session-cached set the hook reads; only the selected sport survives.
+    const demo = getSessionDemoActivities();
+    expect(result.current.activities).toEqual(demo.filter((a) => a.sport === "cycling"));
     expect(result.current.hasMore).toBe(false);
   });
 
@@ -87,7 +106,7 @@ describe("useActivities", () => {
     });
 
     const { result } = renderHook(
-      () => useActivities({ from: "2025-12-01", to: "2025-12-31", limit: 20 }),
+      () => useActivities({ sports: [], from: "2025-12-01", to: "2025-12-31", limit: 20 }),
       { wrapper: createWrapper() }
     );
 
@@ -98,7 +117,7 @@ describe("useActivities", () => {
     expect(result.current.activities).toEqual(mockActivities);
     expect(result.current.hasMore).toBe(true);
     expect(activitiesApi.fetchActivities).toHaveBeenCalledWith(
-      { from: "2025-12-01", to: "2025-12-31", limit: 20, cursor: undefined },
+      { sports: [], from: "2025-12-01", to: "2025-12-31", limit: 20, cursor: undefined },
       expect.any(AbortSignal)
     );
   });
@@ -117,7 +136,7 @@ describe("useActivities", () => {
       hasMore: false,
     });
 
-    const { result } = renderHook(() => useActivities({ limit: 20 }), {
+    const { result } = renderHook(() => useActivities({ sports: [], limit: 20 }), {
       wrapper: createWrapper(),
     });
 
@@ -142,7 +161,7 @@ describe("useActivities", () => {
 
     vi.spyOn(activitiesApi, "fetchActivities").mockRejectedValue(error);
 
-    const { result } = renderHook(() => useActivities({ limit: 20 }), {
+    const { result } = renderHook(() => useActivities({ sports: [], limit: 20 }), {
       wrapper: createWrapper(),
     });
 
@@ -167,7 +186,7 @@ describe("useActivities", () => {
 
     vi.spyOn(activitiesApi, "fetchActivities").mockRejectedValue(fetchError);
 
-    const { result } = renderHook(() => useActivities({ limit: 20 }), {
+    const { result } = renderHook(() => useActivities({ sports: [], limit: 20 }), {
       wrapper: createWrapper(),
     });
 
@@ -200,7 +219,7 @@ describe("useActivities", () => {
         hasMore: false,
       });
 
-    const { result } = renderHook(() => useActivities({ limit: 20 }), {
+    const { result } = renderHook(() => useActivities({ sports: [], limit: 20 }), {
       wrapper: createWrapper(),
     });
 
@@ -236,8 +255,8 @@ describe("useActivities", () => {
       .mockResolvedValueOnce({ activities: cyclingActivities, hasMore: false })
       .mockResolvedValueOnce({ activities: runningActivities, hasMore: false });
 
-    const { result, rerender } = renderHook(({ sport }) => useActivities({ sport, limit: 20 }), {
-      initialProps: { sport: "cycling" },
+    const { result, rerender } = renderHook(({ sports }) => useActivities({ sports, limit: 20 }), {
+      initialProps: { sports: ["cycling"] },
       wrapper: createWrapper(),
     });
 
@@ -247,14 +266,14 @@ describe("useActivities", () => {
 
     expect(result.current.activities).toEqual(cyclingActivities);
 
-    rerender({ sport: "running" });
+    rerender({ sports: ["running"] });
 
     await waitFor(() => {
       expect(result.current.activities).toEqual(runningActivities);
     });
   });
 
-  it("filters by sport", async () => {
+  it("filters by sports", async () => {
     vi.spyOn(useAuthModule, "useAuth").mockReturnValue({
       user: { uid: "user-123", email: "test@example.com", displayName: "Test" },
       loading: false,
@@ -268,16 +287,17 @@ describe("useActivities", () => {
       hasMore: false,
     });
 
-    const { result } = renderHook(() => useActivities({ sport: "cycling", limit: 20 }), {
-      wrapper: createWrapper(),
-    });
+    const { result } = renderHook(
+      () => useActivities({ sports: ["cycling", "running"], limit: 20 }),
+      { wrapper: createWrapper() }
+    );
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
     });
 
     expect(activitiesApi.fetchActivities).toHaveBeenCalledWith(
-      expect.objectContaining({ sport: "cycling" }),
+      expect.objectContaining({ sports: ["cycling", "running"] }),
       expect.any(AbortSignal)
     );
   });
@@ -297,7 +317,7 @@ describe("useActivities", () => {
     });
 
     const { result } = renderHook(
-      () => useActivities({ from: "2025-12-01", to: "2025-12-31", limit: 20 }),
+      () => useActivities({ sports: [], from: "2025-12-01", to: "2025-12-31", limit: 20 }),
       { wrapper: createWrapper() }
     );
 

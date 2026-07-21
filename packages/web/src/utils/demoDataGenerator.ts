@@ -400,10 +400,19 @@ function getDayOfYear(date: Date): number {
 }
 
 /**
- * Format a date as ISO timestamp
+ * Serialize a wall-clock Date as the API's start_date_local shape
+ * (YYYY-MM-DDTHH:MM:SSZ — athlete local time stored as-if-UTC). Built from
+ * local getters: toISOString() converts to real UTC, which shifts activities
+ * near the day boundary onto a neighboring calendar day (e.g. a 7:30 PM EST
+ * activity becomes 00:30 UTC the next day), breaking date filtering and
+ * day bucketing. Exported for tests.
  */
-function formatTimestamp(date: Date): string {
-  return date.toISOString();
+export function formatTimestamp(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+    `T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}Z`
+  );
 }
 
 // =============================================================================

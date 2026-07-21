@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -56,6 +57,7 @@ type mockActivityRepository struct {
 	activityErr     error
 	activityList    *activitiesv1.ListActivitiesResponse
 	activityListErr error
+	lastListFilter  *repository.ActivityListFilter
 }
 
 func (m *mockActivityRepository) Ping(ctx context.Context) error {
@@ -91,6 +93,7 @@ func (m *mockActivityRepository) GetActivityByID(ctx context.Context, userID str
 }
 
 func (m *mockActivityRepository) ListActivities(ctx context.Context, filter repository.ActivityListFilter) (*activitiesv1.ListActivitiesResponse, error) {
+	m.lastListFilter = &filter
 	return m.activityList, m.activityListErr
 }
 
@@ -875,20 +878,6 @@ func TestHandlerListActivities(t *testing.T) {
 		}
 	})
 
-	t.Run("accepts sport parameter", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{activityList: testResponse}
-		router := newTestRouterWithDB(mockRepo, []string{}, logger)
-
-		req := httptest.NewRequest(http.MethodGet, "/v1/activities?sport=cycling", nil)
-		w := httptest.NewRecorder()
-
-		router.ServeHTTP(w, req)
-
-		if w.Code != http.StatusOK {
-			t.Errorf("expected status 200, got %d", w.Code)
-		}
-	})
-
 	t.Run("accepts limit parameter", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{activityList: testResponse}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
@@ -922,20 +911,6 @@ func TestHandlerListActivities(t *testing.T) {
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/v1/activities?to=not-a-date", nil)
-		w := httptest.NewRecorder()
-
-		router.ServeHTTP(w, req)
-
-		if w.Code != http.StatusBadRequest {
-			t.Errorf("expected status 400, got %d", w.Code)
-		}
-	})
-
-	t.Run("returns 400 for invalid sport", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{}
-		router := newTestRouterWithDB(mockRepo, []string{}, logger)
-
-		req := httptest.NewRequest(http.MethodGet, "/v1/activities?sport=badminton", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -988,6 +963,103 @@ func TestHandlerListActivities(t *testing.T) {
 			t.Errorf("expected status 500, got %d", w.Code)
 		}
 	})
+}
+
+func TestHandlerListActivitiesSportsFilter(t *testing.T) {
+	logger := slog.Default()
+	testResponse := &activitiesv1.ListActivitiesResponse{
+		Activities: []*activitiesv1.ActivitySummary{
+			{Id: 12345678901, Name: "Morning Ride", Type: "Ride", Sport: "cycling"},
+		},
+		HasMore: false,
+	}
+	sportConfig, err := config.NewSportConfig("")
+	if err != nil {
+		t.Fatalf("failed to load sport config: %v", err)
+	}
+	cyclingRunningUnion := slices.Concat(
+		sportConfig.GetStravaTypes("cycling"), sportConfig.GetStravaTypes("running"))
+
+	tests := []struct {
+		name       string
+		query      string
+		wantStatus int
+		// Expected repository filter on a 200 (nil = no sport filter).
+		wantSportTypes []string
+	}{
+		{
+			name:           "resolves sports categories to the union of their Strava types",
+			query:          "?sports=cycling,running",
+			wantStatus:     http.StatusOK,
+			wantSportTypes: cyclingRunningUnion,
+		},
+		{
+			name:           "skips empty entries in sports",
+			query:          "?sports=cycling,,%20running",
+			wantStatus:     http.StatusOK,
+			wantSportTypes: cyclingRunningUnion,
+		},
+		{
+			name:           "resolves a repeated category once",
+			query:          "?sports=cycling,cycling,running",
+			wantStatus:     http.StatusOK,
+			wantSportTypes: cyclingRunningUnion,
+		},
+		{
+			// Unlike the metrics endpoints (where sports is required and this
+			// 400s), the list endpoint reads ",," as equivalent to absent.
+			name:       "treats an all-empty sports list as no filter",
+			query:      "?sports=,,",
+			wantStatus: http.StatusOK,
+		},
+		{
+			// A stale bundle from before the sports= switch sends sport=
+			// (singular); it is an unknown param now: unfiltered, not an error.
+			name:       "ignores the retired sport parameter",
+			query:      "?sport=cycling",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "returns 400 for too many sports",
+			query:      "?sports=" + strings.Repeat("cycling,", activities.MaxMultiSportCount) + "cycling",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "returns 400 for invalid sport",
+			query:      "?sports=badminton",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "returns 400 when any sport in the list is invalid",
+			query:      "?sports=cycling,badminton",
+			wantStatus: http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := &mockActivityRepository{activityList: testResponse}
+			router := newTestRouterWithDB(mockRepo, []string{}, logger)
+
+			req := httptest.NewRequest(http.MethodGet, "/v1/activities"+tt.query, nil)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			if w.Code != tt.wantStatus {
+				t.Fatalf("expected status %d, got %d", tt.wantStatus, w.Code)
+			}
+			if tt.wantStatus != http.StatusOK {
+				return
+			}
+			if mockRepo.lastListFilter == nil {
+				t.Fatal("expected ListActivities to be called")
+			}
+			if got := mockRepo.lastListFilter.SportTypes; !slices.Equal(got, tt.wantSportTypes) {
+				t.Errorf("expected SportTypes %v, got %v", tt.wantSportTypes, got)
+			}
+		})
+	}
 }
 
 // =============================================================================

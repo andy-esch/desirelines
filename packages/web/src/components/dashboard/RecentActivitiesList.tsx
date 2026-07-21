@@ -171,11 +171,10 @@ export default function RecentActivitiesList({
     setPage(0);
   }
 
-  const { activities, isLoading, error, hasMore, loadMore } = useActivities({
-    from,
-    to,
-    limit: 20,
-  });
+  // Memoized: useActivities' demo path filters on the filter object's identity,
+  // so an inline literal would re-filter (and re-render) every render signed out.
+  const filter = useMemo(() => ({ from, to, sports: [], limit: 20 }), [from, to]);
+  const { activities, isLoading, error, hasMore, loadMore } = useActivities(filter);
 
   const totalPages = Math.ceil(activities.length / pageSize);
   // Clamp page if pageSize changed (e.g. container resized) and current page is now out of range

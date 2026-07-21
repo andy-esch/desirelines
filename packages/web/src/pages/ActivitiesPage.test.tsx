@@ -9,6 +9,7 @@ import {
   RouterProvider,
 } from "@tanstack/react-router";
 import ActivitiesPage from "./ActivitiesPage";
+import { validateActivitiesSearch } from "../routes/activities";
 import * as useActivitiesModule from "../hooks/useActivities";
 
 // Mock dependencies - useActivities is mocked; useAuth is called internally
@@ -37,10 +38,7 @@ async function renderActivitiesPage(initialRoute = "/activities") {
     getParentRoute: () => rootRoute,
     path: "/activities",
     component: ActivitiesPage,
-    validateSearch: (search: Record<string, unknown>) => ({
-      range: typeof search.range === "string" ? search.range : undefined,
-      sports: typeof search.sports === "string" ? search.sports : undefined,
-    }),
+    validateSearch: validateActivitiesSearch,
   });
   const routeTree = rootRoute.addChildren([activitiesRoute]);
 
@@ -171,8 +169,38 @@ describe("ActivitiesPage", () => {
 
       await waitFor(() => {
         expect(useActivitiesSpy).toHaveBeenCalledWith(
-          expect.objectContaining({ sport: "cycling" })
+          expect.objectContaining({ sports: ["cycling"] })
         );
+      });
+    });
+
+    it("accumulates a multi-sport selection across pill clicks", async () => {
+      const user = userEvent.setup();
+      const useActivitiesSpy = vi.spyOn(useActivitiesModule, "useActivities");
+
+      await renderActivitiesPage();
+
+      await user.click(screen.getByRole("button", { name: "Running" }));
+      await user.click(screen.getByRole("button", { name: "Cycling" }));
+
+      // Normalized (sorted) regardless of click order.
+      await waitFor(() => {
+        expect(useActivitiesSpy).toHaveBeenCalledWith(
+          expect.objectContaining({ sports: ["cycling", "running"] })
+        );
+      });
+    });
+
+    it("returns to all sports when the last pill is deselected", async () => {
+      const user = userEvent.setup();
+      const useActivitiesSpy = vi.spyOn(useActivitiesModule, "useActivities");
+
+      await renderActivitiesPage("/activities?sports=cycling");
+
+      await user.click(screen.getByRole("button", { name: "Cycling" }));
+
+      await waitFor(() => {
+        expect(useActivitiesSpy).toHaveBeenCalledWith(expect.objectContaining({ sports: [] }));
       });
     });
 
@@ -181,7 +209,25 @@ describe("ActivitiesPage", () => {
 
       await renderActivitiesPage("/activities?range=2m&sports=running");
 
-      expect(useActivitiesSpy).toHaveBeenCalledWith(expect.objectContaining({ sport: "running" }));
+      expect(useActivitiesSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ sports: ["running"] })
+      );
+    });
+
+    it("normalizes a duplicated, unordered sports param from the URL", async () => {
+      const useActivitiesSpy = vi.spyOn(useActivitiesModule, "useActivities");
+
+      await renderActivitiesPage("/activities?sports=running,cycling,running");
+
+      expect(useActivitiesSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ sports: ["cycling", "running"] })
+      );
+    });
+
+    it("summarizes three selected sports in the filter pill", async () => {
+      await renderActivitiesPage("/activities?sports=cycling,running,yoga");
+
+      expect(screen.getByText(/3 sports/)).toBeInTheDocument();
     });
   });
 

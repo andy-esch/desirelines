@@ -7,6 +7,7 @@ import {
   isDistanceSport,
   getSportMetrics,
   filterValidSports,
+  normalizeSports,
 } from "./sportConfig";
 
 /** Minimal sport config fixture for testing */
@@ -297,5 +298,24 @@ describe("SPORT_COLORS palette invariants", () => {
       .filter(([, r]) => r < 3)
       .map(([s, r]) => `${s} = ${r.toFixed(2)}:1`);
     expect(failures, `below 3:1 on dark: ${failures.join(", ")}`).toEqual([]);
+  });
+});
+
+describe("normalizeSports", () => {
+  it("trims, drops empties, dedupes, and sorts", () => {
+    expect(normalizeSports([" running", "cycling ", "", "running"])).toEqual([
+      "cycling",
+      "running",
+    ]);
+  });
+
+  it("returns [] for an empty selection", () => {
+    expect(normalizeSports([])).toEqual([]);
+  });
+
+  it("canonicalizes equivalent selections to one shape", () => {
+    expect(normalizeSports(["running", "cycling"])).toEqual(
+      normalizeSports(["cycling", "running"])
+    );
   });
 });

@@ -608,13 +608,14 @@ func (h *Handler) parseListActivitiesFilter(r *http.Request) (*repository.Activi
 		filter.To = &toStr
 	}
 
-	// Parse 'sport' (optional) - maps to Strava sport types
-	if sport := query.Get("sport"); sport != "" {
-		stravaTypes, apiErr := h.resolveSportTypes(sport)
+	// Parse 'sports' (optional) - comma-separated sport categories, resolved to
+	// the union of their Strava sport types. Absent or empty means all sports.
+	if sportsStr := query.Get("sports"); sportsStr != "" {
+		sportTypes, apiErr := h.resolveSportsList(sportsStr)
 		if !apiErr.IsZero() {
 			return nil, apiErr
 		}
-		filter.SportTypes = stravaTypes
+		filter.SportTypes = sportTypes
 	}
 
 	// Parse 'limit'
@@ -668,6 +669,40 @@ func (h *Handler) resolveSportTypes(sport string) ([]string, apierrors.APIError)
 			"Invalid sport parameter", "Invalid sport: "+sport)
 	}
 	return types, apierrors.APIError{}
+}
+
+// resolveSportsList validates a comma-separated list of sport categories and
+// returns the union of their Strava sport_type values. Entries are trimmed,
+// empties skipped, and repeated categories resolved once (the category map in
+// validateMultiSportQuery dedupes the same way); the MaxMultiSportCount cap
+// counts raw entries before trimming, also matching that helper. An unknown
+// category fails the whole list. A list of only empty entries yields nil types
+// (no sport filter) with a zero-value APIError; this is where the semantics
+// diverge from the metrics endpoints, which require sports and reject an
+// all-empty list — here absent and empty both mean "all sports".
+func (h *Handler) resolveSportsList(sportsStr string) ([]string, apierrors.APIError) {
+	categories := strings.Split(sportsStr, ",")
+	if len(categories) > MaxMultiSportCount {
+		return nil, apierrors.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Too many sports (max %d)", MaxMultiSportCount))
+	}
+	seen := make(map[string]struct{}, len(categories))
+	var allTypes []string
+	for _, cat := range categories {
+		cat = strings.TrimSpace(cat)
+		if cat == "" {
+			continue
+		}
+		if _, dup := seen[cat]; dup {
+			continue
+		}
+		seen[cat] = struct{}{}
+		stravaTypes, apiErr := h.resolveSportTypes(cat)
+		if !apiErr.IsZero() {
+			return nil, apiErr
+		}
+		allTypes = append(allTypes, stravaTypes...)
+	}
+	return allTypes, apierrors.APIError{}
 }
 
 // validateAndGetSportTypes extracts and validates the sport query parameter.

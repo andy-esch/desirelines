@@ -6,12 +6,14 @@ interface FilterOption {
 /**
  * The active, non-default filter labels for an Activities-group view, e.g.
  * ["6 Months", "Cycling"]. A range equal to the view's default (Charts = "ytd",
- * List = "4w") and an unset sport are both treated as "no filter" and omitted.
+ * List = "4w") and an empty sports selection (= all sports) are both treated as
+ * "no filter" and omitted. Sport names read well up to two; three or more
+ * summarize to "N sports" so the fixed top-center pill can't overflow on mobile.
  */
 export function activeFilterLabels(
   range: string,
   defaultRange: string,
-  sport: string,
+  sports: string[],
   timeOptions: FilterOption[],
   sportOptions: FilterOption[]
 ): string[] {
@@ -19,8 +21,12 @@ export function activeFilterLabels(
   if (range !== defaultRange) {
     labels.push(timeOptions.find((o) => o.value === range)?.label ?? range);
   }
-  if (sport) {
-    labels.push(sportOptions.find((o) => o.value === sport)?.label ?? sport);
+  if (sports.length > 2) {
+    labels.push(`${sports.length} sports`);
+  } else {
+    for (const sport of sports) {
+      labels.push(sportOptions.find((o) => o.value === sport)?.label ?? sport);
+    }
   }
   return labels;
 }

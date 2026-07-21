@@ -1,11 +1,20 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, stripSearchParams } from "@tanstack/react-router";
 import { lazy } from "react";
 import {
   parseActivityFilterSearch,
   type ActivityFilterSearch,
 } from "../utils/activityFilterSearch";
+import { LIST_CHARTS_ONLY_SEARCH_PARAMS } from "../utils/activitiesGroupParams";
 
 const RoutesPage = lazy(() => import("../pages/RoutesPage"));
+
+type RoutesSearch = ActivityFilterSearch & {
+  activity?: number;
+  // List/Charts' time-preset param. Admitted as an inbound string so the nav
+  // links' shared pick (pickActivitiesGroupSearch) typechecks against this
+  // route; validateSearch never returns it and the strip middleware removes it.
+  range?: string;
+};
 
 /**
  * Validate the routes-map search: the shared Activities-group cross-filter params
@@ -14,9 +23,7 @@ const RoutesPage = lazy(() => import("../pages/RoutesPage"));
  * (protojson ids are large int64s arriving as a string); anything malformed drops
  * so it falls back to the full map.
  */
-export function validateRoutesSearch(
-  search: Record<string, unknown>
-): ActivityFilterSearch & { activity?: number } {
+export function validateRoutesSearch(search: Record<string, unknown>): RoutesSearch {
   const filters = parseActivityFilterSearch(search);
   const raw = search.activity;
   const n = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : NaN;
@@ -26,4 +33,10 @@ export function validateRoutesSearch(
 export const Route = createFileRoute("/routes")({
   validateSearch: validateRoutesSearch,
   component: RoutesPage,
+  search: {
+    // Nav links forward the shared pick (pickActivitiesGroupSearch); this
+    // middleware is the declarative backstop that strips the params this route
+    // doesn't model from any other navigation targeting it.
+    middlewares: [stripSearchParams([...LIST_CHARTS_ONLY_SEARCH_PARAMS])],
+  },
 });

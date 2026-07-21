@@ -59,8 +59,11 @@
 ### Activities Group
 
 Three coordinated views of the full activity set, nested under the **Activities**
-navigation dropdown. They share the `?range=` and `?sport=` URL search params so a
-time-range and sport selection persists as you move between them.
+navigation dropdown. They share the `?sports=` URL search param (multi-select,
+comma-joined categories; absent = all sports) so a sport selection persists as you
+move between them. List and Charts additionally share the `?range=` time presets;
+the Routes map keeps its own explicit date window (`?from=`/`?to=`), so time
+deliberately does not cross the map boundary.
 
 - **Auth**: Public (demo data when signed out)
 
@@ -112,7 +115,8 @@ Notes:
 1. **Dashboard → Sport Detail**: Click a sport card or the **Goals** dropdown
 2. **Any view → Dashboard**: Click "Dashboard" or the logo in the nav
 3. **Activities group**: The **Activities** dropdown switches between List, Charts,
-   and Routes while preserving the shared `?range=` / `?sport=` filters
+   and Routes while preserving the shared `?sports=` filter (and `?range=` between
+   List and Charts); each route strips the params it doesn't model
 4. **Year navigation**: Within sport detail pages
 
 ## URL Structure Philosophy
@@ -120,7 +124,8 @@ Notes:
 - **Human-readable**: `/cycling/2025`, not `/s/c/25`
 - **RESTful**: Resource-oriented paths
 - **Consistent**: All sports follow the same pattern
-- **Shared filters**: Activities-group views coordinate via `?range=` / `?sport=`
+- **Shared filters**: Activities-group views coordinate via `?sports=` (plus
+  `?range=` on List/Charts)
 - **Backward compatible**: Existing links continue to work
 - **`/demo/` prefix**: Opt-in shareable demo entry points; the primary routes still
   choose their data source from auth state, not the URL

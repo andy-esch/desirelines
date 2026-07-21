@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   createMemoryHistory,
@@ -10,6 +10,7 @@ import {
 } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import ChartsPage from "./ChartsPage";
+import { validateChartsSearch } from "../routes/charts";
 import * as useAllActivitiesModule from "../hooks/useAllActivities";
 import type { ActivitySummary } from "../api/activities";
 
@@ -56,10 +57,7 @@ async function renderChartsPage(initialRoute = "/charts") {
     getParentRoute: () => rootRoute,
     path: "/charts",
     component: ChartsPage,
-    validateSearch: (search: Record<string, unknown>) => ({
-      range: typeof search.range === "string" ? search.range : undefined,
-      sports: typeof search.sports === "string" ? search.sports : undefined,
-    }),
+    validateSearch: validateChartsSearch,
   });
   const router = createRouter({
     routeTree: rootRoute.addChildren([chartsRoute]),
@@ -155,5 +153,21 @@ describe("ChartsPage", () => {
     mockAllActivities([activity({ sport: "cycling", hasRoute: true })]);
     await renderChartsPage(); // "/charts" → ytd default, no sport = no filter
     expect(screen.queryByRole("button", { name: /clear filters/i })).not.toBeInTheDocument();
+  });
+
+  it("adds a sport to the filter when its chip is toggled, keeping the range", async () => {
+    mockAllActivities([activity({ sport: "cycling", hasRoute: true })]);
+    const user = userEvent.setup();
+    await renderChartsPage("/charts?range=6m");
+
+    await user.click(screen.getByRole("button", { name: "Cycling" }));
+
+    await waitFor(() => {
+      expect(vi.mocked(useAllActivitiesModule.useAllActivities)).toHaveBeenCalledWith(
+        expect.objectContaining({ sports: ["cycling"] })
+      );
+    });
+    // Range survives the sport toggle (setSearch merges, not replaces).
+    expect(document.body.textContent).toContain("6 Months");
   });
 });
