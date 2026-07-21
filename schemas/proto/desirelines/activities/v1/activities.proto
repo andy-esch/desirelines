@@ -179,6 +179,55 @@ message ListActivitiesResponse {
 }
 
 // =============================================================================
+// Aggregate Activities
+// =============================================================================
+
+// AggregateActivitiesRequest contains filters for the monthly activity
+// aggregate. Used for GET /activities/summary.
+message AggregateActivitiesRequest {
+  // Start date filter (YYYY-MM-DD), inclusive.
+  optional string from = 1;
+
+  // End date filter (YYYY-MM-DD), inclusive.
+  optional string to = 2;
+
+  // Sport-category filter (e.g. cycling, running). Empty = all sports.
+  // At most 20 categories per request.
+  repeated string sports = 3;
+}
+
+// ActivityBucket is one aggregated (month x sport x geographic) group with its
+// summed measures — the exact shape the charts view consumes.
+message ActivityBucket {
+  // Calendar month "YYYY-MM" in the athlete's local time (no timezone shift).
+  string month = 1;
+
+  // App sport category (running, cycling, yoga).
+  string sport = 2;
+
+  // True when the activity has real-world geography: no trainer/manual flag,
+  // not a Virtual type, and stored route geometry exists.
+  bool geographic = 3;
+
+  // Number of activities in the group.
+  int32 count = 4;
+
+  // Summed moving time in seconds. int32 (not int64) so protojson emits a
+  // JSON number rather than a string; 2^31 seconds is ~68 years of moving
+  // time, far beyond any real bucket.
+  int32 moving_time_seconds = 5;
+
+  // Summed distance in meters. Zero for distance-less sports.
+  double distance_meters = 6;
+}
+
+// AggregateActivitiesResponse contains the monthly buckets, sorted by month,
+// then sport, then geographic (false before true).
+message AggregateActivitiesResponse {
+  repeated ActivityBucket buckets = 1;
+}
+
+// =============================================================================
 // Get Activity
 // =============================================================================
 

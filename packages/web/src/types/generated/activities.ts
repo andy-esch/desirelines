@@ -186,6 +186,60 @@ export interface ListActivitiesResponse {
 }
 
 /**
+ * AggregateActivitiesRequest contains filters for the monthly activity
+ * aggregate. Used for GET /activities/summary.
+ */
+export interface AggregateActivitiesRequest {
+  /** Start date filter (YYYY-MM-DD), inclusive. */
+  from?:
+    | string
+    | undefined;
+  /** End date filter (YYYY-MM-DD), inclusive. */
+  to?:
+    | string
+    | undefined;
+  /**
+   * Sport-category filter (e.g. cycling, running). Empty = all sports.
+   * At most 20 categories per request.
+   */
+  sports: string[];
+}
+
+/**
+ * ActivityBucket is one aggregated (month x sport x geographic) group with its
+ * summed measures — the exact shape the charts view consumes.
+ */
+export interface ActivityBucket {
+  /** Calendar month "YYYY-MM" in the athlete's local time (no timezone shift). */
+  month: string;
+  /** App sport category (running, cycling, yoga). */
+  sport: string;
+  /**
+   * True when the activity has real-world geography: no trainer/manual flag,
+   * not a Virtual type, and stored route geometry exists.
+   */
+  geographic: boolean;
+  /** Number of activities in the group. */
+  count: number;
+  /**
+   * Summed moving time in seconds. int32 (not int64) so protojson emits a
+   * JSON number rather than a string; 2^31 seconds is ~68 years of moving
+   * time, far beyond any real bucket.
+   */
+  movingTimeSeconds: number;
+  /** Summed distance in meters. Zero for distance-less sports. */
+  distanceMeters: number;
+}
+
+/**
+ * AggregateActivitiesResponse contains the monthly buckets, sorted by month,
+ * then sport, then geographic (false before true).
+ */
+export interface AggregateActivitiesResponse {
+  buckets: ActivityBucket[];
+}
+
+/**
  * GetActivityRequest identifies a single activity to retrieve.
  * Used for GET /activities/{id} endpoint.
  */
@@ -845,6 +899,194 @@ export const ListActivitiesResponse: MessageFns<ListActivitiesResponse> = {
           }
 
           message.hasMore = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+};
+
+function createBaseAggregateActivitiesRequest(): AggregateActivitiesRequest {
+  return { from: undefined, to: undefined, sports: [] };
+}
+
+export const AggregateActivitiesRequest: MessageFns<AggregateActivitiesRequest> = {
+  encode(message: AggregateActivitiesRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.from !== undefined) {
+      writer.uint32(10).string(message.from);
+    }
+    if (message.to !== undefined) {
+      writer.uint32(18).string(message.to);
+    }
+    for (const v of message.sports) {
+      writer.uint32(26).string(v!);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AggregateActivitiesRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAggregateActivitiesRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.from = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.to = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.sports.push(reader.string());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+};
+
+function createBaseActivityBucket(): ActivityBucket {
+  return { month: "", sport: "", geographic: false, count: 0, movingTimeSeconds: 0, distanceMeters: 0 };
+}
+
+export const ActivityBucket: MessageFns<ActivityBucket> = {
+  encode(message: ActivityBucket, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.month !== "") {
+      writer.uint32(10).string(message.month);
+    }
+    if (message.sport !== "") {
+      writer.uint32(18).string(message.sport);
+    }
+    if (message.geographic !== false) {
+      writer.uint32(24).bool(message.geographic);
+    }
+    if (message.count !== 0) {
+      writer.uint32(32).int32(message.count);
+    }
+    if (message.movingTimeSeconds !== 0) {
+      writer.uint32(40).int32(message.movingTimeSeconds);
+    }
+    if (message.distanceMeters !== 0) {
+      writer.uint32(49).double(message.distanceMeters);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ActivityBucket {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseActivityBucket();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.month = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.sport = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.geographic = reader.bool();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.count = reader.int32();
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.movingTimeSeconds = reader.int32();
+          continue;
+        }
+        case 6: {
+          if (tag !== 49) {
+            break;
+          }
+
+          message.distanceMeters = reader.double();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+};
+
+function createBaseAggregateActivitiesResponse(): AggregateActivitiesResponse {
+  return { buckets: [] };
+}
+
+export const AggregateActivitiesResponse: MessageFns<AggregateActivitiesResponse> = {
+  encode(message: AggregateActivitiesResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.buckets) {
+      ActivityBucket.encode(v!, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AggregateActivitiesResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAggregateActivitiesResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.buckets.push(ActivityBucket.decode(reader, reader.uint32()));
           continue;
         }
       }

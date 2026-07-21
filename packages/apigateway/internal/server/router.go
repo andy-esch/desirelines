@@ -53,15 +53,16 @@ type PublicRoutes struct {
 
 // AuthenticatedRoutes are registered with authentication middleware.
 type AuthenticatedRoutes struct {
-	GetMetadata     http.HandlerFunc
-	GetMetrics      http.HandlerFunc
-	GetSource       http.HandlerFunc
-	GetMapTile      http.HandlerFunc // GET /activities/map/tiles/{z}/{x}/{y}
-	GetMapTileJSON  http.HandlerFunc // GET /activities/map/tiles.json
-	GetMapRegions   http.HandlerFunc // GET /activities/map/regions
-	GetMapDataset   http.HandlerFunc // GET /activities/map/dataset
-	ListActivities  http.HandlerFunc
-	GetActivityByID http.HandlerFunc
+	GetMetadata        http.HandlerFunc
+	GetMetrics         http.HandlerFunc
+	GetSource          http.HandlerFunc
+	GetMapTile         http.HandlerFunc // GET /activities/map/tiles/{z}/{x}/{y}
+	GetMapTileJSON     http.HandlerFunc // GET /activities/map/tiles.json
+	GetMapRegions      http.HandlerFunc // GET /activities/map/regions
+	GetMapDataset      http.HandlerFunc // GET /activities/map/dataset
+	ListActivities     http.HandlerFunc
+	GetActivitySummary http.HandlerFunc // GET /activities/summary
+	GetActivityByID    http.HandlerFunc
 
 	// SyntheticFault is registered only when EnableSyntheticFaults is
 	// true (typically: any non-production environment). When non-nil
@@ -198,6 +199,10 @@ func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, 
 			// Full geo-bearing dataset (scalars + region tags + optional bbox)
 			// for the client-side cross-filter model. Single response, no pagination.
 			r.Get("/activities/map/dataset", auth.GetMapDataset)
+
+			// Monthly (month × sport × geographic) aggregate for the charts view.
+			// Static segment, so chi matches it ahead of the {id} wildcard below.
+			r.Get("/activities/summary", auth.GetActivitySummary)
 
 			// Individual activity endpoints
 			// Note: {id} occupies the same path segment as {year} above, but the

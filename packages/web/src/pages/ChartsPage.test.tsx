@@ -11,10 +11,11 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import ChartsPage from "./ChartsPage";
 import { validateChartsSearch } from "../routes/charts";
-import * as useAllActivitiesModule from "../hooks/useAllActivities";
+import * as useActivityBucketsModule from "../hooks/useActivityBuckets";
+import { aggregateActivities } from "../utils/activityBuckets";
 import type { ActivitySummary } from "../api/activities";
 
-vi.mock("../hooks/useAllActivities");
+vi.mock("../hooks/useActivityBuckets");
 vi.mock("../hooks/useUserProfile", () => ({
   useUserProfile: () => ({ displayName: "Athlete", loading: false }),
 }));
@@ -41,9 +42,12 @@ function activity(over: Partial<ActivitySummary>): ActivitySummary {
   } as ActivitySummary;
 }
 
+// Fixtures stay as activities and run through the REAL aggregation, so these
+// tests keep asserting the same end-to-end behavior the client-side data
+// source had — the hook mock just skips the fetch.
 function mockAllActivities(activities: ActivitySummary[], over: Record<string, unknown> = {}) {
-  vi.mocked(useAllActivitiesModule.useAllActivities).mockReturnValue({
-    activities,
+  vi.mocked(useActivityBucketsModule.useActivityBuckets).mockReturnValue({
+    buckets: aggregateActivities(activities),
     isLoading: false,
     error: null,
     retry: vi.fn(),
@@ -163,7 +167,7 @@ describe("ChartsPage", () => {
     await user.click(screen.getByRole("button", { name: "Cycling" }));
 
     await waitFor(() => {
-      expect(vi.mocked(useAllActivitiesModule.useAllActivities)).toHaveBeenCalledWith(
+      expect(vi.mocked(useActivityBucketsModule.useActivityBuckets)).toHaveBeenCalledWith(
         expect.objectContaining({ sports: ["cycling"] })
       );
     });

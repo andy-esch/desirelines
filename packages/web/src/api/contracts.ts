@@ -140,6 +140,23 @@ const ActivitySchema = z
 
 export const ActivityResponseSchema = ActivitySchema;
 
+const ActivityBucketSchema = z
+  .object({
+    month: z.string(),
+    sport: z.string(),
+    geographic: z.boolean(),
+    count: z.number(),
+    movingTimeSeconds: z.number(),
+    distanceMeters: z.number(),
+  })
+  .passthrough();
+
+export const AggregateActivitiesResponseSchema = z
+  .object({
+    buckets: z.array(ActivityBucketSchema).optional(),
+  })
+  .passthrough();
+
 export const ActivityListResponseSchema = z
   .object({
     activities: z.array(ActivitySchema).optional(),

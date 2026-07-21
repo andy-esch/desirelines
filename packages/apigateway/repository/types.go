@@ -75,3 +75,12 @@ type ActivityListFilter struct {
 	Limit      int             // Max results to return
 	Cursor     *ActivityCursor // Cursor for pagination (nil for first page)
 }
+
+// ActivityAggregateFilter contains query filters for the monthly activity
+// aggregate. Used internally by the repository layer.
+type ActivityAggregateFilter struct {
+	UserID     string   // Authenticated user's ID (required for query isolation)
+	From       *string  // Start date (YYYY-MM-DD), inclusive
+	To         *string  // End date (YYYY-MM-DD), inclusive
+	SportTypes []string // Strava sport_type values (e.g., ["Ride", "VirtualRide"])
+}

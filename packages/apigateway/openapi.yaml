@@ -210,6 +210,58 @@ paths:
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 
+  /v1/activities/summary:
+    get:
+      tags: [Activities]
+      summary: Monthly activity aggregate
+      description: >-
+        Returns (month × sport × geographic) buckets with summed measures for
+        the charts view, aggregated in SQL. Geographic classification uses the
+        full predicate (no trainer/manual flag, not a Virtual type, and stored
+        route geometry exists), not region tagging. Buckets are keyed by sport
+        category and sorted by month, then sport, then geographic (false
+        before true).
+      operationId: getActivitySummary
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: from
+          in: query
+          description: Start date (inclusive)
+          schema:
+            type: string
+            format: date
+            example: '2025-01-01'
+        - name: to
+          in: query
+          description: End date (inclusive)
+          schema:
+            type: string
+            format: date
+            example: '2025-12-31'
+        - name: sports
+          in: query
+          description: >-
+            Filter by sport categories, comma-separated (max 20; absent means
+            all sports; an unknown category is a 400). Same semantics as the
+            activities list endpoint.
+          schema:
+            type: string
+            example: 'cycling,running'
+      responses:
+        '200':
+          description: Monthly activity buckets
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AggregateActivitiesResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
   /v1/activities/map/regions:
     get:
       tags: [Activities]
@@ -750,6 +802,41 @@ components:
         has_more:
           type: boolean
           description: Whether more results are available
+
+    ActivityBucket:
+      type: object
+      required: [month, sport, geographic, count, moving_time_seconds, distance_meters]
+      properties:
+        month:
+          type: string
+          description: Calendar month "YYYY-MM" in the athlete's local time
+          example: '2025-07'
+        sport:
+          type: string
+          description: App sport category (running, cycling, yoga)
+        geographic:
+          type: boolean
+          description: >-
+            True when the activity group has real-world geography (no
+            trainer/manual/Virtual markers and stored route geometry exists)
+        count:
+          type: integer
+          description: Number of activities in the group
+        moving_time_seconds:
+          type: integer
+          description: Summed moving time in seconds
+        distance_meters:
+          type: number
+          description: Summed distance in meters (zero for distance-less sports)
+
+    AggregateActivitiesResponse:
+      type: object
+      required: [buckets]
+      properties:
+        buckets:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivityBucket'
 
     YearMetadata:
       type: object

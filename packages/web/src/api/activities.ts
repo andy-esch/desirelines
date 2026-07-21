@@ -37,6 +37,7 @@ import {
   AllSportsMetricsResponseSchema,
   ActivityResponseSchema,
   ActivityListResponseSchema,
+  AggregateActivitiesResponseSchema,
 } from "./contracts";
 
 // Import generated types from Protobuf definitions
@@ -45,6 +46,9 @@ import type {
   ActivitySummary,
   ListActivitiesResponse as ActivityListResponse,
   ListActivitiesRequest as ActivityListFilter,
+  AggregateActivitiesRequest as ActivityAggregateFilter,
+  AggregateActivitiesResponse,
+  ActivityBucket,
 } from "../types/generated/activities";
 
 import type {
@@ -58,6 +62,7 @@ import type {
 
 // Re-export generated types for consumers
 export type { Activity, ActivitySummary, ActivityListResponse, ActivityListFilter };
+export type { ActivityAggregateFilter, ActivityBucket };
 export type { MetricsEntry, YearMetadata, DailyActivity };
 
 // Helper alias for the array type (frontend often uses just the array)
@@ -336,5 +341,37 @@ export const fetchActivities = async (
     };
   } catch (err: unknown) {
     throwApiError(err, "fetchActivities");
+  }
+};
+
+/**
+ * Fetch the (month × sport × geographic) activity buckets, aggregated in SQL.
+ * Same filter semantics as the activities list: inclusive local dates,
+ * comma-joined sport categories (empty = all sports).
+ */
+export const fetchActivitySummary = async (
+  filter: ActivityAggregateFilter,
+  signal?: AbortSignal
+): Promise<ActivityBucket[]> => {
+  const params = new URLSearchParams();
+  if (filter.from) params.set("from", filter.from);
+  if (filter.to) params.set("to", filter.to);
+  if (filter.sports?.length) params.set("sports", filter.sports.join(","));
+
+  const url = `activities/summary?${params.toString()}`;
+
+  try {
+    const { data: raw } = await getClient().get<AggregateActivitiesResponse>(
+      url,
+      signal ? { signal } : {}
+    );
+    const data = validateApiResponse<AggregateActivitiesResponse>(
+      AggregateActivitiesResponseSchema,
+      raw,
+      "fetchActivitySummary"
+    );
+    return data.buckets ?? [];
+  } catch (err: unknown) {
+    throwApiError(err, "fetchActivitySummary");
   }
 };
