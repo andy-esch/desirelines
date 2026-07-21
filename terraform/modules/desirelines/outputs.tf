@@ -94,10 +94,15 @@ output "service_names" {
 
 # Deployment information
 output "deployment_info" {
-  description = "Deployment provenance: image registry and version tag"
+  description = "Deployment provenance: image registry, version tag, and the exact image reference deployed per service"
   value = {
     image_base_url     = var.external_artifact_registry
     deployment_version = var.deployment_version
+
+    # The exact reference each service is running. Digest form in steady state; a
+    # tag here means that environment's tfvars carries no digest for the service,
+    # which is expected only on a bootstrap apply.
+    images = local.image_ref
   }
 }
 

@@ -5,17 +5,26 @@
 locals {
   image_base_url = var.external_artifact_registry
 
-  # Image reference per service, preferring an immutable digest.
+  # Image reference per service, by immutable digest.
   #
   # A digest reference is byte-identical across commits that did not change the image, so
-  # Terraform sees no diff and creates no Cloud Run revision — which is the whole point
-  # (see `image_digests` in variables.tf). The tag form is the fallback for local or
-  # manual applies where no digest was resolved.
+  # Terraform sees no diff and creates no Cloud Run revision — which is the whole point.
+  # A tag reference carries the git SHA, so it changes on every commit and rolls a new
+  # revision for every service whether or not that service changed.
+  #
+  # `image_digests` is committed per environment rather than passed only at apply time.
+  # That matters beyond provenance: a digest supplied solely by the deploy pipeline makes
+  # this expression render differently depending on who runs it, so drift detection, a
+  # local plan, and a promotion PR all report every service as changed — the same image,
+  # spelled two ways.
+  #
+  # The tag form is a bootstrap fallback, for the first apply in an environment whose
+  # tfvars has no digests yet. Steady state should always take the digest branch.
   #
   # Defined once and reused by all six container blocks below; previously each one
   # interpolated the tag inline, so a change had to be made in six places.
   image_ref = {
-    for name in ["dispatcher", "apigateway", "stravapipe"] :
+    for name in local.cloud_run_images :
     name => (
       lookup(var.image_digests, name, "") != ""
       ? "${local.image_base_url}/${name}@${var.image_digests[name]}"
