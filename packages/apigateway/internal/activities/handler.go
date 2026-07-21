@@ -672,21 +672,30 @@ func (h *Handler) resolveSportTypes(sport string) ([]string, apierrors.APIError)
 }
 
 // resolveSportsList validates a comma-separated list of sport categories and
-// returns the union of their Strava sport_type values. Entries are trimmed and
-// empties skipped, matching the ?sports= semantics of the metrics endpoints; an
-// unknown category fails the whole list. A list of only empty entries yields
-// nil types (no sport filter) with a zero-value APIError.
+// returns the union of their Strava sport_type values. Entries are trimmed,
+// empties skipped, and repeated categories resolved once (the category map in
+// validateMultiSportQuery dedupes the same way); the MaxMultiSportCount cap
+// counts raw entries before trimming, also matching that helper. An unknown
+// category fails the whole list. A list of only empty entries yields nil types
+// (no sport filter) with a zero-value APIError; this is where the semantics
+// diverge from the metrics endpoints, which require sports and reject an
+// all-empty list — here absent and empty both mean "all sports".
 func (h *Handler) resolveSportsList(sportsStr string) ([]string, apierrors.APIError) {
 	categories := strings.Split(sportsStr, ",")
 	if len(categories) > MaxMultiSportCount {
 		return nil, apierrors.NewAPIError(http.StatusBadRequest, fmt.Sprintf("Too many sports (max %d)", MaxMultiSportCount))
 	}
+	seen := make(map[string]struct{}, len(categories))
 	var allTypes []string
 	for _, cat := range categories {
 		cat = strings.TrimSpace(cat)
 		if cat == "" {
 			continue
 		}
+		if _, dup := seen[cat]; dup {
+			continue
+		}
+		seen[cat] = struct{}{}
 		stravaTypes, apiErr := h.resolveSportTypes(cat)
 		if !apiErr.IsZero() {
 			return nil, apiErr

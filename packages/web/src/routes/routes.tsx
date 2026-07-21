@@ -4,14 +4,16 @@ import {
   parseActivityFilterSearch,
   type ActivityFilterSearch,
 } from "../utils/activityFilterSearch";
+import { LIST_CHARTS_ONLY_SEARCH_PARAMS } from "../utils/activitiesGroupParams";
 
 const RoutesPage = lazy(() => import("../pages/RoutesPage"));
 
 type RoutesSearch = ActivityFilterSearch & {
   activity?: number;
-  // List/Charts' time-preset param. Admitted to the schema only so the strip
-  // middleware below can remove it; validateSearch never returns it.
-  range?: never;
+  // List/Charts' time-preset param. Admitted as an inbound string so the nav
+  // links' shared pick (pickActivitiesGroupSearch) typechecks against this
+  // route; validateSearch never returns it and the strip middleware removes it.
+  range?: string;
 };
 
 /**
@@ -32,9 +34,9 @@ export const Route = createFileRoute("/routes")({
   validateSearch: validateRoutesSearch,
   component: RoutesPage,
   search: {
-    // Nav links pass the whole previous search through; each Activities-group
-    // route strips the params it doesn't model, so the shared `sports` carries
-    // across views with no per-link translation.
-    middlewares: [stripSearchParams(["range"])],
+    // Nav links forward the shared pick (pickActivitiesGroupSearch); this
+    // middleware is the declarative backstop that strips the params this route
+    // doesn't model from any other navigation targeting it.
+    middlewares: [stripSearchParams([...LIST_CHARTS_ONLY_SEARCH_PARAMS])],
   },
 });

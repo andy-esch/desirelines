@@ -973,116 +973,93 @@ func TestHandlerListActivitiesSportsFilter(t *testing.T) {
 		},
 		HasMore: false,
 	}
+	sportConfig, err := config.NewSportConfig("")
+	if err != nil {
+		t.Fatalf("failed to load sport config: %v", err)
+	}
+	cyclingRunningUnion := slices.Concat(
+		sportConfig.GetStravaTypes("cycling"), sportConfig.GetStravaTypes("running"))
 
-	t.Run("resolves sports categories to the union of their Strava types", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{activityList: testResponse}
-		router := newTestRouterWithDB(mockRepo, []string{}, logger)
+	tests := []struct {
+		name       string
+		query      string
+		wantStatus int
+		// Expected repository filter on a 200 (nil = no sport filter).
+		wantSportTypes []string
+	}{
+		{
+			name:           "resolves sports categories to the union of their Strava types",
+			query:          "?sports=cycling,running",
+			wantStatus:     http.StatusOK,
+			wantSportTypes: cyclingRunningUnion,
+		},
+		{
+			name:           "skips empty entries in sports",
+			query:          "?sports=cycling,,%20running",
+			wantStatus:     http.StatusOK,
+			wantSportTypes: cyclingRunningUnion,
+		},
+		{
+			name:           "resolves a repeated category once",
+			query:          "?sports=cycling,cycling,running",
+			wantStatus:     http.StatusOK,
+			wantSportTypes: cyclingRunningUnion,
+		},
+		{
+			// Unlike the metrics endpoints (where sports is required and this
+			// 400s), the list endpoint reads ",," as equivalent to absent.
+			name:       "treats an all-empty sports list as no filter",
+			query:      "?sports=,,",
+			wantStatus: http.StatusOK,
+		},
+		{
+			// A stale bundle from before the sports= switch sends sport=
+			// (singular); it is an unknown param now: unfiltered, not an error.
+			name:       "ignores the retired sport parameter",
+			query:      "?sport=cycling",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "returns 400 for too many sports",
+			query:      "?sports=" + strings.Repeat("cycling,", activities.MaxMultiSportCount) + "cycling",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "returns 400 for invalid sport",
+			query:      "?sports=badminton",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "returns 400 when any sport in the list is invalid",
+			query:      "?sports=cycling,badminton",
+			wantStatus: http.StatusBadRequest,
+		},
+	}
 
-		req := httptest.NewRequest(http.MethodGet, "/v1/activities?sports=cycling,running", nil)
-		w := httptest.NewRecorder()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := &mockActivityRepository{activityList: testResponse}
+			router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
-		router.ServeHTTP(w, req)
+			req := httptest.NewRequest(http.MethodGet, "/v1/activities"+tt.query, nil)
+			w := httptest.NewRecorder()
 
-		if w.Code != http.StatusOK {
-			t.Errorf("expected status 200, got %d", w.Code)
-		}
-		sportConfig, err := config.NewSportConfig("")
-		if err != nil {
-			t.Fatalf("failed to load sport config: %v", err)
-		}
-		want := slices.Concat(sportConfig.GetStravaTypes("cycling"), sportConfig.GetStravaTypes("running"))
-		if mockRepo.lastListFilter == nil {
-			t.Fatal("expected ListActivities to be called")
-		}
-		if got := mockRepo.lastListFilter.SportTypes; !slices.Equal(got, want) {
-			t.Errorf("expected SportTypes %v, got %v", want, got)
-		}
-	})
+			router.ServeHTTP(w, req)
 
-	t.Run("skips empty entries in sports", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{activityList: testResponse}
-		router := newTestRouterWithDB(mockRepo, []string{}, logger)
-
-		req := httptest.NewRequest(http.MethodGet, "/v1/activities?sports=cycling,,%20running", nil)
-		w := httptest.NewRecorder()
-
-		router.ServeHTTP(w, req)
-
-		if w.Code != http.StatusOK {
-			t.Errorf("expected status 200, got %d", w.Code)
-		}
-		if mockRepo.lastListFilter == nil {
-			t.Fatal("expected ListActivities to be called")
-		}
-		if got := len(mockRepo.lastListFilter.SportTypes); got == 0 {
-			t.Error("expected sport types from the non-empty entries, got none")
-		}
-	})
-
-	t.Run("ignores the retired sport parameter", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{activityList: testResponse}
-		router := newTestRouterWithDB(mockRepo, []string{}, logger)
-
-		// A stale bundle from before the sports= switch sends sport= (singular);
-		// it is an unknown param now, so the list comes back unfiltered.
-		req := httptest.NewRequest(http.MethodGet, "/v1/activities?sport=cycling", nil)
-		w := httptest.NewRecorder()
-
-		router.ServeHTTP(w, req)
-
-		if w.Code != http.StatusOK {
-			t.Errorf("expected status 200, got %d", w.Code)
-		}
-		if mockRepo.lastListFilter == nil {
-			t.Fatal("expected ListActivities to be called")
-		}
-		if got := mockRepo.lastListFilter.SportTypes; got != nil {
-			t.Errorf("expected no sport filter, got %v", got)
-		}
-	})
-
-	t.Run("returns 400 for too many sports", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{}
-		router := newTestRouterWithDB(mockRepo, []string{}, logger)
-
-		tooMany := strings.Repeat("cycling,", activities.MaxMultiSportCount) + "cycling"
-		req := httptest.NewRequest(http.MethodGet, "/v1/activities?sports="+tooMany, nil)
-		w := httptest.NewRecorder()
-
-		router.ServeHTTP(w, req)
-
-		if w.Code != http.StatusBadRequest {
-			t.Errorf("expected status 400, got %d", w.Code)
-		}
-	})
-
-	t.Run("returns 400 for invalid sport", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{}
-		router := newTestRouterWithDB(mockRepo, []string{}, logger)
-
-		req := httptest.NewRequest(http.MethodGet, "/v1/activities?sports=badminton", nil)
-		w := httptest.NewRecorder()
-
-		router.ServeHTTP(w, req)
-
-		if w.Code != http.StatusBadRequest {
-			t.Errorf("expected status 400, got %d", w.Code)
-		}
-	})
-
-	t.Run("returns 400 when any sport in the list is invalid", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{}
-		router := newTestRouterWithDB(mockRepo, []string{}, logger)
-
-		req := httptest.NewRequest(http.MethodGet, "/v1/activities?sports=cycling,badminton", nil)
-		w := httptest.NewRecorder()
-
-		router.ServeHTTP(w, req)
-
-		if w.Code != http.StatusBadRequest {
-			t.Errorf("expected status 400, got %d", w.Code)
-		}
-	})
+			if w.Code != tt.wantStatus {
+				t.Fatalf("expected status %d, got %d", tt.wantStatus, w.Code)
+			}
+			if tt.wantStatus != http.StatusOK {
+				return
+			}
+			if mockRepo.lastListFilter == nil {
+				t.Fatal("expected ListActivities to be called")
+			}
+			if got := mockRepo.lastListFilter.SportTypes; !slices.Equal(got, tt.wantSportTypes) {
+				t.Errorf("expected SportTypes %v, got %v", tt.wantSportTypes, got)
+			}
+		})
+	}
 }
 
 // =============================================================================

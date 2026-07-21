@@ -1,6 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { createMemoryHistory, createRouter } from "@tanstack/react-router";
-import { routeTree } from "../routeTree.gen";
 
 /**
  * Router-level coverage for the Activities-group cross-view filter model: nav
@@ -9,8 +8,15 @@ import { routeTree } from "../routeTree.gen";
  * between List and Charts) survive every view switch with no per-link
  * translation. Uses the real route tree, so the real validateSearch functions
  * and middlewares are exercised — nothing is re-declared here.
+ *
+ * The tree is re-imported fresh for every router: route objects are module
+ * singletons that keep a backref to the last router built over them, so
+ * sharing one tree across createRouter calls bleeds location state between
+ * tests (a fresh router reported the previous test's search params).
  */
 async function routerAt(initialUrl: string) {
+  vi.resetModules();
+  const { routeTree } = await import("../routeTree.gen");
   const router = createRouter({
     routeTree,
     history: createMemoryHistory({ initialEntries: [initialUrl] }),
@@ -48,5 +54,14 @@ describe("Activities-group cross-view navigation", () => {
     await router.navigate({ to: "/charts", search: true });
     expect(router.state.location.pathname).toBe("/charts");
     expect(router.state.location.search).toEqual({ sports: "yoga" });
+  });
+
+  it("PROBE: does a bookmarked URL with foreign params leak when navigating?", async () => {
+    const router = await routerAt("/activities?from=2026-01-01&to=2026-03-31");
+    // What is the search state immediately after initial load?
+    console.log("INITIAL SEARCH STATE:", router.state.location.search);
+
+    await router.navigate({ to: "/routes", search: true });
+    console.log("NAVIGATED SEARCH STATE:", router.state.location.search);
   });
 });

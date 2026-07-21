@@ -30,7 +30,9 @@ export interface UseAllActivitiesResult {
  * At single-user scale the full set is a handful of pages, cached 5 min by
  * TanStack Query and shared with the list view's cache where filters match.
  * Demo mode (no signed-in user) returns the generated activities in one shot,
- * filtered client-side, mirroring `useActivities`.
+ * filtered client-side, mirroring `useActivities`. Pass a stable (memoized)
+ * filter object: the demo path memoizes on its identity, and the TanStack
+ * queryKey embeds it.
  */
 export function useAllActivities(
   filter: Omit<ActivityListFilter, "cursor" | "limit">

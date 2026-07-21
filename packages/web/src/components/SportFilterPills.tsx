@@ -9,7 +9,7 @@ interface SportOption {
 }
 
 interface SportFilterPillsProps {
-  /** All sport options including the "" All-Sports entry (which is filtered out here). */
+  /** Sport options, one per category (from useSportOptions). */
   sportOptions: SportOption[];
   /** The athlete's tracked sports — chips are limited to these (plus current selections). */
   visibleSports: string[];
@@ -44,10 +44,7 @@ export default function SportFilterPills({
   labelledBy,
 }: SportFilterPillsProps) {
   const pills = useMemo(
-    () =>
-      sportOptions.filter(
-        (o) => o.value && (visibleSports.includes(o.value) || selected.includes(o.value))
-      ),
+    () => sportOptions.filter((o) => visibleSports.includes(o.value) || selected.includes(o.value)),
     [sportOptions, visibleSports, selected]
   );
 

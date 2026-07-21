@@ -125,7 +125,7 @@ describe("filtersToSearch", () => {
 });
 
 describe("round-trip", () => {
-  it("filters → search → filters is identity for arbitrary constrained state", () => {
+  it("filters → search → filters is identity up to canonical sports order", () => {
     const filters: RouteFilterState = {
       sports: ["running", "hiking"],
       dateRange: ["2025-06-01", "2025-08-31"],
@@ -136,7 +136,9 @@ describe("round-trip", () => {
       parseActivityFilterSearch(filtersToSearch(filters, NOW) as Record<string, unknown>),
       NOW
     );
-    expect(round).toEqual(filters);
+    // Serialization canonicalizes sports (sorted, deduped) so equivalent
+    // selections share one URL; everything else round-trips verbatim.
+    expect(round).toEqual({ ...filters, sports: ["hiking", "running"] });
   });
 
   it("defaults round-trip to defaults through an empty search", () => {

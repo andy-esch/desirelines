@@ -1,5 +1,6 @@
 import type { RouteFilterState } from "./routeFilters";
 import { defaultRouteFilters } from "./routeFilters";
+import { normalizeSports } from "./sportConfig";
 
 /**
  * URL search representation of the Activities-group cross-filter (sports / date /
@@ -106,7 +107,11 @@ export function searchToFilters(search: ActivityFilterSearch, now: Date): RouteF
 export function filtersToSearch(filters: RouteFilterState, now: Date): ActivityFilterSearch {
   const def = defaultRouteFilters(now);
   const out: ActivityFilterSearch = {};
-  if (filters.sports.length > 0) out.sports = filters.sports.join(",");
+  // Normalized (sorted, deduped) so equivalent selections serialize to one
+  // canonical URL regardless of toggle order — List/Charts already write the
+  // param this way, and their queryKeys assume it.
+  const sports = normalizeSports(filters.sports);
+  if (sports.length > 0) out.sports = sports.join(",");
   if (filters.dateRange[0] !== def.dateRange[0]) out.from = filters.dateRange[0];
   if (filters.dateRange[1] !== def.dateRange[1]) out.to = filters.dateRange[1];
   if (filters.distanceRange) {

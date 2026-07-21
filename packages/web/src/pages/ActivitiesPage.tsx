@@ -4,7 +4,7 @@ import ActivityTable from "../components/ActivityTable";
 import { useActivities } from "../hooks/useActivities";
 import { getUserSettings } from "../utils/units";
 import { useUserConfig } from "../hooks/useUserConfig";
-import { useSportConfig } from "../hooks/useSportConfig";
+import { useSportOptions } from "../hooks/useSportOptions";
 import { useVisibleSports } from "../hooks/useVisibleSports";
 import { PageLayout } from "../components/layout/PageLayout";
 import ActiveFilterPill, { activeFilterLabels } from "../components/ActiveFilterPill";
@@ -24,13 +24,6 @@ import {
 } from "../utils/timeRange";
 import { normalizeSports } from "../utils/sportConfig";
 
-const FALLBACK_SPORT_OPTIONS = [
-  { value: "", label: "All Sports" },
-  { value: "cycling", label: "Cycling" },
-  { value: "running", label: "Running" },
-  { value: "yoga", label: "Yoga" },
-];
-
 // List opens on the last 4 weeks. Single source so the URL fallback and the pill's
 // "is a filter active?" logic can't drift apart.
 const DEFAULT_RANGE: TimeRange = "4w";
@@ -43,17 +36,8 @@ const ActivitiesPage = () => {
   const { data: preferences } = useUserConfig("preferences");
   const userSettings = getUserSettings(preferences);
 
-  // Derive sport filter options from config (fallback while loading)
-  const { sportConfig } = useSportConfig();
+  const sportOptions = useSportOptions();
   const { visibleSports } = useVisibleSports();
-  const sportOptions = useMemo(() => {
-    if (!sportConfig) return FALLBACK_SPORT_OPTIONS;
-    const options = Object.entries(sportConfig.sportCategories).map(([key, cat]) => ({
-      value: key,
-      label: cat.displayName,
-    }));
-    return [{ value: "", label: "All Sports" }, ...options];
-  }, [sportConfig]);
 
   // Derive filter values from URL (single source of truth). `sports` is the shared
   // param name across the Activities-group views; normalized so equivalent

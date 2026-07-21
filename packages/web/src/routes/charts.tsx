@@ -1,5 +1,6 @@
 import { createFileRoute, stripSearchParams } from "@tanstack/react-router";
 import { lazy } from "react";
+import { MAP_ONLY_SEARCH_PARAMS } from "../utils/activitiesGroupParams";
 
 const ChartsPage = lazy(() => import("../pages/ChartsPage"));
 
@@ -31,10 +32,9 @@ export const Route = createFileRoute("/charts")({
   component: ChartsPage,
   validateSearch: validateChartsSearch,
   search: {
-    // Nav links pass the whole previous search through; each Activities-group
-    // route strips the params it doesn't model, so the shared `sports` (and
-    // `range`, shared with /activities) carry across views with no per-link
-    // translation.
-    middlewares: [stripSearchParams(["from", "to", "dmin", "dmax", "region", "activity"])],
+    // Nav links forward the shared pick (pickActivitiesGroupSearch); this
+    // middleware is the declarative backstop that strips the params this route
+    // doesn't model from any other navigation targeting it.
+    middlewares: [stripSearchParams([...MAP_ONLY_SEARCH_PARAMS])],
   },
 });

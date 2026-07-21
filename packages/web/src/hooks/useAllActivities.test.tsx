@@ -29,6 +29,17 @@ const { DEMO } = vi.hoisted(() => ({
       movingTimeSeconds: 1500,
       hasRoute: false,
     },
+    {
+      // Second running activity OUTSIDE the date-window fixtures below, so the
+      // window assertion can't pass on the sport filter alone.
+      id: "demo-3",
+      name: "Demo Run Later",
+      sport: "running",
+      startDateLocal: "2026-06-01T08:00:00",
+      distanceMeters: 7000,
+      movingTimeSeconds: 2100,
+      hasRoute: false,
+    },
   ] as ActivitySummary[],
 }));
 
@@ -107,7 +118,8 @@ describe("useAllActivities", () => {
       () => useAllActivities({ sports: ["running"], from: "2026-05-11", to: "2026-05-11" }),
       { wrapper: createWrapper() }
     );
-    expect(result.current.activities).toEqual(DEMO.filter((a) => a.sport === "running"));
+    // Both filters must bite: sport drops the ride, the window drops the June run.
+    expect(result.current.activities).toEqual([DEMO[1]]);
   });
 
   it("auto-pages to completion and concatenates every page", async () => {

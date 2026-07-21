@@ -16,6 +16,7 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "../components/ui/toggle-group";
 import { useAllActivities } from "../hooks/useAllActivities";
 import { useSportConfig } from "../hooks/useSportConfig";
+import { useSportOptions } from "../hooks/useSportOptions";
 import { useUserConfig } from "../hooks/useUserConfig";
 import { useVisibleSports } from "../hooks/useVisibleSports";
 import {
@@ -40,13 +41,6 @@ import {
   formatHoursMinutes,
 } from "../utils/units";
 import { normalizeSports } from "../utils/sportConfig";
-
-const FALLBACK_SPORT_OPTIONS = [
-  { value: "", label: "All Sports" },
-  { value: "cycling", label: "Cycling" },
-  { value: "running", label: "Running" },
-  { value: "yoga", label: "Yoga" },
-];
 
 // Charts opens on year-to-date (more history than the table's 4w). Single source so the
 // URL fallback and the "is a filter active?" pill logic can't drift apart.
@@ -77,15 +71,7 @@ export default function ChartsPage() {
   const userSettings = getUserSettings(preferences);
   const { sportConfig } = useSportConfig();
   const { visibleSports } = useVisibleSports();
-
-  const sportOptions = useMemo(() => {
-    if (!sportConfig) return FALLBACK_SPORT_OPTIONS;
-    const options = Object.entries(sportConfig.sportCategories).map(([key, cat]) => ({
-      value: key,
-      label: cat.displayName,
-    }));
-    return [{ value: "", label: "All Sports" }, ...options];
-  }, [sportConfig]);
+  const sportOptions = useSportOptions();
 
   // URL is the source of truth for the shared Activities-group filters. `sports` is the
   // shared param name across the views; normalized so equivalent selections share one

@@ -5,7 +5,17 @@ import {
   generateDemoGoals,
   generateCoordinatedFillLevels,
   getDemoSports,
+  formatTimestamp,
 } from "./demoDataGenerator";
+
+describe("formatTimestamp", () => {
+  it("keeps the wall-clock calendar day — no UTC conversion", () => {
+    // Tests run pinned to America/New_York (vite.config.ts); toISOString()
+    // would emit 2026-01-16T00:30:00.000Z here, shifting the athlete's day.
+    expect(formatTimestamp(new Date(2026, 0, 15, 19, 30, 0))).toBe("2026-01-15T19:30:00Z");
+    expect(formatTimestamp(new Date(2026, 6, 4, 6, 5, 9))).toBe("2026-07-04T06:05:09Z");
+  });
+});
 
 describe("generateDemoMetrics", () => {
   describe("basic functionality", () => {

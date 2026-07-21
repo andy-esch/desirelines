@@ -74,7 +74,9 @@ export interface UseActivitiesResult {
  * Handles loading activities with cursor-based pagination,
  * automatic authentication, and retry functionality.
  *
- * @param filter - Filter options (from, to, sports, limit)
+ * @param filter - Filter options (from, to, sports, limit). Pass a stable
+ *   (memoized) object: the demo path filters client-side and memoizes on the
+ *   filter's identity, and the TanStack queryKey embeds it.
  * @returns Object containing activities, loading state, errors, and pagination controls
  *
  * @example
