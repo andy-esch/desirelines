@@ -4,6 +4,7 @@ import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
 import type { MapActivity } from "../../api/map";
 import { convertDistance, getDistanceLabel, type DistanceUnit } from "../../utils/units";
 import { weeklyVolume } from "../../utils/mapInsights";
+import { chartLabelToString } from "../../utils/chartUtils";
 import { formatActivityDate } from "../../utils/formatActivityDate";
 
 type WeeklyMetric = "distance" | "time";
@@ -92,7 +93,9 @@ export default function WeeklyVolumeChart({ activities, distanceUnit }: WeeklyVo
                   cursor={{ fill: "rgba(120,120,120,0.15)" }}
                   contentStyle={TOOLTIP_STYLE}
                   formatter={(v) => [`${Math.round(Number(v))} ${unit}`, "Volume"]}
-                  labelFormatter={(d) => `Week of ${formatActivityDate(String(d), { year: true })}`}
+                  labelFormatter={(d) =>
+                    `Week of ${formatActivityDate(chartLabelToString(d), { year: true })}`
+                  }
                 />
                 <Bar
                   dataKey="value"

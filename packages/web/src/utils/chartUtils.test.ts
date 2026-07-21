@@ -7,7 +7,14 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { getMetricValue, toDailyArray, getTimeRangeCutoff, normalizeToRange } from "./chartUtils";
+import {
+  getMetricValue,
+  toDailyArray,
+  getTimeRangeCutoff,
+  normalizeToRange,
+  chartLabelToString,
+} from "./chartUtils";
+import type { ReactNode } from "react";
 import type { SportConfig } from "../api/activities";
 
 // Mock sport config for testing
@@ -448,6 +455,25 @@ describe("chartUtils", () => {
       normalizeToRange(data);
 
       expect(JSON.stringify(data)).toBe(originalData);
+    });
+  });
+
+  describe("chartLabelToString", () => {
+    it("passes through string labels", () => {
+      expect(chartLabelToString("2026-05-01")).toBe("2026-05-01");
+    });
+
+    it("stringifies number labels", () => {
+      expect(chartLabelToString(5)).toBe("5");
+      expect(chartLabelToString(0)).toBe("0");
+    });
+
+    it("drops non-primitive ReactNode to empty string (the [object Object] guard)", () => {
+      // Recharts types the label as ReactNode; a non-primitive must not render as
+      // "[object Object]".
+      expect(chartLabelToString({ foo: "bar" } as unknown as ReactNode)).toBe("");
+      expect(chartLabelToString(null)).toBe("");
+      expect(chartLabelToString(undefined)).toBe("");
     });
   });
 });

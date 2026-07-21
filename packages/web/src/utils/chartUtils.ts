@@ -7,11 +7,26 @@
  * @see MultiSportComparisonChart - Primary consumer of these utilities
  */
 
+import type { ReactNode } from "react";
 import type { TimeRange } from "./dataNormalization";
 import type { DailyActivity, SportConfig } from "../api/activities";
 import type { DailySportData } from "../hooks/useDailySportData";
 import { isDistanceSport } from "./sportConfig";
 import { generateDateRange } from "./dateUtils";
+
+/**
+ * Coerce a Recharts tooltip label to a display string.
+ *
+ * Recharts types `Tooltip` `labelFormatter`/`formatter` label params as `ReactNode`, but
+ * at runtime it passes the category-axis value — a `string | number` for our charts. The
+ * broad static type makes `String(label)` / `` `${label}` `` a lint error
+ * (@typescript-eslint/no-base-to-string), since a `ReactNode` object would stringify to
+ * "[object Object]". This narrows to the primitive case and drops anything unexpected to
+ * "" rather than rendering a garbage label.
+ */
+export function chartLabelToString(label: ReactNode): string {
+  return typeof label === "string" || typeof label === "number" ? String(label) : "";
+}
 
 /**
  * Get the primary metric value for a sport from daily activity data.

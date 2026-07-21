@@ -11,6 +11,7 @@ import {
 import type { MapActivity } from "../../api/map";
 import { convertDistance, getDistanceLabel, type DistanceUnit } from "../../utils/units";
 import { cumulativeDistance } from "../../utils/mapInsights";
+import { chartLabelToString } from "../../utils/chartUtils";
 import { formatActivityDate } from "../../utils/formatActivityDate";
 
 export interface CumulativeDistanceChartProps {
@@ -75,7 +76,7 @@ export default function CumulativeDistanceChart({
               <Tooltip
                 contentStyle={TOOLTIP_STYLE}
                 formatter={(v) => [`${Math.round(Number(v)).toLocaleString()} ${unit}`, "Total"]}
-                labelFormatter={(d) => formatActivityDate(String(d), { year: true })}
+                labelFormatter={(d) => formatActivityDate(chartLabelToString(d), { year: true })}
               />
               <Line
                 type="monotone"

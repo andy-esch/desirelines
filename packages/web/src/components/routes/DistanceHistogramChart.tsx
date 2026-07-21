@@ -3,6 +3,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGri
 import type { MapActivity } from "../../api/map";
 import { convertDistance, getDistanceLabel, type DistanceUnit } from "../../utils/units";
 import { distanceHistogram } from "../../utils/mapInsights";
+import { chartLabelToString } from "../../utils/chartUtils";
 
 export interface DistanceHistogramChartProps {
   activities: MapActivity[];
@@ -73,7 +74,7 @@ export default function DistanceHistogramChart({
                   cursor={{ fill: "rgba(120,120,120,0.15)" }}
                   contentStyle={TOOLTIP_STYLE}
                   formatter={(v) => [`${Number(v)} activities`, "Count"]}
-                  labelFormatter={(l) => `${l}+ ${unit}`}
+                  labelFormatter={(l) => `${chartLabelToString(l)}+ ${unit}`}
                 />
                 <Bar
                   dataKey="count"
