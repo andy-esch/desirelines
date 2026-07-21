@@ -15,6 +15,81 @@ concurrency:
 
 jobs:
   # ===========================================================================
+  # Job 0: Detect which service images actually need rebuilding
+  # ===========================================================================
+  # Only the services whose source changed are rebuilt. An unchanged service is
+  # left alone: the deploy repo resolves its digest from the stable env tag (the
+  # currently-live image), so Terraform sees no change and creates no revision.
+  #
+  # This job ALSO owns `git_sha` — deliberately decoupled from `build-images`,
+  # which is skipped entirely when nothing changed. `trigger-deploy` reads git_sha
+  # from here so a code-free deploy (e.g. terraform-only) still fires.
+  #
+  # Filter fan-out (verified against the Dockerfiles, not assumed): the Go builds
+  # COPY only `packages/shared/` + their own dir, and generated proto / synced
+  # sport_types.json are committed INTO each service tree — so `schemas/**` needs no
+  # separate entry. Under-listing here silently ships stale code, so err toward
+  # rebuilding.
+  changes:
+    name: Detect changed services
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      git_sha: ${{ steps.metadata.outputs.git_sha }}
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      any: ${{ steps.set-matrix.outputs.any }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        # Need the previous commit to diff a push. Squash-merges to main are a
+        # single commit (before = prior tip), so depth 2 suffices for the normal
+        # flow; dorny/paths-filter fetches more if a push spans additional commits.
+        with:
+          fetch-depth: 2
+
+      - name: Set deployment metadata
+        id: metadata
+        run: echo "git_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Detect changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            dispatcher:
+              - 'packages/dispatcher/**'
+              - 'packages/shared/**'
+            apigateway:
+              - 'packages/apigateway/**'
+              - 'packages/shared/**'
+            stravapipe:
+              - 'packages/stravapipe/**'
+
+      - name: Build image matrix from changed services
+        id: set-matrix
+        run: |
+          INCLUDE="[]"
+          add() {
+            INCLUDE=$(echo "$INCLUDE" | jq -c \
+              --arg i "$1" --arg c "$2" --arg d "$3" \
+              '. += [{"image":$i,"context":$c,"dockerfile":$d}]')
+          }
+          [ "${{ steps.filter.outputs.dispatcher }}" = "true" ] && add dispatcher "." "packages/dispatcher/Dockerfile"
+          [ "${{ steps.filter.outputs.apigateway }}" = "true" ] && add apigateway "." "packages/apigateway/Dockerfile"
+          [ "${{ steps.filter.outputs.stravapipe }}" = "true" ] && add stravapipe "packages/stravapipe" "packages/stravapipe/Dockerfile"
+
+          echo "matrix={\"include\":$INCLUDE}" >> "$GITHUB_OUTPUT"
+          if [ "$INCLUDE" = "[]" ]; then
+            echo "any=false" >> "$GITHUB_OUTPUT"
+            echo "No service source changed — skipping all image builds."
+          else
+            echo "any=true" >> "$GITHUB_OUTPUT"
+            echo "Building: $INCLUDE"
+          fi
+
+  # ===========================================================================
   # Job 1: Build and Push Docker Images
   # ===========================================================================
   # Builds all Cloud Run services in parallel via matrix:
@@ -25,21 +100,13 @@ jobs:
     name: Build ${{ matrix.image }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    needs: [changes]
+    # Skip the whole job when no service source changed. `git_sha` now lives on the
+    # `changes` job, so nothing downstream depends on this producing an output.
+    if: needs.changes.outputs.any == 'true'
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - image: dispatcher
-            context: .
-            dockerfile: packages/dispatcher/Dockerfile
-          - image: apigateway
-            context: .
-            dockerfile: packages/apigateway/Dockerfile
-          - image: stravapipe
-            context: packages/stravapipe
-            dockerfile: packages/stravapipe/Dockerfile
-    outputs:
-      git_sha: ${{ steps.metadata.outputs.git_sha }}
+      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
 
     # Required for Workload Identity Federation
     permissions:
@@ -108,7 +175,16 @@ jobs:
     name: Trigger deploy repo
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [build-images]
+    needs: [changes, build-images]
+    # Fire even when build-images was SKIPPED (no service changed) — the deploy repo
+    # resolves unbuilt services to their live digests. Suppress only on a real build
+    # FAILURE, or if `changes` itself failed (then git_sha/matrix are unavailable and
+    # we must not dispatch an empty deploy). `!cancelled()` is required or GitHub
+    # auto-skips this job whenever a needs job is skipped.
+    if: >-
+      !cancelled()
+      && needs.changes.result == 'success'
+      && needs.build-images.result != 'failure'
 
     steps:
       - name: Generate GitHub App token
@@ -127,10 +203,10 @@ jobs:
           gh api repos/andy-esch/desirelines-deploy/dispatches \
             --method POST \
             --field event_type=deploy_candidate \
-            -f "client_payload[image_tag]=${{ needs.build-images.outputs.git_sha }}" \
+            -f "client_payload[image_tag]=${{ needs.changes.outputs.git_sha }}" \
             -f "client_payload[env]=dev"
 
-          echo "Triggered deploy repo with image_tag=${{ needs.build-images.outputs.git_sha }}"
+          echo "Triggered deploy repo with image_tag=${{ needs.changes.outputs.git_sha }}"
 
       - name: Notify Slack on failure
         if: failure()
@@ -138,7 +214,7 @@ jobs:
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           headline: ":x: *Deploy trigger failed* — images built but `repository_dispatch` to desirelines-deploy did not fire. Deploy repo doesn't know there's a candidate."
-          context: "image_tag `${{ needs.build-images.outputs.git_sha }}`"
+          context: "image_tag `${{ needs.changes.outputs.git_sha }}`"
 
   # ===========================================================================
   # Job 3: Auto-tag Terraform Modules
