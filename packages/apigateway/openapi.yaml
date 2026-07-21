@@ -533,13 +533,19 @@ paths:
       parameters:
         - $ref: '#/components/parameters/year'
         - $ref: '#/components/parameters/sport'
+        - $ref: '#/components/parameters/sports'
       responses:
         '200':
-          description: Cumulative metrics timeseries
+          description: >-
+            Cumulative metrics. The shape depends on which sport parameter was
+            used: `sport` (singular) returns one sport's `SportMetrics`;
+            `sports` (plural) returns `AllSportsMetrics`, keyed by category.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SportMetrics'
+                oneOf:
+                  - $ref: '#/components/schemas/SportMetrics'
+                  - $ref: '#/components/schemas/AllSportsMetrics'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -558,13 +564,20 @@ paths:
       parameters:
         - $ref: '#/components/parameters/year'
         - $ref: '#/components/parameters/sport'
+        - $ref: '#/components/parameters/sports'
       responses:
         '200':
-          description: Daily summaries keyed by date
+          description: >-
+            Daily summaries keyed by date. The shape depends on which sport
+            parameter was used: `sport` (singular) returns one sport's
+            `DailySummary`; `sports` (plural) returns `AllSportsDailySummary`,
+            keyed by category.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DailySummary'
+                oneOf:
+                  - $ref: '#/components/schemas/DailySummary'
+                  - $ref: '#/components/schemas/AllSportsDailySummary'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -594,16 +607,34 @@ components:
     sport:
       name: sport
       in: query
-      required: true
+      required: false
       description: >-
-        Sport category. The canonical list of valid values is returned by
-        `GET /v1/sports/config` (sourced from
+        Single sport category. Supply **either** this or `sports` (plural):
+        endpoints accepting both require one of the two, and when both are
+        present `sports` wins and this is ignored. The canonical list of valid
+        values is returned by `GET /v1/sports/config` (sourced from
         `schemas/sports/sport_types.json`). Common examples: cycling,
         running, hiking, swimming, yoga, walking. Enum intentionally
         omitted so the spec doesn't go stale when categories are
         added — fetch the live list from the endpoint instead.
       schema:
         type: string
+        example: cycling
+    sports:
+      name: sports
+      in: query
+      required: false
+      description: >-
+        Multiple sport categories, comma-separated — the multi-sport form of
+        `sport`, returning one entry per category rather than a single sport's
+        data. At most 20 categories; entries are trimmed and empty ones
+        skipped; an unknown category fails the whole request with a 400.
+        Supply **either** this or `sport`: one of the two is required, and
+        `sports` wins if both are sent. Valid values come from
+        `GET /v1/sports/config`, as with `sport`.
+      schema:
+        type: string
+        example: cycling,running
 
   responses:
     BadRequest:
@@ -686,15 +717,15 @@ components:
         $ref: '#/components/schemas/SportCategory'
       example:
         cycling:
-          display_name: Cycling
-          strava_types: [Ride, VirtualRide, EBikeRide]
+          displayName: Cycling
+          stravaTypes: [Ride, VirtualRide, EBikeRide]
 
     SportCategory:
       type: object
       properties:
-        display_name:
+        displayName:
           type: string
-        strava_types:
+        stravaTypes:
           type: array
           items:
             type: string
@@ -702,12 +733,14 @@ components:
     Activity:
       type: object
       description: Full activity details
-      required: [id, name, type, sport, start_date_local, distance_meters, moving_time_seconds, elapsed_time_seconds]
+      required: [id, name, type, sport, startDateLocal, distanceMeters, movingTimeSeconds, elapsedTimeSeconds]
       properties:
         id:
-          type: integer
-          format: int64
-          description: Strava activity ID
+          type: string
+          description: >-
+            Strava activity ID. Serialized as a **string**: the API marshals
+            protobuf `int64` fields as JSON strings (protojson), so this is a
+            numeric id in string form.
         name:
           type: string
           description: Activity name
@@ -720,37 +753,37 @@ components:
             Categorized sport. See `GET /v1/sports/config` for the full
             list of categories (sourced from
             `schemas/sports/sport_types.json`).
-        start_date_local:
+        startDateLocal:
           type: string
           format: date-time
           description: Activity start time in local timezone
-        distance_meters:
+        distanceMeters:
           type: number
           format: double
           description: Distance in meters
-        moving_time_seconds:
+        movingTimeSeconds:
           type: integer
           description: Moving time in seconds
-        elapsed_time_seconds:
+        elapsedTimeSeconds:
           type: integer
           description: Total elapsed time in seconds
-        elevation_meters:
+        elevationMeters:
           type: number
           format: double
           description: Total elevation gain in meters
-        average_speed_mps:
+        averageSpeedMps:
           type: number
           format: double
           description: Average speed in m/s
-        max_speed_mps:
+        maxSpeedMps:
           type: number
           format: double
           description: Max speed in m/s
-        average_heartrate:
+        averageHeartrate:
           type: number
           format: double
           description: Average heart rate (bpm)
-        max_heartrate:
+        maxHeartrate:
           type: number
           format: double
           description: Max heart rate (bpm)
@@ -758,29 +791,32 @@ components:
     ActivitySummary:
       type: object
       description: Condensed activity for list views
-      required: [id, name, type, sport, start_date_local, distance_meters, moving_time_seconds, has_route]
+      required: [id, name, type, sport, startDateLocal, distanceMeters, movingTimeSeconds, hasRoute]
       properties:
         id:
-          type: integer
-          format: int64
+          type: string
+          description: >-
+            Strava activity ID. Serialized as a **string**: the API marshals
+            protobuf `int64` fields as JSON strings (protojson), so this is a
+            numeric id in string form.
         name:
           type: string
         type:
           type: string
         sport:
           type: string
-        start_date_local:
+        startDateLocal:
           type: string
           format: date-time
-        distance_meters:
+        distanceMeters:
           type: number
           format: double
-        moving_time_seconds:
+        movingTimeSeconds:
           type: integer
-        elevation_meters:
+        elevationMeters:
           type: number
           format: double
-        has_route:
+        hasRoute:
           type: boolean
           description: >-
             True when the activity is tagged to >=1 region and thus appears on
@@ -790,22 +826,22 @@ components:
 
     ActivityListResponse:
       type: object
-      required: [activities, has_more]
+      required: [activities, hasMore]
       properties:
         activities:
           type: array
           items:
             $ref: '#/components/schemas/ActivitySummary'
-        next_cursor:
+        nextCursor:
           type: string
           description: Cursor for fetching next page (base64 encoded)
-        has_more:
+        hasMore:
           type: boolean
           description: Whether more results are available
 
     ActivityBucket:
       type: object
-      required: [month, sport, geographic, count, moving_time_seconds, distance_meters]
+      required: [month, sport, geographic, count, movingTimeSeconds, distanceMeters]
       properties:
         month:
           type: string
@@ -822,10 +858,10 @@ components:
         count:
           type: integer
           description: Number of activities in the group
-        moving_time_seconds:
+        movingTimeSeconds:
           type: integer
           description: Summed moving time in seconds
-        distance_meters:
+        distanceMeters:
           type: number
           description: Summed distance in meters (zero for distance-less sports)
 
@@ -840,7 +876,7 @@ components:
 
     YearMetadata:
       type: object
-      required: [year, sports, totals, aggregation_version]
+      required: [year, sports, totals, aggregationVersion]
       properties:
         year:
           type: integer
@@ -853,22 +889,22 @@ components:
           type: object
           additionalProperties:
             $ref: '#/components/schemas/SportTotals'
-        last_updated:
+        lastUpdated:
           type: string
           format: date-time
-        aggregation_version:
+        aggregationVersion:
           type: string
 
     SportTotals:
       type: object
       properties:
-        distance_meters:
+        distanceMeters:
           type: number
           format: double
-        time_minutes:
+        timeMinutes:
           type: number
           format: double
-        elevation_meters:
+        elevationMeters:
           type: number
           format: double
         activities:
@@ -882,6 +918,32 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CumulativeMetricsEntry'
+
+    AllSportsMetrics:
+      type: object
+      description: >-
+        Multi-sport cumulative metrics, returned when the request used
+        `?sports=` (plural). One entry per requested category.
+      required: [bySport]
+      properties:
+        bySport:
+          type: object
+          description: Cumulative metrics keyed by sport category (e.g. "cycling").
+          additionalProperties:
+            $ref: '#/components/schemas/SportMetrics'
+
+    AllSportsDailySummary:
+      type: object
+      description: >-
+        Multi-sport daily summaries, returned when the request used `?sports=`
+        (plural). One entry per requested category.
+      required: [bySport]
+      properties:
+        bySport:
+          type: object
+          description: Daily summaries keyed by sport category (e.g. "cycling").
+          additionalProperties:
+            $ref: '#/components/schemas/DailySummary'
 
     CumulativeMetricsEntry:
       type: object
@@ -943,9 +1005,11 @@ components:
       required: [activityId, name, sport, distanceMeters, movingTime, startDateLocal, regionIds]
       properties:
         activityId:
-          type: integer
-          format: int64
-          description: Strava activity ID
+          type: string
+          description: >-
+            Strava activity ID. Serialized as a **string**: the API marshals
+            protobuf `int64` fields as JSON strings (protojson), so this is a
+            numeric id in string form.
         name:
           type: string
           description: Activity name/title
@@ -972,8 +1036,7 @@ components:
             Region ids this activity is tagged to. Same ids as
             GET /v1/activities/map/regions returns.
           items:
-            type: integer
-            format: int64
+            type: string
         bbox:
           type: array
           description: >-
@@ -994,19 +1057,18 @@ components:
     DailyActivity:
       type: object
       properties:
-        distance_meters:
+        distanceMeters:
           type: number
           format: double
-        time_minutes:
+        timeMinutes:
           type: number
           format: double
-        elevation_meters:
+        elevationMeters:
           type: number
           format: double
         activities:
           type: integer
-        activity_ids:
+        activityIds:
           type: array
           items:
-            type: integer
-            format: int64
+            type: string
