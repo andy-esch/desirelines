@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -56,6 +57,7 @@ type mockActivityRepository struct {
 	activityErr     error
 	activityList    *activitiesv1.ListActivitiesResponse
 	activityListErr error
+	lastListFilter  *repository.ActivityListFilter
 }
 
 func (m *mockActivityRepository) Ping(ctx context.Context) error {
@@ -91,6 +93,7 @@ func (m *mockActivityRepository) GetActivityByID(ctx context.Context, userID str
 }
 
 func (m *mockActivityRepository) ListActivities(ctx context.Context, filter repository.ActivityListFilter) (*activitiesv1.ListActivitiesResponse, error) {
+	m.lastListFilter = &filter
 	return m.activityList, m.activityListErr
 }
 
@@ -875,20 +878,6 @@ func TestHandlerListActivities(t *testing.T) {
 		}
 	})
 
-	t.Run("accepts sport parameter", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{activityList: testResponse}
-		router := newTestRouterWithDB(mockRepo, []string{}, logger)
-
-		req := httptest.NewRequest(http.MethodGet, "/v1/activities?sport=cycling", nil)
-		w := httptest.NewRecorder()
-
-		router.ServeHTTP(w, req)
-
-		if w.Code != http.StatusOK {
-			t.Errorf("expected status 200, got %d", w.Code)
-		}
-	})
-
 	t.Run("accepts limit parameter", func(t *testing.T) {
 		mockRepo := &mockActivityRepository{activityList: testResponse}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
@@ -922,20 +911,6 @@ func TestHandlerListActivities(t *testing.T) {
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/v1/activities?to=not-a-date", nil)
-		w := httptest.NewRecorder()
-
-		router.ServeHTTP(w, req)
-
-		if w.Code != http.StatusBadRequest {
-			t.Errorf("expected status 400, got %d", w.Code)
-		}
-	})
-
-	t.Run("returns 400 for invalid sport", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{}
-		router := newTestRouterWithDB(mockRepo, []string{}, logger)
-
-		req := httptest.NewRequest(http.MethodGet, "/v1/activities?sport=badminton", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -986,6 +961,126 @@ func TestHandlerListActivities(t *testing.T) {
 
 		if w.Code != http.StatusInternalServerError {
 			t.Errorf("expected status 500, got %d", w.Code)
+		}
+	})
+}
+
+func TestHandlerListActivitiesSportsFilter(t *testing.T) {
+	logger := slog.Default()
+	testResponse := &activitiesv1.ListActivitiesResponse{
+		Activities: []*activitiesv1.ActivitySummary{
+			{Id: 12345678901, Name: "Morning Ride", Type: "Ride", Sport: "cycling"},
+		},
+		HasMore: false,
+	}
+
+	t.Run("resolves sports categories to the union of their Strava types", func(t *testing.T) {
+		mockRepo := &mockActivityRepository{activityList: testResponse}
+		router := newTestRouterWithDB(mockRepo, []string{}, logger)
+
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities?sports=cycling,running", nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status 200, got %d", w.Code)
+		}
+		sportConfig, err := config.NewSportConfig("")
+		if err != nil {
+			t.Fatalf("failed to load sport config: %v", err)
+		}
+		want := slices.Concat(sportConfig.GetStravaTypes("cycling"), sportConfig.GetStravaTypes("running"))
+		if mockRepo.lastListFilter == nil {
+			t.Fatal("expected ListActivities to be called")
+		}
+		if got := mockRepo.lastListFilter.SportTypes; !slices.Equal(got, want) {
+			t.Errorf("expected SportTypes %v, got %v", want, got)
+		}
+	})
+
+	t.Run("skips empty entries in sports", func(t *testing.T) {
+		mockRepo := &mockActivityRepository{activityList: testResponse}
+		router := newTestRouterWithDB(mockRepo, []string{}, logger)
+
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities?sports=cycling,,%20running", nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status 200, got %d", w.Code)
+		}
+		if mockRepo.lastListFilter == nil {
+			t.Fatal("expected ListActivities to be called")
+		}
+		if got := len(mockRepo.lastListFilter.SportTypes); got == 0 {
+			t.Error("expected sport types from the non-empty entries, got none")
+		}
+	})
+
+	t.Run("ignores the retired sport parameter", func(t *testing.T) {
+		mockRepo := &mockActivityRepository{activityList: testResponse}
+		router := newTestRouterWithDB(mockRepo, []string{}, logger)
+
+		// A stale bundle from before the sports= switch sends sport= (singular);
+		// it is an unknown param now, so the list comes back unfiltered.
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities?sport=cycling", nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status 200, got %d", w.Code)
+		}
+		if mockRepo.lastListFilter == nil {
+			t.Fatal("expected ListActivities to be called")
+		}
+		if got := mockRepo.lastListFilter.SportTypes; got != nil {
+			t.Errorf("expected no sport filter, got %v", got)
+		}
+	})
+
+	t.Run("returns 400 for too many sports", func(t *testing.T) {
+		mockRepo := &mockActivityRepository{}
+		router := newTestRouterWithDB(mockRepo, []string{}, logger)
+
+		tooMany := strings.Repeat("cycling,", activities.MaxMultiSportCount) + "cycling"
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities?sports="+tooMany, nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected status 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("returns 400 for invalid sport", func(t *testing.T) {
+		mockRepo := &mockActivityRepository{}
+		router := newTestRouterWithDB(mockRepo, []string{}, logger)
+
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities?sports=badminton", nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected status 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("returns 400 when any sport in the list is invalid", func(t *testing.T) {
+		mockRepo := &mockActivityRepository{}
+		router := newTestRouterWithDB(mockRepo, []string{}, logger)
+
+		req := httptest.NewRequest(http.MethodGet, "/v1/activities?sports=cycling,badminton", nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected status 400, got %d", w.Code)
 		}
 	})
 }

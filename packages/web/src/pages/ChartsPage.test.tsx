@@ -10,6 +10,7 @@ import {
 } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import ChartsPage from "./ChartsPage";
+import { validateChartsSearch } from "../routes/charts";
 import * as useAllActivitiesModule from "../hooks/useAllActivities";
 import type { ActivitySummary } from "../api/activities";
 
@@ -56,10 +57,7 @@ async function renderChartsPage(initialRoute = "/charts") {
     getParentRoute: () => rootRoute,
     path: "/charts",
     component: ChartsPage,
-    validateSearch: (search: Record<string, unknown>) => ({
-      range: typeof search.range === "string" ? search.range : undefined,
-      sports: typeof search.sports === "string" ? search.sports : undefined,
-    }),
+    validateSearch: validateChartsSearch,
   });
   const router = createRouter({
     routeTree: rootRoute.addChildren([chartsRoute]),

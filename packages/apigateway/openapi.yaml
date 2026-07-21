@@ -170,17 +170,19 @@ paths:
             type: string
             format: date
             example: '2025-12-31'
-        - name: sport
+        - name: sports
           in: query
           description: >-
-            Filter by sport category. The canonical list of valid values
-            is returned by `GET /v1/sports/config` (sourced from
+            Filter by sport categories, comma-separated (max 20; absent means
+            all sports; an unknown category is a 400). The canonical list of
+            valid values is returned by `GET /v1/sports/config` (sourced from
             `schemas/sports/sport_types.json`). Common examples: cycling,
             running, hiking, swimming, yoga, walking. Enum intentionally
             omitted so the spec doesn't go stale when categories are
             added — fetch the live list from the endpoint instead.
           schema:
             type: string
+            example: 'cycling,running'
         - name: limit
           in: query
           description: Maximum results per page

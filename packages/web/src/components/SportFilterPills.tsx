@@ -11,22 +11,25 @@ interface SportOption {
 interface SportFilterPillsProps {
   /** All sport options including the "" All-Sports entry (which is filtered out here). */
   sportOptions: SportOption[];
-  /** The athlete's tracked sports — chips are limited to these (plus the current selection). */
+  /** The athlete's tracked sports — chips are limited to these (plus current selections). */
   visibleSports: string[];
-  /** The single selected sport ("" = all sports). */
-  selected: string;
-  /** New sport, or "" when the active chip is deselected (→ all sports). */
-  onChange: (sport: string) => void;
+  /** The selected sport categories (empty = all sports). */
+  selected: string[];
+  /** The new selection; deselecting the last chip yields [] (→ all sports). */
+  onChange: (sports: string[]) => void;
   /** id of the label element that names this group (for aria-labelledby). */
   labelledBy: string;
 }
 
 /**
- * Single-select sport chips for the Activities-group content views (List + Charts),
- * matching the map's neon per-sport chips. Shows the athlete's tracked (visible) sports —
- * not every category — plus the current URL selection if it falls outside that set, so the
- * filter stays representable. (Colors use the fixed `SPORT_COLORS` so a chip matches the
- * chart bar beside it; unifying with the map's positional colors is a separate task.)
+ * Multi-select sport chips for the Activities-group content views (List + Charts),
+ * matching the map's neon per-sport chips and its selection convention: an empty
+ * selection means all sports, so deselecting the last chip is the "All Sports" path
+ * (there is no dedicated chip for it). Shows the athlete's tracked (visible) sports —
+ * not every category — plus any current URL selections outside that set, so the
+ * filter stays representable. (Colors use the fixed `SPORT_COLORS` so a chip matches
+ * the chart bar beside it; unifying with the map's positional colors is a separate
+ * task.)
  *
  * The sport color is an accent, not the text: full-brightness neon on the light ground
  * fails 3:1 for 14 of the 16 sports, so an unselected chip pairs a neutral label with a
@@ -43,15 +46,16 @@ export default function SportFilterPills({
   const pills = useMemo(
     () =>
       sportOptions.filter(
-        (o) => o.value && (visibleSports.includes(o.value) || o.value === selected)
+        (o) => o.value && (visibleSports.includes(o.value) || selected.includes(o.value))
       ),
     [sportOptions, visibleSports, selected]
   );
 
   return (
     <ToggleGroup
-      value={selected ? [selected] : []}
-      onValueChange={(vals) => onChange(vals[0] ?? "")}
+      multiple
+      value={selected}
+      onValueChange={(vals) => onChange(vals)}
       aria-labelledby={labelledBy}
       className="flex-wrap"
     >

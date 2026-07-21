@@ -144,20 +144,25 @@ message MapDatasetResponse {
 // ListActivitiesRequest contains filters for listing activities.
 // Used for GET /activities endpoint.
 message ListActivitiesRequest {
+  // Retired single-sport filter, replaced by `sports`.
+  reserved 3;
+  reserved "sport";
+
   // Start date filter (YYYY-MM-DD), inclusive.
   optional string from = 1;
 
   // End date filter (YYYY-MM-DD), inclusive.
   optional string to = 2;
 
-  // Sport filter (cycling, running, yoga).
-  optional string sport = 3;
-
   // Maximum number of results to return (default: 50, max: 100).
   optional int32 limit = 4;
 
   // Pagination cursor from previous response.
   optional string cursor = 5;
+
+  // Sport-category filter (e.g. cycling, running). Empty = all sports.
+  // At most 20 categories per request.
+  repeated string sports = 6;
 }
 
 // ListActivitiesResponse contains a paginated list of activities.
@@ -190,4 +195,3 @@ message GetActivityResponse {
   // The requested activity.
   Activity activity = 1;
 }
-

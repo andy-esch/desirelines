@@ -22,6 +22,7 @@ import {
   coerceTimeRange,
   calculateDateRange,
 } from "../utils/timeRange";
+import { normalizeSports } from "../utils/sportConfig";
 
 const FALLBACK_SPORT_OPTIONS = [
   { value: "", label: "All Sports" },
@@ -54,10 +55,14 @@ const ActivitiesPage = () => {
     return [{ value: "", label: "All Sports" }, ...options];
   }, [sportConfig]);
 
-  // Derive filter values from URL (single source of truth). `sports` is the shared param
-  // name (plural, matching the map); this single-select view uses the first.
+  // Derive filter values from URL (single source of truth). `sports` is the shared
+  // param name across the Activities-group views; normalized so equivalent
+  // selections share one URL, queryKey, and cache entry.
   const selectedRange: TimeRange = coerceTimeRange(search.range, DEFAULT_RANGE);
-  const selectedSport = search.sports?.split(",")[0] ?? "";
+  const selectedSports = useMemo(
+    () => normalizeSports(search.sports?.split(",") ?? []),
+    [search.sports]
+  );
 
   // Calculate date range based on selection
   const dateRange = useMemo(() => calculateDateRange(selectedRange), [selectedRange]);
@@ -67,44 +72,47 @@ const ActivitiesPage = () => {
     () => ({
       from: dateRange.from,
       to: dateRange.to,
-      sport: selectedSport || undefined,
+      sports: selectedSports,
       limit: 50,
     }),
-    [dateRange.from, dateRange.to, selectedSport]
+    [dateRange.from, dateRange.to, selectedSports]
   );
 
   const { activities, isLoading, error, hasMore, loadMore, retry } = useActivities(filter);
 
-  // Update URL when filters change (URL is the single source of truth)
+  // Update URL when filters change (URL is the single source of truth). The
+  // callbacks pick this route's own params rather than spreading `prev`, whose
+  // type is the cross-route union including params this route strips.
   const handleRangeChange = (range: TimeRange) => {
     void navigate({
       to: "/activities",
-      search: (prev) => ({ ...prev, range }),
+      search: (prev) => ({ range, sports: prev.sports }),
     });
   };
 
-  const handleSportChange = (newSport: string) => {
+  const handleSportsChange = (newSports: string[]) => {
+    const normalized = normalizeSports(newSports);
     void navigate({
       to: "/activities",
-      search: (prev) => {
-        const { sports: _omit, ...rest } = prev;
-        return newSport ? { ...rest, sports: newSport } : rest;
-      },
+      search: (prev) =>
+        normalized.length
+          ? { range: prev.range, sports: normalized.join(",") }
+          : { range: prev.range },
     });
   };
 
-  // Active, non-default filters (range ≠ the 4w default, or a specific sport) drive the
+  // Active, non-default filters (range ≠ the 4w default, or selected sports) drive the
   // floating pill so a left-over/bookmarked filter never reads as missing data.
   const activeFilters = useMemo(
     () =>
       activeFilterLabels(
         selectedRange,
         DEFAULT_RANGE,
-        selectedSport,
+        selectedSports,
         TIME_RANGE_OPTIONS,
         sportOptions
       ),
-    [selectedRange, selectedSport, sportOptions]
+    [selectedRange, selectedSports, sportOptions]
   );
   const clearFilters = () => void navigate({ to: "/activities", search: {} });
 
@@ -149,8 +157,8 @@ const ActivitiesPage = () => {
             <SportFilterPills
               sportOptions={sportOptions}
               visibleSports={visibleSports}
-              selected={selectedSport}
-              onChange={handleSportChange}
+              selected={selectedSports}
+              onChange={handleSportsChange}
               labelledBy="activitiesSportLabel"
             />
           </div>

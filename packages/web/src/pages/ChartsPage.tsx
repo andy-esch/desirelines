@@ -39,6 +39,7 @@ import {
   getDistanceLabel,
   formatHoursMinutes,
 } from "../utils/units";
+import { normalizeSports } from "../utils/sportConfig";
 
 const FALLBACK_SPORT_OPTIONS = [
   { value: "", label: "All Sports" },
@@ -87,17 +88,21 @@ export default function ChartsPage() {
   }, [sportConfig]);
 
   // URL is the source of truth for the shared Activities-group filters. `sports` is the
-  // shared param name (plural, matching the map); this single-select view uses the first.
+  // shared param name across the views; normalized so equivalent selections share one
+  // URL, queryKey, and cache entry.
   const selectedRange: TimeRange = coerceTimeRange(search.range, DEFAULT_RANGE);
-  const selectedSport = search.sports?.split(",")[0] ?? "";
+  const selectedSports = useMemo(
+    () => normalizeSports(search.sports?.split(",") ?? []),
+    [search.sports]
+  );
   const [metricId, setMetricId] = useState<MetricId>("distance_meters");
   const [typeFilter, setTypeFilter] = useState<ActivityTypeFilter>("all");
   const metric = METRIC_ID_TO_BUCKET[metricId];
 
   const dateRange = useMemo(() => calculateDateRange(selectedRange), [selectedRange]);
   const filter = useMemo(
-    () => ({ from: dateRange.from, to: dateRange.to, sport: selectedSport || undefined }),
-    [dateRange.from, dateRange.to, selectedSport]
+    () => ({ from: dateRange.from, to: dateRange.to, sports: selectedSports }),
+    [dateRange.from, dateRange.to, selectedSports]
   );
 
   const { activities, isLoading, error, retry } = useAllActivities(filter);
@@ -175,29 +180,34 @@ export default function ChartsPage() {
     count: "Activities",
   }[metric];
 
+  // Picks this route's own params rather than spreading `prev`, whose type is
+  // the cross-route union including params this route strips.
   const setSearch = (patch: { range?: TimeRange; sports?: string }) => {
     void navigate({
       to: "/charts",
       search: (prev) => {
-        const next = { ...prev, ...patch };
+        const next: { range?: string | undefined; sports?: string | undefined } = {
+          range: patch.range ?? prev.range,
+          sports: patch.sports ?? prev.sports,
+        };
         if (!next.sports) delete next.sports; // strip empty ?sports= (All Sports) from the URL
         return next;
       },
     });
   };
 
-  // Active, non-default filters (range ≠ the ytd default, or a specific sport) drive the
+  // Active, non-default filters (range ≠ the ytd default, or selected sports) drive the
   // floating pill so a left-over/bookmarked filter never reads as missing data.
   const activeFilters = useMemo(
     () =>
       activeFilterLabels(
         selectedRange,
         DEFAULT_RANGE,
-        selectedSport,
+        selectedSports,
         TIME_RANGE_OPTIONS,
         sportOptions
       ),
-    [selectedRange, selectedSport, sportOptions]
+    [selectedRange, selectedSports, sportOptions]
   );
   const clearFilters = () => void navigate({ to: "/charts", search: {} });
 
@@ -244,8 +254,8 @@ export default function ChartsPage() {
             <SportFilterPills
               sportOptions={sportOptions}
               visibleSports={visibleSports}
-              selected={selectedSport}
-              onChange={(s) => setSearch({ sports: s })}
+              selected={selectedSports}
+              onChange={(s) => setSearch({ sports: normalizeSports(s).join(",") })}
               labelledBy="chartsSportLabel"
             />
           </div>

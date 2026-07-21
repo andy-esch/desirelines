@@ -3,6 +3,7 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { fetchActivities, type ActivitySummary, type ActivityListFilter } from "../api/activities";
 import { useAuth } from "./useAuth";
 import { getSessionDemoActivities } from "./useActivities";
+import { filterDemoActivities } from "../utils/demoActivityFilter";
 
 /** Page size for the charts' page-to-completion loop. The API caps at 100
  *  (MaxListLimit); larger pages mean fewer round-trips to load the full set. */
@@ -29,7 +30,7 @@ export interface UseAllActivitiesResult {
  * At single-user scale the full set is a handful of pages, cached 5 min by
  * TanStack Query and shared with the list view's cache where filters match.
  * Demo mode (no signed-in user) returns the generated activities in one shot,
- * mirroring `useActivities`.
+ * filtered client-side, mirroring `useActivities`.
  */
 export function useAllActivities(
   filter: Omit<ActivityListFilter, "cursor" | "limit">
@@ -68,7 +69,9 @@ export function useAllActivities(
 
   const activities = useMemo(() => {
     if (authLoading) return [];
-    if (!user) return demoActivities;
+    // Demo mode filters client-side, since there is no backend to do it —
+    // otherwise the sport/time filters are no-ops signed out.
+    if (!user) return filterDemoActivities(demoActivities, filter);
     // Hold the set empty until paging completes, which is what this hook's contract
     // already promised ("Empty until complete") but the implementation did not do.
     // Exposing partial pages made every downstream aggregation re-run once per page
@@ -79,7 +82,7 @@ export function useAllActivities(
     // still inspectable behind the error + Retry rather than silently empty.
     if (hasNextPage && !error) return [];
     return data?.pages.flatMap((page) => page.activities) ?? [];
-  }, [user, data, demoActivities, authLoading, hasNextPage, error]);
+  }, [user, data, demoActivities, authLoading, hasNextPage, error, filter]);
 
   return {
     activities,

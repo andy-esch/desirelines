@@ -179,6 +179,16 @@ export function getSportMetrics(sport: string, sportConfig: SportConfig | null):
 }
 
 /**
+ * Canonicalize a sport-category selection: trim entries, drop empties, dedupe,
+ * and sort. Applied before both URL serialization and the activities-list API
+ * filter, so equivalent selections produce identical URLs, TanStack Query keys,
+ * and cache entries (["running","cycling"] ≡ ["cycling","running"]).
+ */
+export function normalizeSports(sports: string[]): string[] {
+  return [...new Set(sports.map((s) => s.trim()).filter(Boolean))].sort();
+}
+
+/**
  * Filter visible sports to only those that exist in sport config.
  * This handles the edge case where a user has a sport in preferences
  * that no longer exists in the config.

@@ -8,6 +8,7 @@ import {
   generateCoordinatedFillLevels,
   getDemoSports,
 } from "../utils/demoDataGenerator";
+import { filterDemoActivities } from "../utils/demoActivityFilter";
 
 const DEMO_ACTIVITIES_CACHE_KEY = "demo-activities";
 
@@ -73,7 +74,7 @@ export interface UseActivitiesResult {
  * Handles loading activities with cursor-based pagination,
  * automatic authentication, and retry functionality.
  *
- * @param filter - Filter options (from, to, sport, limit)
+ * @param filter - Filter options (from, to, sports, limit)
  * @returns Object containing activities, loading state, errors, and pagination controls
  *
  * @example
@@ -81,7 +82,7 @@ export interface UseActivitiesResult {
  * const { activities, isLoading, hasMore, loadMore } = useActivities({
  *   from: "2025-01-01",
  *   to: "2025-12-31",
- *   sport: "cycling",
+ *   sports: ["cycling", "running"],
  *   limit: 20,
  * });
  * ```
@@ -107,12 +108,13 @@ export function useActivities(filter: Omit<ActivityListFilter, "cursor">): UseAc
       staleTime: 5 * 60 * 1000, // 5 minutes
     });
 
-  // Combine data from all pages
+  // Combine data from all pages. Demo mode filters client-side, since there is
+  // no backend to do it — otherwise the sport/time filters are no-ops signed out.
   const activities = useMemo(() => {
     if (authLoading) return [];
-    if (!user) return demoActivities;
+    if (!user) return filterDemoActivities(demoActivities, filter);
     return data?.pages.flatMap((page) => page.activities) ?? [];
-  }, [user, data, demoActivities, authLoading]);
+  }, [user, data, demoActivities, authLoading, filter]);
 
   return {
     activities,

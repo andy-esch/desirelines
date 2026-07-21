@@ -13,22 +13,36 @@ const SPORTS = [
 ];
 
 describe("activeFilterLabels", () => {
-  it("returns nothing when range is the default and no sport is set", () => {
-    expect(activeFilterLabels("ytd", "ytd", "", TIME, SPORTS)).toEqual([]);
+  it("returns nothing when range is the default and no sports are selected", () => {
+    expect(activeFilterLabels("ytd", "ytd", [], TIME, SPORTS)).toEqual([]);
   });
 
   it("includes the range label when the range differs from the default", () => {
-    expect(activeFilterLabels("2w", "ytd", "", TIME, SPORTS)).toEqual(["2 Weeks"]);
+    expect(activeFilterLabels("2w", "ytd", [], TIME, SPORTS)).toEqual(["2 Weeks"]);
   });
 
   it("includes the sport label when a sport is selected", () => {
-    expect(activeFilterLabels("ytd", "ytd", "cycling", TIME, SPORTS)).toEqual(["Cycling"]);
+    expect(activeFilterLabels("ytd", "ytd", ["cycling"], TIME, SPORTS)).toEqual(["Cycling"]);
   });
 
   it("includes both, range before sport", () => {
-    expect(activeFilterLabels("2w", "ytd", "cycling", TIME, SPORTS)).toEqual([
+    expect(activeFilterLabels("2w", "ytd", ["cycling"], TIME, SPORTS)).toEqual([
       "2 Weeks",
       "Cycling",
+    ]);
+  });
+
+  it("names each sport up to two selections", () => {
+    expect(activeFilterLabels("ytd", "ytd", ["cycling", "running"], TIME, SPORTS)).toEqual([
+      "Cycling",
+      "running",
+    ]);
+  });
+
+  it("summarizes three or more selections as a count", () => {
+    expect(activeFilterLabels("2w", "ytd", ["cycling", "running", "yoga"], TIME, SPORTS)).toEqual([
+      "2 Weeks",
+      "3 sports",
     ]);
   });
 });

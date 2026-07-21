@@ -174,6 +174,7 @@ export default function RecentActivitiesList({
   const { activities, isLoading, error, hasMore, loadMore } = useActivities({
     from,
     to,
+    sports: [],
     limit: 20,
   });
 

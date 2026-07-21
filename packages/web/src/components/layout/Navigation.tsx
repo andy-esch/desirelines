@@ -8,7 +8,6 @@ import {
 import { useVisibleSports } from "../../hooks/useVisibleSports";
 import { useSportConfig } from "../../hooks/useSportConfig";
 import { useCurrentYear } from "../../hooks/useCurrentYear";
-import { forwardActivitiesGroupSearch } from "../../utils/activitiesGroupSearch";
 
 interface NavigationProps {
   className?: string;
@@ -92,9 +91,10 @@ export default function Navigation({ className = "", vertical = false }: Navigat
           <Link
             key={v.to}
             to={v.to}
-            // Carry the shared filters across view switches, translating between the two
-            // Activities-group filter models (List/Charts sport vs. the map's sports).
-            search={(prev) => forwardActivitiesGroupSearch(v.to, prev)}
+            // Carry the shared filters across view switches (search={true} keeps
+            // the current search); each route's search middleware strips the
+            // params it doesn't model.
+            search={true}
             activeProps={{ className: "nav-link no-underline active" }}
             inactiveProps={{ className: "nav-link no-underline text-white/50" }}
             style={{ paddingLeft: "1rem" }}
@@ -168,7 +168,7 @@ export default function Navigation({ className = "", vertical = false }: Navigat
               render={
                 <Link
                   to={v.to}
-                  search={(prev) => forwardActivitiesGroupSearch(v.to, prev)}
+                  search={true}
                   activeProps={{ className: "bg-white/15 text-white" }}
                 />
               }

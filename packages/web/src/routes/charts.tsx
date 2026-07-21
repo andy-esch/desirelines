@@ -1,19 +1,40 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, stripSearchParams } from "@tanstack/react-router";
 import { lazy } from "react";
 
 const ChartsPage = lazy(() => import("../pages/ChartsPage"));
 
+// Shared with /activities so a range+sports selection persists across the
+// Activities-group views.
 type ChartsSearch = {
   range?: string | undefined;
   sports?: string | undefined;
+  // Params belonging to the routes map (date window / distance / region /
+  // activity deep link). Admitted to the schema only so the strip middleware
+  // below can remove them; validateSearch never returns them.
+  from?: never;
+  to?: never;
+  dmin?: never;
+  dmax?: never;
+  region?: never;
+  activity?: never;
 };
 
-// Shared with /activities so a range+sports selection persists across the
-// Activities-group views.
-export const Route = createFileRoute("/charts")({
-  component: ChartsPage,
-  validateSearch: (search: Record<string, unknown>): ChartsSearch => ({
+/** Exported so the page-test harness validates with the real route logic. */
+export function validateChartsSearch(search: Record<string, unknown>): ChartsSearch {
+  return {
     range: typeof search.range === "string" ? search.range : undefined,
     sports: typeof search.sports === "string" ? search.sports : undefined,
-  }),
+  };
+}
+
+export const Route = createFileRoute("/charts")({
+  component: ChartsPage,
+  validateSearch: validateChartsSearch,
+  search: {
+    // Nav links pass the whole previous search through; each Activities-group
+    // route strips the params it doesn't model, so the shared `sports` (and
+    // `range`, shared with /activities) carry across views with no per-link
+    // translation.
+    middlewares: [stripSearchParams(["from", "to", "dmin", "dmax", "region", "activity"])],
+  },
 });

@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, stripSearchParams } from "@tanstack/react-router";
 import { lazy } from "react";
 import {
   parseActivityFilterSearch,
@@ -7,6 +7,13 @@ import {
 
 const RoutesPage = lazy(() => import("../pages/RoutesPage"));
 
+type RoutesSearch = ActivityFilterSearch & {
+  activity?: number;
+  // List/Charts' time-preset param. Admitted to the schema only so the strip
+  // middleware below can remove it; validateSearch never returns it.
+  range?: never;
+};
+
 /**
  * Validate the routes-map search: the shared Activities-group cross-filter params
  * (sports/date/distance/region) plus the `?activity=<id>` deep link (from the
@@ -14,9 +21,7 @@ const RoutesPage = lazy(() => import("../pages/RoutesPage"));
  * (protojson ids are large int64s arriving as a string); anything malformed drops
  * so it falls back to the full map.
  */
-export function validateRoutesSearch(
-  search: Record<string, unknown>
-): ActivityFilterSearch & { activity?: number } {
+export function validateRoutesSearch(search: Record<string, unknown>): RoutesSearch {
   const filters = parseActivityFilterSearch(search);
   const raw = search.activity;
   const n = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : NaN;
@@ -26,4 +31,10 @@ export function validateRoutesSearch(
 export const Route = createFileRoute("/routes")({
   validateSearch: validateRoutesSearch,
   component: RoutesPage,
+  search: {
+    // Nav links pass the whole previous search through; each Activities-group
+    // route strips the params it doesn't model, so the shared `sports` carries
+    // across views with no per-link translation.
+    middlewares: [stripSearchParams(["range"])],
+  },
 });

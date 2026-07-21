@@ -313,7 +313,7 @@ export const fetchActivities = async (
   const params = new URLSearchParams();
   if (filter.from) params.set("from", filter.from);
   if (filter.to) params.set("to", filter.to);
-  if (filter.sport) params.set("sport", filter.sport);
+  if (filter.sports?.length) params.set("sports", filter.sports.join(","));
   if (filter.limit) params.set("limit", filter.limit.toString());
   if (filter.cursor) params.set("cursor", filter.cursor);
 

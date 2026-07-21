@@ -20,6 +20,15 @@ const { DEMO } = vi.hoisted(() => ({
       movingTimeSeconds: 600,
       hasRoute: false,
     },
+    {
+      id: "demo-2",
+      name: "Demo Run",
+      sport: "running",
+      startDateLocal: "2026-05-11T08:00:00",
+      distanceMeters: 5000,
+      movingTimeSeconds: 1500,
+      hasRoute: false,
+    },
   ] as ActivitySummary[],
 }));
 
@@ -74,7 +83,9 @@ describe("useAllActivities", () => {
 
   it("stays loading with no data while auth resolves", () => {
     signedOut(true);
-    const { result } = renderHook(() => useAllActivities({}), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useAllActivities({ sports: [] }), {
+      wrapper: createWrapper(),
+    });
     expect(result.current.isLoading).toBe(true);
     expect(result.current.activities).toEqual([]);
   });
@@ -82,10 +93,21 @@ describe("useAllActivities", () => {
   it("returns the generated demo set in one shot when signed out, without fetching", () => {
     signedOut(false);
     const fetchSpy = vi.spyOn(activitiesApi, "fetchActivities");
-    const { result } = renderHook(() => useAllActivities({}), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useAllActivities({ sports: [] }), {
+      wrapper: createWrapper(),
+    });
     expect(result.current.isLoading).toBe(false);
     expect(result.current.activities).toEqual(DEMO);
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("filters the demo set client-side by sports and date window when signed out", () => {
+    signedOut(false);
+    const { result } = renderHook(
+      () => useAllActivities({ sports: ["running"], from: "2026-05-11", to: "2026-05-11" }),
+      { wrapper: createWrapper() }
+    );
+    expect(result.current.activities).toEqual(DEMO.filter((a) => a.sport === "running"));
   });
 
   it("auto-pages to completion and concatenates every page", async () => {
@@ -95,7 +117,7 @@ describe("useAllActivities", () => {
       .mockResolvedValueOnce(page([act1("a2")])); // no cursor → done
 
     const { result } = renderHook(
-      () => useAllActivities({ from: "2026-01-01", to: "2026-07-15" }),
+      () => useAllActivities({ sports: [], from: "2026-01-01", to: "2026-07-15" }),
       { wrapper: createWrapper() }
     );
 
@@ -123,7 +145,9 @@ describe("useAllActivities", () => {
       .spyOn(activitiesApi, "fetchActivities")
       .mockResolvedValue(page([act1("a1")], ""));
 
-    const { result } = renderHook(() => useAllActivities({}), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useAllActivities({ sports: [] }), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -138,7 +162,9 @@ describe("useAllActivities", () => {
       .mockResolvedValueOnce(page([act1("a1")], "cursor-2"))
       .mockRejectedValueOnce(boom);
 
-    const { result } = renderHook(() => useAllActivities({}), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useAllActivities({ sports: [] }), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => expect(result.current.error).toBeTruthy());
 
@@ -155,7 +181,9 @@ describe("useAllActivities", () => {
       .mockRejectedValueOnce(boom)
       .mockResolvedValueOnce(page([act1("a1")]));
 
-    const { result } = renderHook(() => useAllActivities({}), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useAllActivities({ sports: [] }), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => expect(result.current.error).toEqual(boom));
 
