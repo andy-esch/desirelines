@@ -11,6 +11,15 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  # Single source of truth for the Python CI runs on. Must track
+  # packages/stravapipe/pyproject.toml's `requires-python` and pants.toml's
+  # `[python] interpreter_constraints` — a stale value here doesn't fail
+  # loudly, it silently tests a different interpreter than we ship, or
+  # (for the audit step) picks wheels whose hashes aren't in the export.
+  # Minor version only: setup-python resolves it to the newest available
+  # patch, so a patch release can't break CI.
+  PYTHON_VERSION: "3.14"
+
   # Test environment variables (needed for Python tests)
   GCP_PROJECT_ID: "test-project"
   GCP_BIGQUERY_DATASET: "test_dataset"
@@ -87,7 +96,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          python-version: "3.14"
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Set up Pants
         uses: pantsbuild/actions/init-pants@v11
@@ -135,7 +144,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          python-version: "3.14"
+          python-version: ${{ env.PYTHON_VERSION }}
 
       # Go needed for pants
       - name: Set up Go
@@ -192,11 +201,11 @@ jobs:
           uv export --frozen --no-dev --no-emit-project --format requirements-txt > /tmp/reqs.txt
           # --no-deps: the export is already fully pinned, so re-resolving would only
           # add a venv build (which is also where pip-audit is most fragile).
-          # Keep --python in step with the project's requires-python. The export
-          # carries hashes only for wheels valid on that interpreter, so auditing
-          # under an older one makes pip select e.g. the cp313 psycopg-binary
-          # wheel and fail the hash check against a cp314-only hash list.
-          uvx --python 3.14 pip-audit --requirement /tmp/reqs.txt --no-deps --strict
+          # $PYTHON_VERSION, not a literal: the export carries hashes only for
+          # wheels valid on the project's interpreter, so auditing under an
+          # older one makes pip select e.g. the cp313 psycopg-binary wheel and
+          # fail the hash check against a cp314-only hash list.
+          uvx --python "$PYTHON_VERSION" pip-audit --requirement /tmp/reqs.txt --no-deps --strict
 
   # ===========================================================================
   # Go: Test, Lint, Format check (combined for efficiency)
@@ -354,7 +363,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          python-version: "3.14"
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Start optimized Postgres
         run: |
