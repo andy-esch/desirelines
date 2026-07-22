@@ -103,6 +103,19 @@ string_imports = true
 [ruff]
 # Use ruff config from stravapipe's pyproject.toml
 config = "packages/stravapipe/pyproject.toml"
+# Ruff is a downloaded binary, not a resolve entry, so it can't use
+# `install_from_resolve` like pytest/mypy. Pin it by hand to the version in
+# stravapipe.lock instead, otherwise `pants lint` (CI) and `uv run ruff`
+# (local) report different diagnostics. Pants only ships hashes through
+# 0.15.5, so anything newer needs its own `known_versions` rows —
+# regenerate with `just ruff-hashes <version>` when this version moves.
+version = "0.15.22"
+known_versions = [
+  "0.15.22|linux_arm64 |88feb2dc2fafb92482185201f4d483134fbaab10370c79512d3dd372f1d3f28b|10314264",
+  "0.15.22|linux_x86_64|853462df618fb9f156a9f04d9d899d9e5a9e1a43fbffaec72df4bb159348e71b|11091403",
+  "0.15.22|macos_arm64 |a2881af26fd1d19f4932c4ddf1e70b4e0efcf48513c5dae082564e03f0b467a3|9953013",
+  "0.15.22|macos_x86_64|687a9ceb88ab85dab061026d5017218225a481121b1a40862cc8f92b56f18090|10608019",
+]
 
 # Mypy type checking configuration
 [mypy]

@@ -45,6 +45,44 @@ py-typecheck +args='':
         cd packages/stravapipe && uv run mypy src/ tests/ {{args}}
     fi
 
+# Emit `[ruff] known_versions` rows for pants.toml.
+#
+# Pants runs ruff as a downloaded binary, so it can't read the version from
+# the resolve the way pytest/mypy do via `install_from_resolve`. The version
+# is pinned in `pants.toml` instead, and Pants verifies the download against
+# a sha256 it only ships for versions it knows about (through 0.15.5 as of
+# Pants 2.32). Any newer pin needs its own rows, or `pants lint` fails with
+# an unknown-version error.
+#
+# Run this after Renovate bumps ruff in pyproject.toml, then paste the output
+# over the `known_versions` list in pants.toml and update `version` to match.
+# Keeping the two in lockstep is what stops `pants lint` (CI) and
+# `uv run ruff` (local) from reporting different diagnostics.
+ruff-hashes version:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Platform keys are Pants'; the tuples are ruff's release asset names.
+    # NB. musl not gnu, matching Pants' own default mapping.
+    for pair in "linux_arm64 :aarch64-unknown-linux-musl" \
+                "linux_x86_64:x86_64-unknown-linux-musl" \
+                "macos_arm64 :aarch64-apple-darwin" \
+                "macos_x86_64:x86_64-apple-darwin"; do
+        plat="${pair%%:*}"
+        asset="ruff-${pair##*:}.tar.gz"
+        url="https://github.com/astral-sh/ruff/releases/download/{{version}}/${asset}"
+        tmp="$(mktemp)"
+        if ! curl -sfL -o "$tmp" "$url"; then
+            echo "❌ Could not download ${url}" >&2
+            rm -f "$tmp"
+            exit 1
+        fi
+        printf '  "%s|%s|%s|%s",\n' \
+            "{{version}}" "$plat" \
+            "$(shasum -a 256 "$tmp" | cut -d' ' -f1)" \
+            "$(wc -c < "$tmp" | tr -d ' ')"
+        rm -f "$tmp"
+    done
+
 # Workspace members — keep in sync with `go.work`'s `use (...)` block.
 # Consumed by go-tidy-{check,fix}; single source of truth so a new
 # member only needs to be added in one place per task.

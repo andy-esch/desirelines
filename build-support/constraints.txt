@@ -1,6 +1,19 @@
 # Constraints file for Pants resolves
-# Exclude packages that don't have compatible wheels for cross-platform builds
+# Pin packages whose default resolution picks an artifact we can't use on the
+# platforms we build for (Linux x86_64 in CI, macOS arm64 in dev).
 
-# greenlet is only needed for async SQLAlchemy - we use sync psycopg
-# Pin to older version that has manylinux2014 wheels
-greenlet<3.1.0
+# greenlet is only needed for async SQLAlchemy - we use sync psycopg - but
+# SQLAlchemy declares it unconditionally for x86_64/aarch64/ppc64le/amd64, so
+# it lands in the resolve on Linux CI whether we want it or not. macOS arm64
+# reports platform_machine == "arm64", which that marker does NOT match, so a
+# bad greenlet pin passes locally and only fails in CI.
+#
+# It therefore has to be new enough to ship a wheel for our interpreter.
+# Do not pin this backwards: 3.0.x is sdist-only on CPython 3.14 and its C
+# extension fails to compile against 3.14's _PyInterpreterFrame.
+#
+# 3.5.4 is excluded because it is a partial release - PyPI has only macOS and
+# Windows wheels for it (22 artifacts, no Linux wheel and no sdist), so a
+# resolve that picks it leaves Linux CI with nothing installable. 3.5.3 has
+# the full 79-artifact set including cp314 manylinux x86_64.
+greenlet>=3.5.3,!=3.5.4
