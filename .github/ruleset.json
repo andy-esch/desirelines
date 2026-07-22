@@ -28,14 +28,7 @@
           { "context": "Go (shared)" },
           { "context": "Web/React" },
           { "context": "Integration Tests" },
-          { "context": "Terraform" },
-          { "context": "codecov/project" },
-          { "context": "codecov/project/python" },
-          { "context": "codecov/project/go-apigateway" },
-          { "context": "codecov/project/go-dispatcher" },
-          { "context": "codecov/project/go-shared" },
-          { "context": "codecov/project/web" },
-          { "context": "codecov/patch" }
+          { "context": "Terraform" }
         ]
       }
     }
