@@ -1,5 +1,5 @@
 [GLOBAL]
-pants_version = "2.31.0"  # Use latest stable version
+pants_version = "2.32.0"  # Use latest stable version
 
 # Enable colors for better readability
 colors = true
@@ -51,8 +51,10 @@ pants_ignore = [
 
 # Python configuration
 [python]
-# Match project's Python version constraint
-interpreter_constraints = [">=3.12,<=3.14"]
+# Match the interpreter production actually ships (the Dockerfile installs
+# 3.14.x). Note `<=3.14` would NOT do that: under PEP 440, 3.14.5 > 3.14, so
+# that bound excludes every 3.14 patch release and silently fell back to 3.13.
+interpreter_constraints = [">=3.14,<3.15"]
 enable_resolves = true
 default_resolve = "stravapipe"
 
@@ -64,6 +66,12 @@ stravapipe = "packages/stravapipe/stravapipe.lock"
 # Exclude greenlet - only needed for async SQLAlchemy, we use sync psycopg
 [python.resolves_to_constraints_file]
 stravapipe = "build-support/constraints.txt"
+
+# Interpreter discovery
+[python-bootstrap]
+# Pants only probes binaries named `python`/`python3` by default. On Homebrew
+# `python3` is 3.13, so 3.14 is invisible without naming it explicitly.
+names = ["python", "python3", "python3.14"]
 
 # Go configuration
 [golang]
@@ -100,6 +108,11 @@ config = "packages/stravapipe/pyproject.toml"
 [mypy]
 # Use mypy config from stravapipe's pyproject.toml
 config = "packages/stravapipe/pyproject.toml"
+# Type-check with the mypy pinned in the resolve rather than Pants' bundled
+# one, so `pants check` (CI) and `uv run mypy` (local) agree, and dependency
+# updates to mypy actually reach CI.
+install_from_resolve = "stravapipe"
+requirements = ["mypy"]
 
 # golangci-lint configuration
 [golangci-lint]

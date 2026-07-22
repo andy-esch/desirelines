@@ -140,11 +140,14 @@ line-ending = "auto"
 # Pytest Configuration
 # ==========================================
 [tool.pytest.ini_options]
+# Paths are relative to rootdir, which is this directory (pytest picks the
+# directory holding this file). Repo-root-relative values silently matched
+# nothing and made pytest fall back to recursive collection.
 testpaths = [
-    "packages/stravapipe/tests",
+    "tests",
 ]
 pythonpath = [
-    "packages/stravapipe/src",
+    "src",
 ]
 addopts = "--import-mode=importlib"
 
