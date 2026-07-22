@@ -148,6 +148,12 @@ output = "failed"  # Only show failed test output for cleaner CI logs
 
 # Pytest-specific configuration
 [pytest]
+# Install pytest from the stravapipe resolve rather than Pants' built-in tool
+# lockfile. Test files `import pytest`, so dependency inference already pulls
+# pytest in from the resolve; without this, Pants' own pytest is installed
+# alongside it and the two collide in one PEX venv.
+install_from_resolve = "stravapipe"
+requirements = ["pytest", "pytest-cov"]
 args = [
   "-v",           # Verbose output
   "--tb=short",   # Short traceback format
