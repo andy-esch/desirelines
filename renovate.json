@@ -49,6 +49,22 @@
       "description": "Group all Terraform updates into one PR",
       "matchManagers": ["terraform", "terraform-version"],
       "groupName": "terraform updates"
+    },
+    {
+      "description": "Keep every uv pin in one PR. The Dockerfile tag and pyproject.toml's [tool.uv] required-version must move together — uv.lock carries a format revision, so a uv newer than the image's can write a lock the production build can't read. Must stay after the group-by-manager rule above to win under last-rule-wins.",
+      "matchDepNames": ["ghcr.io/astral-sh/uv"],
+      "groupName": "uv"
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Track [tool.uv] required-version as the uv image, so it bumps alongside the Dockerfile tag rather than drifting silently.",
+      "managerFilePatterns": ["packages/stravapipe/pyproject.toml"],
+      "matchStrings": ["required-version\\s*=\\s*\"==(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "ghcr.io/astral-sh/uv",
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "docker"
     }
   ]
 }
