@@ -20,6 +20,13 @@ env:
   # patch, so a patch release can't break CI.
   PYTHON_VERSION: "3.14"
 
+  # Same deal for Go. Must track the `go` directive in the go.mod files,
+  # pants.toml's `[golang] minimum_expected_version`, and the `golang:` base
+  # images in the service Dockerfiles. Note `[golangci-lint] version` is
+  # coupled too — golangci-lint only supports Go versions <= the one it was
+  # built with, so bumping this without bumping that panics the linter.
+  GO_VERSION: "1.26"
+
   # Test environment variables (needed for Python tests)
   GCP_PROJECT_ID: "test-project"
   GCP_BIGQUERY_DATASET: "test_dataset"
@@ -93,7 +100,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version: "1.25"
+          go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: go.work.sum
 
       - name: Set up Python
@@ -153,7 +160,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version: "1.25"
+          go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: go.work.sum
 
       - name: Set up Pants
@@ -235,7 +242,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version: "1.25"
+          go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: go.work.sum
 
       - name: Download dependencies
@@ -359,7 +366,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version: "1.25"
+          go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: go.work.sum
 
       - name: Install uv
@@ -472,7 +479,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version: "1.25"
+          go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: go.work.sum
 
       - name: Setup Node.js

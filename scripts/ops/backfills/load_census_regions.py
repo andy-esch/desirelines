@@ -43,14 +43,14 @@ For the admin connection string in a cloud env:
 """
 
 import argparse
+from dataclasses import dataclass
 import json
 import os
+from pathlib import Path
 import sys
 import tempfile
 import urllib.request
 import zipfile
-from dataclasses import dataclass
-from pathlib import Path
 
 import psycopg
 import shapefile  # pyshp
@@ -83,7 +83,7 @@ def _download_and_open(url: str, workdir: Path) -> shapefile.Reader:
     """Download a Census shapefile zip and open it with pyshp."""
     zip_path = workdir / Path(url).name
     print(f"Downloading {url}")
-    urllib.request.urlretrieve(url, zip_path)  # noqa: S310 (fixed census.gov https URL)
+    urllib.request.urlretrieve(url, zip_path)
 
     extract_dir = workdir / zip_path.stem
     with zipfile.ZipFile(zip_path) as zf:
@@ -188,34 +188,31 @@ def load_regions(
 
     inserted = 0
     skipped = 0
-    with psycopg.connect(conn_str) as conn:
-        with conn.cursor() as cur:
-            if replace:
-                for source in sources:
-                    cur.execute(
-                        "DELETE FROM desirelines.regions WHERE source = %s",
-                        (source,),
-                    )
-                    print(
-                        f"  Replaced: deleted {cur.rowcount} existing rows for {source}"
-                    )
-
-            for i in range(0, len(regions), batch_size):
-                batch = regions[i : i + batch_size]
-                batch_inserted = 0
-                for region in batch:
-                    cur.execute(insert_sql, region.__dict__)
-                    if cur.fetchone() is not None:
-                        batch_inserted += 1
-                inserted += batch_inserted
-                skipped += len(batch) - batch_inserted
-                # Progress only; the transaction commits once after the full load.
-                print(
-                    f"  Batch {i // batch_size + 1}: {batch_inserted} inserted "
-                    f"(running: {inserted} inserted, {skipped} skipped)"
+    with psycopg.connect(conn_str) as conn, conn.cursor() as cur:
+        if replace:
+            for source in sources:
+                cur.execute(
+                    "DELETE FROM desirelines.regions WHERE source = %s",
+                    (source,),
                 )
+                print(f"  Replaced: deleted {cur.rowcount} existing rows for {source}")
 
-            conn.commit()  # atomic: DELETE + every insert land together or not at all
+        for i in range(0, len(regions), batch_size):
+            batch = regions[i : i + batch_size]
+            batch_inserted = 0
+            for region in batch:
+                cur.execute(insert_sql, region.__dict__)
+                if cur.fetchone() is not None:
+                    batch_inserted += 1
+            inserted += batch_inserted
+            skipped += len(batch) - batch_inserted
+            # Progress only; the transaction commits once after the full load.
+            print(
+                f"  Batch {i // batch_size + 1}: {batch_inserted} inserted "
+                f"(running: {inserted} inserted, {skipped} skipped)"
+            )
+
+        conn.commit()  # atomic: DELETE + every insert land together or not at all
 
     return inserted, skipped
 

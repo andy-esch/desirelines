@@ -132,6 +132,10 @@ ignore = [
 # packages/stravapipe/tests/... paths).
 "tests/**" = ["PLR2004", "PLC0415"]
 "**/tests/**" = ["PLR2004", "PLC0415"]
+# Not every test lives in a `tests/` dir — `schemas/bigquery` and `scripts/ops`
+# keep their tests beside the code they exercise, so those need matching on the
+# filename instead. Same rationale as above.
+"**/test_*.py" = ["PLR2004", "PLC0415"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["stravapipe", "tests"]

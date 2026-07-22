@@ -1,6 +1,6 @@
 module github.com/andy-esch/desirelines/packages/dispatcher
 
-go 1.25.8
+go 1.26.3
 
 require (
 	cloud.google.com/go/firestore v1.24.0

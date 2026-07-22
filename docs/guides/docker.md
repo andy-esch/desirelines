@@ -94,10 +94,10 @@ docker compose build dispatcher
 
 ### Go Services
 
-Multi-stage build: `golang:1.25-alpine` → `gcr.io/distroless/static-debian12:nonroot` (~27-55MB final)
+Multi-stage build: `golang:1.26-alpine` → `gcr.io/distroless/static-debian12:nonroot` (~27-55MB final)
 
 ```dockerfile
-FROM golang:1.25-alpine AS builder
+FROM golang:1.26-alpine AS builder
 # ... build statically-linked binary (CGO_ENABLED=0) ...
 
 FROM gcr.io/distroless/static-debian12:nonroot

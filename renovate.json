@@ -30,9 +30,9 @@
       "allowedVersions": "17.x"
     },
     {
-      "description": "Pin Go to 1.25.x across all managers (Go modules, GitHub Actions, Docker)",
+      "description": "Pin Go to 1.26.x across all managers (Go modules, GitHub Actions, Docker)",
       "matchDepNames": ["go", "golang"],
-      "allowedVersions": "1.25.x",
+      "allowedVersions": "1.26.x",
       "groupName": "go version"
     },
     {

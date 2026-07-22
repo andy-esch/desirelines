@@ -20,10 +20,10 @@ Usage:
 """
 
 import argparse
-import os
-import sys
 from dataclasses import dataclass
 from datetime import datetime
+import os
+import sys
 
 from google.cloud import bigquery
 import psycopg

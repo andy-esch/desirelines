@@ -16,13 +16,14 @@ Retry Limiting:
     the limit. This prevents retry storms from hammering external APIs.
 """
 
-import logging
-import os
 from collections import defaultdict
 from datetime import UTC, datetime
+from http import HTTPStatus
+import logging
+import os
 
-import httpx
 from fastapi import FastAPI, HTTPException, Request, Response
+import httpx
 
 # Configure logging
 log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
@@ -91,7 +92,7 @@ async def forward_with_cloudevents(target_service: str, request: Request):
     try:
         body = await request.json()
     except Exception as err:
-        logger.error("Failed to parse request body: %s", err)
+        logger.exception("Failed to parse request body")
         raise HTTPException(status_code=400, detail=f"Invalid JSON: {err}") from err
 
     # Extract message metadata for CloudEvent headers
@@ -163,7 +164,7 @@ async def forward_with_cloudevents(target_service: str, request: Request):
             )
 
             # Clear attempt tracking on success
-            if response.status_code < 400:
+            if response.status_code < HTTPStatus.BAD_REQUEST:
                 message_attempts.pop(attempt_key, None)
 
             # Return the response from the target service
@@ -174,18 +175,17 @@ async def forward_with_cloudevents(target_service: str, request: Request):
             )
 
         except httpx.ConnectError as err:
-            logger.error(
-                "Failed to connect to %s at %s: %s",
+            logger.exception(
+                "Failed to connect to %s at %s",
                 target_service,
                 target_url,
-                err,
             )
             raise HTTPException(
                 status_code=503,
                 detail=f"Service {target_service} unavailable: {err}",
             ) from err
         except httpx.TimeoutException as err:
-            logger.error("Timeout connecting to %s: %s", target_service, err)
+            logger.exception("Timeout connecting to %s", target_service)
             raise HTTPException(
                 status_code=504, detail=f"Timeout connecting to {target_service}"
             ) from err

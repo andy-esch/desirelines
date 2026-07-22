@@ -83,6 +83,40 @@ ruff-hashes version:
         rm -f "$tmp"
     done
 
+# Emit `[golangci-lint] known_versions` rows for pants.toml.
+#
+# Same problem as `ruff-hashes`: Pants verifies the download against a sha256
+# it only ships for versions it knows about (through 2.7.1 as of Pants 2.32),
+# so any newer pin needs its own rows.
+#
+# golangci-lint supports Go versions <= the Go it was built with, so this has
+# to be bumped whenever the toolchain moves. Check with:
+#   golangci-lint version   # -> "built with go1.XX.Y"
+golangci-hashes version:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Platform keys are Pants'; the tuples are golangci-lint's release asset
+    # names. Must match `url_platform_mapping` in pants.toml.
+    for pair in "macos_x86_64:darwin-amd64" \
+                "macos_arm64 :darwin-arm64" \
+                "linux_x86_64:linux-amd64" \
+                "linux_arm64 :linux-arm64"; do
+        plat="${pair%%:*}"
+        asset="golangci-lint-{{version}}-${pair##*:}.tar.gz"
+        url="https://github.com/golangci/golangci-lint/releases/download/v{{version}}/${asset}"
+        tmp="$(mktemp)"
+        if ! curl -sfL -o "$tmp" "$url"; then
+            echo "❌ Could not download ${url}" >&2
+            rm -f "$tmp"
+            exit 1
+        fi
+        printf '  "%s|%s|%s|%s",\n' \
+            "{{version}}" "$plat" \
+            "$(shasum -a 256 "$tmp" | cut -d' ' -f1)" \
+            "$(wc -c < "$tmp" | tr -d ' ')"
+        rm -f "$tmp"
+    done
+
 # Workspace members — keep in sync with `go.work`'s `use (...)` block.
 # Consumed by go-tidy-{check,fix}; single source of truth so a new
 # member only needs to be added in one place per task.

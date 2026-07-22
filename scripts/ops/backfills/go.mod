@@ -1,6 +1,6 @@
 module github.com/andy-esch/desirelines/scripts/ops/backfills
 
-go 1.25.8
+go 1.26.3
 
 require (
 	cloud.google.com/go/bigquery v1.79.0

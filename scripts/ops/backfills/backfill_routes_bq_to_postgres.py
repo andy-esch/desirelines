@@ -32,9 +32,9 @@ import json
 import os
 import sys
 
+from google.cloud import bigquery
 import polyline as polyline_codec
 import psycopg
-from google.cloud import bigquery
 
 
 def decode_polyline_to_geojson(encoded: str) -> str | None:
@@ -125,29 +125,28 @@ def insert_routes_to_postgres(
     total_inserted = 0
     total_skipped = 0
 
-    with psycopg.connect(conn_str) as conn:
-        with conn.cursor() as cur:
-            for i in range(0, len(decoded), batch_size):
-                batch = decoded[i : i + batch_size]
-                batch_inserted = 0
+    with psycopg.connect(conn_str) as conn, conn.cursor() as cur:
+        for i in range(0, len(decoded), batch_size):
+            batch = decoded[i : i + batch_size]
+            batch_inserted = 0
 
-                for activity_id, geojson in batch:
-                    cur.execute(
-                        insert_sql,
-                        {"activity_id": activity_id, "geojson": geojson},
-                    )
-                    if cur.fetchone() is not None:
-                        batch_inserted += 1
-
-                conn.commit()
-                batch_skipped = len(batch) - batch_inserted
-                total_inserted += batch_inserted
-                total_skipped += batch_skipped
-                print(
-                    f"Batch {i // batch_size + 1}: "
-                    f"{batch_inserted} inserted, {batch_skipped} skipped "
-                    f"(total: {total_inserted} inserted, {total_skipped} skipped)"
+            for activity_id, geojson in batch:
+                cur.execute(
+                    insert_sql,
+                    {"activity_id": activity_id, "geojson": geojson},
                 )
+                if cur.fetchone() is not None:
+                    batch_inserted += 1
+
+            conn.commit()
+            batch_skipped = len(batch) - batch_inserted
+            total_inserted += batch_inserted
+            total_skipped += batch_skipped
+            print(
+                f"Batch {i // batch_size + 1}: "
+                f"{batch_inserted} inserted, {batch_skipped} skipped "
+                f"(total: {total_inserted} inserted, {total_skipped} skipped)"
+            )
 
     return total_inserted, total_skipped
 
@@ -215,7 +214,9 @@ def main() -> int:
     )
 
     if not args.dry_run:
-        print(f"\nDone! Inserted {inserted} routes, skipped {skipped} (already existed)")
+        print(
+            f"\nDone! Inserted {inserted} routes, skipped {skipped} (already existed)"
+        )
 
     return 0
 
