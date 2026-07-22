@@ -165,7 +165,7 @@ jobs:
       # env and does not put `uv` on PATH. Same action/version the
       # integration-tests job uses.
       - name: Set up uv
-        uses: astral-sh/setup-uv@v8.3.2
+        uses: astral-sh/setup-uv@v9.0.0
         with:
           # Without this, setup-uv installs whatever uv is newest that day.
           # pyproject.toml isn't at the repo root, so the action's default
@@ -360,7 +360,7 @@ jobs:
           cache-dependency-path: go.work.sum
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v8.3.2
+        uses: astral-sh/setup-uv@v9.0.0
         with:
           # See the note on the pants-python job's "Set up uv" step.
           version-file: packages/stravapipe/pyproject.toml
