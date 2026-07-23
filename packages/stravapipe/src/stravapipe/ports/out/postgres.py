@@ -80,6 +80,20 @@ class ActivityRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def get_existing_ids(self, activity_ids: list[int]) -> set[int]:
+        """Filter a list of activity IDs, returning only the ones that exist.
+
+        Used in batch processing to separate inserts and updates efficiently.
+
+        Args:
+            activity_ids: List of Strava activity IDs to check
+
+        Returns:
+            Set of activity IDs that are already present in the database
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     def update_metadata(self, activity_id: int, updates: dict[str, Any]) -> bool | None:
         """Update only metadata fields (name, type, sport).
 

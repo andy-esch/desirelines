@@ -220,6 +220,27 @@ class TestActivityRepository:
 
         assert result is False
 
+    def test_get_existing_ids(self, uow):
+        """get_existing_ids filters a list of IDs and returns only those that exist."""
+        activity1 = make_activity(activity_id=100021)
+        activity2 = make_activity(activity_id=100022)
+
+        with uow:
+            uow.activities.insert(activity1)
+            uow.activities.insert(activity2)
+            uow.commit()
+
+        with uow:
+            existing = uow.activities.get_existing_ids([100021, 100022, 100023, 999999])
+
+        assert existing == {100021, 100022}
+
+    def test_get_existing_ids_empty(self, uow):
+        """get_existing_ids returns an empty set when passed an empty list."""
+        with uow:
+            existing = uow.activities.get_existing_ids([])
+        assert existing == set()
+
 
 class TestActivityRouteRepository:
     """Integration tests for activity route geometry storage."""
