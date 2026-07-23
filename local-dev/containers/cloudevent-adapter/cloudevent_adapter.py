@@ -54,13 +54,13 @@ message_attempts: dict[str, int] = defaultdict(int)
 
 
 @app.get("/health")
-async def health():
+async def health() -> dict[str, str]:
     """Health check endpoint."""
     return {"status": "healthy", "service": "cloudevent-adapter"}
 
 
 @app.post("/{target_service}")
-async def forward_with_cloudevents(target_service: str, request: Request):
+async def forward_with_cloudevents(target_service: str, request: Request) -> Response:
     """Receive PubSub push message and forward with CloudEvent headers.
 
     The PubSub emulator sends messages in this format:

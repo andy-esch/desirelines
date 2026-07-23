@@ -34,6 +34,7 @@ def _run(*extra: str) -> subprocess.CompletedProcess[str]:
         ],
         capture_output=True,
         text=True,
+        check=False,  # tests assert on returncode; a non-zero exit is expected
     )
 
 

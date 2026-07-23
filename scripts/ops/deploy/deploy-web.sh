@@ -34,20 +34,20 @@ ENVIRONMENT="$1"
 
 # Map environment to Firebase project and validate
 case "$ENVIRONMENT" in
-  local)
-    FIREBASE_PROJECT="desirelines-local"
-    ;;
-  dev)
-    FIREBASE_PROJECT="desirelines-dev"
-    ;;
-  prod)
-    FIREBASE_PROJECT="desirelines-prod"
-    ;;
-  *)
-    echo "❌ Error: Invalid environment: $ENVIRONMENT"
-    echo "Valid environments: local, dev, prod"
-    exit 1
-    ;;
+local)
+  FIREBASE_PROJECT="desirelines-local"
+  ;;
+dev)
+  FIREBASE_PROJECT="desirelines-dev"
+  ;;
+prod)
+  FIREBASE_PROJECT="desirelines-prod"
+  ;;
+*)
+  echo "❌ Error: Invalid environment: $ENVIRONMENT"
+  echo "Valid environments: local, dev, prod"
+  exit 1
+  ;;
 esac
 
 # Cleanup trap to ensure secret files are removed

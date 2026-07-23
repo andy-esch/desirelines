@@ -43,6 +43,7 @@ For the admin connection string in a cloud env:
 """
 
 import argparse
+from collections.abc import Callable
 from dataclasses import dataclass
 import json
 import os
@@ -95,14 +96,18 @@ def _download_and_open(url: str, workdir: Path) -> shapefile.Reader:
     return shapefile.Reader(str(shp))
 
 
-def _field_getter(reader: shapefile.Reader):
+def _field_getter(
+    reader: shapefile.Reader,
+) -> Callable[[shapefile.Record], dict[str, object]]:
     """Return a fn mapping a record to a dict keyed by uppercased field name."""
     # field[0] is the deletion flag; real fields start at index 1.
     names = [f[0].upper() for f in reader.fields[1:]]
 
-    def get(record) -> dict[str, object]:
+    def get(record: shapefile.Record) -> dict[str, object]:
         # Values are mixed types (str names, int ALAND/AWATER); object is honest.
-        return {name: value for name, value in zip(names, record)}
+        # strict=True: one record value per field is a shapefile structural
+        # invariant, so a length mismatch means corrupt data — fail loud.
+        return dict(zip(names, record, strict=True))
 
     return get
 
@@ -123,9 +128,10 @@ def parse_cbsa(reader: shapefile.Reader, vintage: int) -> list[Region]:
         regions.append(
             Region(
                 source=source,
-                region_code=rec["GEOID"],
+                region_code=str(rec["GEOID"]),
                 region_kind=kind,
-                region_name=rec["NAME"],  # e.g. "Boston-Cambridge-Newton, MA-NH"
+                # e.g. "Boston-Cambridge-Newton, MA-NH"
+                region_name=str(rec["NAME"]),
                 geojson=json.dumps(sr.shape.__geo_interface__),
             )
         )
@@ -144,13 +150,13 @@ def parse_county(reader: shapefile.Reader, vintage: int) -> list[Region]:
     for sr in reader.shapeRecords():
         rec = get(sr.record)
         # NAMELSAD is "Middlesex County"; STUSPS gives the state abbreviation.
-        state = rec.get("STUSPS", "")
-        name = rec["NAMELSAD"]
+        state = str(rec.get("STUSPS", ""))
+        name = str(rec["NAMELSAD"])
         region_name = f"{name}, {state}" if state else name
         regions.append(
             Region(
                 source=source,
-                region_code=rec["GEOID"],
+                region_code=str(rec["GEOID"]),
                 region_kind="county",
                 region_name=region_name,
                 geojson=json.dumps(sr.shape.__geo_interface__),

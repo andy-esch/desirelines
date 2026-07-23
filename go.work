@@ -4,5 +4,4 @@ use (
 	./packages/apigateway
 	./packages/dispatcher
 	./packages/shared
-	./scripts/ops/backfills
 )

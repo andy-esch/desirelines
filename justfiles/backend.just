@@ -120,7 +120,7 @@ golangci-hashes version:
 # Workspace members — keep in sync with `go.work`'s `use (...)` block.
 # Consumed by go-tidy-{check,fix}; single source of truth so a new
 # member only needs to be added in one place per task.
-go_workspace_members := "packages/apigateway packages/dispatcher packages/shared scripts/ops/backfills"
+go_workspace_members := "packages/apigateway packages/dispatcher packages/shared"
 
 # Run Go tests (default: go test, use --pants for Pants)
 go-test +args='':

@@ -251,3 +251,23 @@ module = [
     "opentelemetry.resourcedetector.*",
 ]
 ignore_missing_imports = true
+
+# pyshp (imported as `shapefile`) ships no type stubs and is a uv inline-script
+# dependency of load_census_regions.py, not part of the stravapipe resolve — so
+# mypy can neither import it nor find stubs. Only Pants type-checks that script
+# (`just py-typecheck` scopes to packages/stravapipe), so this keeps `pants check
+# scripts/ops::` green without weakening checking of the script's own logic.
+[[tool.mypy.overrides]]
+module = ["shapefile"]
+ignore_missing_imports = true
+
+# schemas/bigquery keeps its test beside the code. Under Pants' `/schemas`
+# source root it's module `bigquery.test_generate_proto`, and it imports the
+# generator as bare `generate_proto` (not `bigquery.generate_proto`) so the
+# standalone `cd schemas/bigquery && pytest` workflow keeps working — which
+# mypy can't resolve. It's a test (gated by *running*, not by types), so ignore
+# it wholesale; the generator itself (`bigquery.generate_proto`) stays fully
+# type-checked.
+[[tool.mypy.overrides]]
+module = ["bigquery.test_generate_proto"]
+ignore_errors = true

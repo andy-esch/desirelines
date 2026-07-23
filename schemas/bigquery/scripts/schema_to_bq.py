@@ -12,12 +12,13 @@ Usage:
 import json
 from pathlib import Path
 import sys
+from typing import Any
 
 # argv[0] is the script itself, so a table name means at least two entries.
 _MIN_ARGS = 2
 
 
-def load_table_schema(table_name: str) -> dict:
+def load_table_schema(table_name: str) -> dict[str, Any]:
     """Load table schema from JSON file."""
     # Navigate from schemas/bigquery/scripts/ to schemas/bigquery/
     schema_file = Path(__file__).parent.parent / f"{table_name}.json"
@@ -26,10 +27,11 @@ def load_table_schema(table_name: str) -> dict:
         raise FileNotFoundError(f"Schema file not found: {schema_file}")
 
     with schema_file.open() as f:
-        return json.load(f)
+        data: dict[str, Any] = json.load(f)
+        return data
 
 
-def schema_to_bq_cli(schema_data: dict) -> str:
+def schema_to_bq_cli(schema_data: dict[str, Any]) -> str:
     """Convert schema to BigQuery CLI format for 'bq mk' commands."""
     fields = []
 

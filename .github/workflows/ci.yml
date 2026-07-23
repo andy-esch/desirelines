@@ -185,6 +185,13 @@ jobs:
       - name: Test with coverage
         run: "pants --tag='-integration' test --use-coverage packages/stravapipe::"
 
+      # First-party Python outside stravapipe (schema tooling, ops scripts). Run
+      # without --use-coverage so the coverage.xml uploaded below stays scoped to
+      # the app, matching codecov.yml's `python` flag (packages/stravapipe/src).
+      # local-dev/containers:: has no tests, so it's covered by lint+check only.
+      - name: Test orphaned first-party Python
+        run: "pants test schemas/bigquery:: scripts/ops::"
+
       # fail_ci_if_error is false on every codecov step: this flag governs the
       # *upload*, not coverage thresholds (those stay enforced by Codecov's own
       # status checks). Leaving it true made a Codecov outage or rate-limit able to
@@ -199,11 +206,16 @@ jobs:
           name: python-coverage
           fail_ci_if_error: false
 
+      # Scope covers all first-party Python, not just stravapipe: schema tooling
+      # (schemas/bigquery), ops scripts (scripts/ops), and the local-dev
+      # cloudevent adapter were previously ungated and had rotted (failing tests,
+      # ~20 lint violations, type errors) with zero CI signal. Keep them here so
+      # a regression turns CI red.
       - name: Lint
-        run: "pants lint packages/stravapipe::"
+        run: "pants lint packages/stravapipe:: schemas/bigquery:: scripts/ops:: local-dev/containers::"
 
       - name: Type check
-        run: "pants check packages/stravapipe::"
+        run: "pants check packages/stravapipe:: schemas/bigquery:: scripts/ops:: local-dev/containers::"
 
       # Supply-chain gate: fail on a known-vulnerable dependency rather than
       # waiting for a Dependabot PR. Audits the resolved lockfile, so it sees
