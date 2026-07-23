@@ -20,13 +20,13 @@ Usage:
 """
 
 import argparse
-from dataclasses import dataclass
-from datetime import datetime
 import os
 import sys
+from dataclasses import dataclass
+from datetime import datetime
 
-from google.cloud import bigquery
 import psycopg
+from google.cloud import bigquery
 
 
 @dataclass
@@ -174,41 +174,40 @@ def insert_activities_to_postgres(
 
     total_inserted = 0
 
-    with psycopg.connect(conn_str) as conn:
-        with conn.cursor() as cur:
-            # Process in batches
-            for i in range(0, len(activities), batch_size):
-                batch = activities[i : i + batch_size]
+    with psycopg.connect(conn_str) as conn, conn.cursor() as cur:
+        # Process in batches
+        for i in range(0, len(activities), batch_size):
+            batch = activities[i : i + batch_size]
 
-                for activity in batch:
-                    cur.execute(
-                        upsert_sql,
-                        {
-                            "id": activity.id,
-                            "user_id": activity.user_id,
-                            "name": activity.name,
-                            "type": activity.type,
-                            "sport": activity.sport,
-                            "start_date_local": activity.start_date_local,
-                            "year": activity.year,
-                            "distance": activity.distance,
-                            "moving_time": activity.moving_time,
-                            "elapsed_time": activity.elapsed_time,
-                            "total_elevation_gain": activity.total_elevation_gain,
-                            "average_speed": activity.average_speed,
-                            "max_speed": activity.max_speed,
-                            "average_heartrate": activity.average_heartrate,
-                            "max_heartrate": activity.max_heartrate,
-                            "trainer": activity.trainer,
-                            "manual": activity.manual,
-                        },
-                    )
-
-                conn.commit()
-                total_inserted += len(batch)
-                print(
-                    f"Inserted batch {i // batch_size + 1}: {len(batch)} activities (total: {total_inserted})"
+            for activity in batch:
+                cur.execute(
+                    upsert_sql,
+                    {
+                        "id": activity.id,
+                        "user_id": activity.user_id,
+                        "name": activity.name,
+                        "type": activity.type,
+                        "sport": activity.sport,
+                        "start_date_local": activity.start_date_local,
+                        "year": activity.year,
+                        "distance": activity.distance,
+                        "moving_time": activity.moving_time,
+                        "elapsed_time": activity.elapsed_time,
+                        "total_elevation_gain": activity.total_elevation_gain,
+                        "average_speed": activity.average_speed,
+                        "max_speed": activity.max_speed,
+                        "average_heartrate": activity.average_heartrate,
+                        "max_heartrate": activity.max_heartrate,
+                        "trainer": activity.trainer,
+                        "manual": activity.manual,
+                    },
                 )
+
+            conn.commit()
+            total_inserted += len(batch)
+            print(
+                f"Inserted batch {i // batch_size + 1}: {len(batch)} activities (total: {total_inserted})"
+            )
 
     return total_inserted
 

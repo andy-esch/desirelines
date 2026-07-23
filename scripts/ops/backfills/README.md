@@ -4,56 +4,17 @@ Scripts for backfilling and migrating production data.
 
 ## Script Index
 
-| Script                                                           | Purpose                                                       | Status    |
-| ---------------------------------------------------------------- | ------------------------------------------------------------- | --------- |
-| [`backfill_from_strava.py`](#backfill-from-strava)               | Backfill activities from Strava API → BigQuery                | ⛔ Broken / deprecated — use the BackfillService Cloud Run Job |
-| [`backfill_bq_to_postgres.py`](#backfill-bigquery-to-postgresql) | Migrate activities from BigQuery → PostgreSQL                 | ✅ Active                     |
-| [`backfill_routes_bq_to_postgres.py`](#backfill-routes)          | Backfill activity routes from BigQuery polylines → PostgreSQL | ✅ Active                     |
-| [`load_census_regions.py`](#load-census-regions)                 | Load US Census CBSA + county boundaries → `desirelines.regions` | ✅ Active                   |
-| [`backfill_route_regions.py`](#backfill-route-regions)           | Tag existing routes with the regions they cross → `activity_regions` | ✅ Active               |
-| [`webhook-replay/`](#webhook-replay-load-testing)                | Simulate production webhook load for testing                  | ✅ Active                     |
+| Script                                                           | Purpose                                                              | Status    |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------- | --------- |
+| [`backfill_bq_to_postgres.py`](#backfill-bigquery-to-postgresql) | Migrate activities from BigQuery → PostgreSQL                        | ✅ Active |
+| [`backfill_routes_bq_to_postgres.py`](#backfill-routes)          | Backfill activity routes from BigQuery polylines → PostgreSQL        | ✅ Active |
+| [`load_census_regions.py`](#load-census-regions)                 | Load US Census CBSA + county boundaries → `desirelines.regions`      | ✅ Active |
+| [`backfill_route_regions.py`](#backfill-route-regions)           | Tag existing routes with the regions they cross → `activity_regions` | ✅ Active |
+| [`webhook-replay/`](#webhook-replay-load-testing)                | Simulate production webhook load for testing                         | ✅ Active |
 
 **Deprecated scripts** (in this directory but no longer maintained):
 
 - `migrate_aggregations.py`, `migrate-to-multisport.sh`, `verify-migration.sh`, `cleanup-old-files.sh`, `rollback-migration.sh`, `backup-aggregations.sh` — Multi-sport migration (completed)
-
----
-
-## Backfill from Strava
-
-**Script**: `backfill_from_strava.py`
-
-> **⛔ Broken and deprecated — do not run.** `STRAVA_REFRESH_TOKEN` was removed during the
-> Infisical cleanup, so this script cannot authenticate. Use the **BackfillService Cloud Run
-> Job**, which handles per-user tokens via Firestore. The usage below is retained only for
-> reference while the script still exists in the tree.
-
-Fetches activities from Strava API and inserts into BigQuery.
-
-### Usage
-
-```bash
-# Preview (recommended first)
-uv run python scripts/ops/backfills/backfill_from_strava.py --years 2024 --dry-run
-
-# Backfill single year
-uv run python scripts/ops/backfills/backfill_from_strava.py --years 2024
-
-# Multiple years
-uv run python scripts/ops/backfills/backfill_from_strava.py --years 2023 2024 2025
-
-# Verbose logging
-uv run python scripts/ops/backfills/backfill_from_strava.py --years 2024 --verbose
-```
-
-### Requirements
-
-- Strava API credentials in Secret Manager
-- BigQuery, Cloud Storage, Firestore write permissions
-
-### Rate Limits
-
-Strava allows 100 requests/15min, 1000/day. With 100 activities per request, you can fetch ~20,000 activities/day.
 
 ---
 
@@ -212,7 +173,7 @@ Replays synthetic webhook events to simulate production load. Useful for:
 - Validating infrastructure changes
 - Stress testing before deployments
 
-> **Note**: Not recommended for data backfill—uses 2x API calls per activity. Use `backfill_from_strava.py` for actual data recovery.
+> **Note**: Not recommended for data backfill—uses 2x API calls per activity. Use Cloud Run Job `desirelines-backfill` for bulk backfill jobs.
 
 ### Usage
 
