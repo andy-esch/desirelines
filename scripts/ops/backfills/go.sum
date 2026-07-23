@@ -23,7 +23,9 @@ cloud.google.com/go/storage v1.62.3/go.mod h1:cpYz/kRVZ+UQAF1uHeea10/9ewcRbxGoGN
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.32.0 h1:rIkQfkCOVKc1OiRCNcSDD8ml5RJlZbH/Xsq7lbpynwc=
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.32.0/go.mod h1:RD2SsorTmYhF6HkTmDw7KmPYQk8OBYwTkuasChwv7R4=
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.59.0 h1:c/Ivw7FuawPLfrr+zB0LZKeCchO2cAHQpF2qZ6OV7rQ=
+github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.59.0/go.mod h1:Zba7lknY/d78oxbKqFTmCsaGwfpzeJ3ktrrLXtnTV6g=
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.59.0 h1:18FRm6ZcN/x9+ZmhMr96hLcTtlLn2/gHPuDLVeg7XcY=
+github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.59.0/go.mod h1:YqwkQPrWSC7+byyc1VlKbWLBF5JsW5IoL6xUkemYSXk=
 github.com/apache/arrow/go/v15 v15.0.2 h1:60IliRbiyTWCWjERBCkO1W4Qun9svcYoZrSLcyOsMLE=
 github.com/apache/arrow/go/v15 v15.0.2/go.mod h1:DGXsR3ajT524njufqf95822i+KTh+yea1jass9YXgjA=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
