@@ -28,7 +28,7 @@ from stravapipe.adapters.firestore import FirestoreTokenStore
 from stravapipe.adapters.gcp import make_write_activities
 from stravapipe.adapters.postgres import SqlAlchemyUnitOfWork, create_session_factory
 from stravapipe.adapters.strava import create_strava_activities_repo
-from stravapipe.application.backfill import BackfillService
+from stravapipe.application.backfill import BackfillResult, BackfillService
 from stravapipe.config.backfill import load_backfill_config
 from stravapipe.domain import StravaTokenSet
 from stravapipe.shared.correlation import new_correlation_id
@@ -36,6 +36,24 @@ from stravapipe.shared.logging import setup_logging
 from stravapipe.shared.tracing import setup_tracing
 
 logger = setup_logging(__name__)
+
+
+def _log_result(result: BackfillResult) -> int:
+    """Log the terminal metric contract and return the process exit code."""
+    log = logger.info if result.success else logger.error
+    status = "succeeded" if result.success else "completed with errors"
+    log(
+        "Backfill %s: %d activities "
+        "(PG: %d inserted, %d updated; BQ: %d inserted; errors: %d) in %.1fs",
+        status,
+        result.total_activities,
+        result.total_pg_inserted,
+        result.total_pg_updated,
+        result.total_bq_inserted,
+        result.total_errors,
+        result.duration_seconds,
+    )
+    return 0 if result.success else 1
 
 
 def main() -> None:
@@ -116,18 +134,7 @@ def main() -> None:
 
     # --- Exit ---
 
-    if result.success:
-        logger.info(
-            "Backfill succeeded: %d activities (%d PG, %d BQ) in %.1fs",
-            result.total_activities,
-            result.total_pg_inserted,
-            result.total_bq_inserted,
-            result.duration_seconds,
-        )
-        sys.exit(0)
-    else:
-        logger.error("Backfill completed with %d errors", result.total_errors)
-        sys.exit(1)
+    sys.exit(_log_result(result))
 
 
 if __name__ == "__main__":

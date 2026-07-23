@@ -11,6 +11,7 @@ fetching entire years of activities and inserting in batches.
 
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, field
+from functools import partial
 import logging
 import time
 from typing import Protocol
@@ -23,6 +24,7 @@ from stravapipe.domain import (
     StandardActivity,
     SummaryStravaActivity,
 )
+from stravapipe.ports.out.postgres import ActivityRepository
 from stravapipe.ports.out.read import ReadDetailedActivities
 from stravapipe.ports.out.unit_of_work import AbstractUnitOfWork
 
@@ -44,6 +46,18 @@ def _iter_batches[T](
     total = (len(seq) + size - 1) // size
     for batch_num, i in enumerate(range(0, len(seq), size), start=1):
         yield batch_num, total, seq[i : i + size]
+
+
+def _upsert_activity(
+    repository: ActivityRepository,
+    activity: StandardActivity,
+) -> None:
+    """Upsert one activity, failing loudly if the repository affects no row."""
+    success = repository.upsert(activity)
+    if not success:
+        raise RuntimeError(
+            f"PostgreSQL upsert affected no row for activity {activity.id}"
+        )
 
 
 # Bounded in-batch retry around the BQ Storage Write API. Cloud Run Jobs
@@ -72,11 +86,20 @@ class YearStats:
     year: int
     activities_found: int = 0
     pg_inserted: int = 0
-    pg_skipped: int = 0
+    pg_updated: int = 0
     pg_errors: int = 0
     bq_inserted: int = 0
     bq_errors: int = 0
     duration_seconds: float = 0.0
+
+
+@dataclass
+class PostgresWriteStats:
+    """Committed PostgreSQL activity-write outcomes."""
+
+    inserted: int = 0
+    updated: int = 0
+    errors: int = 0
 
 
 @dataclass
@@ -88,6 +111,7 @@ class BackfillResult:
     year_stats: list[YearStats] = field(default_factory=list)
     total_activities: int = 0
     total_pg_inserted: int = 0
+    total_pg_updated: int = 0
     total_bq_inserted: int = 0
     total_errors: int = 0
     duration_seconds: float = 0.0
@@ -102,9 +126,7 @@ class ProgressReporter(Protocol):
 
     def report_started(self, athlete_id: str, years: list[int]) -> None: ...
 
-    def report_year_complete(
-        self, athlete_id: str, year: int, activities_count: int
-    ) -> None: ...
+    def report_year_complete(self, athlete_id: str, stats: YearStats) -> None: ...
 
     def report_completed(self, athlete_id: str, result: BackfillResult) -> None: ...
 
@@ -117,9 +139,7 @@ class NoOpProgressReporter:
     def report_started(self, athlete_id: str, years: list[int]) -> None:
         pass
 
-    def report_year_complete(
-        self, athlete_id: str, year: int, activities_count: int
-    ) -> None:
+    def report_year_complete(self, athlete_id: str, stats: YearStats) -> None:
         pass
 
     def report_completed(self, athlete_id: str, result: BackfillResult) -> None:
@@ -178,7 +198,11 @@ class BackfillService:
         sorted_years = sorted(years)
 
         result = BackfillResult(athlete_id=athlete_id, years=sorted_years)
-        self._progress.report_started(athlete_id, sorted_years)
+        self._report_progress(
+            "started",
+            athlete_id,
+            partial(self._progress.report_started, athlete_id, sorted_years),
+        )
 
         logger.info(
             "Starting backfill for athlete %s, years: %s",
@@ -192,11 +216,18 @@ class BackfillService:
                 result.year_stats.append(year_stats)
                 result.total_activities += year_stats.activities_found
                 result.total_pg_inserted += year_stats.pg_inserted
+                result.total_pg_updated += year_stats.pg_updated
                 result.total_bq_inserted += year_stats.bq_inserted
                 result.total_errors += year_stats.pg_errors + year_stats.bq_errors
 
-                self._progress.report_year_complete(
-                    athlete_id, year, year_stats.activities_found
+                self._report_progress(
+                    "year_complete",
+                    athlete_id,
+                    partial(
+                        self._progress.report_year_complete,
+                        athlete_id,
+                        year_stats,
+                    ),
                 )
             except Exception:
                 logger.exception(
@@ -208,31 +239,71 @@ class BackfillService:
                 result.total_errors += 1
 
         result.duration_seconds = time.monotonic() - start_time
+        year_count = len(sorted_years)
+        year_label = "year" if year_count == 1 else "years"
 
         if result.success:
-            self._progress.report_completed(athlete_id, result)
+            self._report_progress(
+                "completed",
+                athlete_id,
+                partial(self._progress.report_completed, athlete_id, result),
+            )
             logger.info(
-                "Backfill completed for athlete %s: %d activities across %d years "
-                "(PG: %d inserted, BQ: %d inserted) in %.1fs",
+                "Backfill completed for athlete %s: %d activities across %d %s "
+                "(PG: %d inserted, %d updated; "
+                "BQ: %d inserted; errors: %d) in %.1fs",
                 athlete_id,
                 result.total_activities,
-                len(sorted_years),
+                year_count,
+                year_label,
                 result.total_pg_inserted,
+                result.total_pg_updated,
                 result.total_bq_inserted,
+                result.total_errors,
                 result.duration_seconds,
             )
         else:
-            self._progress.report_failed(
+            self._report_progress(
+                "failed",
                 athlete_id,
-                f"Completed with {result.total_errors} errors",
+                partial(
+                    self._progress.report_failed,
+                    athlete_id,
+                    f"Completed with {result.total_errors} errors",
+                ),
             )
             logger.warning(
-                "Backfill completed with errors for athlete %s: %d errors",
+                "Backfill completed with errors for athlete %s: %d activities "
+                "across %d %s (PG: %d inserted, %d updated; "
+                "BQ: %d inserted; errors: %d) in %.1fs",
                 athlete_id,
+                result.total_activities,
+                year_count,
+                year_label,
+                result.total_pg_inserted,
+                result.total_pg_updated,
+                result.total_bq_inserted,
                 result.total_errors,
+                result.duration_seconds,
             )
 
         return result
+
+    @staticmethod
+    def _report_progress(
+        event: str,
+        athlete_id: str,
+        callback: Callable[[], None],
+    ) -> None:
+        """Report progress without letting control-plane failures alter data results."""
+        try:
+            callback()
+        except Exception:
+            logger.exception(
+                "Progress reporter failed during %s for athlete %s",
+                event,
+                athlete_id,
+            )
 
     def _backfill_year(self, year: int) -> YearStats:
         """Backfill a single year.
@@ -248,15 +319,18 @@ class BackfillService:
         logger.info("Found %d activities in %d", len(activities), year)
 
         if not activities:
-            return YearStats(year=year)
+            return YearStats(
+                year=year,
+                duration_seconds=time.monotonic() - start_time,
+            )
 
         stats = YearStats(year=year, activities_found=len(activities))
 
-        # Insert to PostgreSQL
-        pg_inserted, pg_skipped, pg_errors = self._insert_to_postgres(activities)
-        stats.pg_inserted = pg_inserted
-        stats.pg_skipped = pg_skipped
-        stats.pg_errors = pg_errors
+        # Upsert to PostgreSQL
+        pg_stats = self._insert_to_postgres(activities)
+        stats.pg_inserted = pg_stats.inserted
+        stats.pg_updated = pg_stats.updated
+        stats.pg_errors = pg_stats.errors
 
         # Insert to BigQuery (optional)
         if self._bq_writer is not None:
@@ -267,12 +341,12 @@ class BackfillService:
         stats.duration_seconds = time.monotonic() - start_time
 
         logger.info(
-            "Year %d complete in %.1fs: PG(%d inserted, %d skipped, %d errors), "
+            "Year %d complete in %.1fs: PG(%d inserted, %d updated, %d errors), "
             "BQ(%d inserted, %d errors)",
             year,
             stats.duration_seconds,
             stats.pg_inserted,
-            stats.pg_skipped,
+            stats.pg_updated,
             stats.pg_errors,
             stats.bq_inserted,
             stats.bq_errors,
@@ -283,50 +357,57 @@ class BackfillService:
     def _insert_to_postgres(
         self,
         activities: Sequence[DetailedStravaActivity | SummaryStravaActivity],
-    ) -> tuple[int, int, int]:
-        """Insert activities to PostgreSQL in batches.
+    ) -> PostgresWriteStats:
+        """Upsert activities to PostgreSQL in batches.
 
-        Returns:
-            Tuple of (inserted_count, skipped_count, error_count)
+        Inserted vs updated is classified from a batch pre-read. Counts are
+        promoted only after the surrounding transaction commits.
         """
-        inserted_count = 0
-        skipped_count = 0
-        error_count = 0
+        stats = PostgresWriteStats()
 
         for batch_num, total_batches, batch in _iter_batches(
             activities, self._batch_size
         ):
             try:
                 batch_inserted = 0
-                batch_skipped = 0
+                batch_updated = 0
 
                 uow = self._uow_factory()
                 with uow:
+                    existing_ids = uow.activities.get_existing_ids(
+                        [activity.id for activity in batch]
+                    )
                     for activity in batch:
                         standard = StandardActivity.model_validate(
                             activity, from_attributes=True
                         )
-                        if uow.activities.insert(standard):
-                            batch_inserted += 1
+                        _upsert_activity(uow.activities, standard)
+                        if activity.id in existing_ids:
+                            batch_updated += 1
                         else:
-                            batch_skipped += 1
+                            batch_inserted += 1
                     uow.commit()
 
-                inserted_count += batch_inserted
-                skipped_count += batch_skipped
+                stats.inserted += batch_inserted
+                stats.updated += batch_updated
 
                 logger.info(
-                    "PG batch %d/%d: %d inserted, %d skipped",
+                    "PG batch %d/%d: %d inserted, %d updated, 0 errors",
                     batch_num,
                     total_batches,
                     batch_inserted,
-                    batch_skipped,
+                    batch_updated,
                 )
             except Exception:
-                error_count += len(batch)
-                logger.exception("PG batch %d/%d failed", batch_num, total_batches)
+                stats.errors += len(batch)
+                logger.exception(
+                    "PG batch %d/%d: 0 inserted, 0 updated, %d errors",
+                    batch_num,
+                    total_batches,
+                    len(batch),
+                )
 
-        return inserted_count, skipped_count, error_count
+        return stats
 
     def _insert_to_bigquery(
         self,
