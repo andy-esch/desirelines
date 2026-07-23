@@ -313,6 +313,23 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         result = self._session.execute(query, {"activity_id": activity_id})
         return result.fetchone() is not None
 
+    def get_existing_ids(self, activity_ids: list[int]) -> set[int]:
+        """Filter a list of activity IDs, returning only the ones that exist.
+
+        Args:
+            activity_ids: List of Strava activity IDs to check
+
+        Returns:
+            Set of activity IDs that are already present in the database
+        """
+        if not activity_ids:
+            return set()
+        query = text("""
+            SELECT id FROM desirelines.activities WHERE id = ANY(:ids)
+        """)
+        result = self._session.execute(query, {"ids": list(activity_ids)})
+        return {row.id for row in result.fetchall()}
+
     def update_metadata(self, activity_id: int, updates: dict[str, Any]) -> bool | None:
         """Update only metadata fields (name, type, sport).
 
