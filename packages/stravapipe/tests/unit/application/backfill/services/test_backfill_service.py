@@ -151,6 +151,21 @@ def service_with_bq(
 # =============================================================================
 
 
+@pytest.mark.parametrize("batch_size", [0, -1])
+def test_rejects_non_positive_batch_size(
+    mock_strava_reader,
+    mock_uow_factory,
+    batch_size: int,
+):
+    """Direct service construction cannot silently disable batch processing."""
+    with pytest.raises(ValueError, match="batch_size must be greater than zero"):
+        BackfillService(
+            strava_reader=mock_strava_reader,
+            uow_factory=mock_uow_factory,
+            batch_size=batch_size,
+        )
+
+
 class TestBackfillUser:
     """Tests for BackfillService.backfill_user()."""
 
@@ -761,6 +776,58 @@ class TestProgressReporting:
             == "Progress reporter failed during year_complete for athlete 12345"
             for record in caplog.records
         )
+
+    def test_reporter_mutation_cannot_change_backfill_state(
+        self,
+        mock_strava_reader,
+        mock_uow_factory,
+        mock_progress,
+    ):
+        """Reporter payloads are snapshots, even when mutation precedes failure."""
+
+        def mutate_started(_athlete_id: str, reported_years: list[int]) -> None:
+            reported_years.clear()
+            raise RuntimeError("progress unavailable")
+
+        def mutate_year(_athlete_id: str, stats: YearStats) -> None:
+            stats.activities_found = 999
+            stats.pg_inserted = 999
+            raise RuntimeError("progress unavailable")
+
+        def mutate_completed(_athlete_id: str, result: BackfillResult) -> None:
+            result.years.clear()
+            result.year_stats.clear()
+            result.total_activities = 999
+            result.total_pg_inserted = 999
+            result.total_errors = 999
+            raise RuntimeError("progress unavailable")
+
+        mock_strava_reader.read_activities_by_year.side_effect = [
+            make_activities(2, year=2023),
+            make_activities(1, year=2024),
+        ]
+        mock_progress.report_started.side_effect = mutate_started
+        mock_progress.report_year_complete.side_effect = mutate_year
+        mock_progress.report_completed.side_effect = mutate_completed
+        service = BackfillService(
+            strava_reader=mock_strava_reader,
+            uow_factory=mock_uow_factory,
+            progress_reporter=mock_progress,
+        )
+
+        result = service.backfill_user("12345", years=[2024, 2023])
+
+        assert result.years == [2023, 2024]
+        assert [stats.activities_found for stats in result.year_stats] == [2, 1]
+        assert [stats.pg_inserted for stats in result.year_stats] == [2, 1]
+        assert result.total_activities == 3
+        assert result.total_pg_inserted == 3
+        assert result.total_errors == 0
+        assert result.success is True
+        assert mock_strava_reader.read_activities_by_year.call_args_list == [
+            call(2023),
+            call(2024),
+        ]
 
     def test_reports_completed_on_success(
         self,

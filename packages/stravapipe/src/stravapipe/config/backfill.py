@@ -66,7 +66,7 @@ class BackfillConfig(BaseSettings):
         description="Comma-separated years to backfill (e.g. '2023,2024,2025'). "
         "Defaults to current year.",
     )
-    batch_size: int = 100
+    batch_size: int = Field(default=100, gt=0)
 
     # Environment
     log_level: str = "INFO"

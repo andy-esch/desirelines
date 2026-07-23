@@ -10,6 +10,7 @@ fetching entire years of activities and inserting in batches.
 """
 
 from collections.abc import Callable, Iterator, Sequence
+from copy import deepcopy
 from dataclasses import dataclass, field
 from functools import partial
 import logging
@@ -122,7 +123,12 @@ class BackfillResult:
 
 
 class ProgressReporter(Protocol):
-    """Protocol for reporting backfill progress (e.g. to Firestore)."""
+    """Protocol for reporting backfill progress (e.g. to Firestore).
+
+    Mutable payloads are defensive snapshots. Reporter implementations may
+    retain or transform them without affecting the backfill's control flow or
+    returned result.
+    """
 
     def report_started(self, athlete_id: str, years: list[int]) -> None: ...
 
@@ -178,6 +184,9 @@ class BackfillService:
         progress_reporter: ProgressReporter | None = None,
         batch_size: int = BATCH_SIZE,
     ):
+        if batch_size <= 0:
+            raise ValueError("batch_size must be greater than zero")
+
         self._strava_reader = strava_reader
         self._uow_factory = uow_factory
         self._bq_writer = bq_writer
@@ -201,7 +210,11 @@ class BackfillService:
         self._report_progress(
             "started",
             athlete_id,
-            partial(self._progress.report_started, athlete_id, sorted_years),
+            partial(
+                self._progress.report_started,
+                athlete_id,
+                deepcopy(sorted_years),
+            ),
         )
 
         logger.info(
@@ -226,7 +239,7 @@ class BackfillService:
                     partial(
                         self._progress.report_year_complete,
                         athlete_id,
-                        year_stats,
+                        deepcopy(year_stats),
                     ),
                 )
             except Exception:
@@ -246,7 +259,11 @@ class BackfillService:
             self._report_progress(
                 "completed",
                 athlete_id,
-                partial(self._progress.report_completed, athlete_id, result),
+                partial(
+                    self._progress.report_completed,
+                    athlete_id,
+                    deepcopy(result),
+                ),
             )
             logger.info(
                 "Backfill completed for athlete %s: %d activities across %d %s "
