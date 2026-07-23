@@ -4,9 +4,9 @@ go 1.25.8
 
 require (
 	cloud.google.com/go/firestore v1.24.0
-	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.58.0
-	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace v1.34.0
-	github.com/GoogleCloudPlatform/opentelemetry-operations-go/propagator v0.58.0
+	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.59.0
+	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace v1.35.0
+	github.com/GoogleCloudPlatform/opentelemetry-operations-go/propagator v0.59.0
 	github.com/go-chi/chi/v5 v5.3.1
 	go.opentelemetry.io/contrib/detectors/gcp v1.44.0
 	go.opentelemetry.io/otel v1.44.0
@@ -37,7 +37,7 @@ require (
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	cloud.google.com/go/monitoring v1.29.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.32.0 // indirect
-	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.58.0 // indirect
+	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.59.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -54,7 +54,7 @@ require (
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
 	golang.org/x/time v0.15.0
-	google.golang.org/api v0.289.0 // indirect
+	google.golang.org/api v0.290.0 // indirect
 	google.golang.org/genproto v0.0.0-20260519071638-aa98bba5eb94 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260630182238-925bb5da69e7 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260706201446-f0a921348800 // indirect
