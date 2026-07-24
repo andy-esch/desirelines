@@ -24,7 +24,10 @@ from stravapipe.adapters.postgres._unit_of_work import create_session_factory
 from stravapipe.cloudrun.errors import validate_or_422
 from stravapipe.cloudrun.webhook_handler import handle_webhook_cloudevent
 from stravapipe.config import load_postgres_writer_config
-from stravapipe.domain.activity import StandardActivity
+from stravapipe.domain.activity import (
+    StandardActivity,
+    is_non_geographic_activity,
+)
 from stravapipe.domain.geometry import decode_polyline_to_geojson
 from stravapipe.shared.constants import ResponseStatus, SkipReason
 from stravapipe.shared.correlation import get_dispatcher_received_at_ms
@@ -73,30 +76,6 @@ def _pg_span(
             verb,
             {"desirelines.activity_id": activity_id},
         ),
-    )
-
-
-def _is_virtual(activity: StandardActivity) -> bool:
-    """Whether an activity is non-geographic (indoor/virtual) and must not be
-    region-tagged.
-
-    Such activities have no real-world location: indoor/trainer and manual
-    activities have no GPS, and virtual rides (Zwift) carry a *fake* polyline in a
-    virtual world. Tagging them would place them in the wrong region (or the
-    `earth` fallback); they're surfaced in the routes-map complementary view
-    (zero `activity_regions` rows) instead.
-
-    Virtual detection checks both `sport_type` (the authoritative granular field)
-    and the legacy `type` Strava is de-emphasizing — belt-and-suspenders so a
-    `VirtualRide`/`VirtualRun` is caught regardless of which field carries it. Keep
-    this in sync with the backfill predicate in
-    `scripts/ops/backfills/backfill_route_regions.py`.
-    """
-    return (
-        activity.trainer
-        or activity.manual
-        or activity.sport_type.startswith("Virtual")
-        or activity.type.startswith("Virtual")
     )
 
 
@@ -337,7 +316,7 @@ async def _handle_create(
                 # Skipped for virtual/indoor activities — their geometry is fake/
                 # absent, so they stay untagged and surface in the complementary
                 # view. Runs in the same transaction as the route insert.
-                if not _is_virtual(activity):
+                if not is_non_geographic_activity(activity):
                     with _pg_span(
                         tracer, "postgres.activities.tag_regions", "INSERT", activity_id
                     ):
@@ -418,7 +397,7 @@ def _handle_update_enriched(
         # enriched update is safe. (Edge: a virtual ride's fake polyline that's
         # re-typed to a real sport will tag to the `earth` fallback — rare; a
         # later re-sync/backfill corrects it.)
-        if _is_virtual(activity):
+        if is_non_geographic_activity(activity):
             with _pg_span(
                 tracer, "postgres.activities.clear_regions", "DELETE", activity_id
             ):

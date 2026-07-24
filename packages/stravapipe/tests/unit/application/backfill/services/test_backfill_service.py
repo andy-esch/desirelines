@@ -7,6 +7,7 @@ Tests the bulk backfill orchestration logic using mocked adapters:
 """
 
 from datetime import UTC, datetime
+import json
 from unittest.mock import MagicMock, call, create_autospec, patch
 
 from google.api_core import exceptions as gapi_exceptions
@@ -20,7 +21,13 @@ from stravapipe.application.backfill.service import (
     ProgressReporter,
     YearStats,
 )
-from stravapipe.domain.activity import MetaAthlete, SummaryMap, SummaryStravaActivity
+from stravapipe.domain.activity import (
+    MetaAthlete,
+    PolylineMap,
+    StandardActivity,
+    SummaryMap,
+    SummaryStravaActivity,
+)
 from stravapipe.ports.out.postgres import ActivityRepository
 from stravapipe.ports.out.read import ReadDetailedActivities
 from stravapipe.ports.out.unit_of_work import AbstractUnitOfWork
@@ -29,21 +36,25 @@ from stravapipe.ports.out.unit_of_work import AbstractUnitOfWork
 # Test Fixtures
 # =============================================================================
 
+VALID_POLYLINE = "_p~iF~ps|U_ulLnnqC_mqNvxq`@"
+
 
 def make_summary_activity(
     activity_id: int = 12345,
-    user_id: int = 999,
-    name: str = "Morning Run",
+    type_: str = "Run",
     sport_type: str = "Run",
     year: int = 2024,
+    summary_polyline: str = VALID_POLYLINE,
+    trainer: bool = False,
+    manual: bool = False,
 ) -> SummaryStravaActivity:
     """Factory for creating test SummaryStravaActivity objects."""
     return SummaryStravaActivity(
         id=activity_id,
         resource_state=2,
-        athlete=MetaAthlete(id=user_id, resource_state=1),
-        name=name,
-        type="Run",
+        athlete=MetaAthlete(id=999, resource_state=1),
+        name="Morning Run",
+        type=type_,
         sport_type=sport_type,
         distance=5000.0,
         moving_time=1800,
@@ -60,14 +71,50 @@ def make_summary_activity(
         athlete_count=1,
         photo_count=0,
         has_kudoed=False,
-        map=SummaryMap(id=f"a{activity_id}", summary_polyline="abc", resource_state=2),
-        trainer=False,
+        map=SummaryMap(
+            id=f"a{activity_id}",
+            summary_polyline=summary_polyline,
+            resource_state=2,
+        ),
+        trainer=trainer,
         commute=False,
-        manual=False,
+        manual=manual,
         private=False,
         flagged=False,
         average_speed=2.78,
         max_speed=3.5,
+    )
+
+
+def make_standard_activity(
+    activity_id: int = 12345,
+    *,
+    type_: str = "Run",
+    sport_type: str = "Run",
+    polyline: str | None = None,
+    summary_polyline: str | None = VALID_POLYLINE,
+    include_map: bool = True,
+) -> StandardActivity:
+    """Create a normalized activity for route-selection tests."""
+    activity_map = None
+    if include_map:
+        activity_map = PolylineMap(
+            id=f"a{activity_id}",
+            polyline=polyline,
+            summary_polyline=summary_polyline,
+            resource_state=2,
+        )
+    return StandardActivity(
+        id=activity_id,
+        athlete=MetaAthlete(id=999, resource_state=1),
+        name="Morning Run",
+        type=type_,
+        sport_type=sport_type,
+        start_date_local=datetime(2024, 3, 15, 7, 30, tzinfo=UTC),
+        distance=5000.0,
+        moving_time=1800,
+        elapsed_time=2000,
+        map=activity_map,
     )
 
 
@@ -397,6 +444,210 @@ class TestPostgresInsertion:
         service.backfill_user("12345", years=[2024])
 
         assert factory.call_count == 2  # 3 activities / batch_size 2 = 2 batches
+
+
+# =============================================================================
+# Tests: PostgreSQL Geography Reconciliation
+# =============================================================================
+
+
+class TestPostgresGeographyReconciliation:
+    """Tests for missing-route insertion and region-tag reconciliation."""
+
+    def test_inserts_summary_route_and_tags_activity(
+        self,
+        service: BackfillService,
+        mock_activity_repo,
+    ):
+        """Summary list geometry fills a missing route before region tagging."""
+        mock_activity_repo.insert_route.return_value = True
+
+        stats = service._insert_to_postgres([make_summary_activity()])
+
+        assert stats == PostgresWriteStats(inserted=1)
+        mock_activity_repo.insert_route.assert_called_once()
+        activity_id, geojson = mock_activity_repo.insert_route.call_args.args
+        assert activity_id == 12345
+        assert json.loads(geojson)["type"] == "LineString"
+        mock_activity_repo.tag_activity_regions.assert_called_once_with(12345)
+        mock_activity_repo.clear_activity_regions.assert_not_called()
+
+    def test_prefers_detailed_polyline_over_summary(
+        self,
+        service: BackfillService,
+        mock_activity_repo,
+    ):
+        """A normalized detailed polyline wins when both route forms exist."""
+        standard = make_standard_activity(
+            polyline="detailed-route",
+            summary_polyline="summary-route",
+        )
+
+        with (
+            patch(
+                "stravapipe.application.backfill.service.StandardActivity.model_validate",
+                return_value=standard,
+            ),
+            patch(
+                "stravapipe.application.backfill.service.decode_polyline_to_geojson",
+                return_value='{"type":"LineString","coordinates":[]}',
+            ) as mock_decode,
+        ):
+            service._insert_to_postgres([make_summary_activity()])
+
+        mock_decode.assert_called_once_with("detailed-route")
+        mock_activity_repo.insert_route.assert_called_once_with(
+            12345,
+            '{"type":"LineString","coordinates":[]}',
+        )
+        mock_activity_repo.tag_activity_regions.assert_called_once_with(12345)
+
+    def test_route_conflict_preserves_stored_route_and_retags(
+        self,
+        service: BackfillService,
+        mock_activity_repo,
+    ):
+        """An existing route is not overwritten, but its tags are reconciled."""
+        mock_activity_repo.insert_route.return_value = False
+
+        stats = service._insert_to_postgres([make_summary_activity()])
+
+        assert stats == PostgresWriteStats(inserted=1)
+        mock_activity_repo.insert_route.assert_called_once()
+        mock_activity_repo.tag_activity_regions.assert_called_once_with(12345)
+
+    def test_invalid_non_empty_polyline_logs_and_retags_stored_route(
+        self,
+        service: BackfillService,
+        mock_activity_repo,
+        caplog,
+    ):
+        """Invalid incoming geometry cannot prevent repair of existing tags."""
+        with (
+            patch(
+                "stravapipe.application.backfill.service.decode_polyline_to_geojson",
+                return_value=None,
+            ),
+            caplog.at_level(
+                "WARNING",
+                logger="stravapipe.application.backfill.service",
+            ),
+        ):
+            stats = service._insert_to_postgres(
+                [make_summary_activity(summary_polyline="invalid")]
+            )
+
+        assert stats == PostgresWriteStats(inserted=1)
+        mock_activity_repo.insert_route.assert_not_called()
+        mock_activity_repo.tag_activity_regions.assert_called_once_with(12345)
+        assert any(
+            record.getMessage()
+            == "Activity 12345 has a polyline but decoded to no geometry; "
+            "route insertion skipped before region reconciliation"
+            for record in caplog.records
+        )
+
+    def test_empty_polyline_still_retags_stored_route(
+        self,
+        service: BackfillService,
+        mock_activity_repo,
+    ):
+        """An empty list-endpoint route still triggers stored-route tagging."""
+        with patch(
+            "stravapipe.application.backfill.service.decode_polyline_to_geojson"
+        ) as mock_decode:
+            service._insert_to_postgres([make_summary_activity(summary_polyline="")])
+
+        mock_decode.assert_not_called()
+        mock_activity_repo.insert_route.assert_not_called()
+        mock_activity_repo.tag_activity_regions.assert_called_once_with(12345)
+
+    def test_missing_map_still_retags_stored_route(
+        self,
+        service: BackfillService,
+        mock_activity_repo,
+    ):
+        """A normalized activity without a map reconciles any stored route."""
+        standard = make_standard_activity(include_map=False)
+
+        with (
+            patch(
+                "stravapipe.application.backfill.service.StandardActivity.model_validate",
+                return_value=standard,
+            ),
+            patch(
+                "stravapipe.application.backfill.service.decode_polyline_to_geojson"
+            ) as mock_decode,
+        ):
+            service._insert_to_postgres([make_summary_activity()])
+
+        mock_decode.assert_not_called()
+        mock_activity_repo.insert_route.assert_not_called()
+        mock_activity_repo.tag_activity_regions.assert_called_once_with(12345)
+
+    @pytest.mark.parametrize(
+        ("type_", "sport_type", "trainer", "manual"),
+        [
+            ("Run", "Run", True, False),
+            ("Run", "Run", False, True),
+            ("Ride", "VirtualRide", False, False),
+            ("VirtualRun", "Run", False, False),
+        ],
+    )
+    def test_non_geographic_activity_clears_tags_and_skips_route_work(
+        self,
+        service: BackfillService,
+        mock_activity_repo,
+        type_: str,
+        sport_type: str,
+        trainer: bool,
+        manual: bool,
+    ):
+        """Every non-geographic class preserves its route and clears only tags."""
+        activity = make_summary_activity(
+            type_=type_,
+            sport_type=sport_type,
+            trainer=trainer,
+            manual=manual,
+        )
+
+        with patch(
+            "stravapipe.application.backfill.service.decode_polyline_to_geojson"
+        ) as mock_decode:
+            stats = service._insert_to_postgres([activity])
+
+        assert stats == PostgresWriteStats(inserted=1)
+        mock_activity_repo.clear_activity_regions.assert_called_once_with(12345)
+        mock_decode.assert_not_called()
+        mock_activity_repo.insert_route.assert_not_called()
+        mock_activity_repo.tag_activity_regions.assert_not_called()
+
+    @pytest.mark.parametrize(
+        ("failing_operation", "manual"),
+        [
+            ("insert_route", False),
+            ("tag_activity_regions", False),
+            ("clear_activity_regions", True),
+        ],
+    )
+    def test_geography_failure_rolls_back_and_fails_whole_batch(
+        self,
+        service: BackfillService,
+        mock_activity_repo,
+        mock_uow,
+        failing_operation: str,
+        manual: bool,
+    ):
+        """Route and tag failures share the activity batch transaction."""
+        getattr(mock_activity_repo, failing_operation).side_effect = RuntimeError(
+            f"{failing_operation} failed"
+        )
+        activity = make_summary_activity(manual=manual)
+
+        stats = service._insert_to_postgres([activity])
+
+        assert stats == PostgresWriteStats(errors=1)
+        mock_uow.commit.assert_not_called()
 
 
 # =============================================================================

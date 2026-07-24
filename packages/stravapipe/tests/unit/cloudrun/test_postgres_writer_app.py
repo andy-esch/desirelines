@@ -7,7 +7,6 @@ Activity data is now provided inline in the enriched event (raw_activity field)
 rather than fetched from the Strava API.
 """
 
-from datetime import UTC, datetime
 import json
 import time
 from unittest.mock import MagicMock, patch
@@ -15,9 +14,7 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 import pytest
 
-from stravapipe.cloudrun.postgres_writer_app import _is_virtual, app
-from stravapipe.domain import StandardActivity
-from stravapipe.domain.activity import MetaAthlete
+from stravapipe.cloudrun.postgres_writer_app import app
 
 from .conftest import (
     SAMPLE_RAW_ACTIVITY,
@@ -1009,38 +1006,3 @@ class TestLifespanCleanup:
 
             # Shutdown events have run
             mock_engine.dispose.assert_called_once()
-
-
-@pytest.mark.parametrize(
-    ("type_", "sport_type", "trainer", "manual", "expected"),
-    [
-        ("Ride", "Ride", False, False, False),  # outdoor — geographic
-        (
-            "Ride",
-            "VirtualRide",
-            False,
-            False,
-            True,
-        ),  # sport_type virtual (modern Strava)
-        ("VirtualRide", "VirtualRide", False, False, True),  # both fields virtual
-        ("VirtualRun", "Run", False, False, True),  # legacy type-only virtual
-        ("Run", "Run", True, False, True),  # indoor trainer
-        ("Run", "Run", False, True, True),  # manual entry
-    ],
-)
-def test_is_virtual(type_, sport_type, trainer, manual, expected):
-    """_is_virtual catches virtual via sport_type, legacy type, trainer, or manual."""
-    activity = StandardActivity(
-        id=1,
-        athlete=MetaAthlete(id=999, resource_state=1),
-        name="x",
-        type=type_,
-        sport_type=sport_type,
-        start_date_local=datetime(2024, 1, 1, tzinfo=UTC),
-        distance=1.0,
-        moving_time=1,
-        elapsed_time=1,
-        trainer=trainer,
-        manual=manual,
-    )
-    assert _is_virtual(activity) is expected

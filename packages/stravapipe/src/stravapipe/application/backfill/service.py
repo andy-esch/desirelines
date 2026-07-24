@@ -24,7 +24,9 @@ from stravapipe.domain import (
     DetailedStravaActivity,
     StandardActivity,
     SummaryStravaActivity,
+    is_non_geographic_activity,
 )
+from stravapipe.domain.geometry import decode_polyline_to_geojson
 from stravapipe.ports.out.postgres import ActivityRepository
 from stravapipe.ports.out.read import ReadDetailedActivities
 from stravapipe.ports.out.unit_of_work import AbstractUnitOfWork
@@ -59,6 +61,42 @@ def _upsert_activity(
         raise RuntimeError(
             f"PostgreSQL upsert affected no row for activity {activity.id}"
         )
+
+
+def _reconcile_activity_geography(
+    repository: ActivityRepository,
+    activity: StandardActivity,
+) -> None:
+    """Reconcile one activity's missing route and region tags transactionally."""
+    if is_non_geographic_activity(activity):
+        repository.clear_activity_regions(activity.id)
+        return
+
+    encoded_route = None
+    if activity.map is not None:
+        encoded_route = activity.map.polyline or activity.map.summary_polyline
+
+    if encoded_route:
+        geojson = decode_polyline_to_geojson(encoded_route)
+        if geojson is not None:
+            # False is an expected conflict: preserve the stored route and
+            # reconcile its regions below.
+            repository.insert_route(activity.id, geojson)
+        else:
+            logger.warning(
+                "Activity %s has a polyline but decoded to no geometry; "
+                "route insertion skipped before region reconciliation",
+                activity.id,
+                extra={
+                    "user_id": activity.user_id,
+                    "polyline_length": len(encoded_route),
+                },
+            )
+
+    # Always reconcile geographic activities from the route PostgreSQL stores.
+    # This repairs stale tags after an insert conflict and clears stale tags when
+    # neither an incoming nor existing route is available.
+    repository.tag_activity_regions(activity.id)
 
 
 # Bounded in-batch retry around the BQ Storage Write API. Cloud Run Jobs
@@ -399,6 +437,7 @@ class BackfillService:
                             activity, from_attributes=True
                         )
                         _upsert_activity(uow.activities, standard)
+                        _reconcile_activity_geography(uow.activities, standard)
                         if activity.id in existing_ids:
                             batch_updated += 1
                         else:

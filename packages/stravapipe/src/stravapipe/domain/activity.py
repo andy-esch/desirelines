@@ -374,6 +374,21 @@ class StandardActivity(BaseModel):
         return self.start_date_local.year
 
 
+def is_non_geographic_activity(activity: StandardActivity) -> bool:
+    """Return whether an activity must stay outside geographic views.
+
+    Trainer and manual activities have no real GPS route, while virtual sports
+    can carry coordinates for a simulated world. Check both ``sport_type`` and
+    legacy ``type`` so older Strava payloads follow the same rule.
+    """
+    return (
+        activity.trainer
+        or activity.manual
+        or activity.sport_type.startswith("Virtual")
+        or activity.type.startswith("Virtual")
+    )
+
+
 class DetailedStravaActivity(BaseModel):
     """Detailed Strava activity model with full Strava API fields.
 

@@ -223,8 +223,8 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         belong in the complementary non-map view with zero region rows.
 
         Args:
-            activity_id: Strava activity ID (its route must already be written
-                in the same transaction).
+            activity_id: Strava activity ID. Its route may already exist or have
+                been written in the current transaction.
 
         Returns:
             Number of region rows written (0 if the activity has no route).

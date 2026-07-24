@@ -134,7 +134,7 @@ class ActivityRepository(ABC):
         intersects, falling back to the builtin ``earth`` region when the route
         matches no specific boundary. Idempotent (clears existing tags first).
         Must only be called for geo-bearing (non-virtual/indoor) activities whose
-        route was already written in the same transaction.
+        route already exists or was written in the current transaction.
 
         Args:
             activity_id: Strava activity ID
