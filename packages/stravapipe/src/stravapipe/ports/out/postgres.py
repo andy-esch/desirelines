@@ -132,7 +132,8 @@ class ActivityRepository(ABC):
 
         Writes ``activity_regions`` rows for each region the route linestring
         intersects, falling back to the builtin ``earth`` region when the route
-        matches no specific boundary. Idempotent (clears existing tags first).
+        matches no specific boundary. Idempotent and atomic (clears and rewrites
+        inside a savepoint, preserving existing tags on a transient failure).
         Must only be called for geo-bearing (non-virtual/indoor) activities. A
         route may already exist, may have been written in the current transaction,
         or may be absent (in which case the method clears stale tags and returns 0).

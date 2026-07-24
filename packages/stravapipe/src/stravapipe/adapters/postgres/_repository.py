@@ -74,6 +74,34 @@ _DELETE_ACTIVITY_REGIONS_SQL: Final[str] = (
     "DELETE FROM desirelines.activity_regions WHERE activity_id = :activity_id"
 )
 
+# Keep aligned with the standalone region-backfill guard. The census load is
+# roughly 3,900 non-global rows; this deliberately low floor catches an empty
+# or partial load without coupling ingestion to one specific dataset vintage.
+_MIN_SPECIFIC_REGIONS: Final[int] = 100
+
+_ACTIVITY_HAS_ROUTE_SQL: Final[str] = """
+    SELECT EXISTS (
+        SELECT 1
+        FROM desirelines.activity_routes
+        WHERE activity_id = :activity_id
+    )
+"""
+
+_REGION_READINESS_SQL: Final[str] = """
+    SELECT
+        (
+            SELECT count(*)
+            FROM desirelines.regions
+            WHERE region_kind <> 'global'
+        ) AS specific_region_count,
+        EXISTS (
+            SELECT 1
+            FROM desirelines.regions
+            WHERE source = 'builtin'
+              AND region_code = 'earth'
+        ) AS has_earth_region
+"""
+
 
 def _activity_write_params(activity: StandardActivity, now: datetime) -> dict[str, Any]:
     """Bind params for a full activity write (``insert`` / ``upsert``).
@@ -209,14 +237,19 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         from the intersect and assigned only when the route matches no specific
         region, so any activity that has a route ends up with >=1 region row.
 
-        Idempotent: clears the activity's existing tags first, so re-tagging (a
-        backfill, or a boundary-dataset reload) is safe.
+        Idempotent and atomic: clears and rewrites the activity's tags inside one
+        SAVEPOINT, so re-tagging (a backfill, or a boundary-dataset reload) is
+        safe and a transient failure preserves the previously committed tags.
 
-        Resilience: the spatial join runs inside a SAVEPOINT. If it fails (a
-        pathological geometry, a statement timeout on a very long route), we roll
-        back just the savepoint, log a warning, and fall through to the ``earth``
-        global fallback — so the activity is still tagged (and visible on the map's
-        global view) and the surrounding activity insert is never aborted.
+        Resilience: the delete, spatial join, and ``earth`` fallback run inside a
+        SAVEPOINT. If any step fails (a pathological geometry, a statement timeout
+        on a very long route), we roll back just the savepoint, log the failed
+        phase and exception class, and leave existing tags unchanged. The
+        surrounding activity insert is never aborted.
+
+        Readiness: after a successful ``earth`` fallback, a cold-path query checks
+        that the non-global regions dataset meets a conservative minimum. An
+        unloaded or partial dataset is logged loudly while ingestion continues.
 
         The caller must NOT call this for virtual/indoor activities — their
         geometry is absent or fake (Zwift's polyline is a virtual world), so they
@@ -229,17 +262,19 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         Returns:
             Number of region rows written (0 if the activity has no route).
         """
-        self._session.execute(
-            text(_DELETE_ACTIVITY_REGIONS_SQL),
-            {"activity_id": activity_id},
-        )
-
-        # Specific regions: every non-fallback boundary the route intersects.
-        # Savepoint-isolated so a spatial failure degrades to the 'earth' fallback
-        # with a warning instead of poisoning the activity-insert transaction.
         specific: list[Any] = []
+        earth: list[Any] = []
+        has_route = False
+        phase = "reset"
         try:
             with self._session.begin_nested():
+                self._session.execute(
+                    text(_DELETE_ACTIVITY_REGIONS_SQL),
+                    {"activity_id": activity_id},
+                )
+
+                # Specific regions: every non-fallback boundary the route intersects.
+                phase = "spatial"
                 specific = list(
                     self._session.execute(
                         text("""
@@ -255,34 +290,101 @@ class SqlAlchemyActivityRepository(ActivityRepository):
                         {"activity_id": activity_id},
                     ).fetchall()
                 )
-        except SQLAlchemyError:
-            specific = []
+
+                if not specific:
+                    phase = "route"
+                    has_route = bool(
+                        self._session.execute(
+                            text(_ACTIVITY_HAS_ROUTE_SQL),
+                            {"activity_id": activity_id},
+                        ).scalar_one()
+                    )
+
+                    # Fallback: tag the builtin 'earth' region, but only if the
+                    # activity actually has a route (no route -> no geography).
+                    if has_route:
+                        phase = "earth"
+                        earth = list(
+                            self._session.execute(
+                                text("""
+                                    INSERT INTO desirelines.activity_regions
+                                        (activity_id, region_id)
+                                    SELECT :activity_id, re.id
+                                    FROM desirelines.regions re
+                                    WHERE re.source = 'builtin'
+                                      AND re.region_code = 'earth'
+                                    RETURNING region_id
+                                """),
+                                {"activity_id": activity_id},
+                            ).fetchall()
+                        )
+        except SQLAlchemyError as exc:
+            failed_operation = {
+                "reset": "region-tag reset",
+                "spatial": "region spatial tagging",
+                "route": "activity route check",
+                "earth": "earth region fallback",
+            }[phase]
             logger.warning(
-                "Region spatial tagging failed for activity %s; "
-                "falling back to 'earth'",
+                "%s failed for activity %s (%s); existing region tags "
+                "preserved and ingestion continues",
+                failed_operation.capitalize(),
                 activity_id,
+                type(exc).__name__,
                 exc_info=True,
             )
+            return 0
+
         if specific:
             return len(specific)
+        if not has_route:
+            return 0
 
-        # Fallback: tag the builtin 'earth' region, but only if the activity
-        # actually has a route (no route -> no geography -> stays untagged).
-        earth = self._session.execute(
-            text("""
-                INSERT INTO desirelines.activity_regions (activity_id, region_id)
-                SELECT :activity_id, re.id
-                FROM desirelines.regions re
-                WHERE re.source = 'builtin'
-                  AND re.region_code = 'earth'
-                  AND EXISTS (
-                      SELECT 1 FROM desirelines.activity_routes
-                      WHERE activity_id = :activity_id
-                  )
-                RETURNING region_id
-            """),
-            {"activity_id": activity_id},
-        ).fetchall()
+        # A successful specific-region query that fell through to earth is the
+        # only path where dataset readiness matters. Keep the count query here,
+        # off the normal spatial-match hot path. Its own savepoint ensures this
+        # observability check cannot poison the surrounding write transaction.
+        try:
+            with self._session.begin_nested():
+                readiness = self._session.execute(
+                    text(_REGION_READINESS_SQL)
+                ).fetchone()
+        except SQLAlchemyError as exc:
+            logger.warning(
+                "Regions table readiness check failed for activity %s (%s); "
+                "ingestion continues",
+                activity_id,
+                type(exc).__name__,
+                exc_info=True,
+            )
+            return len(earth)
+
+        if readiness is None:
+            logger.warning(
+                "Regions table readiness check returned no row for activity %s; "
+                "ingestion continues",
+                activity_id,
+            )
+            return len(earth)
+
+        specific_region_count, has_earth_region = readiness
+        if specific_region_count < _MIN_SPECIFIC_REGIONS:
+            logger.error(
+                "Regions table appears unloaded or incomplete: only %d non-global "
+                "regions found (expected at least %d); activity %s used the earth "
+                "fallback (earth region present: %s)",
+                specific_region_count,
+                _MIN_SPECIFIC_REGIONS,
+                activity_id,
+                bool(has_earth_region),
+            )
+        elif not has_earth_region:
+            logger.error(
+                "Earth fallback region is missing while tagging activity %s; "
+                "regions table is incomplete",
+                activity_id,
+            )
+
         return len(earth)
 
     def clear_activity_regions(self, activity_id: int) -> int:
