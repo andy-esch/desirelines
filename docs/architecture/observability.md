@@ -76,6 +76,32 @@ Note there is no `allowlist_check` span here (unlike the activity path): deauth 
 cleanup and deliberately bypasses the allowlist, so it also emits no
 `webhook/owner_check` metric. See the dispatcher README's Deauthorization section.
 
+### Backfill job trace topology
+
+Backfill is a separately invoked Cloud Run Job, not a continuation of a webhook.
+Each requested year therefore starts an explicitly detached `backfill.year` root
+trace:
+
+```
+backfill.year
+  ├─ Strava fetch and retry events
+  ├─ postgres.session.acquire
+  ├─ SQLAlchemy statement spans
+  ├─ postgres.commit
+  ├─ bigquery.write_batch_to_staging   (when BigQuery is enabled)
+  ├─ bigquery.merge_batch_from_staging (when BigQuery is enabled)
+  └─ bigquery.cleanup_staging          (when BigQuery is enabled)
+```
+
+An empty OTel parent context prevents an ambient request or webhook trace from
+becoming the parent. A multi-year job creates one independent trace per year
+rather than one potentially unbounded trace for the entire run. PostgreSQL and
+BigQuery receive the same injected tracer, so their spans inherit the active
+year root; PostgreSQL-only runs retain the same topology without requiring a
+BigQuery writer. Job teardown closes sink resources, disposes the SQLAlchemy
+engine, and then flushes tracing without allowing exporter failure to change the
+process exit code. The job-wide correlation ID remains the cross-year log handle.
+
 ## How propagation actually works
 
 There are two propagators registered globally on the Go side, in this order:
@@ -202,9 +228,11 @@ See examples:
 
 - `ActivitiesWriter(client, dataset_name=..., tracer=...)` in [`adapters/gcp/_bigquery.py`](../../packages/stravapipe/src/stravapipe/adapters/gcp/_bigquery.py)
 - `SqlAlchemyUnitOfWork(session_factory, tracer=...)` in [`adapters/postgres/_unit_of_work.py`](../../packages/stravapipe/src/stravapipe/adapters/postgres/_unit_of_work.py)
+- `BackfillService(..., tracer=...)` in [`application/backfill/service.py`](../../packages/stravapipe/src/stravapipe/application/backfill/service.py)
 - The `Handler` struct in [`dispatcher/adapters/http/handler.go`](../../packages/dispatcher/adapters/http/handler.go)
 
-Cloud Run lifespans (`bq_inserter_app.py`, `postgres_writer_app.py`) initialize the tracer **before** constructing adapters that need it.
+Cloud Run lifespans (`bq_inserter_app.py`, `postgres_writer_app.py`) and the
+backfill job initialize the tracer **before** constructing adapters that need it.
 
 ## Span naming conventions
 
