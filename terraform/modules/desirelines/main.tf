@@ -790,8 +790,8 @@ resource "google_service_account_iam_member" "deletion_service_impersonation" {
 # ==============================================================================
 # Backfill Job IAM
 # ==============================================================================
-# Backfill needs: Firestore (read tokens), PG writer secret, Strava API secrets,
-# and BigQuery (data editor + job user) for writing backfilled activities.
+# Backfill always needs Firestore (read tokens), the PG writer secret, and
+# Strava API secrets. BigQuery access is opt-in with the optional sink.
 
 # Backfill needs Firestore access to read per-user Strava OAuth tokens
 resource "google_project_iam_member" "backfill_firestore" {
@@ -820,15 +820,17 @@ resource "google_secret_manager_secret_iam_member" "backfill_strava_api_secrets"
   member    = "serviceAccount:${google_service_account.backfill.email}"
 }
 
-# Backfill needs BigQuery dataEditor for inserting backfilled activities
+# Backfill needs BigQuery dataEditor only when the optional sink is enabled.
 resource "google_bigquery_dataset_iam_member" "backfill_data_editor" {
+  count      = var.enable_backfill_bigquery_writes ? 1 : 0
   dataset_id = google_bigquery_dataset.activities_dataset.dataset_id
   role       = "roles/bigquery.dataEditor"
   member     = "serviceAccount:${google_service_account.backfill.email}"
 }
 
-# Backfill needs BigQuery jobUser to run MERGE queries
+# Backfill needs BigQuery jobUser only when the optional sink is enabled.
 resource "google_project_iam_member" "backfill_bigquery_job_user" {
+  count   = var.enable_backfill_bigquery_writes ? 1 : 0
   project = var.gcp_project_id
   role    = "roles/bigquery.jobUser"
   member  = "serviceAccount:${google_service_account.backfill.email}"

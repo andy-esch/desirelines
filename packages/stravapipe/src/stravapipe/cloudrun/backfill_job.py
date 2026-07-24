@@ -112,6 +112,10 @@ def main() -> None:
             bq_dataset=config.gcp_bigquery_dataset,
             tracer=tracer,
         )
+    else:
+        logger.info(
+            "BigQuery backfill writes disabled; PostgreSQL is the only configured sink"
+        )
 
     # --- Run backfill ---
 

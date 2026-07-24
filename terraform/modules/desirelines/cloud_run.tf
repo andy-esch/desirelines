@@ -633,9 +633,16 @@ resource "google_cloud_run_v2_job" "backfill" {
           value = google_firestore_database.user_configs.name
         }
 
-        env {
-          name  = "GCP_BIGQUERY_DATASET"
-          value = google_bigquery_dataset.activities_dataset.dataset_id
+        # The application already treats BigQuery as an optional backfill sink:
+        # omitting this variable leaves PostgreSQL as the only destination.
+        # Keep the opt-in at infrastructure composition so normal executions
+        # cannot accidentally re-enable the in-flux BigQuery path.
+        dynamic "env" {
+          for_each = var.enable_backfill_bigquery_writes ? [1] : []
+          content {
+            name  = "GCP_BIGQUERY_DATASET"
+            value = google_bigquery_dataset.activities_dataset.dataset_id
+          }
         }
 
         env {

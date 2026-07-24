@@ -80,6 +80,12 @@ variable "enable_application_metric_alerts" {
   default     = false
 }
 
+variable "enable_backfill_bigquery_writes" {
+  description = "Whether the Cloud Run backfill job writes summary activities to BigQuery in addition to PostgreSQL. Disabled by default while the BigQuery backfill contract is redesigned holistically; PostgreSQL remains the product source of truth."
+  type        = bool
+  default     = false
+}
+
 # Deployment version tracking for code provenance and observability
 variable "deployment_version" {
   description = "Version tag for all deployed code (Cloud Run images and Cloud Function source packages). Typically a git SHA for code provenance and observability (e.g., 'b30d6ea' or 'latest')"
