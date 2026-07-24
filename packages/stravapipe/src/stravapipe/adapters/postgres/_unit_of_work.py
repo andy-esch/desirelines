@@ -173,8 +173,11 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
             self._session.rollback()
         finally:
             # Always close and clear the session, even if rollback fails
-            self._session.close()
-            self._session = None
+            try:
+                self._session.close()
+            finally:
+                # Do not retain a failed/closed session if close itself raises.
+                self._session = None
 
         return False  # Don't suppress exceptions
 

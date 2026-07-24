@@ -424,6 +424,38 @@ class TestPostgresInsertion:
         assert stats == PostgresWriteStats(inserted=2, updated=1, errors=0)
         assert stats.inserted + stats.updated + stats.errors == len(activities)
 
+    def test_failure_log_failure_preserves_errors_and_continues(
+        self,
+        mock_strava_reader,
+        mock_activity_repo,
+    ):
+        """A broken failure logger cannot prevent a later batch from running."""
+        failed_uow = MagicMock(spec=AbstractUnitOfWork)
+        failed_uow.activities = mock_activity_repo
+        failed_uow.__enter__.return_value = failed_uow
+        failed_uow.commit.side_effect = RuntimeError("commit failed")
+
+        successful_uow = MagicMock(spec=AbstractUnitOfWork)
+        successful_uow.activities = mock_activity_repo
+        successful_uow.__enter__.return_value = successful_uow
+
+        uow_factory = MagicMock(side_effect=[failed_uow, successful_uow])
+        service = BackfillService(
+            strava_reader=mock_strava_reader,
+            uow_factory=uow_factory,
+            batch_size=2,
+        )
+
+        with patch(
+            "stravapipe.application.backfill.service.logger.exception",
+            side_effect=RuntimeError("logging failed"),
+        ):
+            stats = service._insert_to_postgres(make_activities(3))
+
+        assert stats == PostgresWriteStats(inserted=1, updated=0, errors=2)
+        assert stats.inserted + stats.updated + stats.errors == 3
+        assert uow_factory.call_count == 2
+
     def test_false_upsert_fails_the_whole_transactional_batch(
         self,
         service: BackfillService,

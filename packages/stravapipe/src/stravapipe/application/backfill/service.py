@@ -141,6 +141,15 @@ class PostgresWriteStats:
     errors: int = 0
 
 
+def _log_best_effort(callback: Callable[[], None]) -> None:
+    """Run observability code without letting it alter a data outcome."""
+    try:
+        callback()
+    except Exception:
+        # Avoid recursive logging through the same potentially broken handler.
+        return
+
+
 def _log_committed_postgres_batch(
     *,
     batch_num: int,
@@ -149,19 +158,34 @@ def _log_committed_postgres_batch(
     updated: int,
 ) -> None:
     """Log a committed batch without letting logging alter its data outcome."""
-    try:
-        logger.info(
+    _log_best_effort(
+        partial(
+            logger.info,
             "PG batch %d/%d: %d inserted, %d updated, 0 errors",
             batch_num,
             total_batches,
             inserted,
             updated,
         )
-    except Exception:
-        # A logging handler failure after commit cannot change or reclassify
-        # the durable database result. Avoid recursive logging through the
-        # same potentially broken handler.
-        return
+    )
+
+
+def _log_failed_postgres_batch(
+    *,
+    batch_num: int,
+    total_batches: int,
+    errors: int,
+) -> None:
+    """Log a failed batch without interrupting later batches."""
+    _log_best_effort(
+        partial(
+            logger.exception,
+            "PG batch %d/%d: 0 inserted, 0 updated, %d errors",
+            batch_num,
+            total_batches,
+            errors,
+        )
+    )
 
 
 def _log_postgres_cleanup_failure(
@@ -173,8 +197,9 @@ def _log_postgres_cleanup_failure(
     error: Exception,
 ) -> None:
     """Report post-commit cleanup failure without changing committed counts."""
-    try:
-        logger.error(
+    _log_best_effort(
+        partial(
+            logger.error,
             "PG batch %d/%d cleanup failed after commit (%s); "
             "%d inserted and %d updated remain authoritative",
             batch_num,
@@ -184,10 +209,7 @@ def _log_postgres_cleanup_failure(
             updated,
             exc_info=(type(error), error, error.__traceback__),
         )
-    except Exception:
-        # Cleanup has already failed after a successful commit. A second
-        # observability failure must likewise leave the committed result alone.
-        return
+    )
 
 
 @dataclass
@@ -507,11 +529,10 @@ class BackfillService:
                     cleanup_error = exc
                 else:
                     stats.errors += len(batch)
-                    logger.exception(
-                        "PG batch %d/%d: 0 inserted, 0 updated, %d errors",
-                        batch_num,
-                        total_batches,
-                        len(batch),
+                    _log_failed_postgres_batch(
+                        batch_num=batch_num,
+                        total_batches=total_batches,
+                        errors=len(batch),
                     )
                     continue
 
