@@ -150,10 +150,18 @@ def _is_retryable_postgres_exception(exc: BaseException) -> bool:
 
 @dataclass
 class YearStats:
-    """Statistics for a single year's backfill."""
+    """Statistics for a single year's backfill.
+
+    ``source_errors`` and ``processing_errors`` count failed year attempts.
+    PostgreSQL and BigQuery error fields count affected activity rows, so the
+    PostgreSQL inserted + updated + errors partition applies only to
+    ``activities_found`` after a successful source read.
+    """
 
     year: int
     activities_found: int = 0
+    source_errors: int = 0
+    processing_errors: int = 0
     pg_inserted: int = 0
     pg_updated: int = 0
     pg_errors: int = 0
@@ -259,12 +267,19 @@ def _log_postgres_retry(
 
 @dataclass
 class BackfillResult:
-    """Aggregate result of a full backfill operation."""
+    """Aggregate result of a full backfill operation.
+
+    ``total_errors`` is the terminal process-status total across failed source
+    reads, unexpected year processing failures, and sink row errors. The
+    explicit source/processing totals preserve their distinct operator meaning.
+    """
 
     athlete_id: str
     years: list[int] = field(default_factory=list)
     year_stats: list[YearStats] = field(default_factory=list)
     total_activities: int = 0
+    total_source_errors: int = 0
+    total_processing_errors: int = 0
     total_pg_inserted: int = 0
     total_pg_updated: int = 0
     total_bq_inserted: int = 0
@@ -383,22 +398,6 @@ class BackfillService:
         for year in sorted_years:
             try:
                 year_stats = self._backfill_year(year)
-                result.year_stats.append(year_stats)
-                result.total_activities += year_stats.activities_found
-                result.total_pg_inserted += year_stats.pg_inserted
-                result.total_pg_updated += year_stats.pg_updated
-                result.total_bq_inserted += year_stats.bq_inserted
-                result.total_errors += year_stats.pg_errors + year_stats.bq_errors
-
-                self._report_progress(
-                    "year_complete",
-                    athlete_id,
-                    partial(
-                        self._progress.report_year_complete,
-                        athlete_id,
-                        deepcopy(year_stats),
-                    ),
-                )
             except Exception:
                 log_best_effort(
                     partial(
@@ -408,8 +407,31 @@ class BackfillService:
                         athlete_id,
                     )
                 )
-                result.year_stats.append(YearStats(year=year, pg_errors=1))
-                result.total_errors += 1
+                year_stats = YearStats(year=year, processing_errors=1)
+
+            result.year_stats.append(year_stats)
+            result.total_activities += year_stats.activities_found
+            result.total_source_errors += year_stats.source_errors
+            result.total_processing_errors += year_stats.processing_errors
+            result.total_pg_inserted += year_stats.pg_inserted
+            result.total_pg_updated += year_stats.pg_updated
+            result.total_bq_inserted += year_stats.bq_inserted
+            result.total_errors += (
+                year_stats.source_errors
+                + year_stats.processing_errors
+                + year_stats.pg_errors
+                + year_stats.bq_errors
+            )
+
+            self._report_progress(
+                "year_complete",
+                athlete_id,
+                partial(
+                    self._progress.report_year_complete,
+                    athlete_id,
+                    deepcopy(year_stats),
+                ),
+            )
 
         result.duration_seconds = time.monotonic() - start_time
         year_count = len(sorted_years)
@@ -429,12 +451,15 @@ class BackfillService:
                 partial(
                     logger.info,
                     "Backfill completed for athlete %s: %d activities across %d %s "
-                    "(PG: %d inserted, %d updated; "
+                    "(source errors: %d; processing errors: %d; "
+                    "PG: %d inserted, %d updated; "
                     "BQ: %d inserted; errors: %d) in %.1fs",
                     athlete_id,
                     result.total_activities,
                     year_count,
                     year_label,
+                    result.total_source_errors,
+                    result.total_processing_errors,
                     result.total_pg_inserted,
                     result.total_pg_updated,
                     result.total_bq_inserted,
@@ -449,19 +474,24 @@ class BackfillService:
                 partial(
                     self._progress.report_failed,
                     athlete_id,
-                    f"Completed with {result.total_errors} errors",
+                    f"Completed with {result.total_errors} errors "
+                    f"({result.total_source_errors} source, "
+                    f"{result.total_processing_errors} processing)",
                 ),
             )
             log_best_effort(
                 partial(
                     logger.warning,
                     "Backfill completed with errors for athlete %s: %d activities "
-                    "across %d %s (PG: %d inserted, %d updated; "
+                    "across %d %s (source errors: %d; processing errors: %d; "
+                    "PG: %d inserted, %d updated; "
                     "BQ: %d inserted; errors: %d) in %.1fs",
                     athlete_id,
                     result.total_activities,
                     year_count,
                     year_label,
+                    result.total_source_errors,
+                    result.total_processing_errors,
                     result.total_pg_inserted,
                     result.total_pg_updated,
                     result.total_bq_inserted,
@@ -503,7 +533,21 @@ class BackfillService:
         log_best_effort(
             partial(logger.info, "Fetching activities from Strava for %d", year)
         )
-        activities = self._strava_reader.read_activities_by_year(year)
+        try:
+            activities = self._strava_reader.read_activities_by_year(year)
+        except Exception:
+            log_best_effort(
+                partial(
+                    logger.exception,
+                    "Failed to fetch activities from Strava for %d",
+                    year,
+                )
+            )
+            return YearStats(
+                year=year,
+                source_errors=1,
+                duration_seconds=time.monotonic() - start_time,
+            )
         log_best_effort(
             partial(
                 logger.info,

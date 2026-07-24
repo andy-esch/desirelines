@@ -1297,13 +1297,15 @@ class TestMetricLogging:
         if pg_errors == 0:
             assert terminal == [
                 "Backfill completed for athlete 12345: 4 activities across 1 year "
-                "(PG: 2 inserted, 1 updated; "
+                "(source errors: 0; processing errors: 0; "
+                "PG: 2 inserted, 1 updated; "
                 "BQ: 4 inserted; errors: 0) in 5.0s"
             ]
         else:
             assert terminal == [
                 "Backfill completed with errors for athlete 12345: 4 activities "
-                "across 1 year (PG: 2 inserted, 1 updated; "
+                "across 1 year (source errors: 0; processing errors: 0; "
+                "PG: 2 inserted, 1 updated; "
                 "BQ: 4 inserted; errors: 1) in 5.0s"
             ]
 
@@ -1450,10 +1452,12 @@ class TestLifecycleLoggingIsolation:
 
         assert mock_backfill_year.call_args_list == [call(2023), call(2024)]
         assert result.year_stats == [
-            YearStats(year=2023, pg_errors=1),
+            YearStats(year=2023, processing_errors=1),
             completed_stats,
         ]
         assert result.total_activities == 1
+        assert result.total_source_errors == 0
+        assert result.total_processing_errors == 1
         assert result.total_pg_inserted == 1
         assert result.total_errors == 1
 
@@ -1590,6 +1594,8 @@ class TestProgressReporting:
 
         def mutate_year(_athlete_id: str, stats: YearStats) -> None:
             stats.activities_found = 999
+            stats.source_errors = 999
+            stats.processing_errors = 999
             stats.pg_inserted = 999
             raise RuntimeError("progress unavailable")
 
@@ -1597,6 +1603,8 @@ class TestProgressReporting:
             result.years.clear()
             result.year_stats.clear()
             result.total_activities = 999
+            result.total_source_errors = 999
+            result.total_processing_errors = 999
             result.total_pg_inserted = 999
             result.total_errors = 999
             raise RuntimeError("progress unavailable")
@@ -1620,6 +1628,8 @@ class TestProgressReporting:
         assert [stats.activities_found for stats in result.year_stats] == [2, 1]
         assert [stats.pg_inserted for stats in result.year_stats] == [2, 1]
         assert result.total_activities == 3
+        assert result.total_source_errors == 0
+        assert result.total_processing_errors == 0
         assert result.total_pg_inserted == 3
         assert result.total_errors == 0
         assert result.success is True
@@ -1694,8 +1704,10 @@ class TestErrorResilience:
         mock_strava_reader,
         mock_uow_factory,
         mock_activity_repo,
+        mock_progress,
+        caplog,
     ):
-        """A failed year doesn't stop subsequent years."""
+        """A source failure is distinct and does not stop subsequent years."""
         mock_strava_reader.read_activities_by_year.side_effect = [
             RuntimeError("Strava API down"),  # 2023 fails
             make_activities(3, year=2024),  # 2024 succeeds
@@ -1703,14 +1715,95 @@ class TestErrorResilience:
         service = BackfillService(
             strava_reader=mock_strava_reader,
             uow_factory=mock_uow_factory,
+            progress_reporter=mock_progress,
         )
 
-        result = service.backfill_user("12345", years=[2023, 2024])
+        with caplog.at_level(
+            "WARNING",
+            logger="stravapipe.application.backfill.service",
+        ):
+            result = service.backfill_user("12345", years=[2023, 2024])
 
-        assert result.total_errors == 1  # 2023 error
+        failed_year, successful_year = result.year_stats
+        assert failed_year.source_errors == 1
+        assert failed_year.processing_errors == 0
+        assert failed_year.pg_errors == 0
+        assert failed_year.activities_found == 0
+        assert successful_year.source_errors == 0
+        assert successful_year.pg_inserted == 3
+        assert result.total_source_errors == 1
+        assert result.total_processing_errors == 0
+        assert result.total_errors == 1
         assert result.total_pg_inserted == 3  # 2024 succeeded
         assert len(result.year_stats) == 2
         assert result.success is False
+        assert all(
+            stats.pg_inserted + stats.pg_updated + stats.pg_errors
+            == stats.activities_found
+            for stats in result.year_stats
+        )
+        assert mock_progress.report_year_complete.call_args_list == [
+            call("12345", failed_year),
+            call("12345", successful_year),
+        ]
+        mock_progress.report_failed.assert_called_once_with(
+            "12345",
+            "Completed with 1 errors (1 source, 0 processing)",
+        )
+        assert any(
+            "source errors: 1; processing errors: 0" in record.getMessage()
+            for record in caplog.records
+        )
+
+    def test_source_failure_logging_failure_preserves_source_accounting(
+        self,
+        service: BackfillService,
+        mock_strava_reader,
+    ):
+        mock_strava_reader.read_activities_by_year.side_effect = RuntimeError(
+            "Strava API down"
+        )
+
+        with patch(
+            "stravapipe.application.backfill.service.logger.exception",
+            side_effect=RuntimeError("logging unavailable"),
+        ):
+            result = service.backfill_user("12345", years=[2024])
+
+        assert len(result.year_stats) == 1
+        assert result.year_stats[0].source_errors == 1
+        assert result.year_stats[0].pg_errors == 0
+        assert result.year_stats[0].duration_seconds > 0
+        assert result.total_source_errors == 1
+        assert result.total_errors == 1
+
+    def test_aggregates_source_processing_and_sink_errors_without_overlap(
+        self,
+        service: BackfillService,
+    ):
+        """Every error category contributes once while PG stays row-based."""
+        year_stats = [
+            YearStats(year=2021, source_errors=1),
+            YearStats(year=2022, processing_errors=1),
+            YearStats(year=2023, activities_found=2, pg_errors=2),
+            YearStats(year=2024, activities_found=3, pg_inserted=3, bq_errors=3),
+        ]
+
+        with patch.object(service, "_backfill_year", side_effect=year_stats):
+            result = service.backfill_user(
+                "12345",
+                years=[2021, 2022, 2023, 2024],
+            )
+
+        assert result.total_source_errors == 1
+        assert result.total_processing_errors == 1
+        assert result.total_pg_inserted == 3
+        assert result.total_errors == 7
+        assert all(
+            stats.pg_inserted + stats.pg_updated + stats.pg_errors
+            == stats.activities_found
+            for stats in result.year_stats
+        )
 
 
 # =============================================================================
