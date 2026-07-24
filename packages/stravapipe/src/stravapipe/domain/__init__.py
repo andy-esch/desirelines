@@ -5,6 +5,7 @@ from stravapipe.domain.activity import (
     StandardActivity,
     SummaryMap,
     SummaryStravaActivity,
+    is_non_geographic_activity,
 )
 from stravapipe.domain.auth import StravaTokenSet
 
@@ -16,4 +17,5 @@ __all__ = [
     "StravaTokenSet",
     "SummaryMap",
     "SummaryStravaActivity",
+    "is_non_geographic_activity",
 ]

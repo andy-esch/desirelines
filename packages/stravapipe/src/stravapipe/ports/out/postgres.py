@@ -133,8 +133,9 @@ class ActivityRepository(ABC):
         Writes ``activity_regions`` rows for each region the route linestring
         intersects, falling back to the builtin ``earth`` region when the route
         matches no specific boundary. Idempotent (clears existing tags first).
-        Must only be called for geo-bearing (non-virtual/indoor) activities whose
-        route was already written in the same transaction.
+        Must only be called for geo-bearing (non-virtual/indoor) activities. A
+        route may already exist, may have been written in the current transaction,
+        or may be absent (in which case the method clears stale tags and returns 0).
 
         Args:
             activity_id: Strava activity ID

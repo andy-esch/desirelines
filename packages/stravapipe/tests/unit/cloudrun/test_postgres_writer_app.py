@@ -7,7 +7,6 @@ Activity data is now provided inline in the enriched event (raw_activity field)
 rather than fetched from the Strava API.
 """
 
-from datetime import UTC, datetime
 import json
 import time
 from unittest.mock import MagicMock, patch
@@ -15,9 +14,7 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 import pytest
 
-from stravapipe.cloudrun.postgres_writer_app import _is_virtual, app
-from stravapipe.domain import StandardActivity
-from stravapipe.domain.activity import MetaAthlete
+from stravapipe.cloudrun.postgres_writer_app import app
 
 from .conftest import (
     SAMPLE_RAW_ACTIVITY,
@@ -284,12 +281,44 @@ class TestCreateEventHandling:
             assert response.json()["status"] == "created"
             mock_uow.activities.insert.assert_called_once()
             mock_uow.activities.insert_route.assert_called_once()
+            mock_uow.activities.tag_activity_regions.assert_called_once_with(12345678)
+            mock_uow.activities.clear_activity_regions.assert_not_called()
             # Verify geojson argument is a valid GeoJSON string
             call_args = mock_uow.activities.insert_route.call_args
             assert call_args[0][0] == 12345678  # activity_id
 
             geojson = json.loads(call_args[0][1])
             assert geojson["type"] == "LineString"
+
+    def test_create_event_non_geographic_stores_route_without_tagging(self, client):
+        """CREATE preserves its detailed route-first behavior for indoor activity."""
+        mock_uow = MagicMock()
+        mock_uow.activities.insert.return_value = True
+        mock_uow.activities.insert_route.return_value = True
+        raw_activity = {
+            **SAMPLE_RAW_ACTIVITY_WITH_MAP,
+            "trainer": True,
+        }
+
+        with patch(
+            "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
+            return_value=mock_uow,
+        ):
+            webhook = make_webhook_payload(
+                aspect_type="create",
+                raw_activity=raw_activity,
+            )
+            response = client.post(
+                "/",
+                headers=make_cloudevent_headers(),
+                json=make_pubsub_body(webhook),
+            )
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "created"
+        mock_uow.activities.insert_route.assert_called_once()
+        mock_uow.activities.tag_activity_regions.assert_not_called()
+        mock_uow.activities.clear_activity_regions.assert_not_called()
 
     def test_create_event_polyline_decodes_to_no_geometry_logs_warning(self, client):
         """A non-empty polyline that decodes to nothing usable (invalid, or a
@@ -514,6 +543,38 @@ class TestUpdateEventHandling:
         mock_uow.activities.update_metadata.assert_not_called()
         upserted = mock_uow.activities.upsert.call_args.args[0]
         assert upserted.sport == "Run"  # granular sport_type from raw_activity
+        mock_uow.activities.tag_activity_regions.assert_called_once_with(12345678)
+        mock_uow.activities.clear_activity_regions.assert_not_called()
+
+    def test_update_event_enriched_non_geographic_clears_regions(self, client):
+        """Enriched UPDATE removes tags after an activity becomes non-geographic."""
+        raw_activity = {
+            **SAMPLE_RAW_ACTIVITY,
+            "manual": True,
+        }
+        webhook = make_webhook_payload(
+            aspect_type="update",
+            raw_activity=raw_activity,
+        )
+        webhook["updates"] = {"type": "Run"}
+
+        mock_uow = MagicMock()
+
+        with patch(
+            "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
+            return_value=mock_uow,
+        ):
+            response = client.post(
+                "/",
+                headers=make_cloudevent_headers(),
+                json=make_pubsub_body(webhook),
+            )
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "updated"
+        mock_uow.activities.upsert.assert_called_once()
+        mock_uow.activities.clear_activity_regions.assert_called_once_with(12345678)
+        mock_uow.activities.tag_activity_regions.assert_not_called()
 
     def test_update_event_bare_type_uses_metadata_path(self, client):
         """UPDATE without raw_activity (fetch failed / title-only) stays on the
@@ -1009,38 +1070,3 @@ class TestLifespanCleanup:
 
             # Shutdown events have run
             mock_engine.dispose.assert_called_once()
-
-
-@pytest.mark.parametrize(
-    ("type_", "sport_type", "trainer", "manual", "expected"),
-    [
-        ("Ride", "Ride", False, False, False),  # outdoor — geographic
-        (
-            "Ride",
-            "VirtualRide",
-            False,
-            False,
-            True,
-        ),  # sport_type virtual (modern Strava)
-        ("VirtualRide", "VirtualRide", False, False, True),  # both fields virtual
-        ("VirtualRun", "Run", False, False, True),  # legacy type-only virtual
-        ("Run", "Run", True, False, True),  # indoor trainer
-        ("Run", "Run", False, True, True),  # manual entry
-    ],
-)
-def test_is_virtual(type_, sport_type, trainer, manual, expected):
-    """_is_virtual catches virtual via sport_type, legacy type, trainer, or manual."""
-    activity = StandardActivity(
-        id=1,
-        athlete=MetaAthlete(id=999, resource_state=1),
-        name="x",
-        type=type_,
-        sport_type=sport_type,
-        start_date_local=datetime(2024, 1, 1, tzinfo=UTC),
-        distance=1.0,
-        moving_time=1,
-        elapsed_time=1,
-        trainer=trainer,
-        manual=manual,
-    )
-    assert _is_virtual(activity) is expected

@@ -61,7 +61,7 @@ import psycopg
 # Non-geographic activities: their geometry is absent or fake (Zwift's polyline is
 # a virtual world), so they must not be region-tagged. Checks both the granular
 # `sport` (= Strava sport_type) and the legacy `type` — keep in sync with
-# `_is_virtual` in cloudrun/postgres_writer_app.py.
+# `is_non_geographic_activity` in stravapipe/domain/activity.py.
 _NON_VIRTUAL = (
     "NOT (a.trainer OR a.manual OR a.sport LIKE 'Virtual%' OR a.type LIKE 'Virtual%')"
 )
