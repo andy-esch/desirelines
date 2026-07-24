@@ -1015,6 +1015,137 @@ class TestMetricLogging:
 
 
 # =============================================================================
+# Tests: Lifecycle Logging Isolation
+# =============================================================================
+
+
+class TestLifecycleLoggingIsolation:
+    """Lifecycle logging cannot alter or interrupt durable run outcomes."""
+
+    def test_year_summary_log_failure_preserves_exact_totals(
+        self,
+        service: BackfillService,
+        mock_strava_reader,
+        mock_activity_repo,
+    ):
+        """A post-write year log failure cannot replace committed YearStats."""
+        activities = make_activities(3)
+        mock_strava_reader.read_activities_by_year.return_value = activities
+        mock_activity_repo.get_existing_ids.return_value = {2}
+
+        def fail_year_summary(message: str, *args: object, **kwargs: object) -> None:
+            del args, kwargs
+            if message.startswith("Year %d complete"):
+                raise RuntimeError("year logging failed")
+
+        with patch(
+            "stravapipe.application.backfill.service.logger.info",
+            side_effect=fail_year_summary,
+        ):
+            result = service.backfill_user("12345", years=[2024])
+
+        assert result.success is True
+        assert result.total_activities == 3
+        assert result.total_pg_inserted == 2
+        assert result.total_pg_updated == 1
+        assert result.total_errors == 0
+        assert result.year_stats == [
+            YearStats(
+                year=2024,
+                activities_found=3,
+                pg_inserted=2,
+                pg_updated=1,
+                duration_seconds=result.year_stats[0].duration_seconds,
+            )
+        ]
+
+    def test_terminal_success_log_failure_returns_successful_result(
+        self,
+        service: BackfillService,
+        mock_strava_reader,
+    ):
+        """A terminal success log failure cannot fail a completed run."""
+        mock_strava_reader.read_activities_by_year.return_value = make_activities(1)
+
+        def fail_terminal_success(
+            message: str, *args: object, **kwargs: object
+        ) -> None:
+            del args, kwargs
+            if message.startswith("Backfill completed for athlete"):
+                raise RuntimeError("terminal logging failed")
+
+        with patch(
+            "stravapipe.application.backfill.service.logger.info",
+            side_effect=fail_terminal_success,
+        ):
+            result = service.backfill_user("12345", years=[2024])
+
+        assert result.success is True
+        assert result.total_pg_inserted == 1
+        assert result.total_errors == 0
+
+    def test_terminal_failure_log_failure_returns_failed_result(
+        self,
+        service: BackfillService,
+    ):
+        """A terminal warning failure cannot obscure the stored error result."""
+        year_stats = YearStats(
+            year=2024,
+            activities_found=2,
+            pg_inserted=1,
+            pg_errors=1,
+        )
+
+        with (
+            patch.object(service, "_backfill_year", return_value=year_stats),
+            patch(
+                "stravapipe.application.backfill.service.logger.warning",
+                side_effect=RuntimeError("terminal logging failed"),
+            ),
+        ):
+            result = service.backfill_user("12345", years=[2024])
+
+        assert result.success is False
+        assert result.total_activities == 2
+        assert result.total_pg_inserted == 1
+        assert result.total_errors == 1
+        assert result.year_stats == [year_stats]
+
+    def test_failed_year_log_failure_does_not_stop_later_years(
+        self,
+        service: BackfillService,
+    ):
+        """A broken exception logger cannot interrupt the requested year set."""
+        completed_stats = YearStats(
+            year=2024,
+            activities_found=1,
+            pg_inserted=1,
+        )
+
+        with (
+            patch.object(
+                service,
+                "_backfill_year",
+                side_effect=[RuntimeError("2023 failed"), completed_stats],
+            ) as mock_backfill_year,
+            patch(
+                "stravapipe.application.backfill.service.logger.exception",
+                side_effect=RuntimeError("failure logging failed"),
+            ),
+        ):
+            result = service.backfill_user("12345", years=[2023, 2024])
+
+        assert mock_backfill_year.call_args_list == [call(2023), call(2024)]
+        assert result.year_stats == [
+            YearStats(year=2023, pg_errors=1),
+            completed_stats,
+        ]
+        assert result.total_activities == 1
+        assert result.total_pg_inserted == 1
+        assert result.total_errors == 1
+
+
+# =============================================================================
 # Tests: Progress Reporting
 # =============================================================================
 
@@ -1100,6 +1231,37 @@ class TestProgressReporting:
             == "Progress reporter failed during year_complete for athlete 12345"
             for record in caplog.records
         )
+
+    def test_reporter_failure_logger_failure_does_not_escape(
+        self,
+        mock_strava_reader,
+        mock_uow_factory,
+        mock_progress,
+    ):
+        """A broken diagnostic logger cannot defeat reporter isolation."""
+        mock_strava_reader.read_activities_by_year.return_value = []
+        mock_progress.report_started.side_effect = RuntimeError("progress unavailable")
+        service = BackfillService(
+            strava_reader=mock_strava_reader,
+            uow_factory=mock_uow_factory,
+            progress_reporter=mock_progress,
+        )
+
+        with patch(
+            "stravapipe.application.backfill.service.logger.exception",
+            side_effect=RuntimeError("failure logging failed"),
+        ):
+            result = service.backfill_user("12345", years=[2024])
+
+        assert result.success is True
+        assert len(result.year_stats) == 1
+        assert result.year_stats[0].year == 2024
+        assert result.year_stats[0].activities_found == 0
+        assert result.year_stats[0].duration_seconds > 0
+        mock_progress.report_year_complete.assert_called_once_with(
+            "12345", result.year_stats[0]
+        )
+        mock_progress.report_completed.assert_called_once_with("12345", result)
 
     def test_reporter_mutation_cannot_change_backfill_state(
         self,

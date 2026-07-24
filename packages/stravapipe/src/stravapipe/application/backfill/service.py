@@ -352,10 +352,13 @@ class BackfillService:
                     ),
                 )
             except Exception:
-                logger.exception(
-                    "Failed to backfill year %d for athlete %s",
-                    year,
-                    athlete_id,
+                _log_best_effort(
+                    partial(
+                        logger.exception,
+                        "Failed to backfill year %d for athlete %s",
+                        year,
+                        athlete_id,
+                    )
                 )
                 result.year_stats.append(YearStats(year=year, pg_errors=1))
                 result.total_errors += 1
@@ -374,19 +377,22 @@ class BackfillService:
                     deepcopy(result),
                 ),
             )
-            logger.info(
-                "Backfill completed for athlete %s: %d activities across %d %s "
-                "(PG: %d inserted, %d updated; "
-                "BQ: %d inserted; errors: %d) in %.1fs",
-                athlete_id,
-                result.total_activities,
-                year_count,
-                year_label,
-                result.total_pg_inserted,
-                result.total_pg_updated,
-                result.total_bq_inserted,
-                result.total_errors,
-                result.duration_seconds,
+            _log_best_effort(
+                partial(
+                    logger.info,
+                    "Backfill completed for athlete %s: %d activities across %d %s "
+                    "(PG: %d inserted, %d updated; "
+                    "BQ: %d inserted; errors: %d) in %.1fs",
+                    athlete_id,
+                    result.total_activities,
+                    year_count,
+                    year_label,
+                    result.total_pg_inserted,
+                    result.total_pg_updated,
+                    result.total_bq_inserted,
+                    result.total_errors,
+                    result.duration_seconds,
+                )
             )
         else:
             self._report_progress(
@@ -398,19 +404,22 @@ class BackfillService:
                     f"Completed with {result.total_errors} errors",
                 ),
             )
-            logger.warning(
-                "Backfill completed with errors for athlete %s: %d activities "
-                "across %d %s (PG: %d inserted, %d updated; "
-                "BQ: %d inserted; errors: %d) in %.1fs",
-                athlete_id,
-                result.total_activities,
-                year_count,
-                year_label,
-                result.total_pg_inserted,
-                result.total_pg_updated,
-                result.total_bq_inserted,
-                result.total_errors,
-                result.duration_seconds,
+            _log_best_effort(
+                partial(
+                    logger.warning,
+                    "Backfill completed with errors for athlete %s: %d activities "
+                    "across %d %s (PG: %d inserted, %d updated; "
+                    "BQ: %d inserted; errors: %d) in %.1fs",
+                    athlete_id,
+                    result.total_activities,
+                    year_count,
+                    year_label,
+                    result.total_pg_inserted,
+                    result.total_pg_updated,
+                    result.total_bq_inserted,
+                    result.total_errors,
+                    result.duration_seconds,
+                )
             )
 
         return result
@@ -425,10 +434,13 @@ class BackfillService:
         try:
             callback()
         except Exception:
-            logger.exception(
-                "Progress reporter failed during %s for athlete %s",
-                event,
-                athlete_id,
+            _log_best_effort(
+                partial(
+                    logger.exception,
+                    "Progress reporter failed during %s for athlete %s",
+                    event,
+                    athlete_id,
+                )
             )
 
     def _backfill_year(self, year: int) -> YearStats:
@@ -466,16 +478,20 @@ class BackfillService:
 
         stats.duration_seconds = time.monotonic() - start_time
 
-        logger.info(
-            "Year %d complete in %.1fs: PG(%d inserted, %d updated, %d errors), "
-            "BQ(%d inserted, %d errors)",
-            year,
-            stats.duration_seconds,
-            stats.pg_inserted,
-            stats.pg_updated,
-            stats.pg_errors,
-            stats.bq_inserted,
-            stats.bq_errors,
+        _log_best_effort(
+            partial(
+                logger.info,
+                "Year %d complete in %.1fs: "
+                "PG(%d inserted, %d updated, %d errors), "
+                "BQ(%d inserted, %d errors)",
+                year,
+                stats.duration_seconds,
+                stats.pg_inserted,
+                stats.pg_updated,
+                stats.pg_errors,
+                stats.bq_inserted,
+                stats.bq_errors,
+            )
         )
 
         return stats
