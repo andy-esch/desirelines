@@ -383,6 +383,79 @@ class TestPostgresInsertion:
             == year_stats.activities_found
         )
 
+    def test_post_commit_exit_failure_preserves_committed_counts(
+        self,
+        service: BackfillService,
+        mock_activity_repo,
+        mock_uow,
+        caplog,
+    ):
+        """Cleanup failure after commit cannot reclassify durable writes."""
+        activities = make_activities(3)
+        mock_activity_repo.get_existing_ids.return_value = {2}
+        mock_uow.__exit__.side_effect = RuntimeError("cleanup failed")
+
+        with caplog.at_level(
+            "ERROR",
+            logger="stravapipe.application.backfill.service",
+        ):
+            stats = service._insert_to_postgres(activities)
+
+        assert stats == PostgresWriteStats(inserted=2, updated=1, errors=0)
+        assert stats.inserted + stats.updated + stats.errors == len(activities)
+        assert "cleanup failed after commit (RuntimeError)" in caplog.text
+        assert "2 inserted and 1 updated remain authoritative" in caplog.text
+
+    def test_success_log_failure_preserves_committed_counts(
+        self,
+        service: BackfillService,
+        mock_activity_repo,
+    ):
+        """A broken success logger cannot double-count a committed batch."""
+        activities = make_activities(3)
+        mock_activity_repo.get_existing_ids.return_value = {2}
+
+        with patch(
+            "stravapipe.application.backfill.service.logger.info",
+            side_effect=RuntimeError("logging failed"),
+        ):
+            stats = service._insert_to_postgres(activities)
+
+        assert stats == PostgresWriteStats(inserted=2, updated=1, errors=0)
+        assert stats.inserted + stats.updated + stats.errors == len(activities)
+
+    def test_failure_log_failure_preserves_errors_and_continues(
+        self,
+        mock_strava_reader,
+        mock_activity_repo,
+    ):
+        """A broken failure logger cannot prevent a later batch from running."""
+        failed_uow = MagicMock(spec=AbstractUnitOfWork)
+        failed_uow.activities = mock_activity_repo
+        failed_uow.__enter__.return_value = failed_uow
+        failed_uow.commit.side_effect = RuntimeError("commit failed")
+
+        successful_uow = MagicMock(spec=AbstractUnitOfWork)
+        successful_uow.activities = mock_activity_repo
+        successful_uow.__enter__.return_value = successful_uow
+
+        uow_factory = MagicMock(side_effect=[failed_uow, successful_uow])
+        service = BackfillService(
+            strava_reader=mock_strava_reader,
+            uow_factory=uow_factory,
+            batch_size=2,
+        )
+
+        with patch(
+            "stravapipe.application.backfill.service.logger.exception",
+            side_effect=RuntimeError("logging failed"),
+        ):
+            stats = service._insert_to_postgres(make_activities(3))
+
+        assert stats == PostgresWriteStats(inserted=1, updated=0, errors=2)
+        assert stats.inserted + stats.updated + stats.errors == 3
+        assert uow_factory.call_count == 2
+
     def test_false_upsert_fails_the_whole_transactional_batch(
         self,
         service: BackfillService,
@@ -546,6 +619,29 @@ class TestPostgresGeographyReconciliation:
             "route insertion skipped before region reconciliation"
             for record in caplog.records
         )
+
+    def test_invalid_polyline_logger_failure_does_not_roll_back_batch(
+        self,
+        service: BackfillService,
+        mock_activity_repo,
+    ):
+        """A diagnostic handler failure cannot replace a successful PG write."""
+        with (
+            patch(
+                "stravapipe.application.backfill.service.decode_polyline_to_geojson",
+                return_value=None,
+            ),
+            patch(
+                "stravapipe.application.backfill.service.logger.warning",
+                side_effect=RuntimeError("logging failed"),
+            ),
+        ):
+            stats = service._insert_to_postgres(
+                [make_summary_activity(summary_polyline="invalid")]
+            )
+
+        assert stats == PostgresWriteStats(inserted=1)
+        mock_activity_repo.tag_activity_regions.assert_called_once_with(12345)
 
     def test_empty_polyline_still_retags_stored_route(
         self,
@@ -942,6 +1038,156 @@ class TestMetricLogging:
 
 
 # =============================================================================
+# Tests: Lifecycle Logging Isolation
+# =============================================================================
+
+
+class TestLifecycleLoggingIsolation:
+    """Lifecycle logging cannot alter or interrupt durable run outcomes."""
+
+    def test_all_info_logging_failures_preserve_successful_result(
+        self,
+        service: BackfillService,
+        mock_strava_reader,
+    ):
+        """Start, fetch, batch, year, and terminal logs are all non-authoritative."""
+        mock_strava_reader.read_activities_by_year.return_value = make_activities(1)
+
+        with patch(
+            "stravapipe.application.backfill.service.logger.info",
+            side_effect=RuntimeError("logging unavailable"),
+        ):
+            result = service.backfill_user("12345", years=[2024])
+
+        assert result.success is True
+        assert result.total_activities == 1
+        assert result.total_pg_inserted == 1
+        assert result.total_errors == 0
+
+    def test_year_summary_log_failure_preserves_exact_totals(
+        self,
+        service: BackfillService,
+        mock_strava_reader,
+        mock_activity_repo,
+    ):
+        """A post-write year log failure cannot replace committed YearStats."""
+        activities = make_activities(3)
+        mock_strava_reader.read_activities_by_year.return_value = activities
+        mock_activity_repo.get_existing_ids.return_value = {2}
+
+        def fail_year_summary(message: str, *args: object, **kwargs: object) -> None:
+            del args, kwargs
+            if message.startswith("Year %d complete"):
+                raise RuntimeError("year logging failed")
+
+        with patch(
+            "stravapipe.application.backfill.service.logger.info",
+            side_effect=fail_year_summary,
+        ):
+            result = service.backfill_user("12345", years=[2024])
+
+        assert result.success is True
+        assert result.total_activities == 3
+        assert result.total_pg_inserted == 2
+        assert result.total_pg_updated == 1
+        assert result.total_errors == 0
+        assert result.year_stats == [
+            YearStats(
+                year=2024,
+                activities_found=3,
+                pg_inserted=2,
+                pg_updated=1,
+                duration_seconds=result.year_stats[0].duration_seconds,
+            )
+        ]
+
+    def test_terminal_success_log_failure_returns_successful_result(
+        self,
+        service: BackfillService,
+        mock_strava_reader,
+    ):
+        """A terminal success log failure cannot fail a completed run."""
+        mock_strava_reader.read_activities_by_year.return_value = make_activities(1)
+
+        def fail_terminal_success(
+            message: str, *args: object, **kwargs: object
+        ) -> None:
+            del args, kwargs
+            if message.startswith("Backfill completed for athlete"):
+                raise RuntimeError("terminal logging failed")
+
+        with patch(
+            "stravapipe.application.backfill.service.logger.info",
+            side_effect=fail_terminal_success,
+        ):
+            result = service.backfill_user("12345", years=[2024])
+
+        assert result.success is True
+        assert result.total_pg_inserted == 1
+        assert result.total_errors == 0
+
+    def test_terminal_failure_log_failure_returns_failed_result(
+        self,
+        service: BackfillService,
+    ):
+        """A terminal warning failure cannot obscure the stored error result."""
+        year_stats = YearStats(
+            year=2024,
+            activities_found=2,
+            pg_inserted=1,
+            pg_errors=1,
+        )
+
+        with (
+            patch.object(service, "_backfill_year", return_value=year_stats),
+            patch(
+                "stravapipe.application.backfill.service.logger.warning",
+                side_effect=RuntimeError("terminal logging failed"),
+            ),
+        ):
+            result = service.backfill_user("12345", years=[2024])
+
+        assert result.success is False
+        assert result.total_activities == 2
+        assert result.total_pg_inserted == 1
+        assert result.total_errors == 1
+        assert result.year_stats == [year_stats]
+
+    def test_failed_year_log_failure_does_not_stop_later_years(
+        self,
+        service: BackfillService,
+    ):
+        """A broken exception logger cannot interrupt the requested year set."""
+        completed_stats = YearStats(
+            year=2024,
+            activities_found=1,
+            pg_inserted=1,
+        )
+
+        with (
+            patch.object(
+                service,
+                "_backfill_year",
+                side_effect=[RuntimeError("2023 failed"), completed_stats],
+            ) as mock_backfill_year,
+            patch(
+                "stravapipe.application.backfill.service.logger.exception",
+                side_effect=RuntimeError("failure logging failed"),
+            ),
+        ):
+            result = service.backfill_user("12345", years=[2023, 2024])
+
+        assert mock_backfill_year.call_args_list == [call(2023), call(2024)]
+        assert result.year_stats == [
+            YearStats(year=2023, pg_errors=1),
+            completed_stats,
+        ]
+        assert result.total_activities == 1
+        assert result.total_pg_inserted == 1
+        assert result.total_errors == 1
+
+
+# =============================================================================
 # Tests: Progress Reporting
 # =============================================================================
 
@@ -1027,6 +1273,37 @@ class TestProgressReporting:
             == "Progress reporter failed during year_complete for athlete 12345"
             for record in caplog.records
         )
+
+    def test_reporter_failure_logger_failure_does_not_escape(
+        self,
+        mock_strava_reader,
+        mock_uow_factory,
+        mock_progress,
+    ):
+        """A broken diagnostic logger cannot defeat reporter isolation."""
+        mock_strava_reader.read_activities_by_year.return_value = []
+        mock_progress.report_started.side_effect = RuntimeError("progress unavailable")
+        service = BackfillService(
+            strava_reader=mock_strava_reader,
+            uow_factory=mock_uow_factory,
+            progress_reporter=mock_progress,
+        )
+
+        with patch(
+            "stravapipe.application.backfill.service.logger.exception",
+            side_effect=RuntimeError("failure logging failed"),
+        ):
+            result = service.backfill_user("12345", years=[2024])
+
+        assert result.success is True
+        assert len(result.year_stats) == 1
+        assert result.year_stats[0].year == 2024
+        assert result.year_stats[0].activities_found == 0
+        assert result.year_stats[0].duration_seconds > 0
+        mock_progress.report_year_complete.assert_called_once_with(
+            "12345", result.year_stats[0]
+        )
+        mock_progress.report_completed.assert_called_once_with("12345", result)
 
     def test_reporter_mutation_cannot_change_backfill_state(
         self,

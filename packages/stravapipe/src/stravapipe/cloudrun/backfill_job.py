@@ -20,19 +20,22 @@ Usage (local):
     Per-user OAuth tokens are fetched from Firestore via ATHLETE_ID.
 """
 
+from collections.abc import Callable
+from functools import partial
 import sys
 
 from google.cloud.firestore_v1 import Client as FirestoreClient
+from sqlalchemy.engine import Engine
 
 from stravapipe.adapters.firestore import FirestoreTokenStore
-from stravapipe.adapters.gcp import make_write_activities
+from stravapipe.adapters.gcp import ActivitiesWriter, make_write_activities
 from stravapipe.adapters.postgres import SqlAlchemyUnitOfWork, create_session_factory
 from stravapipe.adapters.strava import create_strava_activities_repo
 from stravapipe.application.backfill import BackfillResult, BackfillService
 from stravapipe.config.backfill import load_backfill_config
 from stravapipe.domain import StravaTokenSet
 from stravapipe.shared.correlation import new_correlation_id
-from stravapipe.shared.logging import setup_logging
+from stravapipe.shared.logging import log_best_effort, setup_logging
 from stravapipe.shared.tracing import setup_tracing
 
 logger = setup_logging(__name__)
@@ -40,20 +43,51 @@ logger = setup_logging(__name__)
 
 def _log_result(result: BackfillResult) -> int:
     """Log the terminal metric contract and return the process exit code."""
+    exit_code = 0 if result.success else 1
     log = logger.info if result.success else logger.error
     status = "succeeded" if result.success else "completed with errors"
-    log(
-        "Backfill %s: %d activities "
-        "(PG: %d inserted, %d updated; BQ: %d inserted; errors: %d) in %.1fs",
-        status,
-        result.total_activities,
-        result.total_pg_inserted,
-        result.total_pg_updated,
-        result.total_bq_inserted,
-        result.total_errors,
-        result.duration_seconds,
+    log_best_effort(
+        partial(
+            log,
+            "Backfill %s: %d activities "
+            "(PG: %d inserted, %d updated; BQ: %d inserted; errors: %d) in %.1fs",
+            status,
+            result.total_activities,
+            result.total_pg_inserted,
+            result.total_pg_updated,
+            result.total_bq_inserted,
+            result.total_errors,
+            result.duration_seconds,
+        )
     )
-    return 0 if result.success else 1
+    return exit_code
+
+
+def _cleanup_resource(name: str, callback: Callable[[], None]) -> None:
+    """Release one resource without masking the job's durable outcome."""
+    try:
+        callback()
+    except Exception as exc:
+        log_best_effort(
+            partial(
+                logger.error,
+                "%s cleanup failed (%s); process outcome preserved",
+                name,
+                type(exc).__name__,
+                exc_info=(type(exc), exc, exc.__traceback__),
+            )
+        )
+
+
+def _cleanup_resources(
+    *,
+    bq_writer: ActivitiesWriter | None,
+    db_engine: Engine,
+) -> None:
+    """Release independent resources even when an earlier cleanup fails."""
+    if bq_writer is not None:
+        _cleanup_resource("BigQuery writer", bq_writer.close)
+    _cleanup_resource("PostgreSQL engine", db_engine.dispose)
 
 
 def main() -> None:
@@ -65,17 +99,20 @@ def main() -> None:
     new_correlation_id()
     tracer = setup_tracing("desirelines-backfill")
 
-    logger.info("Loading backfill configuration...")
+    log_best_effort(partial(logger.info, "Loading backfill configuration..."))
     config = load_backfill_config()
 
-    logger.info(
-        "Backfill configuration loaded",
-        extra={
-            "athlete_id": config.athlete_id,
-            "years": list(config.years),
-            "gcp_project_id": config.gcp_project_id,
-            "bq_dataset": config.gcp_bigquery_dataset,
-        },
+    log_best_effort(
+        partial(
+            logger.info,
+            "Backfill configuration loaded",
+            extra={
+                "athlete_id": config.athlete_id,
+                "years": list(config.years),
+                "gcp_project_id": config.gcp_project_id,
+                "bq_dataset": config.gcp_bigquery_dataset,
+            },
+        )
     )
 
     # --- Wire up dependencies ---
@@ -112,6 +149,14 @@ def main() -> None:
             bq_dataset=config.gcp_bigquery_dataset,
             tracer=tracer,
         )
+    else:
+        log_best_effort(
+            partial(
+                logger.info,
+                "BigQuery backfill writes disabled; "
+                "PostgreSQL is the only configured sink",
+            )
+        )
 
     # --- Run backfill ---
 
@@ -128,9 +173,7 @@ def main() -> None:
             years=config.years,
         )
     finally:
-        if bq_writer is not None:
-            bq_writer.close()
-        db_engine.dispose()
+        _cleanup_resources(bq_writer=bq_writer, db_engine=db_engine)
 
     # --- Exit ---
 

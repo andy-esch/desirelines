@@ -30,6 +30,7 @@ from stravapipe.domain.geometry import decode_polyline_to_geojson
 from stravapipe.ports.out.postgres import ActivityRepository
 from stravapipe.ports.out.read import ReadDetailedActivities
 from stravapipe.ports.out.unit_of_work import AbstractUnitOfWork
+from stravapipe.shared.logging import log_best_effort
 
 logger = logging.getLogger(__name__)
 
@@ -83,14 +84,17 @@ def _reconcile_activity_geography(
             # reconcile its regions below.
             repository.insert_route(activity.id, geojson)
         else:
-            logger.warning(
-                "Activity %s has a polyline but decoded to no geometry; "
-                "route insertion skipped before region reconciliation",
-                activity.id,
-                extra={
-                    "user_id": activity.user_id,
-                    "polyline_length": len(encoded_route),
-                },
+            log_best_effort(
+                partial(
+                    logger.warning,
+                    "Activity %s has a polyline but decoded to no geometry; "
+                    "route insertion skipped before region reconciliation",
+                    activity.id,
+                    extra={
+                        "user_id": activity.user_id,
+                        "polyline_length": len(encoded_route),
+                    },
+                )
             )
 
     # Always reconcile geographic activities from the route PostgreSQL stores.
@@ -139,6 +143,68 @@ class PostgresWriteStats:
     inserted: int = 0
     updated: int = 0
     errors: int = 0
+
+
+def _log_committed_postgres_batch(
+    *,
+    batch_num: int,
+    total_batches: int,
+    inserted: int,
+    updated: int,
+) -> None:
+    """Log a committed batch without letting logging alter its data outcome."""
+    log_best_effort(
+        partial(
+            logger.info,
+            "PG batch %d/%d: %d inserted, %d updated, 0 errors",
+            batch_num,
+            total_batches,
+            inserted,
+            updated,
+        )
+    )
+
+
+def _log_failed_postgres_batch(
+    *,
+    batch_num: int,
+    total_batches: int,
+    errors: int,
+) -> None:
+    """Log a failed batch without interrupting later batches."""
+    log_best_effort(
+        partial(
+            logger.exception,
+            "PG batch %d/%d: 0 inserted, 0 updated, %d errors",
+            batch_num,
+            total_batches,
+            errors,
+        )
+    )
+
+
+def _log_postgres_cleanup_failure(
+    *,
+    batch_num: int,
+    total_batches: int,
+    inserted: int,
+    updated: int,
+    error: Exception,
+) -> None:
+    """Report post-commit cleanup failure without changing committed counts."""
+    log_best_effort(
+        partial(
+            logger.error,
+            "PG batch %d/%d cleanup failed after commit (%s); "
+            "%d inserted and %d updated remain authoritative",
+            batch_num,
+            total_batches,
+            type(error).__name__,
+            inserted,
+            updated,
+            exc_info=(type(error), error, error.__traceback__),
+        )
+    )
 
 
 @dataclass
@@ -255,10 +321,13 @@ class BackfillService:
             ),
         )
 
-        logger.info(
-            "Starting backfill for athlete %s, years: %s",
-            athlete_id,
-            sorted_years,
+        log_best_effort(
+            partial(
+                logger.info,
+                "Starting backfill for athlete %s, years: %s",
+                athlete_id,
+                sorted_years,
+            )
         )
 
         for year in sorted_years:
@@ -281,10 +350,13 @@ class BackfillService:
                     ),
                 )
             except Exception:
-                logger.exception(
-                    "Failed to backfill year %d for athlete %s",
-                    year,
-                    athlete_id,
+                log_best_effort(
+                    partial(
+                        logger.exception,
+                        "Failed to backfill year %d for athlete %s",
+                        year,
+                        athlete_id,
+                    )
                 )
                 result.year_stats.append(YearStats(year=year, pg_errors=1))
                 result.total_errors += 1
@@ -303,19 +375,22 @@ class BackfillService:
                     deepcopy(result),
                 ),
             )
-            logger.info(
-                "Backfill completed for athlete %s: %d activities across %d %s "
-                "(PG: %d inserted, %d updated; "
-                "BQ: %d inserted; errors: %d) in %.1fs",
-                athlete_id,
-                result.total_activities,
-                year_count,
-                year_label,
-                result.total_pg_inserted,
-                result.total_pg_updated,
-                result.total_bq_inserted,
-                result.total_errors,
-                result.duration_seconds,
+            log_best_effort(
+                partial(
+                    logger.info,
+                    "Backfill completed for athlete %s: %d activities across %d %s "
+                    "(PG: %d inserted, %d updated; "
+                    "BQ: %d inserted; errors: %d) in %.1fs",
+                    athlete_id,
+                    result.total_activities,
+                    year_count,
+                    year_label,
+                    result.total_pg_inserted,
+                    result.total_pg_updated,
+                    result.total_bq_inserted,
+                    result.total_errors,
+                    result.duration_seconds,
+                )
             )
         else:
             self._report_progress(
@@ -327,19 +402,22 @@ class BackfillService:
                     f"Completed with {result.total_errors} errors",
                 ),
             )
-            logger.warning(
-                "Backfill completed with errors for athlete %s: %d activities "
-                "across %d %s (PG: %d inserted, %d updated; "
-                "BQ: %d inserted; errors: %d) in %.1fs",
-                athlete_id,
-                result.total_activities,
-                year_count,
-                year_label,
-                result.total_pg_inserted,
-                result.total_pg_updated,
-                result.total_bq_inserted,
-                result.total_errors,
-                result.duration_seconds,
+            log_best_effort(
+                partial(
+                    logger.warning,
+                    "Backfill completed with errors for athlete %s: %d activities "
+                    "across %d %s (PG: %d inserted, %d updated; "
+                    "BQ: %d inserted; errors: %d) in %.1fs",
+                    athlete_id,
+                    result.total_activities,
+                    year_count,
+                    year_label,
+                    result.total_pg_inserted,
+                    result.total_pg_updated,
+                    result.total_bq_inserted,
+                    result.total_errors,
+                    result.duration_seconds,
+                )
             )
 
         return result
@@ -354,10 +432,13 @@ class BackfillService:
         try:
             callback()
         except Exception:
-            logger.exception(
-                "Progress reporter failed during %s for athlete %s",
-                event,
-                athlete_id,
+            log_best_effort(
+                partial(
+                    logger.exception,
+                    "Progress reporter failed during %s for athlete %s",
+                    event,
+                    athlete_id,
+                )
             )
 
     def _backfill_year(self, year: int) -> YearStats:
@@ -369,9 +450,18 @@ class BackfillService:
         """
         start_time = time.monotonic()
 
-        logger.info("Fetching activities from Strava for %d", year)
+        log_best_effort(
+            partial(logger.info, "Fetching activities from Strava for %d", year)
+        )
         activities = self._strava_reader.read_activities_by_year(year)
-        logger.info("Found %d activities in %d", len(activities), year)
+        log_best_effort(
+            partial(
+                logger.info,
+                "Found %d activities in %d",
+                len(activities),
+                year,
+            )
+        )
 
         if not activities:
             return YearStats(
@@ -395,16 +485,20 @@ class BackfillService:
 
         stats.duration_seconds = time.monotonic() - start_time
 
-        logger.info(
-            "Year %d complete in %.1fs: PG(%d inserted, %d updated, %d errors), "
-            "BQ(%d inserted, %d errors)",
-            year,
-            stats.duration_seconds,
-            stats.pg_inserted,
-            stats.pg_updated,
-            stats.pg_errors,
-            stats.bq_inserted,
-            stats.bq_errors,
+        log_best_effort(
+            partial(
+                logger.info,
+                "Year %d complete in %.1fs: "
+                "PG(%d inserted, %d updated, %d errors), "
+                "BQ(%d inserted, %d errors)",
+                year,
+                stats.duration_seconds,
+                stats.pg_inserted,
+                stats.pg_updated,
+                stats.pg_errors,
+                stats.bq_inserted,
+                stats.bq_errors,
+            )
         )
 
         return stats
@@ -416,17 +510,23 @@ class BackfillService:
         """Upsert activities to PostgreSQL in batches.
 
         Inserted vs updated is classified from a batch pre-read. Counts are
-        promoted only after the surrounding transaction commits.
+        promoted once ``commit()`` returns. A commit exception is inherently
+        ambiguous because the database may have accepted the transaction before
+        the client observed the failure; it is counted as a failed batch because
+        no authoritative committed classification is available. Cleanup or
+        logging failures after a successful commit never reclassify those rows.
         """
         stats = PostgresWriteStats()
 
         for batch_num, total_batches, batch in _iter_batches(
             activities, self._batch_size
         ):
-            try:
-                batch_inserted = 0
-                batch_updated = 0
+            batch_inserted = 0
+            batch_updated = 0
+            commit_succeeded = False
+            cleanup_error: Exception | None = None
 
+            try:
                 uow = self._uow_factory()
                 with uow:
                     existing_ids = uow.activities.get_existing_ids(
@@ -443,25 +543,40 @@ class BackfillService:
                         else:
                             batch_inserted += 1
                     uow.commit()
+                    commit_succeeded = True
+            except Exception as exc:
+                if commit_succeeded:
+                    # The only remaining operation after the flag is set is
+                    # context-manager cleanup. The database result is already
+                    # authoritative even though cleanup failed.
+                    cleanup_error = exc
+                else:
+                    stats.errors += len(batch)
+                    _log_failed_postgres_batch(
+                        batch_num=batch_num,
+                        total_batches=total_batches,
+                        errors=len(batch),
+                    )
+                    continue
 
-                stats.inserted += batch_inserted
-                stats.updated += batch_updated
+            stats.inserted += batch_inserted
+            stats.updated += batch_updated
 
-                logger.info(
-                    "PG batch %d/%d: %d inserted, %d updated, 0 errors",
-                    batch_num,
-                    total_batches,
-                    batch_inserted,
-                    batch_updated,
+            if cleanup_error is not None:
+                _log_postgres_cleanup_failure(
+                    batch_num=batch_num,
+                    total_batches=total_batches,
+                    inserted=batch_inserted,
+                    updated=batch_updated,
+                    error=cleanup_error,
                 )
-            except Exception:
-                stats.errors += len(batch)
-                logger.exception(
-                    "PG batch %d/%d: 0 inserted, 0 updated, %d errors",
-                    batch_num,
-                    total_batches,
-                    len(batch),
-                )
+
+            _log_committed_postgres_batch(
+                batch_num=batch_num,
+                total_batches=total_batches,
+                inserted=batch_inserted,
+                updated=batch_updated,
+            )
 
         return stats
 

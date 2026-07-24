@@ -77,7 +77,11 @@ docker compose logs -f postgres-writer
 
 ### Running the backfill job
 
-The backfill job fetches historical Strava activities and writes them to PostgreSQL and BigQuery.
+The backfill job fetches historical Strava activities and writes them to
+PostgreSQL. BigQuery backfill writes are disabled by default in Terraform while
+that path is being redesigned; set `GCP_BIGQUERY_DATASET` explicitly to opt in.
+The local Docker Compose profile may still configure BigQuery for targeted
+development.
 
 ```bash
 # Cloud Run (production)

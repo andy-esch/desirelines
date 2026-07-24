@@ -173,13 +173,21 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
             self._session.rollback()
         finally:
             # Always close and clear the session, even if rollback fails
-            self._session.close()
-            self._session = None
+            try:
+                self._session.close()
+            finally:
+                # Do not retain a failed/closed session if close itself raises.
+                self._session = None
 
         return False  # Don't suppress exceptions
 
     def commit(self) -> None:
-        """Commit the current transaction."""
+        """Commit the current transaction.
+
+        A normal return confirms success to the application. An exception is
+        not proof of rollback because the connection can fail after PostgreSQL
+        accepts the commit; callers must treat that outcome as ambiguous.
+        """
         if self._session is None:
             raise RuntimeError("Cannot commit: no active session")
         # commit() blocks until the WAL flush returns; instrumenting it

@@ -5,8 +5,9 @@ Requires: PostgreSQL running (docker compose --profile backend up postgres flywa
 """
 
 from datetime import UTC, datetime
+import logging
 
-from sqlalchemy import text
+from sqlalchemy import event, text
 
 from stravapipe.domain import StandardActivity
 from stravapipe.domain.activity import MetaAthlete
@@ -341,6 +342,19 @@ def _tagged_region_ids(session, activity_id: int) -> list[int]:
     return [r[0] for r in rows]
 
 
+def _force_spatial_database_error(
+    connection, cursor, statement, parameters, context, executemany
+):
+    """Replace the spatial statement with a real server-side SQL failure."""
+    del connection, cursor, context, executemany
+    if "ST_Intersects" in statement:
+        return (
+            "SELECT 1 / 0 WHERE %(activity_id)s = %(activity_id)s",
+            parameters,
+        )
+    return statement, parameters
+
+
 class TestActivityRegionTagging:
     """Integration tests for tag_activity_regions (V0005 junction + earth)."""
 
@@ -406,6 +420,144 @@ class TestActivityRegionTagging:
             uow.commit()
 
         assert count == 1
+        assert _tagged_region_ids(db_session, activity.id) == [earth_id]
+
+    def test_unloaded_regions_logs_and_degrades_to_earth(self, uow, db_session, caplog):
+        """A routed fallback with no specific dataset is loud but still succeeds."""
+        db_session.execute(
+            text("DELETE FROM desirelines.regions WHERE region_kind <> 'global'")
+        )
+        activity = make_activity(activity_id=210006)
+
+        with caplog.at_level(logging.ERROR), uow:
+            uow.activities.insert(activity)
+            uow.activities.insert_route(
+                activity.id,
+                '{"type":"LineString","coordinates":[[-45,0],[-44,0]]}',
+            )
+            count = uow.activities.tag_activity_regions(activity.id)
+            uow.commit()
+
+        assert count == 1
+        assert "Regions table appears unloaded or incomplete" in caplog.text
+
+    def test_off_grid_route_does_not_log_unloaded_when_region_floor_met(
+        self, uow, db_session, caplog
+    ):
+        """A legitimate off-grid route is distinct from a broken region dataset."""
+        db_session.execute(
+            text("DELETE FROM desirelines.regions WHERE region_kind <> 'global'")
+        )
+        db_session.execute(
+            text("""
+                INSERT INTO desirelines.regions
+                    (source, region_code, region_kind, region_name, geom)
+                SELECT
+                    'test_floor',
+                    'floor-' || n,
+                    'county',
+                    'Readiness Floor ' || n,
+                    ST_Multi(ST_GeomFromText(
+                        'POLYGON((-31 -1, -29 -1, -29 1, -31 1, -31 -1))',
+                        4326
+                    ))
+                FROM generate_series(1, 100) AS n
+            """)
+        )
+        activity = make_activity(activity_id=210007)
+
+        with caplog.at_level(logging.ERROR), uow:
+            uow.activities.insert(activity)
+            uow.activities.insert_route(
+                activity.id,
+                '{"type":"LineString","coordinates":[[-45,0],[-44,0]]}',
+            )
+            count = uow.activities.tag_activity_regions(activity.id)
+            uow.commit()
+
+        assert count == 1
+        assert "Regions table appears unloaded or incomplete" not in caplog.text
+
+    def test_spatial_failure_preserves_existing_specific_tags(
+        self, uow, db_session, caplog
+    ):
+        """The delete and spatial insert roll back together on a transient error."""
+        activity = make_activity(activity_id=210008)
+        region_id = _insert_test_region(
+            db_session,
+            code="atomic-retag",
+            wkt=_TEST_REGION_WKT,
+        )
+
+        with uow:
+            uow.activities.insert(activity)
+            uow.activities.insert_route(
+                activity.id,
+                '{"type":"LineString","coordinates":[[-30.5,-0.5],[-29.5,0.5]]}',
+            )
+            assert uow.activities.tag_activity_regions(activity.id) == 1
+            uow.commit()
+
+        connection = db_session.connection()
+
+        event.listen(
+            connection,
+            "before_cursor_execute",
+            _force_spatial_database_error,
+            retval=True,
+        )
+        try:
+            with caplog.at_level(logging.WARNING), uow:
+                count = uow.activities.tag_activity_regions(activity.id)
+                uow.commit()
+        finally:
+            event.remove(
+                connection,
+                "before_cursor_execute",
+                _force_spatial_database_error,
+            )
+
+        assert count == 0
+        assert "Region spatial tagging failed" in caplog.text
+        assert _tagged_region_ids(db_session, activity.id) == [region_id]
+
+    def test_spatial_database_failure_recovers_new_routed_activity_to_earth(
+        self, uow, db_session, caplog
+    ):
+        """A real failed statement rolls back its savepoint before earth recovery."""
+        activity = make_activity(activity_id=210009)
+        earth_id = db_session.execute(
+            text(
+                "SELECT id FROM desirelines.regions "
+                "WHERE source='builtin' AND region_code='earth'"
+            )
+        ).fetchone()[0]
+        connection = db_session.connection()
+
+        event.listen(
+            connection,
+            "before_cursor_execute",
+            _force_spatial_database_error,
+            retval=True,
+        )
+        try:
+            with caplog.at_level(logging.WARNING), uow:
+                uow.activities.insert(activity)
+                uow.activities.insert_route(
+                    activity.id,
+                    '{"type":"LineString","coordinates":[[-30.5,-0.5],[-29.5,0.5]]}',
+                )
+                count = uow.activities.tag_activity_regions(activity.id)
+                uow.commit()
+        finally:
+            event.remove(
+                connection,
+                "before_cursor_execute",
+                _force_spatial_database_error,
+            )
+
+        assert count == 1
+        assert "Region spatial tagging failed" in caplog.text
         assert _tagged_region_ids(db_session, activity.id) == [earth_id]
 
     def test_no_route_means_no_tags(self, uow, db_session):
