@@ -10,6 +10,7 @@ and services continue without tracing.
 
 from collections.abc import Generator
 from contextlib import contextmanager
+from functools import partial
 import logging
 import os
 from typing import Any
@@ -28,6 +29,7 @@ from opentelemetry.trace import (
 )
 from sqlalchemy.engine import Engine
 
+from stravapipe.shared.logging import log_best_effort
 from stravapipe.shared.metrics import (
     _otel_enabled,
     build_gcp_resource,
@@ -38,6 +40,24 @@ logger = logging.getLogger(__name__)
 
 # Module-level reference for shutdown.
 _tracer_provider: TracerProvider | None = None
+
+
+def _report_span_failure(
+    span_name: str,
+    phase: str,
+    error: Exception,
+) -> None:
+    """Report broken instrumentation without risking the traced operation."""
+    log_best_effort(
+        partial(
+            logger.warning,
+            "Tracing %s failed for %s (%s); operation outcome preserved",
+            phase,
+            span_name,
+            type(error).__name__,
+            exc_info=(type(error), error, error.__traceback__),
+        )
+    )
 
 
 def setup_tracing(service_name: str) -> Tracer:
@@ -262,7 +282,9 @@ def record_span(
 
     On exception, records the error and sets the span status to ERROR; on
     success the status is left UNSET (OTel's default — instrumentation should
-    not force OK).
+    not force OK). All instrumentation is fail-open: span creation, attribute
+    recording, error recording, and teardown cannot alter the body's return or
+    exception.
     """
     if tracer is None:
         yield
@@ -272,13 +294,43 @@ def record_span(
     if parent_context is not None:
         kwargs["context"] = parent_context
 
-    with tracer.start_as_current_span(name, **kwargs) as span:
-        if attributes:
+    try:
+        span_context = tracer.start_as_current_span(name, **kwargs)
+        span = span_context.__enter__()
+    except Exception as error:
+        _report_span_failure(name, "setup", error)
+        yield
+        return
+
+    if attributes:
+        try:
             for key, value in attributes.items():
                 span.set_attribute(key, value)
+        except Exception as error:
+            _report_span_failure(name, "attribute recording", error)
+
+    try:
+        yield
+    except BaseException as operation_error:
         try:
-            yield
-        except Exception as exc:
-            span.set_status(StatusCode.ERROR, str(exc))
-            span.record_exception(exc)
-            raise
+            span.set_status(StatusCode.ERROR, str(operation_error))
+        except Exception as error:
+            _report_span_failure(name, "error status recording", error)
+        try:
+            span.record_exception(operation_error)
+        except Exception as error:
+            _report_span_failure(name, "exception recording", error)
+        try:
+            span_context.__exit__(
+                type(operation_error),
+                operation_error,
+                operation_error.__traceback__,
+            )
+        except Exception as error:
+            _report_span_failure(name, "error teardown", error)
+        raise
+
+    try:
+        span_context.__exit__(None, None, None)
+    except Exception as error:
+        _report_span_failure(name, "teardown", error)
