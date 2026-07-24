@@ -10,6 +10,7 @@ instruments and services continue without metrics.
 
 from collections.abc import Generator
 from contextlib import contextmanager
+from functools import partial
 import logging
 import os
 import time
@@ -28,6 +29,8 @@ from opentelemetry.sdk.metrics.view import (
     View,
 )
 from opentelemetry.sdk.resources import Resource
+
+from stravapipe.shared.logging import log_best_effort
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +66,19 @@ _EXTENDED_DURATION_BUCKETS = [
 
 # Module-level reference for shutdown.
 _meter_provider: MeterProvider | None = None
+
+
+def _report_duration_metric_failure(phase: str, error: Exception) -> None:
+    """Report broken duration instrumentation without risking the operation."""
+    log_best_effort(
+        partial(
+            logger.warning,
+            "Duration metric %s failed (%s); operation outcome preserved",
+            phase,
+            type(error).__name__,
+            exc_info=(type(error), error, error.__traceback__),
+        )
+    )
 
 
 def _metric_views() -> list[View]:
@@ -207,19 +223,36 @@ def record_duration(
         with record_duration(bq_hist, {"operation": "insert_rows"}):
             bq_client.insert_rows(...)
 
-    On exception, adds result=error; on success, result=success.
+    On exception, adds result=error; on success, result=success. Timing and
+    histogram recording are fail-open: instrumentation cannot alter the body's
+    return or exception.
     """
     if histogram is None:
         yield
         return
-    attrs = dict(attributes) if attributes else {}
-    start = time.monotonic()
+
+    try:
+        attrs = dict(attributes) if attributes else {}
+        start = time.monotonic()
+    except Exception as error:
+        _report_duration_metric_failure("setup", error)
+        yield
+        return
+
     try:
         yield
-        attrs["result"] = "success"
-    except Exception:
+    except BaseException:
         attrs["result"] = "error"
+        try:
+            elapsed_ms = (time.monotonic() - start) * 1000
+            histogram.record(elapsed_ms, attrs)
+        except Exception as error:
+            _report_duration_metric_failure("error recording", error)
         raise
-    finally:
+
+    attrs["result"] = "success"
+    try:
         elapsed_ms = (time.monotonic() - start) * 1000
         histogram.record(elapsed_ms, attrs)
+    except Exception as error:
+        _report_duration_metric_failure("success recording", error)

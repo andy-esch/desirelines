@@ -1,16 +1,22 @@
 """Unit tests for the shared metrics module's MeterProvider views."""
 
+import logging
+from unittest.mock import MagicMock, patch
+
+from opentelemetry.metrics import Histogram
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import (
     HistogramDataPoint,
     InMemoryMetricReader,
 )
 from opentelemetry.sdk.resources import Resource
+import pytest
 
 from stravapipe.shared.metrics import (
     _EXTENDED_DURATION_BUCKETS,
     _merge_service_name,
     _metric_views,
+    record_duration,
 )
 
 
@@ -85,3 +91,121 @@ def test_merge_service_name_explicit_wins_over_detected() -> None:
     assert merged.attributes["service.name"] == "desirelines-postgres-writer"
     # Non-conflicting detector attributes survive the merge.
     assert merged.attributes["cloud.provider"] == "gcp"
+
+
+def test_record_duration_records_success_without_mutating_input() -> None:
+    histogram = MagicMock(spec=Histogram)
+    attributes = {"operation": "insert"}
+
+    with (
+        patch(
+            "stravapipe.shared.metrics.time.monotonic",
+            side_effect=[10.0, 10.25],
+        ),
+        record_duration(histogram, attributes),
+    ):
+        pass
+
+    histogram.record.assert_called_once_with(
+        250.0,
+        {"operation": "insert", "result": "success"},
+    )
+    assert attributes == {"operation": "insert"}
+
+
+def test_record_duration_records_error_and_preserves_body_exception() -> None:
+    histogram = MagicMock(spec=Histogram)
+    operation_error = ValueError("write failed")
+
+    with (
+        patch(
+            "stravapipe.shared.metrics.time.monotonic",
+            side_effect=[10.0, 10.5],
+        ),
+        pytest.raises(ValueError, match="write failed") as caught,
+        record_duration(histogram, {"operation": "insert"}),
+    ):
+        raise operation_error
+
+    assert caught.value is operation_error
+    histogram.record.assert_called_once_with(
+        500.0,
+        {"operation": "insert", "result": "error"},
+    )
+
+
+def test_record_duration_success_is_preserved_when_histogram_fails(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    histogram = MagicMock(spec=Histogram)
+    histogram.record.side_effect = RuntimeError("metrics unavailable")
+    executions = 0
+
+    with caplog.at_level(logging.WARNING), record_duration(histogram):
+        executions += 1
+
+    assert executions == 1
+    assert "operation outcome preserved" in caplog.text
+
+
+def test_record_duration_body_exception_wins_when_histogram_also_fails() -> None:
+    histogram = MagicMock(spec=Histogram)
+    histogram.record.side_effect = RuntimeError("metrics unavailable")
+    operation_error = ValueError("write failed")
+
+    with (
+        pytest.raises(ValueError, match="write failed") as caught,
+        record_duration(histogram),
+    ):
+        raise operation_error
+
+    assert caught.value is operation_error
+
+
+def test_record_duration_body_exception_wins_when_teardown_clock_fails() -> None:
+    histogram = MagicMock(spec=Histogram)
+    operation_error = ValueError("write failed")
+
+    with (
+        patch(
+            "stravapipe.shared.metrics.time.monotonic",
+            side_effect=[10.0, RuntimeError("clock unavailable")],
+        ),
+        pytest.raises(ValueError, match="write failed") as caught,
+        record_duration(histogram),
+    ):
+        raise operation_error
+
+    assert caught.value is operation_error
+    histogram.record.assert_not_called()
+
+
+def test_record_duration_logging_failure_does_not_resurface_metric_failure() -> None:
+    histogram = MagicMock(spec=Histogram)
+    histogram.record.side_effect = RuntimeError("metrics unavailable")
+
+    with (
+        patch(
+            "stravapipe.shared.metrics.logger.warning",
+            side_effect=RuntimeError("logging unavailable"),
+        ),
+        record_duration(histogram),
+    ):
+        pass
+
+
+def test_record_duration_setup_failure_is_fail_open() -> None:
+    histogram = MagicMock(spec=Histogram)
+    executions = 0
+
+    with (
+        patch(
+            "stravapipe.shared.metrics.time.monotonic",
+            side_effect=RuntimeError("clock unavailable"),
+        ),
+        record_duration(histogram),
+    ):
+        executions += 1
+
+    assert executions == 1
+    histogram.record.assert_not_called()
