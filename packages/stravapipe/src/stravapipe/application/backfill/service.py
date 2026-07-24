@@ -686,9 +686,10 @@ class BackfillService:
                     commit_succeeded = True
             except Exception as exc:
                 if commit_succeeded:
-                    # The only remaining operation after the flag is set is
-                    # context-manager cleanup. The database result is already
-                    # authoritative even though cleanup failed.
+                    # SqlAlchemyUnitOfWork already makes this fail open. Keep
+                    # the application-level guard because this service accepts
+                    # the AbstractUnitOfWork port and another implementation
+                    # may still surface post-commit context cleanup.
                     cleanup_error = exc
                 elif (
                     commit_attempted

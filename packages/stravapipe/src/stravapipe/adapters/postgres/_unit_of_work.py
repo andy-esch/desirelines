@@ -4,6 +4,7 @@ Manages database sessions and coordinates repository transactions.
 """
 
 from collections.abc import Callable
+from functools import partial
 import logging
 from types import TracebackType
 from typing import Literal, Self
@@ -17,9 +18,29 @@ from sqlalchemy.pool import NullPool, QueuePool
 from stravapipe.adapters.postgres._connection import PoolConfig
 from stravapipe.adapters.postgres._repository import SqlAlchemyActivityRepository
 from stravapipe.ports.out.unit_of_work import AbstractUnitOfWork
+from stravapipe.shared.logging import log_best_effort
 from stravapipe.shared.tracing import record_span
 
 logger = logging.getLogger(__name__)
+
+
+def _report_session_cleanup_failure(
+    operation: str,
+    error: Exception,
+    *,
+    preserved_outcome: str,
+) -> None:
+    """Report cleanup failure without risking the transaction outcome."""
+    log_best_effort(
+        partial(
+            logger.warning,
+            "PostgreSQL session %s failed (%s); %s",
+            operation,
+            type(error).__name__,
+            preserved_outcome,
+            exc_info=(type(error), error, error.__traceback__),
+        )
+    )
 
 
 def create_session_factory(
@@ -94,6 +115,16 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
     Manages session lifecycle and provides repository access.
     Repositories share the same session for transaction consistency.
 
+    Transaction outcome precedence is explicit:
+
+    * Once ``commit()`` returns, later session cleanup is best effort and cannot
+      change the durable success reported to the caller.
+    * When the context body or ``commit()`` raises, that original exception
+      remains authoritative even if rollback or close also fails.
+    * Without a successful commit or an existing exception, a cleanup failure
+      is the operation's only failure and the first such failure propagates
+      after all cleanup has been attempted.
+
     Usage:
         engine, session_factory = create_session_factory(database_url)
         uow = SqlAlchemyUnitOfWork(session_factory)
@@ -137,6 +168,7 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
         self._session_factory = session_factory
         self._session: Session | None = None
         self._tracer = tracer
+        self._commit_succeeded = False
 
     def __enter__(self) -> Self:
         """Start a new unit of work with a fresh session."""
@@ -145,6 +177,7 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
                 "Unit of Work already has an active session. "
                 "Create a new instance or ensure previous context was exited."
             )
+        self._commit_succeeded = False
         # session_factory() may block on connection-pool checkout under
         # contention; recording the span here exposes that wait separately
         # from the actual SQL work that follows.
@@ -160,7 +193,7 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> Literal[False]:
-        """Clean up session on exit. Rollback if not committed.
+        """Clean up the session without replacing an authoritative outcome.
 
         Returns:
             False to propagate any exception that occurred in the context.
@@ -168,18 +201,47 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
         if self._session is None:
             return False
 
-        try:
-            # Rollback any uncommitted changes (no-op if already committed)
-            self._session.rollback()
-        finally:
-            # Always close and clear the session, even if rollback fails
-            try:
-                self._session.close()
-            finally:
-                # Do not retain a failed/closed session if close itself raises.
-                self._session = None
+        session = self._session
+        commit_succeeded = self._commit_succeeded
+        cleanup_errors: list[tuple[str, Exception]] = []
 
-        return False  # Don't suppress exceptions
+        try:
+            if not commit_succeeded:
+                try:
+                    session.rollback()
+                except Exception as rollback_error:
+                    cleanup_errors.append(("rollback", rollback_error))
+
+            try:
+                session.close()
+            except Exception as close_error:
+                cleanup_errors.append(("close", close_error))
+        finally:
+            # A failed/closed session must never leave the reusable UoW active.
+            self._session = None
+            self._commit_succeeded = False
+
+        if not cleanup_errors:
+            return False
+
+        if exc_val is not None:
+            preserved_outcome = "original transaction exception preserved"
+        elif commit_succeeded:
+            preserved_outcome = "committed transaction outcome preserved"
+        else:
+            preserved_outcome = "cleanup failure is the transaction outcome"
+
+        for operation, cleanup_error in cleanup_errors:
+            _report_session_cleanup_failure(
+                operation,
+                cleanup_error,
+                preserved_outcome=preserved_outcome,
+            )
+
+        if exc_val is None and not commit_succeeded:
+            raise cleanup_errors[0][1]
+
+        return False
 
     def commit(self) -> None:
         """Commit the current transaction.
@@ -190,14 +252,19 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
         """
         if self._session is None:
             raise RuntimeError("Cannot commit: no active session")
+        # Reset before each attempt so a later failed commit cannot inherit a
+        # successful outcome from an earlier transaction on the same session.
+        self._commit_succeeded = False
         # commit() blocks until the WAL flush returns; instrumenting it
         # surfaces commit-time latency (e.g. replication lag) separately
         # from the INSERT/UPDATE work that preceded it.
         with record_span(self._tracer, "postgres.commit"):
             self._session.commit()
+        self._commit_succeeded = True
 
     def rollback(self) -> None:
         """Rollback the current transaction."""
         if self._session is None:
             raise RuntimeError("Cannot rollback: no active session")
+        self._commit_succeeded = False
         self._session.rollback()
