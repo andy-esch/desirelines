@@ -11,10 +11,18 @@ import json
 from unittest.mock import MagicMock, call, create_autospec, patch
 
 from google.api_core import exceptions as gapi_exceptions
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+    InMemorySpanExporter,
+)
+from opentelemetry.trace import get_current_span
 import pytest
 from sqlalchemy import exc as sa_exc
+from sqlalchemy.orm import Session
 
 from stravapipe.adapters.gcp import ActivitiesWriter
+from stravapipe.adapters.postgres import SqlAlchemyUnitOfWork
 from stravapipe.application.backfill.service import (
     BackfillResult,
     BackfillService,
@@ -307,6 +315,115 @@ class TestBackfillUser:
             stats = service._backfill_year(2024)
 
         assert stats.duration_seconds == 2.5
+
+
+class TestBackfillTracing:
+    """Backfill year roots bound and parent the shared adapter spans."""
+
+    @staticmethod
+    def _tracer():
+        exporter = InMemorySpanExporter()
+        provider = TracerProvider()
+        provider.add_span_processor(SimpleSpanProcessor(exporter))
+        return provider.get_tracer("backfill-tracing-test"), exporter
+
+    def test_each_year_is_a_detached_root_trace(self, mock_strava_reader):
+        """Ambient request context is never adopted and years stay independent."""
+        tracer, exporter = self._tracer()
+        mock_strava_reader.read_activities_by_year.return_value = []
+        service = BackfillService(
+            strava_reader=mock_strava_reader,
+            uow_factory=MagicMock(),
+            tracer=tracer,
+        )
+
+        with tracer.start_as_current_span("ambient.request") as ambient_span:
+            ambient_trace_id = ambient_span.get_span_context().trace_id
+            service.backfill_user("15339103", years=[2024, 2023])
+
+        spans = exporter.get_finished_spans()
+        year_spans = [span for span in spans if span.name == "backfill.year"]
+
+        assert len(year_spans) == 2
+        assert all(span.parent is None for span in year_spans)
+        assert {span.context.trace_id for span in year_spans}.isdisjoint(
+            {ambient_trace_id}
+        )
+        assert len({span.context.trace_id for span in year_spans}) == 2
+        assert [
+            span.attributes["desirelines.backfill.year"] for span in year_spans
+        ] == [2023, 2024]
+        assert all(
+            span.attributes["desirelines.athlete_id"] == "15339103"
+            for span in year_spans
+        )
+
+    def test_year_trace_parents_postgres_and_bigquery_adapter_spans(
+        self,
+        mock_strava_reader,
+        mock_activity_repo,
+    ):
+        """Real shared adapters inherit the active bounded year trace."""
+        tracer, exporter = self._tracer()
+        source_trace_ids: list[int] = []
+
+        def read_activities(_year: int):
+            source_trace_ids.append(get_current_span().get_span_context().trace_id)
+            return make_activities(1)
+
+        mock_strava_reader.read_activities_by_year.side_effect = read_activities
+
+        session = MagicMock(spec=Session)
+
+        def create_uow() -> SqlAlchemyUnitOfWork:
+            return SqlAlchemyUnitOfWork(lambda: session, tracer=tracer)
+
+        bq_client = MagicMock()
+        bq_client.project_id = "desirelines-dev"
+        bq_client.execute_merge_query.return_value = {
+            "rows_affected": 1,
+            "execution_time_ms": 1,
+            "job_id": "job-1",
+            "query_preview": "MERGE",
+        }
+        bq_writer = ActivitiesWriter(
+            bq_client,
+            MagicMock(),
+            dataset_name="desirelines",
+            tracer=tracer,
+        )
+        service = BackfillService(
+            strava_reader=mock_strava_reader,
+            uow_factory=create_uow,
+            bq_writer=bq_writer,
+            tracer=tracer,
+        )
+
+        with patch(
+            "stravapipe.adapters.postgres._unit_of_work.SqlAlchemyActivityRepository",
+            return_value=mock_activity_repo,
+        ):
+            result = service.backfill_user("15339103", years=[2024])
+
+        assert result.success is True
+        spans_by_name = {span.name: span for span in exporter.get_finished_spans()}
+        expected_children = {
+            "postgres.session.acquire",
+            "postgres.commit",
+            "bigquery.write_batch_to_staging",
+            "bigquery.merge_batch_from_staging",
+            "bigquery.cleanup_staging",
+        }
+        assert expected_children <= spans_by_name.keys()
+
+        year_span = spans_by_name["backfill.year"]
+        assert year_span.parent is None
+        assert source_trace_ids == [year_span.context.trace_id]
+        for child_name in expected_children:
+            child = spans_by_name[child_name]
+            assert child.context.trace_id == year_span.context.trace_id
+            assert child.parent is not None
+            assert child.parent.span_id == year_span.context.span_id
 
 
 # =============================================================================

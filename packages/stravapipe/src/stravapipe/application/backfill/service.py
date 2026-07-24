@@ -18,6 +18,8 @@ import time
 from typing import Protocol
 
 from google.api_core import exceptions as gapi_exceptions
+from opentelemetry.context import Context
+from opentelemetry.trace import Tracer
 from sqlalchemy import exc as sa_exc
 
 from stravapipe.adapters.gcp import ActivitiesWriter, MergeResult
@@ -32,6 +34,7 @@ from stravapipe.ports.out.postgres import ActivityRepository
 from stravapipe.ports.out.read import ReadDetailedActivities
 from stravapipe.ports.out.unit_of_work import AbstractUnitOfWork
 from stravapipe.shared.logging import log_best_effort
+from stravapipe.shared.tracing import record_span
 
 logger = logging.getLogger(__name__)
 
@@ -335,6 +338,7 @@ class BackfillService:
     - uow_factory: Creates Unit of Work instances for PostgreSQL transactions
     - bq_writer: Writes activity batches to BigQuery (optional)
     - progress_reporter: Reports progress to external system (optional)
+    - tracer: Parents each year's Strava and sink work under a bounded root span
 
     Usage:
         service = BackfillService(
@@ -352,6 +356,7 @@ class BackfillService:
         bq_writer: ActivitiesWriter | None = None,
         progress_reporter: ProgressReporter | None = None,
         batch_size: int = BATCH_SIZE,
+        tracer: Tracer | None = None,
     ):
         if batch_size <= 0:
             raise ValueError("batch_size must be greater than zero")
@@ -361,9 +366,15 @@ class BackfillService:
         self._bq_writer = bq_writer
         self._progress = progress_reporter or NoOpProgressReporter()
         self._batch_size = batch_size
+        self._tracer = tracer
 
     def backfill_user(self, athlete_id: str, years: list[int]) -> BackfillResult:
         """Backfill all specified years for a user.
+
+        Each year starts an independent root trace by supplying an empty OTel
+        context explicitly. Strava work and PostgreSQL/BigQuery child spans
+        inherit that active year span, while trace size remains bounded and an
+        ambient request or webhook trace can never become the backfill parent.
 
         Args:
             athlete_id: Strava athlete ID (for logging and progress reporting)
@@ -397,7 +408,16 @@ class BackfillService:
 
         for year in sorted_years:
             try:
-                year_stats = self._backfill_year(year)
+                with record_span(
+                    self._tracer,
+                    "backfill.year",
+                    {
+                        "desirelines.athlete_id": athlete_id,
+                        "desirelines.backfill.year": year,
+                    },
+                    parent_context=Context(),
+                ):
+                    year_stats = self._backfill_year(year)
             except Exception:
                 log_best_effort(
                     partial(

@@ -36,7 +36,11 @@ from stravapipe.config.backfill import load_backfill_config
 from stravapipe.domain import StravaTokenSet
 from stravapipe.shared.correlation import new_correlation_id
 from stravapipe.shared.logging import log_best_effort, setup_logging
-from stravapipe.shared.tracing import setup_tracing
+from stravapipe.shared.tracing import (
+    instrument_sqlalchemy_engine,
+    setup_tracing,
+    shutdown_tracing,
+)
 
 logger = setup_logging(__name__)
 
@@ -85,12 +89,16 @@ def _cleanup_resource(name: str, callback: Callable[[], None]) -> None:
 def _cleanup_resources(
     *,
     bq_writer: ActivitiesWriter | None,
-    db_engine: Engine,
+    db_engine: Engine | None,
 ) -> None:
-    """Release independent resources even when an earlier cleanup fails."""
+    """Release resources and flush spans without masking the job outcome."""
     if bq_writer is not None:
         _cleanup_resource("BigQuery writer", bq_writer.close)
-    _cleanup_resource("PostgreSQL engine", db_engine.dispose)
+    if db_engine is not None:
+        _cleanup_resource("PostgreSQL engine", db_engine.dispose)
+    # Keep tracing last so cleanup work can still emit spans. The shared
+    # shutdown helper flushes the BatchSpanProcessor before returning.
+    _cleanup_resource("OpenTelemetry tracing", shutdown_tracing)
 
 
 def main() -> None:
@@ -101,76 +109,80 @@ def main() -> None:
     # FastAPI services.
     new_correlation_id()
     tracer = setup_tracing("desirelines-backfill")
+    bq_writer: ActivitiesWriter | None = None
+    db_engine: Engine | None = None
 
-    log_best_effort(partial(logger.info, "Loading backfill configuration..."))
-    config = load_backfill_config()
+    try:
+        log_best_effort(partial(logger.info, "Loading backfill configuration..."))
+        config = load_backfill_config()
 
-    log_best_effort(
-        partial(
-            logger.info,
-            "Backfill configuration loaded",
-            extra={
-                "athlete_id": config.athlete_id,
-                "years": list(config.years),
-                "gcp_project_id": config.gcp_project_id,
-                "bq_dataset": config.gcp_bigquery_dataset,
-            },
-        )
-    )
-
-    # --- Wire up dependencies ---
-
-    # Strava API client — tokens from Firestore, client creds from config (secret mounts)
-    firestore_client = FirestoreClient(
-        project=config.gcp_project_id,
-        database=config.firestore_database,
-    )
-    token_store = FirestoreTokenStore(firestore_client)
-    token_data = token_store.get_tokens(config.athlete_id)
-
-    tokens = StravaTokenSet(
-        client_id=int(config.strava_client_id),
-        client_secret=config.strava_client_secret,
-        access_token=token_data.access_token,
-        refresh_token=token_data.refresh_token,
-    )
-    strava_repo = create_strava_activities_repo(tokens)
-
-    # PostgreSQL
-    db_engine, session_factory = create_session_factory(
-        config.postgres_connection_string
-    )
-
-    def create_uow() -> SqlAlchemyUnitOfWork:
-        return SqlAlchemyUnitOfWork(session_factory)
-
-    # BigQuery (optional)
-    bq_writer = None
-    if config.gcp_bigquery_dataset:
-        bq_writer = make_write_activities(
-            project_id=config.gcp_project_id,
-            bq_dataset=config.gcp_bigquery_dataset,
-            tracer=tracer,
-        )
-    else:
         log_best_effort(
             partial(
                 logger.info,
-                "BigQuery backfill writes disabled; "
-                "PostgreSQL is the only configured sink",
+                "Backfill configuration loaded",
+                extra={
+                    "athlete_id": config.athlete_id,
+                    "years": list(config.years),
+                    "gcp_project_id": config.gcp_project_id,
+                    "bq_dataset": config.gcp_bigquery_dataset,
+                },
             )
         )
 
-    # --- Run backfill ---
+        # --- Wire up dependencies ---
 
-    service = BackfillService(
-        strava_reader=strava_repo,
-        uow_factory=create_uow,
-        bq_writer=bq_writer,
-        batch_size=config.batch_size,
-    )
+        # Strava API client — tokens from Firestore, client creds from config
+        # (secret mounts).
+        firestore_client = FirestoreClient(
+            project=config.gcp_project_id,
+            database=config.firestore_database,
+        )
+        token_store = FirestoreTokenStore(firestore_client)
+        token_data = token_store.get_tokens(config.athlete_id)
 
-    try:
+        tokens = StravaTokenSet(
+            client_id=int(config.strava_client_id),
+            client_secret=config.strava_client_secret,
+            access_token=token_data.access_token,
+            refresh_token=token_data.refresh_token,
+        )
+        strava_repo = create_strava_activities_repo(tokens)
+
+        # PostgreSQL
+        db_engine, session_factory = create_session_factory(
+            config.postgres_connection_string
+        )
+        instrument_sqlalchemy_engine(db_engine)
+
+        def create_uow() -> SqlAlchemyUnitOfWork:
+            return SqlAlchemyUnitOfWork(session_factory, tracer=tracer)
+
+        # BigQuery (optional)
+        if config.gcp_bigquery_dataset:
+            bq_writer = make_write_activities(
+                project_id=config.gcp_project_id,
+                bq_dataset=config.gcp_bigquery_dataset,
+                tracer=tracer,
+            )
+        else:
+            log_best_effort(
+                partial(
+                    logger.info,
+                    "BigQuery backfill writes disabled; "
+                    "PostgreSQL is the only configured sink",
+                )
+            )
+
+        # --- Run backfill ---
+
+        service = BackfillService(
+            strava_reader=strava_repo,
+            uow_factory=create_uow,
+            bq_writer=bq_writer,
+            batch_size=config.batch_size,
+            tracer=tracer,
+        )
+
         result = service.backfill_user(
             athlete_id=config.athlete_id,
             years=config.years,

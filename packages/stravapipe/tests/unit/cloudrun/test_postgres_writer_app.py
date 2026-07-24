@@ -195,6 +195,39 @@ class TestPostEndpointValidation:
 class TestCreateEventHandling:
     """Tests for CREATE aspect_type handling."""
 
+    def test_create_threads_request_tracer_into_shared_uow(self, client):
+        """The normal webhook path retains the same UoW tracing contract."""
+        mock_uow = MagicMock()
+        mock_uow.activities.insert.return_value = True
+        mock_activity = MagicMock(map=None, user_id=999)
+
+        with (
+            patch(
+                "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
+                return_value=mock_uow,
+            ) as uow_class,
+            patch(
+                "stravapipe.cloudrun.postgres_writer_app.StandardActivity.model_validate",
+                return_value=mock_activity,
+            ),
+        ):
+            response = client.post(
+                "/",
+                headers=make_cloudevent_headers(),
+                json=make_pubsub_body(
+                    make_webhook_payload(
+                        aspect_type="create",
+                        raw_activity=SAMPLE_RAW_ACTIVITY,
+                    )
+                ),
+            )
+
+        assert response.status_code == 200
+        uow_class.assert_called_once_with(
+            app.state.session_factory,
+            tracer=app.state.tracer,
+        )
+
     def test_create_event_success(self, client):
         """CREATE event with raw_activity writes to PostgreSQL."""
         mock_uow = MagicMock()
