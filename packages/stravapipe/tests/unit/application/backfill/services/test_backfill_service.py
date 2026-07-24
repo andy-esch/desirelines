@@ -620,6 +620,29 @@ class TestPostgresGeographyReconciliation:
             for record in caplog.records
         )
 
+    def test_invalid_polyline_logger_failure_does_not_roll_back_batch(
+        self,
+        service: BackfillService,
+        mock_activity_repo,
+    ):
+        """A diagnostic handler failure cannot replace a successful PG write."""
+        with (
+            patch(
+                "stravapipe.application.backfill.service.decode_polyline_to_geojson",
+                return_value=None,
+            ),
+            patch(
+                "stravapipe.application.backfill.service.logger.warning",
+                side_effect=RuntimeError("logging failed"),
+            ),
+        ):
+            stats = service._insert_to_postgres(
+                [make_summary_activity(summary_polyline="invalid")]
+            )
+
+        assert stats == PostgresWriteStats(inserted=1)
+        mock_activity_repo.tag_activity_regions.assert_called_once_with(12345)
+
     def test_empty_polyline_still_retags_stored_route(
         self,
         service: BackfillService,
@@ -1021,6 +1044,25 @@ class TestMetricLogging:
 
 class TestLifecycleLoggingIsolation:
     """Lifecycle logging cannot alter or interrupt durable run outcomes."""
+
+    def test_all_info_logging_failures_preserve_successful_result(
+        self,
+        service: BackfillService,
+        mock_strava_reader,
+    ):
+        """Start, fetch, batch, year, and terminal logs are all non-authoritative."""
+        mock_strava_reader.read_activities_by_year.return_value = make_activities(1)
+
+        with patch(
+            "stravapipe.application.backfill.service.logger.info",
+            side_effect=RuntimeError("logging unavailable"),
+        ):
+            result = service.backfill_user("12345", years=[2024])
+
+        assert result.success is True
+        assert result.total_activities == 1
+        assert result.total_pg_inserted == 1
+        assert result.total_errors == 0
 
     def test_year_summary_log_failure_preserves_exact_totals(
         self,

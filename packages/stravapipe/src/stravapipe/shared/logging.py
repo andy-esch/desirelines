@@ -1,6 +1,6 @@
 """Logging setup for Cloud Run services."""
 
-from collections.abc import MutableMapping
+from collections.abc import Callable, MutableMapping
 import logging
 import os
 from typing import Any
@@ -8,6 +8,15 @@ from typing import Any
 import google.cloud.logging
 
 from stravapipe.shared.correlation import CorrelationFilter
+
+
+def log_best_effort(callback: Callable[[], None]) -> None:
+    """Run observability code without allowing it to alter a data outcome."""
+    try:
+        callback()
+    except Exception:
+        # Avoid recursive logging through the same potentially broken handler.
+        return
 
 
 class JsonFieldsAdapter(logging.LoggerAdapter[logging.Logger]):

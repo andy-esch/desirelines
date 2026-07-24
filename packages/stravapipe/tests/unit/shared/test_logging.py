@@ -7,12 +7,24 @@ shared conftest.
 """
 
 import logging
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 import stravapipe.shared.logging as logging_module
-from stravapipe.shared.logging import _parse_log_level, setup_logging
+from stravapipe.shared.logging import (
+    _parse_log_level,
+    log_best_effort,
+    setup_logging,
+)
+
+
+def test_log_best_effort_swallows_observability_failure():
+    callback = MagicMock(side_effect=RuntimeError("handler unavailable"))
+
+    log_best_effort(callback)
+
+    callback.assert_called_once_with()
 
 
 class TestParseLogLevel:

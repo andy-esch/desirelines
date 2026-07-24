@@ -30,6 +30,7 @@ from stravapipe.domain.geometry import decode_polyline_to_geojson
 from stravapipe.ports.out.postgres import ActivityRepository
 from stravapipe.ports.out.read import ReadDetailedActivities
 from stravapipe.ports.out.unit_of_work import AbstractUnitOfWork
+from stravapipe.shared.logging import log_best_effort
 
 logger = logging.getLogger(__name__)
 
@@ -83,14 +84,17 @@ def _reconcile_activity_geography(
             # reconcile its regions below.
             repository.insert_route(activity.id, geojson)
         else:
-            logger.warning(
-                "Activity %s has a polyline but decoded to no geometry; "
-                "route insertion skipped before region reconciliation",
-                activity.id,
-                extra={
-                    "user_id": activity.user_id,
-                    "polyline_length": len(encoded_route),
-                },
+            log_best_effort(
+                partial(
+                    logger.warning,
+                    "Activity %s has a polyline but decoded to no geometry; "
+                    "route insertion skipped before region reconciliation",
+                    activity.id,
+                    extra={
+                        "user_id": activity.user_id,
+                        "polyline_length": len(encoded_route),
+                    },
+                )
             )
 
     # Always reconcile geographic activities from the route PostgreSQL stores.
@@ -141,15 +145,6 @@ class PostgresWriteStats:
     errors: int = 0
 
 
-def _log_best_effort(callback: Callable[[], None]) -> None:
-    """Run observability code without letting it alter a data outcome."""
-    try:
-        callback()
-    except Exception:
-        # Avoid recursive logging through the same potentially broken handler.
-        return
-
-
 def _log_committed_postgres_batch(
     *,
     batch_num: int,
@@ -158,7 +153,7 @@ def _log_committed_postgres_batch(
     updated: int,
 ) -> None:
     """Log a committed batch without letting logging alter its data outcome."""
-    _log_best_effort(
+    log_best_effort(
         partial(
             logger.info,
             "PG batch %d/%d: %d inserted, %d updated, 0 errors",
@@ -177,7 +172,7 @@ def _log_failed_postgres_batch(
     errors: int,
 ) -> None:
     """Log a failed batch without interrupting later batches."""
-    _log_best_effort(
+    log_best_effort(
         partial(
             logger.exception,
             "PG batch %d/%d: 0 inserted, 0 updated, %d errors",
@@ -197,7 +192,7 @@ def _log_postgres_cleanup_failure(
     error: Exception,
 ) -> None:
     """Report post-commit cleanup failure without changing committed counts."""
-    _log_best_effort(
+    log_best_effort(
         partial(
             logger.error,
             "PG batch %d/%d cleanup failed after commit (%s); "
@@ -326,10 +321,13 @@ class BackfillService:
             ),
         )
 
-        logger.info(
-            "Starting backfill for athlete %s, years: %s",
-            athlete_id,
-            sorted_years,
+        log_best_effort(
+            partial(
+                logger.info,
+                "Starting backfill for athlete %s, years: %s",
+                athlete_id,
+                sorted_years,
+            )
         )
 
         for year in sorted_years:
@@ -352,7 +350,7 @@ class BackfillService:
                     ),
                 )
             except Exception:
-                _log_best_effort(
+                log_best_effort(
                     partial(
                         logger.exception,
                         "Failed to backfill year %d for athlete %s",
@@ -377,7 +375,7 @@ class BackfillService:
                     deepcopy(result),
                 ),
             )
-            _log_best_effort(
+            log_best_effort(
                 partial(
                     logger.info,
                     "Backfill completed for athlete %s: %d activities across %d %s "
@@ -404,7 +402,7 @@ class BackfillService:
                     f"Completed with {result.total_errors} errors",
                 ),
             )
-            _log_best_effort(
+            log_best_effort(
                 partial(
                     logger.warning,
                     "Backfill completed with errors for athlete %s: %d activities "
@@ -434,7 +432,7 @@ class BackfillService:
         try:
             callback()
         except Exception:
-            _log_best_effort(
+            log_best_effort(
                 partial(
                     logger.exception,
                     "Progress reporter failed during %s for athlete %s",
@@ -452,9 +450,18 @@ class BackfillService:
         """
         start_time = time.monotonic()
 
-        logger.info("Fetching activities from Strava for %d", year)
+        log_best_effort(
+            partial(logger.info, "Fetching activities from Strava for %d", year)
+        )
         activities = self._strava_reader.read_activities_by_year(year)
-        logger.info("Found %d activities in %d", len(activities), year)
+        log_best_effort(
+            partial(
+                logger.info,
+                "Found %d activities in %d",
+                len(activities),
+                year,
+            )
+        )
 
         if not activities:
             return YearStats(
@@ -478,7 +485,7 @@ class BackfillService:
 
         stats.duration_seconds = time.monotonic() - start_time
 
-        _log_best_effort(
+        log_best_effort(
             partial(
                 logger.info,
                 "Year %d complete in %.1fs: "

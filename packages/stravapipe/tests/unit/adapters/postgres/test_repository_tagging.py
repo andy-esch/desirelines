@@ -41,11 +41,12 @@ def _has_route(value: bool = True) -> MagicMock:
 
 
 def test_tag_activity_regions_preserves_existing_tags_on_spatial_error(caplog):
-    """A spatial failure rolls back the preceding delete and skips fallback."""
+    """A spatial failure restores existing tags, so recovery inserts nothing."""
     session = _session_with_savepoints()
     session.execute.side_effect = [
         MagicMock(),  # DELETE
         SQLAlchemyError("spatial boom"),  # specific-region INSERT (inside savepoint)
+        _result(),  # guarded earth recovery sees the restored existing tags
     ]
     repo = SqlAlchemyActivityRepository(session)
 
@@ -55,8 +56,28 @@ def test_tag_activity_regions_preserves_existing_tags_on_spatial_error(caplog):
     assert count == 0
     assert "Region spatial tagging failed" in caplog.text
     assert "SQLAlchemyError" in caplog.text
-    assert "existing region tags preserved" in caplog.text
-    assert session.execute.call_count == 2
+    assert "existing tags are preserved when present" in caplog.text
+    assert session.execute.call_count == 3
+    assert session.begin_nested.call_count == 2
+
+
+def test_tag_activity_regions_recovers_new_routed_activity_to_earth(caplog):
+    """A spatial failure still gives a newly inserted routed activity a tag."""
+    session = _session_with_savepoints()
+    session.execute.side_effect = [
+        MagicMock(),  # DELETE
+        SQLAlchemyError("spatial boom"),  # specific-region INSERT
+        _result((1,)),  # guarded earth recovery
+    ]
+    repo = SqlAlchemyActivityRepository(session)
+
+    with caplog.at_level(logging.WARNING):
+        count = repo.tag_activity_regions(123)
+
+    assert count == 1
+    assert "Region spatial tagging failed" in caplog.text
+    assert session.execute.call_count == 3
+    assert session.begin_nested.call_count == 2
 
 
 def test_tag_activity_regions_logs_unloaded_table_after_earth_fallback(caplog):
@@ -147,4 +168,4 @@ def test_tag_activity_regions_degrades_when_atomic_retag_step_fails(
 
     assert count == 0
     assert message in caplog.text
-    assert "existing region tags preserved" in caplog.text
+    assert "existing tags are preserved when present" in caplog.text

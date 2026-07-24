@@ -18,3 +18,17 @@ def test_rejects_non_positive_batch_size(batch_size: int):
             postgres_connection_string="postgresql+psycopg://test",
             batch_size=batch_size,
         )
+
+
+def test_bigquery_backfill_is_disabled_by_default(monkeypatch):
+    monkeypatch.delenv("GCP_BIGQUERY_DATASET", raising=False)
+
+    config = BackfillConfig(
+        athlete_id="12345",
+        gcp_project_id="test-project",
+        strava_client_id="123",
+        strava_client_secret="secret",
+        postgres_connection_string="postgresql+psycopg://test",
+    )
+
+    assert config.gcp_bigquery_dataset is None
