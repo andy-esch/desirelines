@@ -9,14 +9,21 @@ from stravapipe.cloudrun.backfill_job import _cleanup_resources, _log_result
 
 
 @pytest.mark.parametrize(
-    ("total_errors", "expected_exit_code", "log_method", "status"),
+    (
+        "total_errors",
+        "total_source_errors",
+        "expected_exit_code",
+        "log_method",
+        "status",
+    ),
     [
-        (0, 0, "info", "succeeded"),
-        (2, 1, "error", "completed with errors"),
+        (0, 0, 0, "info", "succeeded"),
+        (2, 1, 1, "error", "completed with errors"),
     ],
 )
 def test_log_result_uses_consistent_terminal_metrics(
     total_errors: int,
+    total_source_errors: int,
     expected_exit_code: int,
     log_method: str,
     status: str,
@@ -28,6 +35,7 @@ def test_log_result_uses_consistent_terminal_metrics(
         total_pg_inserted=3,
         total_pg_updated=4,
         total_bq_inserted=7,
+        total_source_errors=total_source_errors,
         total_errors=total_errors,
         duration_seconds=12.5,
     )
@@ -39,9 +47,12 @@ def test_log_result_uses_consistent_terminal_metrics(
     log = getattr(mock_logger, log_method)
     log.assert_called_once_with(
         "Backfill %s: %d activities "
-        "(PG: %d inserted, %d updated; BQ: %d inserted; errors: %d) in %.1fs",
+        "(source errors: %d; processing errors: %d; "
+        "PG: %d inserted, %d updated; BQ: %d inserted; errors: %d) in %.1fs",
         status,
         7,
+        total_source_errors,
+        0,
         3,
         4,
         7,

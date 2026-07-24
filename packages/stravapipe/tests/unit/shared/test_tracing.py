@@ -1,6 +1,7 @@
 """Unit tests for the shared tracing module."""
 
-from unittest.mock import patch
+import logging
+from unittest.mock import MagicMock, patch
 
 # Force-load the OTel exporter submodules at import time so
 # `unittest.mock.patch("...module.ClassName")` can resolve their dotted
@@ -21,6 +22,7 @@ import opentelemetry.exporter.otlp.proto.grpc.trace_exporter
 # All three are equally needed as side-effect submodule loads for the
 # patch() targets below.
 import opentelemetry.resourcedetector.gcp_resource_detector  # noqa: F401
+from opentelemetry.trace import Tracer
 import pytest
 
 from stravapipe.shared.tracing import (
@@ -214,6 +216,15 @@ class TestExtractContextFromAttributes:
 class TestRecordSpan:
     """Tests for the record_span context manager."""
 
+    @staticmethod
+    def _tracer_with_span() -> tuple[MagicMock, MagicMock, MagicMock]:
+        tracer = MagicMock(spec=Tracer)
+        span = MagicMock()
+        span_context = MagicMock()
+        span_context.__enter__.return_value = span
+        tracer.start_as_current_span.return_value = span_context
+        return tracer, span, span_context
+
     def test_noop_when_tracer_is_none(self):
         """Body executes when tracer is None."""
         executed = False
@@ -247,6 +258,66 @@ class TestRecordSpan:
         parent_ctx = extract_context_from_attributes(attrs)
         with record_span(tracer, "child.span", parent_context=parent_ctx):
             pass  # Should not raise
+
+    def test_setup_failure_is_fail_open(self):
+        """Broken span creation cannot skip the traced body."""
+        tracer, _, span_context = self._tracer_with_span()
+        span_context.__enter__.side_effect = RuntimeError("span setup failed")
+        executions = 0
+
+        with record_span(tracer, "test.operation"):
+            executions += 1
+
+        assert executions == 1
+
+    def test_attribute_failure_is_fail_open_and_span_still_closes(
+        self,
+        caplog: pytest.LogCaptureFixture,
+    ):
+        """A rejected attribute cannot alter the body or leak the entered span."""
+        tracer, span, span_context = self._tracer_with_span()
+        span.set_attribute.side_effect = RuntimeError("attribute rejected")
+        executions = 0
+
+        with (
+            caplog.at_level(logging.WARNING),
+            record_span(tracer, "test.operation", {"bad": object()}),
+        ):
+            executions += 1
+
+        assert executions == 1
+        span_context.__exit__.assert_called_once_with(None, None, None)
+        assert "Tracing attribute recording failed" in caplog.text
+
+    def test_body_exception_wins_over_all_error_instrumentation_failures(self):
+        """Status, exception, and teardown failures cannot replace body failure."""
+        tracer, span, span_context = self._tracer_with_span()
+        span.set_status.side_effect = RuntimeError("status failed")
+        span.record_exception.side_effect = RuntimeError("record failed")
+        span_context.__exit__.side_effect = RuntimeError("teardown failed")
+        operation_error = ValueError("body failed")
+
+        with (
+            pytest.raises(ValueError, match="body failed") as caught,
+            record_span(tracer, "test.operation"),
+        ):
+            raise operation_error
+
+        assert caught.value is operation_error
+
+    def test_span_cannot_suppress_body_exception(self):
+        """A truthy inner __exit__ cannot suppress the operation exception."""
+        tracer, _, span_context = self._tracer_with_span()
+        span_context.__exit__.return_value = True
+        operation_error = ValueError("body failed")
+
+        with (
+            pytest.raises(ValueError, match="body failed") as caught,
+            record_span(tracer, "test.operation"),
+        ):
+            raise operation_error
+
+        assert caught.value is operation_error
 
 
 class TestShutdownTracing:

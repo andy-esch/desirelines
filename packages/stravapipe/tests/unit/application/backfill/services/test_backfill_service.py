@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, call, create_autospec, patch
 
 from google.api_core import exceptions as gapi_exceptions
 import pytest
+from sqlalchemy import exc as sa_exc
 
 from stravapipe.adapters.gcp import ActivitiesWriter
 from stravapipe.application.backfill.service import (
@@ -123,6 +124,14 @@ def make_activities(count: int, year: int = 2024) -> list[SummaryStravaActivity]
     return [make_summary_activity(activity_id=i + 1, year=year) for i in range(count)]
 
 
+def make_mock_uow(repository: ActivityRepository) -> MagicMock:
+    """Create a context-manager Unit of Work around one repository mock."""
+    uow = MagicMock(spec=AbstractUnitOfWork)
+    uow.activities = repository
+    uow.__enter__.return_value = uow
+    return uow
+
+
 @pytest.fixture
 def mock_activity_repo():
     """Mock activity repository with spec for interface compliance."""
@@ -141,10 +150,7 @@ def mock_strava_reader():
 @pytest.fixture
 def mock_uow(mock_activity_repo):
     """Mock Unit of Work with context manager support."""
-    uow = MagicMock(spec=AbstractUnitOfWork)
-    uow.activities = mock_activity_repo
-    uow.__enter__.return_value = uow
-    return uow
+    return make_mock_uow(mock_activity_repo)
 
 
 @pytest.fixture
@@ -517,6 +523,271 @@ class TestPostgresInsertion:
         service.backfill_user("12345", years=[2024])
 
         assert factory.call_count == 2  # 3 activities / batch_size 2 = 2 batches
+
+
+# =============================================================================
+# Tests: PostgreSQL Transient-Error Retry
+# =============================================================================
+
+
+class TestPostgresRetry:
+    """Tests for phase-aware whole-transaction PostgreSQL retries."""
+
+    @pytest.mark.parametrize(
+        "exc",
+        [
+            sa_exc.OperationalError(
+                "SELECT activities",
+                {},
+                RuntimeError("connection reset"),
+            ),
+            sa_exc.DBAPIError(
+                "SELECT activities",
+                {},
+                RuntimeError("driver disconnect"),
+                connection_invalidated=True,
+            ),
+            sa_exc.TimeoutError("pool checkout timed out"),
+        ],
+        ids=["OperationalError", "InvalidatedDBAPIError", "TimeoutError"],
+    )
+    def test_two_precommit_transients_then_success_use_fresh_uows(
+        self,
+        mock_strava_reader,
+        mock_activity_repo,
+        caplog,
+        exc: Exception,
+    ):
+        """Two eligible failures replay the whole batch, then count success once."""
+        mock_activity_repo.get_existing_ids.return_value = {2}
+        failed_uows = [
+            make_mock_uow(mock_activity_repo),
+            make_mock_uow(mock_activity_repo),
+        ]
+        for uow in failed_uows:
+            uow.__enter__.side_effect = exc
+        successful_uow = make_mock_uow(mock_activity_repo)
+        uow_factory = MagicMock(
+            side_effect=[*failed_uows, successful_uow],
+        )
+        service = BackfillService(
+            strava_reader=mock_strava_reader,
+            uow_factory=uow_factory,
+        )
+
+        with (
+            patch("stravapipe.application.backfill.service.time.sleep") as mock_sleep,
+            caplog.at_level(
+                "WARNING",
+                logger="stravapipe.application.backfill.service",
+            ),
+        ):
+            stats = service._insert_to_postgres(make_activities(3))
+
+        assert stats == PostgresWriteStats(inserted=2, updated=1)
+        assert uow_factory.call_count == 3
+        assert len({id(uow) for uow in [*failed_uows, successful_uow]}) == 3
+        successful_uow.commit.assert_called_once_with()
+        assert mock_sleep.call_args_list == [call(1), call(2)]
+        retry_warnings = [
+            record
+            for record in caplog.records
+            if "transient pre-commit failure" in record.getMessage()
+        ]
+        assert len(retry_warnings) == 2
+
+    def test_exhausted_precommit_transients_count_batch_once(
+        self,
+        mock_strava_reader,
+        mock_activity_repo,
+    ):
+        exc = sa_exc.OperationalError(
+            "SELECT activities",
+            {},
+            RuntimeError("connection reset"),
+        )
+        failed_uows = [make_mock_uow(mock_activity_repo) for _ in range(3)]
+        for uow in failed_uows:
+            uow.__enter__.side_effect = exc
+        uow_factory = MagicMock(side_effect=failed_uows)
+        service = BackfillService(
+            strava_reader=mock_strava_reader,
+            uow_factory=uow_factory,
+        )
+
+        with patch("stravapipe.application.backfill.service.time.sleep") as mock_sleep:
+            stats = service._insert_to_postgres(make_activities(3))
+
+        assert stats == PostgresWriteStats(errors=3)
+        assert uow_factory.call_count == 3
+        assert mock_sleep.call_args_list == [call(1), call(2)]
+
+    @pytest.mark.parametrize(
+        "exc",
+        [
+            sa_exc.IntegrityError(
+                "INSERT activity",
+                {},
+                RuntimeError("constraint violation"),
+            ),
+            sa_exc.DataError(
+                "INSERT activity",
+                {},
+                RuntimeError("invalid data"),
+            ),
+            sa_exc.ProgrammingError(
+                "INSERT activity",
+                {},
+                RuntimeError("schema mismatch"),
+            ),
+            sa_exc.DBAPIError(
+                "SELECT activities",
+                {},
+                RuntimeError("driver error"),
+                connection_invalidated=False,
+            ),
+        ],
+        ids=[
+            "IntegrityError",
+            "DataError",
+            "ProgrammingError",
+            "ValidConnectionDBAPIError",
+        ],
+    )
+    def test_non_retryable_precommit_errors_fail_immediately(
+        self,
+        mock_strava_reader,
+        mock_activity_repo,
+        exc: Exception,
+    ):
+        failed_uow = make_mock_uow(mock_activity_repo)
+        failed_uow.__enter__.side_effect = exc
+        uow_factory = MagicMock(return_value=failed_uow)
+        service = BackfillService(
+            strava_reader=mock_strava_reader,
+            uow_factory=uow_factory,
+        )
+
+        with patch("stravapipe.application.backfill.service.time.sleep") as mock_sleep:
+            stats = service._insert_to_postgres(make_activities(2))
+
+        assert stats == PostgresWriteStats(errors=2)
+        uow_factory.assert_called_once_with()
+        mock_sleep.assert_not_called()
+
+    def test_commit_exception_is_ambiguous_and_never_retried(
+        self,
+        mock_strava_reader,
+        mock_activity_repo,
+    ):
+        """Even a transient-looking commit exception cannot replay safely."""
+        uow = make_mock_uow(mock_activity_repo)
+        uow.commit.side_effect = sa_exc.OperationalError(
+            "COMMIT",
+            {},
+            RuntimeError("connection lost after send"),
+            connection_invalidated=True,
+        )
+        uow_factory = MagicMock(return_value=uow)
+        service = BackfillService(
+            strava_reader=mock_strava_reader,
+            uow_factory=uow_factory,
+        )
+
+        with patch("stravapipe.application.backfill.service.time.sleep") as mock_sleep:
+            stats = service._insert_to_postgres(make_activities(2))
+
+        assert stats == PostgresWriteStats(errors=2)
+        uow_factory.assert_called_once_with()
+        uow.commit.assert_called_once_with()
+        mock_sleep.assert_not_called()
+
+    def test_post_commit_transient_cleanup_failure_preserves_counts_without_retry(
+        self,
+        mock_strava_reader,
+        mock_activity_repo,
+    ):
+        """Cleanup after a confirmed commit is observability, not replay."""
+        uow = make_mock_uow(mock_activity_repo)
+        uow.__exit__.side_effect = sa_exc.OperationalError(
+            "ROLLBACK",
+            {},
+            RuntimeError("connection already closed"),
+            connection_invalidated=True,
+        )
+        uow_factory = MagicMock(return_value=uow)
+        service = BackfillService(
+            strava_reader=mock_strava_reader,
+            uow_factory=uow_factory,
+        )
+
+        with patch("stravapipe.application.backfill.service.time.sleep") as mock_sleep:
+            stats = service._insert_to_postgres(make_activities(2))
+
+        assert stats == PostgresWriteStats(inserted=2)
+        uow_factory.assert_called_once_with()
+        uow.commit.assert_called_once_with()
+        mock_sleep.assert_not_called()
+
+    def test_failed_attempt_classification_does_not_leak_into_retry(
+        self,
+        mock_strava_reader,
+    ):
+        """Only the successful attempt contributes inserted/updated counts."""
+        transient = sa_exc.OperationalError(
+            "INSERT activity",
+            {},
+            RuntimeError("connection reset"),
+        )
+        first_repo = create_autospec(ActivityRepository, instance=True)
+        first_repo.get_existing_ids.return_value = set()
+        first_repo.upsert.side_effect = [True, transient]
+        first_uow = make_mock_uow(first_repo)
+
+        successful_repo = create_autospec(ActivityRepository, instance=True)
+        successful_repo.get_existing_ids.return_value = {1}
+        successful_repo.upsert.return_value = True
+        successful_uow = make_mock_uow(successful_repo)
+
+        uow_factory = MagicMock(side_effect=[first_uow, successful_uow])
+        service = BackfillService(
+            strava_reader=mock_strava_reader,
+            uow_factory=uow_factory,
+        )
+
+        with patch("stravapipe.application.backfill.service.time.sleep"):
+            stats = service._insert_to_postgres(make_activities(2))
+
+        assert stats == PostgresWriteStats(inserted=1, updated=1)
+        assert uow_factory.call_count == 2
+        successful_uow.commit.assert_called_once_with()
+
+    def test_retry_logging_failure_cannot_prevent_retry(
+        self,
+        mock_strava_reader,
+        mock_activity_repo,
+    ):
+        transient = sa_exc.TimeoutError("pool checkout timed out")
+        failed_uow = make_mock_uow(mock_activity_repo)
+        failed_uow.__enter__.side_effect = transient
+        successful_uow = make_mock_uow(mock_activity_repo)
+        uow_factory = MagicMock(side_effect=[failed_uow, successful_uow])
+        service = BackfillService(
+            strava_reader=mock_strava_reader,
+            uow_factory=uow_factory,
+        )
+
+        with (
+            patch("stravapipe.application.backfill.service.time.sleep"),
+            patch(
+                "stravapipe.application.backfill.service.logger.warning",
+                side_effect=RuntimeError("logging unavailable"),
+            ),
+        ):
+            stats = service._insert_to_postgres(make_activities(1))
+
+        assert stats == PostgresWriteStats(inserted=1)
+        assert uow_factory.call_count == 2
 
 
 # =============================================================================
@@ -1026,13 +1297,15 @@ class TestMetricLogging:
         if pg_errors == 0:
             assert terminal == [
                 "Backfill completed for athlete 12345: 4 activities across 1 year "
-                "(PG: 2 inserted, 1 updated; "
+                "(source errors: 0; processing errors: 0; "
+                "PG: 2 inserted, 1 updated; "
                 "BQ: 4 inserted; errors: 0) in 5.0s"
             ]
         else:
             assert terminal == [
                 "Backfill completed with errors for athlete 12345: 4 activities "
-                "across 1 year (PG: 2 inserted, 1 updated; "
+                "across 1 year (source errors: 0; processing errors: 0; "
+                "PG: 2 inserted, 1 updated; "
                 "BQ: 4 inserted; errors: 1) in 5.0s"
             ]
 
@@ -1179,10 +1452,12 @@ class TestLifecycleLoggingIsolation:
 
         assert mock_backfill_year.call_args_list == [call(2023), call(2024)]
         assert result.year_stats == [
-            YearStats(year=2023, pg_errors=1),
+            YearStats(year=2023, processing_errors=1),
             completed_stats,
         ]
         assert result.total_activities == 1
+        assert result.total_source_errors == 0
+        assert result.total_processing_errors == 1
         assert result.total_pg_inserted == 1
         assert result.total_errors == 1
 
@@ -1319,6 +1594,8 @@ class TestProgressReporting:
 
         def mutate_year(_athlete_id: str, stats: YearStats) -> None:
             stats.activities_found = 999
+            stats.source_errors = 999
+            stats.processing_errors = 999
             stats.pg_inserted = 999
             raise RuntimeError("progress unavailable")
 
@@ -1326,6 +1603,8 @@ class TestProgressReporting:
             result.years.clear()
             result.year_stats.clear()
             result.total_activities = 999
+            result.total_source_errors = 999
+            result.total_processing_errors = 999
             result.total_pg_inserted = 999
             result.total_errors = 999
             raise RuntimeError("progress unavailable")
@@ -1349,6 +1628,8 @@ class TestProgressReporting:
         assert [stats.activities_found for stats in result.year_stats] == [2, 1]
         assert [stats.pg_inserted for stats in result.year_stats] == [2, 1]
         assert result.total_activities == 3
+        assert result.total_source_errors == 0
+        assert result.total_processing_errors == 0
         assert result.total_pg_inserted == 3
         assert result.total_errors == 0
         assert result.success is True
@@ -1423,8 +1704,10 @@ class TestErrorResilience:
         mock_strava_reader,
         mock_uow_factory,
         mock_activity_repo,
+        mock_progress,
+        caplog,
     ):
-        """A failed year doesn't stop subsequent years."""
+        """A source failure is distinct and does not stop subsequent years."""
         mock_strava_reader.read_activities_by_year.side_effect = [
             RuntimeError("Strava API down"),  # 2023 fails
             make_activities(3, year=2024),  # 2024 succeeds
@@ -1432,14 +1715,95 @@ class TestErrorResilience:
         service = BackfillService(
             strava_reader=mock_strava_reader,
             uow_factory=mock_uow_factory,
+            progress_reporter=mock_progress,
         )
 
-        result = service.backfill_user("12345", years=[2023, 2024])
+        with caplog.at_level(
+            "WARNING",
+            logger="stravapipe.application.backfill.service",
+        ):
+            result = service.backfill_user("12345", years=[2023, 2024])
 
-        assert result.total_errors == 1  # 2023 error
+        failed_year, successful_year = result.year_stats
+        assert failed_year.source_errors == 1
+        assert failed_year.processing_errors == 0
+        assert failed_year.pg_errors == 0
+        assert failed_year.activities_found == 0
+        assert successful_year.source_errors == 0
+        assert successful_year.pg_inserted == 3
+        assert result.total_source_errors == 1
+        assert result.total_processing_errors == 0
+        assert result.total_errors == 1
         assert result.total_pg_inserted == 3  # 2024 succeeded
         assert len(result.year_stats) == 2
         assert result.success is False
+        assert all(
+            stats.pg_inserted + stats.pg_updated + stats.pg_errors
+            == stats.activities_found
+            for stats in result.year_stats
+        )
+        assert mock_progress.report_year_complete.call_args_list == [
+            call("12345", failed_year),
+            call("12345", successful_year),
+        ]
+        mock_progress.report_failed.assert_called_once_with(
+            "12345",
+            "Completed with 1 errors (1 source, 0 processing)",
+        )
+        assert any(
+            "source errors: 1; processing errors: 0" in record.getMessage()
+            for record in caplog.records
+        )
+
+    def test_source_failure_logging_failure_preserves_source_accounting(
+        self,
+        service: BackfillService,
+        mock_strava_reader,
+    ):
+        mock_strava_reader.read_activities_by_year.side_effect = RuntimeError(
+            "Strava API down"
+        )
+
+        with patch(
+            "stravapipe.application.backfill.service.logger.exception",
+            side_effect=RuntimeError("logging unavailable"),
+        ):
+            result = service.backfill_user("12345", years=[2024])
+
+        assert len(result.year_stats) == 1
+        assert result.year_stats[0].source_errors == 1
+        assert result.year_stats[0].pg_errors == 0
+        assert result.year_stats[0].duration_seconds > 0
+        assert result.total_source_errors == 1
+        assert result.total_errors == 1
+
+    def test_aggregates_source_processing_and_sink_errors_without_overlap(
+        self,
+        service: BackfillService,
+    ):
+        """Every error category contributes once while PG stays row-based."""
+        year_stats = [
+            YearStats(year=2021, source_errors=1),
+            YearStats(year=2022, processing_errors=1),
+            YearStats(year=2023, activities_found=2, pg_errors=2),
+            YearStats(year=2024, activities_found=3, pg_inserted=3, bq_errors=3),
+        ]
+
+        with patch.object(service, "_backfill_year", side_effect=year_stats):
+            result = service.backfill_user(
+                "12345",
+                years=[2021, 2022, 2023, 2024],
+            )
+
+        assert result.total_source_errors == 1
+        assert result.total_processing_errors == 1
+        assert result.total_pg_inserted == 3
+        assert result.total_errors == 7
+        assert all(
+            stats.pg_inserted + stats.pg_updated + stats.pg_errors
+            == stats.activities_found
+            for stats in result.year_stats
+        )
 
 
 # =============================================================================
