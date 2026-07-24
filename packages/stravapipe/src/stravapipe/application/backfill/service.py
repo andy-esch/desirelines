@@ -18,6 +18,7 @@ import time
 from typing import Protocol
 
 from google.api_core import exceptions as gapi_exceptions
+from sqlalchemy import exc as sa_exc
 
 from stravapipe.adapters.gcp import ActivitiesWriter, MergeResult
 from stravapipe.domain import (
@@ -121,6 +122,31 @@ _BQ_RETRYABLE_EXCEPTIONS: tuple[type[BaseException], ...] = (
     TimeoutError,
 )
 
+# PostgreSQL retries are deliberately narrower than the BigQuery policy:
+# retry the entire transaction with a fresh Unit of Work only when a transient
+# failure happens before commit is invoked. A commit exception is ambiguous
+# (the server may have accepted it), and a post-commit cleanup failure must not
+# replay or reclassify durable writes.
+_PG_RETRY_ATTEMPTS = 3
+_PG_RETRYABLE_EXCEPTIONS: tuple[type[BaseException], ...] = (
+    sa_exc.OperationalError,
+    sa_exc.TimeoutError,
+)
+_PG_NON_RETRYABLE_DBAPI_EXCEPTIONS: tuple[type[BaseException], ...] = (
+    sa_exc.IntegrityError,
+    sa_exc.DataError,
+    sa_exc.ProgrammingError,
+)
+
+
+def _is_retryable_postgres_exception(exc: BaseException) -> bool:
+    """Return whether a pre-commit PostgreSQL failure may replay safely."""
+    if isinstance(exc, _PG_NON_RETRYABLE_DBAPI_EXCEPTIONS):
+        return False
+    if isinstance(exc, _PG_RETRYABLE_EXCEPTIONS):
+        return True
+    return isinstance(exc, sa_exc.DBAPIError) and exc.connection_invalidated
+
 
 @dataclass
 class YearStats:
@@ -203,6 +229,30 @@ def _log_postgres_cleanup_failure(
             inserted,
             updated,
             exc_info=(type(error), error, error.__traceback__),
+        )
+    )
+
+
+def _log_postgres_retry(
+    *,
+    batch_num: int,
+    total_batches: int,
+    attempt: int,
+    error: Exception,
+    backoff: int,
+) -> None:
+    """Log a retry without allowing observability to prevent the retry."""
+    log_best_effort(
+        partial(
+            logger.warning,
+            "PG batch %d/%d transient pre-commit failure "
+            "(attempt %d/%d: %s) — retrying with a fresh transaction in %ds",
+            batch_num,
+            total_batches,
+            attempt,
+            _PG_RETRY_ATTEMPTS,
+            type(error).__name__,
+            backoff,
         )
     )
 
@@ -510,19 +560,64 @@ class BackfillService:
         """Upsert activities to PostgreSQL in batches.
 
         Inserted vs updated is classified from a batch pre-read. Counts are
-        promoted once ``commit()`` returns. A commit exception is inherently
-        ambiguous because the database may have accepted the transaction before
-        the client observed the failure; it is counted as a failed batch because
-        no authoritative committed classification is available. Cleanup or
-        logging failures after a successful commit never reclassify those rows.
+        promoted once ``commit()`` returns. Eligible pre-commit connectivity
+        failures retry the whole batch with a fresh Unit of Work. A commit
+        exception is inherently ambiguous because the database may have accepted
+        the transaction before the client observed the failure; it is counted as
+        a failed batch because no authoritative committed classification is
+        available. Cleanup or logging failures after a successful commit never
+        reclassify those rows.
         """
         stats = PostgresWriteStats()
 
         for batch_num, total_batches, batch in _iter_batches(
             activities, self._batch_size
         ):
+            try:
+                batch_stats = self._insert_pg_batch_with_retry(
+                    batch,
+                    batch_num=batch_num,
+                    total_batches=total_batches,
+                )
+            except Exception:
+                stats.errors += len(batch)
+                _log_failed_postgres_batch(
+                    batch_num=batch_num,
+                    total_batches=total_batches,
+                    errors=len(batch),
+                )
+                continue
+
+            stats.inserted += batch_stats.inserted
+            stats.updated += batch_stats.updated
+
+            _log_committed_postgres_batch(
+                batch_num=batch_num,
+                total_batches=total_batches,
+                inserted=batch_stats.inserted,
+                updated=batch_stats.updated,
+            )
+
+        return stats
+
+    def _insert_pg_batch_with_retry(
+        self,
+        batch: Sequence[DetailedStravaActivity | SummaryStravaActivity],
+        *,
+        batch_num: int,
+        total_batches: int,
+    ) -> PostgresWriteStats:
+        """Write one PostgreSQL batch with phase-aware transient retry.
+
+        Every attempt owns a fresh Unit of Work and recomputes inserted/updated
+        classification. Only eligible failures before ``commit()`` is invoked
+        may retry. A commit exception is ambiguous and propagates immediately;
+        cleanup failure after a successful commit preserves durable counts.
+        """
+        for attempt in range(1, _PG_RETRY_ATTEMPTS + 1):
             batch_inserted = 0
             batch_updated = 0
+            commit_attempted = False
             commit_succeeded = False
             cleanup_error: Exception | None = None
 
@@ -542,6 +637,7 @@ class BackfillService:
                             batch_updated += 1
                         else:
                             batch_inserted += 1
+                    commit_attempted = True
                     uow.commit()
                     commit_succeeded = True
             except Exception as exc:
@@ -550,17 +646,23 @@ class BackfillService:
                     # context-manager cleanup. The database result is already
                     # authoritative even though cleanup failed.
                     cleanup_error = exc
+                elif (
+                    commit_attempted
+                    or not _is_retryable_postgres_exception(exc)
+                    or attempt == _PG_RETRY_ATTEMPTS
+                ):
+                    raise
                 else:
-                    stats.errors += len(batch)
-                    _log_failed_postgres_batch(
+                    backoff = 2 ** (attempt - 1)
+                    _log_postgres_retry(
                         batch_num=batch_num,
                         total_batches=total_batches,
-                        errors=len(batch),
+                        attempt=attempt,
+                        error=exc,
+                        backoff=backoff,
                     )
+                    time.sleep(backoff)
                     continue
-
-            stats.inserted += batch_inserted
-            stats.updated += batch_updated
 
             if cleanup_error is not None:
                 _log_postgres_cleanup_failure(
@@ -571,14 +673,14 @@ class BackfillService:
                     error=cleanup_error,
                 )
 
-            _log_committed_postgres_batch(
-                batch_num=batch_num,
-                total_batches=total_batches,
+            return PostgresWriteStats(
                 inserted=batch_inserted,
                 updated=batch_updated,
             )
 
-        return stats
+        # Unreachable: the loop returns on success or re-raises on the final
+        # attempt. Present to satisfy type-checker exhaustiveness.
+        raise RuntimeError("unreachable")
 
     def _insert_to_bigquery(
         self,
