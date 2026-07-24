@@ -14,8 +14,11 @@ import pytest
 
 from stravapipe.adapters.gcp import ActivitiesWriter
 from stravapipe.application.backfill.service import (
+    BackfillResult,
     BackfillService,
+    PostgresWriteStats,
     ProgressReporter,
+    YearStats,
 )
 from stravapipe.domain.activity import MetaAthlete, SummaryMap, SummaryStravaActivity
 from stravapipe.ports.out.postgres import ActivityRepository
@@ -76,7 +79,10 @@ def make_activities(count: int, year: int = 2024) -> list[SummaryStravaActivity]
 @pytest.fixture
 def mock_activity_repo():
     """Mock activity repository with spec for interface compliance."""
-    return create_autospec(ActivityRepository, instance=True)
+    repository = create_autospec(ActivityRepository, instance=True)
+    repository.get_existing_ids.return_value = set()
+    repository.upsert.return_value = True
+    return repository
 
 
 @pytest.fixture
@@ -145,6 +151,21 @@ def service_with_bq(
 # =============================================================================
 
 
+@pytest.mark.parametrize("batch_size", [0, -1])
+def test_rejects_non_positive_batch_size(
+    mock_strava_reader,
+    mock_uow_factory,
+    batch_size: int,
+):
+    """Direct service construction cannot silently disable batch processing."""
+    with pytest.raises(ValueError, match="batch_size must be greater than zero"):
+        BackfillService(
+            strava_reader=mock_strava_reader,
+            uow_factory=mock_uow_factory,
+            batch_size=batch_size,
+        )
+
+
 class TestBackfillUser:
     """Tests for BackfillService.backfill_user()."""
 
@@ -157,7 +178,6 @@ class TestBackfillUser:
         """Backfills activities for a single year."""
         activities = make_activities(3, year=2024)
         mock_strava_reader.read_activities_by_year.return_value = activities
-        mock_activity_repo.insert.return_value = True
 
         result = service.backfill_user("12345", years=[2024])
 
@@ -176,7 +196,7 @@ class TestBackfillUser:
     ):
         """Years are processed in sorted order."""
         mock_strava_reader.read_activities_by_year.return_value = make_activities(2)
-        mock_activity_repo.insert.return_value = True
+        mock_activity_repo.get_existing_ids.return_value = {1}
 
         result = service.backfill_user("12345", years=[2025, 2023, 2024])
 
@@ -187,6 +207,8 @@ class TestBackfillUser:
             call(2025),
         ]
         assert result.total_activities == 6  # 2 per year * 3 years
+        assert result.total_pg_inserted == 3
+        assert result.total_pg_updated == 3
 
     def test_handles_empty_year(
         self,
@@ -203,6 +225,7 @@ class TestBackfillUser:
         assert result.success is True
         assert len(result.year_stats) == 1
         assert result.year_stats[0].activities_found == 0
+        assert result.year_stats[0].duration_seconds >= 0
 
     def test_records_duration(
         self,
@@ -215,6 +238,22 @@ class TestBackfillUser:
         result = service.backfill_user("12345", years=[2024])
 
         assert result.duration_seconds >= 0
+
+    def test_empty_year_records_measured_duration(
+        self,
+        service: BackfillService,
+        mock_strava_reader,
+    ):
+        """Empty years report measured elapsed time instead of the default zero."""
+        mock_strava_reader.read_activities_by_year.return_value = []
+
+        with patch(
+            "stravapipe.application.backfill.service.time.monotonic",
+            side_effect=[10.0, 12.5],
+        ):
+            stats = service._backfill_year(2024)
+
+        assert stats.duration_seconds == 2.5
 
 
 # =============================================================================
@@ -240,7 +279,6 @@ class TestPostgresInsertion:
         )
         activities = make_activities(5, year=2024)
         mock_strava_reader.read_activities_by_year.return_value = activities
-        mock_activity_repo.insert.return_value = True
 
         result = service.backfill_user("12345", years=[2024])
 
@@ -248,24 +286,74 @@ class TestPostgresInsertion:
         assert mock_uow_factory.call_count == 3
         assert mock_uow.commit.call_count == 3
         assert result.total_pg_inserted == 5
+        assert mock_activity_repo.get_existing_ids.call_args_list == [
+            call([1, 2]),
+            call([3, 4]),
+            call([5]),
+        ]
 
-    def test_tracks_duplicates_as_skipped(
+    def test_classifies_existing_activities_as_updated(
         self,
         service: BackfillService,
         mock_strava_reader,
         mock_activity_repo,
     ):
-        """Duplicate activities (insert returns False) are tracked as skipped."""
+        """The batch pre-read classifies committed upserts as inserts or updates."""
         activities = make_activities(3, year=2024)
         mock_strava_reader.read_activities_by_year.return_value = activities
-        # First insert succeeds, second and third are duplicates
-        mock_activity_repo.insert.side_effect = [True, False, False]
+        mock_activity_repo.get_existing_ids.return_value = {2, 3}
 
         result = service.backfill_user("12345", years=[2024])
 
         assert result.total_pg_inserted == 1
-        assert result.year_stats[0].pg_skipped == 2
-        assert result.success is True  # Duplicates are not errors
+        assert result.total_pg_updated == 2
+        assert result.year_stats[0].pg_updated == 2
+        assert result.success is True
+        mock_activity_repo.get_existing_ids.assert_called_once_with([1, 2, 3])
+        assert mock_activity_repo.upsert.call_count == 3
+
+    def test_commit_failure_discards_batch_counts(
+        self,
+        service: BackfillService,
+        mock_strava_reader,
+        mock_activity_repo,
+        mock_uow,
+    ):
+        """A failed commit rolls back and classifies every activity as an error."""
+        activities = make_activities(3)
+        mock_strava_reader.read_activities_by_year.return_value = activities
+        mock_activity_repo.get_existing_ids.return_value = {2}
+        mock_uow.commit.side_effect = RuntimeError("commit failed")
+
+        result = service.backfill_user("12345", years=[2024])
+
+        year_stats = result.year_stats[0]
+        assert year_stats.pg_inserted == 0
+        assert year_stats.pg_updated == 0
+        assert year_stats.pg_errors == 3
+        assert (
+            year_stats.pg_inserted + year_stats.pg_updated + year_stats.pg_errors
+            == year_stats.activities_found
+        )
+
+    def test_false_upsert_fails_the_whole_transactional_batch(
+        self,
+        service: BackfillService,
+        mock_strava_reader,
+        mock_activity_repo,
+        mock_uow,
+    ):
+        """An unexpected false upsert cannot silently disappear from metrics."""
+        mock_strava_reader.read_activities_by_year.return_value = make_activities(2)
+        mock_activity_repo.upsert.side_effect = [True, False]
+
+        result = service.backfill_user("12345", years=[2024])
+
+        year_stats = result.year_stats[0]
+        assert year_stats.pg_inserted == 0
+        assert year_stats.pg_updated == 0
+        assert year_stats.pg_errors == 2
+        mock_uow.commit.assert_not_called()
 
     def test_batch_error_is_tracked(
         self,
@@ -298,7 +386,6 @@ class TestPostgresInsertion:
         uow2.__enter__.return_value = uow2
 
         factory = MagicMock(side_effect=[uow1, uow2])
-        mock_activity_repo.insert.return_value = True
 
         service = BackfillService(
             strava_reader=mock_strava_reader,
@@ -329,7 +416,6 @@ class TestBigQueryInsertion:
         """No BQ writes when bq_writer is None."""
         activities = make_activities(3, year=2024)
         mock_strava_reader.read_activities_by_year.return_value = activities
-        mock_activity_repo.insert.return_value = True
 
         result = service.backfill_user("12345", years=[2024])
 
@@ -345,7 +431,6 @@ class TestBigQueryInsertion:
         """BQ writes happen when writer is configured."""
         activities = make_activities(3, year=2024)
         mock_strava_reader.read_activities_by_year.return_value = activities
-        mock_activity_repo.insert.return_value = True
         mock_bq_writer.write_activities_batch.return_value = {
             "rows_affected": 3,
             "execution_time_ms": 100,
@@ -368,7 +453,6 @@ class TestBigQueryInsertion:
         """BQ errors are tracked without stopping PG writes."""
         activities = make_activities(3, year=2024)
         mock_strava_reader.read_activities_by_year.return_value = activities
-        mock_activity_repo.insert.return_value = True
         mock_bq_writer.write_activities_batch.side_effect = RuntimeError("BQ error")
 
         result = service_with_bq.backfill_user("12345", years=[2024])
@@ -415,7 +499,6 @@ class TestBigQueryRetry:
         """Each retryable exception class: 2 failures then success → no error."""
         activities = make_activities(3, year=2024)
         mock_strava_reader.read_activities_by_year.return_value = activities
-        mock_activity_repo.insert.return_value = True
         mock_bq_writer.write_activities_batch.side_effect = [
             exc,
             exc,
@@ -456,7 +539,6 @@ class TestBigQueryRetry:
         """Three transient failures: batch errored once; no 4th attempt."""
         activities = make_activities(3, year=2024)
         mock_strava_reader.read_activities_by_year.return_value = activities
-        mock_activity_repo.insert.return_value = True
         mock_bq_writer.write_activities_batch.side_effect = (
             gapi_exceptions.ServiceUnavailable("503")
         )
@@ -481,7 +563,6 @@ class TestBigQueryRetry:
         """InvalidArgument (schema drift) is not retried — fail once."""
         activities = make_activities(3, year=2024)
         mock_strava_reader.read_activities_by_year.return_value = activities
-        mock_activity_repo.insert.return_value = True
         mock_bq_writer.write_activities_batch.side_effect = (
             gapi_exceptions.InvalidArgument("schema mismatch")
         )
@@ -494,6 +575,119 @@ class TestBigQueryRetry:
         mock_sleep.assert_not_called()
         assert result.year_stats[0].bq_errors == 3
         assert result.success is False
+
+
+# =============================================================================
+# Tests: Metric Logging
+# =============================================================================
+
+
+class TestMetricLogging:
+    """Tests for the exact batch, year, and terminal metric contract."""
+
+    def test_logs_postgres_batch_metrics(
+        self,
+        service: BackfillService,
+        mock_activity_repo,
+        caplog,
+    ):
+        """A committed batch logs inserted, updated, and error counts."""
+        mock_activity_repo.get_existing_ids.return_value = {2, 3}
+
+        with caplog.at_level("INFO", logger="stravapipe.application.backfill.service"):
+            stats = service._insert_to_postgres(make_activities(3))
+
+        assert stats == PostgresWriteStats(inserted=1, updated=2, errors=0)
+        assert [
+            record.getMessage()
+            for record in caplog.records
+            if record.getMessage().startswith("PG batch")
+        ] == ["PG batch 1/1: 1 inserted, 2 updated, 0 errors"]
+
+    def test_logs_year_metrics(
+        self,
+        service: BackfillService,
+        mock_strava_reader,
+        caplog,
+    ):
+        """The year summary reports the same PostgreSQL metric contract."""
+        mock_strava_reader.read_activities_by_year.return_value = make_activities(3)
+
+        with (
+            patch.object(
+                service,
+                "_insert_to_postgres",
+                return_value=PostgresWriteStats(inserted=2, updated=1),
+            ),
+            patch(
+                "stravapipe.application.backfill.service.time.monotonic",
+                side_effect=[10.0, 12.0],
+            ),
+            caplog.at_level("INFO", logger="stravapipe.application.backfill.service"),
+        ):
+            service._backfill_year(2024)
+
+        assert [
+            record.getMessage()
+            for record in caplog.records
+            if record.getMessage().startswith("Year 2024 complete")
+        ] == [
+            "Year 2024 complete in 2.0s: "
+            "PG(2 inserted, 1 updated, 0 errors), BQ(0 inserted, 0 errors)"
+        ]
+
+    @pytest.mark.parametrize(
+        ("pg_errors", "level", "prefix"),
+        [
+            (0, "INFO", "Backfill completed for athlete"),
+            (1, "WARNING", "Backfill completed with errors for athlete"),
+        ],
+    )
+    def test_logs_terminal_metrics(
+        self,
+        service: BackfillService,
+        caplog,
+        pg_errors: int,
+        level: str,
+        prefix: str,
+    ):
+        """Success and failure summaries expose the same terminal fields."""
+        stats = YearStats(
+            year=2024,
+            activities_found=4,
+            pg_inserted=2,
+            pg_updated=1,
+            pg_errors=pg_errors,
+            bq_inserted=4,
+        )
+
+        with (
+            patch.object(service, "_backfill_year", return_value=stats),
+            patch(
+                "stravapipe.application.backfill.service.time.monotonic",
+                side_effect=[10.0, 15.0],
+            ),
+            caplog.at_level(level, logger="stravapipe.application.backfill.service"),
+        ):
+            service.backfill_user("12345", years=[2024])
+
+        terminal = [
+            record.getMessage()
+            for record in caplog.records
+            if record.getMessage().startswith(prefix)
+        ]
+        if pg_errors == 0:
+            assert terminal == [
+                "Backfill completed for athlete 12345: 4 activities across 1 year "
+                "(PG: 2 inserted, 1 updated; "
+                "BQ: 4 inserted; errors: 0) in 5.0s"
+            ]
+        else:
+            assert terminal == [
+                "Backfill completed with errors for athlete 12345: 4 activities "
+                "across 1 year (PG: 2 inserted, 1 updated; "
+                "BQ: 4 inserted; errors: 1) in 5.0s"
+            ]
 
 
 # =============================================================================
@@ -534,7 +728,6 @@ class TestProgressReporting:
             make_activities(5, year=2023),
             make_activities(3, year=2024),
         ]
-        mock_activity_repo.insert.return_value = True
 
         service = BackfillService(
             strava_reader=mock_strava_reader,
@@ -542,11 +735,98 @@ class TestProgressReporting:
             progress_reporter=mock_progress,
         )
 
-        service.backfill_user("12345", years=[2023, 2024])
+        result = service.backfill_user("12345", years=[2023, 2024])
 
         assert mock_progress.report_year_complete.call_args_list == [
-            call("12345", 2023, 5),
-            call("12345", 2024, 3),
+            call("12345", result.year_stats[0]),
+            call("12345", result.year_stats[1]),
+        ]
+        assert [stats.activities_found for stats in result.year_stats] == [5, 3]
+
+    def test_reporter_failure_does_not_corrupt_successful_year(
+        self,
+        mock_strava_reader,
+        mock_uow_factory,
+        mock_activity_repo,
+        mock_progress,
+        caplog,
+    ):
+        """A control-plane failure cannot duplicate or fail committed data stats."""
+        mock_strava_reader.read_activities_by_year.return_value = make_activities(2)
+        mock_activity_repo.get_existing_ids.return_value = {2}
+        mock_progress.report_year_complete.side_effect = RuntimeError(
+            "progress unavailable"
+        )
+        service = BackfillService(
+            strava_reader=mock_strava_reader,
+            uow_factory=mock_uow_factory,
+            progress_reporter=mock_progress,
+        )
+
+        with caplog.at_level("ERROR", logger="stravapipe.application.backfill.service"):
+            result = service.backfill_user("12345", years=[2024])
+
+        assert result.success is True
+        assert len(result.year_stats) == 1
+        assert result.total_pg_inserted == 1
+        assert result.total_pg_updated == 1
+        mock_progress.report_completed.assert_called_once_with("12345", result)
+        assert any(
+            record.getMessage()
+            == "Progress reporter failed during year_complete for athlete 12345"
+            for record in caplog.records
+        )
+
+    def test_reporter_mutation_cannot_change_backfill_state(
+        self,
+        mock_strava_reader,
+        mock_uow_factory,
+        mock_progress,
+    ):
+        """Reporter payloads are snapshots, even when mutation precedes failure."""
+
+        def mutate_started(_athlete_id: str, reported_years: list[int]) -> None:
+            reported_years.clear()
+            raise RuntimeError("progress unavailable")
+
+        def mutate_year(_athlete_id: str, stats: YearStats) -> None:
+            stats.activities_found = 999
+            stats.pg_inserted = 999
+            raise RuntimeError("progress unavailable")
+
+        def mutate_completed(_athlete_id: str, result: BackfillResult) -> None:
+            result.years.clear()
+            result.year_stats.clear()
+            result.total_activities = 999
+            result.total_pg_inserted = 999
+            result.total_errors = 999
+            raise RuntimeError("progress unavailable")
+
+        mock_strava_reader.read_activities_by_year.side_effect = [
+            make_activities(2, year=2023),
+            make_activities(1, year=2024),
+        ]
+        mock_progress.report_started.side_effect = mutate_started
+        mock_progress.report_year_complete.side_effect = mutate_year
+        mock_progress.report_completed.side_effect = mutate_completed
+        service = BackfillService(
+            strava_reader=mock_strava_reader,
+            uow_factory=mock_uow_factory,
+            progress_reporter=mock_progress,
+        )
+
+        result = service.backfill_user("12345", years=[2024, 2023])
+
+        assert result.years == [2023, 2024]
+        assert [stats.activities_found for stats in result.year_stats] == [2, 1]
+        assert [stats.pg_inserted for stats in result.year_stats] == [2, 1]
+        assert result.total_activities == 3
+        assert result.total_pg_inserted == 3
+        assert result.total_errors == 0
+        assert result.success is True
+        assert mock_strava_reader.read_activities_by_year.call_args_list == [
+            call(2023),
+            call(2024),
         ]
 
     def test_reports_completed_on_success(
@@ -621,7 +901,6 @@ class TestErrorResilience:
             RuntimeError("Strava API down"),  # 2023 fails
             make_activities(3, year=2024),  # 2024 succeeds
         ]
-        mock_activity_repo.insert.return_value = True
         service = BackfillService(
             strava_reader=mock_strava_reader,
             uow_factory=mock_uow_factory,
@@ -645,14 +924,10 @@ class TestBackfillResult:
 
     def test_success_when_no_errors(self):
         """Result is successful when total_errors is 0."""
-        from stravapipe.application.backfill.service import BackfillResult
-
         result = BackfillResult(athlete_id="123", total_errors=0)
         assert result.success is True
 
     def test_not_success_when_errors(self):
         """Result is not successful when there are errors."""
-        from stravapipe.application.backfill.service import BackfillResult
-
         result = BackfillResult(athlete_id="123", total_errors=1)
         assert result.success is False
