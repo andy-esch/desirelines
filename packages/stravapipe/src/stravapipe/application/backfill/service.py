@@ -141,6 +141,55 @@ class PostgresWriteStats:
     errors: int = 0
 
 
+def _log_committed_postgres_batch(
+    *,
+    batch_num: int,
+    total_batches: int,
+    inserted: int,
+    updated: int,
+) -> None:
+    """Log a committed batch without letting logging alter its data outcome."""
+    try:
+        logger.info(
+            "PG batch %d/%d: %d inserted, %d updated, 0 errors",
+            batch_num,
+            total_batches,
+            inserted,
+            updated,
+        )
+    except Exception:
+        # A logging handler failure after commit cannot change or reclassify
+        # the durable database result. Avoid recursive logging through the
+        # same potentially broken handler.
+        return
+
+
+def _log_postgres_cleanup_failure(
+    *,
+    batch_num: int,
+    total_batches: int,
+    inserted: int,
+    updated: int,
+    error: Exception,
+) -> None:
+    """Report post-commit cleanup failure without changing committed counts."""
+    try:
+        logger.error(
+            "PG batch %d/%d cleanup failed after commit (%s); "
+            "%d inserted and %d updated remain authoritative",
+            batch_num,
+            total_batches,
+            type(error).__name__,
+            inserted,
+            updated,
+            exc_info=(type(error), error, error.__traceback__),
+        )
+    except Exception:
+        # Cleanup has already failed after a successful commit. A second
+        # observability failure must likewise leave the committed result alone.
+        return
+
+
 @dataclass
 class BackfillResult:
     """Aggregate result of a full backfill operation."""
@@ -416,17 +465,23 @@ class BackfillService:
         """Upsert activities to PostgreSQL in batches.
 
         Inserted vs updated is classified from a batch pre-read. Counts are
-        promoted only after the surrounding transaction commits.
+        promoted once ``commit()`` returns. A commit exception is inherently
+        ambiguous because the database may have accepted the transaction before
+        the client observed the failure; it is counted as a failed batch because
+        no authoritative committed classification is available. Cleanup or
+        logging failures after a successful commit never reclassify those rows.
         """
         stats = PostgresWriteStats()
 
         for batch_num, total_batches, batch in _iter_batches(
             activities, self._batch_size
         ):
-            try:
-                batch_inserted = 0
-                batch_updated = 0
+            batch_inserted = 0
+            batch_updated = 0
+            commit_succeeded = False
+            cleanup_error: Exception | None = None
 
+            try:
                 uow = self._uow_factory()
                 with uow:
                     existing_ids = uow.activities.get_existing_ids(
@@ -443,25 +498,41 @@ class BackfillService:
                         else:
                             batch_inserted += 1
                     uow.commit()
+                    commit_succeeded = True
+            except Exception as exc:
+                if commit_succeeded:
+                    # The only remaining operation after the flag is set is
+                    # context-manager cleanup. The database result is already
+                    # authoritative even though cleanup failed.
+                    cleanup_error = exc
+                else:
+                    stats.errors += len(batch)
+                    logger.exception(
+                        "PG batch %d/%d: 0 inserted, 0 updated, %d errors",
+                        batch_num,
+                        total_batches,
+                        len(batch),
+                    )
+                    continue
 
-                stats.inserted += batch_inserted
-                stats.updated += batch_updated
+            stats.inserted += batch_inserted
+            stats.updated += batch_updated
 
-                logger.info(
-                    "PG batch %d/%d: %d inserted, %d updated, 0 errors",
-                    batch_num,
-                    total_batches,
-                    batch_inserted,
-                    batch_updated,
+            if cleanup_error is not None:
+                _log_postgres_cleanup_failure(
+                    batch_num=batch_num,
+                    total_batches=total_batches,
+                    inserted=batch_inserted,
+                    updated=batch_updated,
+                    error=cleanup_error,
                 )
-            except Exception:
-                stats.errors += len(batch)
-                logger.exception(
-                    "PG batch %d/%d: 0 inserted, 0 updated, %d errors",
-                    batch_num,
-                    total_batches,
-                    len(batch),
-                )
+
+            _log_committed_postgres_batch(
+                batch_num=batch_num,
+                total_batches=total_batches,
+                inserted=batch_inserted,
+                updated=batch_updated,
+            )
 
         return stats
 

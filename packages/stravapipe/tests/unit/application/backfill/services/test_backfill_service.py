@@ -383,6 +383,47 @@ class TestPostgresInsertion:
             == year_stats.activities_found
         )
 
+    def test_post_commit_exit_failure_preserves_committed_counts(
+        self,
+        service: BackfillService,
+        mock_activity_repo,
+        mock_uow,
+        caplog,
+    ):
+        """Cleanup failure after commit cannot reclassify durable writes."""
+        activities = make_activities(3)
+        mock_activity_repo.get_existing_ids.return_value = {2}
+        mock_uow.__exit__.side_effect = RuntimeError("cleanup failed")
+
+        with caplog.at_level(
+            "ERROR",
+            logger="stravapipe.application.backfill.service",
+        ):
+            stats = service._insert_to_postgres(activities)
+
+        assert stats == PostgresWriteStats(inserted=2, updated=1, errors=0)
+        assert stats.inserted + stats.updated + stats.errors == len(activities)
+        assert "cleanup failed after commit (RuntimeError)" in caplog.text
+        assert "2 inserted and 1 updated remain authoritative" in caplog.text
+
+    def test_success_log_failure_preserves_committed_counts(
+        self,
+        service: BackfillService,
+        mock_activity_repo,
+    ):
+        """A broken success logger cannot double-count a committed batch."""
+        activities = make_activities(3)
+        mock_activity_repo.get_existing_ids.return_value = {2}
+
+        with patch(
+            "stravapipe.application.backfill.service.logger.info",
+            side_effect=RuntimeError("logging failed"),
+        ):
+            stats = service._insert_to_postgres(activities)
+
+        assert stats == PostgresWriteStats(inserted=2, updated=1, errors=0)
+        assert stats.inserted + stats.updated + stats.errors == len(activities)
+
     def test_false_upsert_fails_the_whole_transactional_batch(
         self,
         service: BackfillService,

@@ -45,7 +45,12 @@ class AbstractUnitOfWork(ABC):
 
     @abstractmethod
     def commit(self) -> None:
-        """Commit the current transaction."""
+        """Commit the current transaction.
+
+        Returning means callers may treat the transaction as committed. Raising
+        does not prove the database rejected it: a connection failure can occur
+        after the server accepted the commit, leaving the outcome ambiguous.
+        """
         raise NotImplementedError
 
     @abstractmethod

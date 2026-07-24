@@ -179,7 +179,12 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
         return False  # Don't suppress exceptions
 
     def commit(self) -> None:
-        """Commit the current transaction."""
+        """Commit the current transaction.
+
+        A normal return confirms success to the application. An exception is
+        not proof of rollback because the connection can fail after PostgreSQL
+        accepts the commit; callers must treat that outcome as ambiguous.
+        """
         if self._session is None:
             raise RuntimeError("Cannot commit: no active session")
         # commit() blocks until the WAL flush returns; instrumenting it
