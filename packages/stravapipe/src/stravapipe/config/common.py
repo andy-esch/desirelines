@@ -54,15 +54,18 @@ def load_secrets_from_volumes(
                  FileNotFoundError is ignored (graceful fallback).
     """
     secrets: dict[str, str] = {}
+    loaded_any = False
     for name in secret_names:
         secret_path = Path(base_path) / name / "value"
         try:
             with secret_path.open(encoding="utf-8") as f:
                 secrets[name] = f.read()
-                logger.info("config: loaded %s from file: %s", name, secret_path)
+            loaded_any = True
         except FileNotFoundError:
             # Secret not mounted, skip (will rely on env var or default)
             pass
+    if loaded_any:
+        logger.info("config: loaded credentials from mounted volumes")
     return secrets
 
 
@@ -88,13 +91,17 @@ def load_strava_secrets() -> dict[str, str]:
     raw_secrets = load_secrets_from_volumes(secret_names)
 
     # Log fallbacks for secrets not found in volumes
+    loaded_env_any = False
     for name in secret_names:
         if name not in raw_secrets:
             # Check env var without INFISICAL_ prefix for backwards compatibility
             # This logic mimics the previous string replacement but only for LOGGING purposes
             env_name = name.replace("INFISICAL_", "")
             if os.getenv(env_name):
-                logger.info("config: loaded %s from environment", env_name)
+                loaded_env_any = True
+
+    if loaded_env_any:
+        logger.info("config: loaded fallback credentials from environment")
 
     # Remap infra secret names → config keys. Every key in raw_secrets is drawn
     # from secret_names (== secret_mapping keys), so no membership guard is needed.
