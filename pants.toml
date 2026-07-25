@@ -129,11 +129,13 @@ requirements = ["mypy"]
 
 # Shell formatting
 [shfmt]
-# shfmt defaults to tabs, but every shell script in this repo is authored with
-# 2-space indent (verified: 0 tab-indented lines across scripts/ops). Without
-# this, `pants fmt` would rewrite all of them to tabs — a large whitespace diff
-# that reverses the actual convention rather than enforcing it.
-args = ["-i", "2"]
+# MUST match the flags in `just sh-format` / `sh-format-check`
+# (justfiles/scripts.just: `shfmt -i 2 -ci`), which CI's Validation job runs.
+# Any divergence makes the two formatters fight: shfmt defaults to tabs (repo
+# uses 2-space, hence `-i 2`), and without `-ci` Pants strips the case-body
+# indentation that `just sh-format` adds, so each tool "fixes" the other's
+# output and `pants fmt`/`lint` reports perpetual changes.
+args = ["-i", "2", "-ci"]
 
 # golangci-lint configuration
 [golangci-lint]
