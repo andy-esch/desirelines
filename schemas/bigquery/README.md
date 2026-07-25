@@ -48,6 +48,13 @@ generated proto regardless of BQ `mode` — per BQ Storage Write API
 guidance, BQ enforces `REQUIRED` server-side at insert time. So a
 `REQUIRED ↔ NULLABLE` change in JSON does not regenerate the proto.
 
+Any activity-field change must also update the
+[persisted activity compatibility contract](../activities/). That contract
+records whether detailed webhook and summary backfill sources can supply the
+field, whether summary serialization excludes it, and what historical-data
+action is required. It does not replace this JSON schema as the BigQuery
+source of truth.
+
 ## REQUIRED vs NULLABLE — gotchas
 
 - Default to `NULLABLE` unless the field really is always present.

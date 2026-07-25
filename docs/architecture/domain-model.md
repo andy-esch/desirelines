@@ -33,10 +33,21 @@ The central domain object. Represents a single Strava activity as it flows throu
 | Strava API response (minimal) | stravapipe | `MinimalStravaActivity` | `packages/stravapipe/src/stravapipe/domain/activity.py` |
 | Normalized for DB write | stravapipe | `StandardActivity` | `packages/stravapipe/src/stravapipe/domain/activity.py` |
 | Database table | PostgreSQL | `desirelines.activities` | `schemas/database/migrations/` |
+| Persistence compatibility | schemas | Field disposition manifest | `schemas/activities/persisted_activity_contract.json` |
+| BigQuery row descriptor | stravapipe | `bigquery.v1.Activity` | `schemas/proto/desirelines/bigquery/v1/bq_activities.proto` |
 | API response (full) | apigateway | `activitiesv1.Activity` | `packages/apigateway/types/generated/activitiesv1/activities.pb.go` |
 | API response (list item) | apigateway | `activitiesv1.ActivitySummary` | `packages/apigateway/types/generated/activitiesv1/activities.pb.go` |
 | Frontend | web | `Activity` | `packages/web/src/types/generated/activities.ts` |
 | Frontend (list item) | web | `ActivitySummary` | `packages/web/src/types/generated/activities.ts` |
+
+No single protobuf is canonical across activity ingestion, both databases, and
+read APIs. The webhook protobuf owns event metadata while `raw_activity`
+remains Strava JSON; the generated BigQuery protobuf owns its Storage Write
+descriptor; and `activities.proto` owns read DTOs. The
+[persisted activity compatibility contract](../../schemas/activities/) joins
+those boundaries with the detailed and summary Pydantic source models,
+PostgreSQL write mapping, live behavior, backfill behavior, and required
+historical-data decision.
 
 ### Webhook Event
 

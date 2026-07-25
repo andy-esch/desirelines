@@ -59,6 +59,11 @@ just db-connect prod admin   # Connect (admin)
 - Use 4-digit zero-padded sequential numbers
 - Never modify existing migrations once applied
 
+For an activity column, also follow the
+[persisted activity compatibility checklist](../activities/). It requires the
+PostgreSQL writer mapping, live path, summary backfill behavior, fixtures, and
+historical-data action to move with the Flyway change.
+
 **Template**:
 
 ```sql
