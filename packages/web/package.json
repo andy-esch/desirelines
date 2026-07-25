@@ -81,6 +81,7 @@
     },
     "eslint-plugin-react-hooks": {
       "eslint": "$eslint"
-    }
+    },
+    "brace-expansion": "5.0.8"
   }
 }
