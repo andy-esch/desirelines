@@ -12,9 +12,8 @@ Run via:
 
 from __future__ import annotations
 
+from generate_proto import _Emit, _emit_message, _to_message_name, generate
 import pytest
-
-from generate_proto import generate, _emit_message, _Emit, _to_message_name
 
 
 def _render(schema: list[dict]) -> str:

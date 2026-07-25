@@ -1,8 +1,7 @@
-go 1.25.8
+go 1.26.3
 
 use (
 	./packages/apigateway
 	./packages/dispatcher
 	./packages/shared
-	./scripts/ops/backfills
 )

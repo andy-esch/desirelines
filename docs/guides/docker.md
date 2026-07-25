@@ -94,10 +94,10 @@ docker compose build dispatcher
 
 ### Go Services
 
-Multi-stage build: `golang:1.25-alpine` → `gcr.io/distroless/static-debian12:nonroot` (~27-55MB final)
+Multi-stage build: `golang:1.26-alpine` → `gcr.io/distroless/static-debian12:nonroot` (~27-55MB final)
 
 ```dockerfile
-FROM golang:1.25-alpine AS builder
+FROM golang:1.26-alpine AS builder
 # ... build statically-linked binary (CGO_ENABLED=0) ...
 
 FROM gcr.io/distroless/static-debian12:nonroot
@@ -109,15 +109,29 @@ Distroless provides CA certs, timezone data, and a non-root user (UID 65534) wit
 
 ### Python Services (Cloud Run)
 
-Multi-stage build with uv for fast dependency installation:
+Multi-stage build: a Debian builder that uses [uv](https://docs.astral.sh/uv/)
+to install a **standalone CPython** and build the venv, then a **distroless**
+runtime that carries only the interpreter + venv. Not a `python:3.14-slim`
+base — distroless ships no shell or package manager, and
+`distroless/python3` is stuck on Debian's Python 3.11, so the project brings
+its own 3.14 interpreter. See
+[`packages/stravapipe/Dockerfile`](../../packages/stravapipe/Dockerfile) for
+the authoritative version (stdlib pruning, the `/opt/python` bootstrap, libz
+handling, and per-service `command` overrides are omitted below).
 
 ```dockerfile
-FROM python:3.14-slim AS builder
-RUN pip install uv
-# ... install deps with uv ...
+# Builder: Debian + uv-managed standalone CPython, build the venv at /app/.venv
+FROM debian:bookworm-slim AS builder
+COPY --from=ghcr.io/astral-sh/uv:<pinned> /uv /uvx /bin/
+RUN uv python install 3.14.6        # patch-pinned to match .python-version
+RUN uv sync --frozen --no-dev       # venv at /app/.venv
 
-FROM python:3.14-slim
-# ... copy venv, run with uvicorn ...
+# Runtime: distroless cc (glibc + libstdc++ for psycopg-binary), no shell
+FROM gcr.io/distroless/cc-debian12:nonroot AS runtime
+COPY --from=builder /opt/python /opt/python     # the interpreter
+COPY --from=builder /app/.venv /app/.venv        # the venv (references /opt/python)
+ENV PATH="/app/.venv/bin:$PATH"
+# Cloud Run overrides `command` per service (mono-image for all entrypoints)
 ```
 
 ## Related Documentation

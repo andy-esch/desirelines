@@ -173,7 +173,7 @@ map's region filter and the densest-region default viewport
 |-------|---------|------|------|
 | Boundary table | PostgreSQL | `desirelines.regions` | `schemas/database/migrations/V0005__add_region_boundaries_and_tags.sql` |
 | Tag junction | PostgreSQL | `desirelines.activity_regions` | `schemas/database/migrations/V0005__add_region_boundaries_and_tags.sql` |
-| Boundary loader | ops | `load_census_regions.py` | `scripts/ops/backfills/` |
+| Boundary loader | ops | `load_census_regions.py` | `scripts/ops/regions/` |
 | Ingestion tagging | stravapipe | `tag_activity_regions` | `packages/stravapipe/src/stravapipe/adapters/postgres/_repository.py` |
 | Go repository | apigateway | `repository.RegionSummary` | `packages/apigateway/repository/types.go` |
 

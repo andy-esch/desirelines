@@ -4,8 +4,11 @@ This is NOT a web server — it's a batch job that runs to completion.
 Triggered by `gcloud run jobs execute` with ATHLETE_ID set as an env var.
 
 Usage (Cloud Run):
-    gcloud run jobs execute backfill \
-        --set-env-vars ATHLETE_ID=12345,BACKFILL_YEARS=2023,2024,2025
+    gcloud run jobs execute desirelines-backfill \
+        --update-env-vars="ATHLETE_ID=12345,BACKFILL_YEARS=2023,2024,2025" \
+        --region=us-central1 \
+        --project=desirelines-prod
+
 
 Usage (local):
     ATHLETE_ID=12345 BACKFILL_YEARS=2024,2025 \

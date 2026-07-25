@@ -29,13 +29,13 @@ Usage:
     export POSTGRES_CONNECTION_STRING="postgresql://user:pass@host/db?sslmode=require"
 
     # Dry run (download + parse, report counts, insert nothing)
-    uv run scripts/ops/backfills/load_census_regions.py --dry-run
+    uv run scripts/ops/regions/load_census_regions.py --dry-run
 
     # Load 2023 vintage (default), skipping rows that already exist
-    uv run scripts/ops/backfills/load_census_regions.py
+    uv run scripts/ops/regions/load_census_regions.py
 
     # Clean reload of both layers
-    uv run scripts/ops/backfills/load_census_regions.py --replace
+    uv run scripts/ops/regions/load_census_regions.py --replace
 
 For the admin connection string in a cloud env:
     export POSTGRES_CONNECTION_STRING=$(gcloud secrets versions access latest \
@@ -43,14 +43,15 @@ For the admin connection string in a cloud env:
 """
 
 import argparse
+from collections.abc import Callable
+from dataclasses import dataclass
 import json
 import os
+from pathlib import Path
 import sys
 import tempfile
 import urllib.request
 import zipfile
-from dataclasses import dataclass
-from pathlib import Path
 
 import psycopg
 import shapefile  # pyshp
@@ -83,7 +84,7 @@ def _download_and_open(url: str, workdir: Path) -> shapefile.Reader:
     """Download a Census shapefile zip and open it with pyshp."""
     zip_path = workdir / Path(url).name
     print(f"Downloading {url}")
-    urllib.request.urlretrieve(url, zip_path)  # noqa: S310 (fixed census.gov https URL)
+    urllib.request.urlretrieve(url, zip_path)
 
     extract_dir = workdir / zip_path.stem
     with zipfile.ZipFile(zip_path) as zf:
@@ -95,14 +96,18 @@ def _download_and_open(url: str, workdir: Path) -> shapefile.Reader:
     return shapefile.Reader(str(shp))
 
 
-def _field_getter(reader: shapefile.Reader):
+def _field_getter(
+    reader: shapefile.Reader,
+) -> Callable[[shapefile.Record], dict[str, object]]:
     """Return a fn mapping a record to a dict keyed by uppercased field name."""
     # field[0] is the deletion flag; real fields start at index 1.
     names = [f[0].upper() for f in reader.fields[1:]]
 
-    def get(record) -> dict[str, object]:
+    def get(record: shapefile.Record) -> dict[str, object]:
         # Values are mixed types (str names, int ALAND/AWATER); object is honest.
-        return {name: value for name, value in zip(names, record)}
+        # strict=True: one record value per field is a shapefile structural
+        # invariant, so a length mismatch means corrupt data — fail loud.
+        return dict(zip(names, record, strict=True))
 
     return get
 
@@ -123,9 +128,10 @@ def parse_cbsa(reader: shapefile.Reader, vintage: int) -> list[Region]:
         regions.append(
             Region(
                 source=source,
-                region_code=rec["GEOID"],
+                region_code=str(rec["GEOID"]),
                 region_kind=kind,
-                region_name=rec["NAME"],  # e.g. "Boston-Cambridge-Newton, MA-NH"
+                # e.g. "Boston-Cambridge-Newton, MA-NH"
+                region_name=str(rec["NAME"]),
                 geojson=json.dumps(sr.shape.__geo_interface__),
             )
         )
@@ -144,13 +150,13 @@ def parse_county(reader: shapefile.Reader, vintage: int) -> list[Region]:
     for sr in reader.shapeRecords():
         rec = get(sr.record)
         # NAMELSAD is "Middlesex County"; STUSPS gives the state abbreviation.
-        state = rec.get("STUSPS", "")
-        name = rec["NAMELSAD"]
+        state = str(rec.get("STUSPS", ""))
+        name = str(rec["NAMELSAD"])
         region_name = f"{name}, {state}" if state else name
         regions.append(
             Region(
                 source=source,
-                region_code=rec["GEOID"],
+                region_code=str(rec["GEOID"]),
                 region_kind="county",
                 region_name=region_name,
                 geojson=json.dumps(sr.shape.__geo_interface__),
@@ -188,34 +194,31 @@ def load_regions(
 
     inserted = 0
     skipped = 0
-    with psycopg.connect(conn_str) as conn:
-        with conn.cursor() as cur:
-            if replace:
-                for source in sources:
-                    cur.execute(
-                        "DELETE FROM desirelines.regions WHERE source = %s",
-                        (source,),
-                    )
-                    print(
-                        f"  Replaced: deleted {cur.rowcount} existing rows for {source}"
-                    )
-
-            for i in range(0, len(regions), batch_size):
-                batch = regions[i : i + batch_size]
-                batch_inserted = 0
-                for region in batch:
-                    cur.execute(insert_sql, region.__dict__)
-                    if cur.fetchone() is not None:
-                        batch_inserted += 1
-                inserted += batch_inserted
-                skipped += len(batch) - batch_inserted
-                # Progress only; the transaction commits once after the full load.
-                print(
-                    f"  Batch {i // batch_size + 1}: {batch_inserted} inserted "
-                    f"(running: {inserted} inserted, {skipped} skipped)"
+    with psycopg.connect(conn_str) as conn, conn.cursor() as cur:
+        if replace:
+            for source in sources:
+                cur.execute(
+                    "DELETE FROM desirelines.regions WHERE source = %s",
+                    (source,),
                 )
+                print(f"  Replaced: deleted {cur.rowcount} existing rows for {source}")
 
-            conn.commit()  # atomic: DELETE + every insert land together or not at all
+        for i in range(0, len(regions), batch_size):
+            batch = regions[i : i + batch_size]
+            batch_inserted = 0
+            for region in batch:
+                cur.execute(insert_sql, region.__dict__)
+                if cur.fetchone() is not None:
+                    batch_inserted += 1
+            inserted += batch_inserted
+            skipped += len(batch) - batch_inserted
+            # Progress only; the transaction commits once after the full load.
+            print(
+                f"  Batch {i // batch_size + 1}: {batch_inserted} inserted "
+                f"(running: {inserted} inserted, {skipped} skipped)"
+            )
+
+        conn.commit()  # atomic: DELETE + every insert land together or not at all
 
     return inserted, skipped
 

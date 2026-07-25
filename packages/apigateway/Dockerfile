@@ -2,7 +2,7 @@
 # Multi-stage build for optimal container size
 
 # Build stage
-FROM golang:1.25-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 # Building from repository root context to allow access to local shared packages.
 WORKDIR /app

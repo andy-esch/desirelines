@@ -209,7 +209,11 @@ For testing with real Strava data, you need:
 
 See [strava-webhook.md](./strava-webhook.md) for credential setup.
 
-For production data backfills, see [scripts/ops/backfills/README.md](../../scripts/ops/backfills/README.md).
+For production data backfills (activities, routes, region tags), use the
+`desirelines-backfill` Cloud Run Job
+(`packages/stravapipe/src/stravapipe/cloudrun/backfill_job.py`). To load the
+region boundary reference table, see
+[scripts/ops/regions/README.md](../../scripts/ops/regions/README.md).
 
 ## Environment Variables
 
@@ -231,4 +235,4 @@ FIREBASE_AUTH_EMULATOR_HOST=localhost:9099
 
 - [Frontend Development](./frontend-local-dev.md) - React UI development
 - [Docker Guide](./docker.md) - Container builds
-- [Data Scripts](../../scripts/ops/backfills/README.md) - Backfill tools
+- [Region Data Loader](../../scripts/ops/regions/README.md) - Census boundary reference data

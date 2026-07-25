@@ -30,9 +30,9 @@
       "allowedVersions": "17.x"
     },
     {
-      "description": "Pin Go to 1.25.x across all managers (Go modules, GitHub Actions, Docker)",
+      "description": "Pin Go to 1.26.x across all managers (Go modules, GitHub Actions, Docker)",
       "matchDepNames": ["go", "golang"],
-      "allowedVersions": "1.25.x",
+      "allowedVersions": "1.26.x",
       "groupName": "go version"
     },
     {
@@ -54,6 +54,12 @@
       "description": "Keep every uv pin in one PR. The Dockerfile tag and pyproject.toml's [tool.uv] required-version must move together — uv.lock carries a format revision, so a uv newer than the image's can write a lock the production build can't read. Must stay after the group-by-manager rule above to win under last-rule-wins.",
       "matchDepNames": ["ghcr.io/astral-sh/uv"],
       "groupName": "uv"
+    },
+    {
+      "description": "Keep CPython in one PR across .python-version (pyenv manager) and the stravapipe Dockerfile's `uv python install` (custom manager below), and hold it at 3.14.x — pants `interpreter_constraints` (>=3.14,<3.15) and pyproject `requires-python` forbid 3.15. Without the custom manager the Dockerfile line drifted behind .python-version. Must stay after the group-by-manager rule to win under last-rule-wins.",
+      "matchDepNames": ["python"],
+      "allowedVersions": "3.14.x",
+      "groupName": "python version"
     }
   ],
   "customManagers": [
@@ -65,6 +71,14 @@
       "depNameTemplate": "ghcr.io/astral-sh/uv",
       "datasourceTemplate": "docker",
       "versioningTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Track the CPython patch the stravapipe Dockerfile installs via `uv python install X.Y.Z` — a raw shell command no built-in manager sees, which is why it drifted behind .python-version (3.14.5 vs 3.14.6). The `python version` packageRule above groups it with the pyenv bump and caps it at 3.14.x.",
+      "managerFilePatterns": ["packages/stravapipe/Dockerfile"],
+      "matchStrings": ["uv python install (?<currentValue>\\d+\\.\\d+\\.\\d+)"],
+      "depNameTemplate": "python",
+      "datasourceTemplate": "python-version"
     }
   ]
 }

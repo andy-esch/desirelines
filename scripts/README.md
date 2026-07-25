@@ -8,22 +8,21 @@ Operational scripts for desirelines monorepo management, deployment, and data op
 scripts/
 ├── database/         # Database connection/migration (PostgreSQL)
 ├── development/      # Local development tooling
-└── ops/              # Operational scripts (Setup, Deploy, Backfills)
-    ├── backfills/    # Data backfill/migration
+└── ops/              # Operational scripts (Setup, Deploy, Regions)
     ├── deploy/       # Deployment scripts
+    ├── regions/      # Region boundary reference-data loader (Census)
     └── setup/        # Bootstrap scripts
 ```
 
 ## Quick Reference
 
-| Task | Command |
-|------|---------|
-| Local dev setup | `./scripts/ops/setup/setup-local.sh` |
-| Build & publish | `just build-publish` |
-| Deploy web | `just deploy-web <env>` |
-| Deploy backend | Merge to main (auto) or via `desirelines-deploy` repo |
-| Backfill Strava | `uv run python scripts/ops/backfills/backfill_from_strava.py --years 2024` |
-| Manage webhook | `just webhook <action> <env>` |
+| Task            | Command                                               |
+| --------------- | ----------------------------------------------------- |
+| Local dev setup | `./scripts/ops/setup/setup-local.sh`                  |
+| Build & publish | `just build-publish`                                  |
+| Deploy web      | `just deploy-web <env>`                               |
+| Deploy backend  | Merge to main (auto) or via `desirelines-deploy` repo |
+| Manage webhook  | `just webhook <action> <env>`                         |
 
 ## By Directory
 
@@ -33,7 +32,7 @@ Consolidated operational scripts.
 
 - **`ops/setup/`**: Bootstrapping (`bootstrap-environment.sh`, `setup-local.sh`)
 - **`ops/deploy/`**: Deployment (`deploy-web.sh`, `build-and-publish.sh`)
-- **`ops/backfills/`**: Data tools (`backfill_from_strava.py`)
+- **`ops/regions/`**: Region boundary reference-data loader (`load_census_regions.py`)
 - **`ops/webhook-management.sh`**: Webhook operations (create, view, delete)
 
 ### `database/`

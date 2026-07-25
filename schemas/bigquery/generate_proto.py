@@ -146,10 +146,7 @@ def _emit_field(col: dict[str, Any], field_number: int, out: _Emit) -> None:
     # everything `optional` (even fields BQ declares REQUIRED) per
     # Google's BQ Storage Write API guidance; BQ enforces REQUIRED at
     # insert time independently of the proto label.
-    if mode == "REPEATED":
-        prefix = "repeated "
-    else:
-        prefix = "optional "
+    prefix = "repeated " if mode == "REPEATED" else "optional "
 
     # Add a tag comment for TIMESTAMP/JSON so readers know the BQ semantics.
     #
@@ -200,10 +197,14 @@ def generate(bq_schema_path: Path = BQ_SCHEMA_PATH) -> str:
         "",
         "package desirelines.bigquery.v1;",
         "",
-        "// `go_package` is required by protoc-gen-go even though we don't",
-        "// consume the Go output today. Points at the stravapipe generated",
-        "// dir to match the Python output's conceptual location.",
-        'option go_package = "github.com/andy-esch/desirelines/packages/stravapipe/types/generated";',
+        "// Deliberately no `option go_package`: this proto is Python-only.",
+        "// Declaring it made Pants' Go protobuf backend generate Go for it,",
+        "// and with more than one `go_mod` target in the repo and no",
+        "// `go_mod_address` set, that made the owning module ambiguous —",
+        "// every broad goal (`pants lint ::`, `pants check ::`) died with",
+        "// InvalidTargetException. No Go source imports this proto, so the",
+        "// simplest fix is to not generate Go at all. (`go_package` is only",
+        "// required by protoc-gen-go while Go is actually being generated.)",
         "",
     ]
 

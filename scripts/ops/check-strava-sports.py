@@ -38,9 +38,10 @@ recipe and any CI job that wires it up don't need ``uv``.
 """
 
 import argparse
+from http import HTTPStatus
 import json
-import sys
 from pathlib import Path
+import sys
 from typing import Any
 import urllib.error
 import urllib.request
@@ -60,10 +61,11 @@ def fetch_swagger(url: str, timeout: int) -> dict[str, Any]:
     # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected -
     # URL is configurable but defaults to Strava's well-known docs endpoint;
     # only consumed by this offline tooling.
-    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
-        if resp.status != 200:
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        if resp.status != HTTPStatus.OK:
             raise RuntimeError(f"swagger fetch returned HTTP {resp.status}")
-        return json.loads(resp.read().decode("utf-8"))
+        data: dict[str, Any] = json.loads(resp.read().decode("utf-8"))
+        return data
 
 
 def extract_strava_sport_types(swagger: dict[str, Any]) -> set[str]:
