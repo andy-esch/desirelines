@@ -30,6 +30,9 @@ env:
   STRAVA_WEBHOOK_VERIFY_TOKEN: "test_verify_token"
   STRAVA_WEBHOOK_SUBSCRIPTION_ID: "12345"
 
+permissions:
+  contents: read
+
 jobs:
   # ===========================================================================
   # Validation: Schema sync, Proto validation, BUILD files

@@ -13,6 +13,9 @@ concurrency:
   group: build-deploy
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   # ===========================================================================
   # Job 0: Detect which service images actually need rebuilding
