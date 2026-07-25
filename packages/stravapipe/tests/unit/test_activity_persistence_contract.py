@@ -91,8 +91,9 @@ def _nested_paths(model: type[BaseModel], *, prefix: str) -> set[str]:
     return paths
 
 
-def _source_nested_differences() -> set[str]:
-    differences: set[str] = set()
+def _source_nested_path_ownership() -> tuple[set[str], set[str]]:
+    detailed_paths: set[str] = set()
+    summary_paths: set[str] = set()
     shared_fields = set(DetailedStravaActivity.model_fields) & set(
         SummaryStravaActivity.model_fields
     )
@@ -105,18 +106,27 @@ def _source_nested_differences() -> set[str]:
         )
         if detailed_model is None and summary_model is None:
             continue
-        detailed_paths = (
-            _nested_paths(detailed_model, prefix=name)
-            if detailed_model is not None
-            else set()
-        )
-        summary_paths = (
-            _nested_paths(summary_model, prefix=name)
-            if summary_model is not None
-            else set()
-        )
-        differences.update(detailed_paths ^ summary_paths)
-    return differences
+        if detailed_model is not None:
+            detailed_paths.update(_nested_paths(detailed_model, prefix=name))
+        if summary_model is not None:
+            summary_paths.update(_nested_paths(summary_model, prefix=name))
+    return detailed_paths, summary_paths
+
+
+def _find_proto_field_at_path(descriptor: Any, path: str) -> Any | None:
+    """Walk a dotted path through nested protobuf messages."""
+    parts = path.split(".")
+    current = descriptor
+    for index, part in enumerate(parts):
+        field = current.fields_by_name.get(part)
+        if field is None:
+            return None
+        if index == len(parts) - 1:
+            return field
+        if field.message_type is None:
+            return None
+        current = field.message_type
+    return None
 
 
 def _bq_message(
@@ -191,7 +201,8 @@ def test_manifest_covers_every_source_and_destination_field():
 
 
 def test_manifest_source_availability_matches_pydantic_models():
-    fields = _contract()["fields"]
+    contract = _contract()
+    fields = contract["fields"]
     detailed_fields = set(DetailedStravaActivity.model_fields)
     summary_fields = set(SummaryStravaActivity.model_fields)
 
@@ -201,13 +212,31 @@ def test_manifest_source_availability_matches_pydantic_models():
         )
         assert (disposition["summary"] == "available") == (name in summary_fields), name
 
-    expected_nested = _source_nested_differences()
-    actual_nested = set(_contract()["nested_differences"])
+    detailed_nested, summary_nested = _source_nested_path_ownership()
+    expected_nested = detailed_nested ^ summary_nested
+    actual_nested = set(contract["nested_differences"])
     assert actual_nested == expected_nested, (
         "Detailed/summary nested shape drifted.\n"
         f"Missing dispositions: {sorted(expected_nested - actual_nested)}\n"
         f"Stale dispositions: {sorted(actual_nested - expected_nested)}"
     )
+    for path, disposition in contract["nested_differences"].items():
+        assert (disposition["detailed"] == "available") == (path in detailed_nested), (
+            path
+        )
+        assert (disposition["summary"] == "available") == (path in summary_nested), path
+
+
+def test_source_availability_is_compatible_with_write_dispositions():
+    contract = _contract()
+    for path, disposition in {
+        **contract["fields"],
+        **contract["nested_differences"],
+    }.items():
+        if disposition["live"] != "not_applicable":
+            assert disposition["detailed"] == "available", path
+        if disposition["backfill"] == "write":
+            assert disposition["summary"] == "available", path
 
 
 def test_postgres_contract_matches_model_and_repository_mapping():
@@ -242,7 +271,8 @@ def test_postgres_contract_matches_model_and_repository_mapping():
 
 
 def test_bigquery_contract_matches_descriptor_and_summary_exclusions():
-    contract_fields = _contract()["fields"]
+    contract = _contract()
+    contract_fields = contract["fields"]
     descriptor_fields = {
         field.name for field in bq_activities_pb2.Activity.DESCRIPTOR.fields
     }
@@ -250,6 +280,20 @@ def test_bigquery_contract_matches_descriptor_and_summary_exclusions():
     for name in descriptor_fields:
         bigquery = contract_fields[name]["bigquery"]
         assert bigquery == {"kind": "column", "target": name}, name
+
+    for path, disposition in {
+        **contract_fields,
+        **contract["nested_differences"],
+    }.items():
+        bigquery = disposition["bigquery"]
+        if bigquery["kind"] != "column":
+            continue
+        assert (
+            _find_proto_field_at_path(
+                bq_activities_pb2.Activity.DESCRIPTOR, bigquery["target"]
+            )
+            is not None
+        ), f"{path}: BigQuery target {bigquery['target']!r} is not in the proto"
 
     exclusions = {
         name
@@ -310,3 +354,29 @@ def test_detail_only_field_is_explicitly_unavailable_to_summary_backfill():
 
     assert detailed_bq.HasField("hide_from_home")
     assert not summary_bq.HasField("hide_from_home")
+
+
+def test_full_polyline_is_detailed_only_while_summary_polyline_is_shared():
+    disposition = _contract()["nested_differences"]["map.polyline"]
+    assert disposition["detailed"] == "available"
+    assert disposition["summary"] == "unavailable"
+    assert disposition["bigquery"] == {
+        "kind": "column",
+        "target": "map.polyline",
+    }
+    assert disposition["live"] == (
+        "create_write_and_enriched_pg_reconcile_existing_route"
+    )
+    assert disposition["backfill"] == "leave_unavailable"
+
+    raw_activity = _fixture("activity_1.json")
+    detailed = DetailedStravaActivity.model_validate(raw_activity)
+    summary = SummaryStravaActivity.model_validate(raw_activity)
+    detailed_bq = _bq_message(detailed)
+    summary_bq = _bq_message(summary)
+
+    assert detailed.map.polyline
+    assert detailed_bq.map.polyline == detailed.map.polyline
+    assert detailed_bq.map.HasField("polyline")
+    assert not summary_bq.map.HasField("polyline")
+    assert detailed_bq.map.summary_polyline == summary_bq.map.summary_polyline
