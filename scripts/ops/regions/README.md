@@ -53,14 +53,14 @@ Uses [uv inline script dependencies](https://docs.astral.sh/uv/guides/scripts/#d
 export POSTGRES_CONNECTION_STRING="postgresql://user:pass@host/db?sslmode=require"
 
 # Dry run (download + parse, report metro/micro/county counts, insert nothing)
-uv run scripts/ops/backfills/load_census_regions.py --dry-run
+uv run scripts/ops/regions/load_census_regions.py --dry-run
 
 # Load (idempotent: ON CONFLICT DO NOTHING)
-uv run scripts/ops/backfills/load_census_regions.py
+uv run scripts/ops/regions/load_census_regions.py
 
 # Clean reload of both layers (delete each source's rows first), or a newer vintage
-uv run scripts/ops/backfills/load_census_regions.py --replace
-uv run scripts/ops/backfills/load_census_regions.py --vintage 2023 --replace
+uv run scripts/ops/regions/load_census_regions.py --replace
+uv run scripts/ops/regions/load_census_regions.py --vintage 2023 --replace
 ```
 
 ### Requirements

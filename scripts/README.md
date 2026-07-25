@@ -8,9 +8,9 @@ Operational scripts for desirelines monorepo management, deployment, and data op
 scripts/
 ├── database/         # Database connection/migration (PostgreSQL)
 ├── development/      # Local development tooling
-└── ops/              # Operational scripts (Setup, Deploy, Backfills)
-    ├── backfills/    # Data backfill/migration
+└── ops/              # Operational scripts (Setup, Deploy, Regions)
     ├── deploy/       # Deployment scripts
+    ├── regions/      # Region boundary reference-data loader (Census)
     └── setup/        # Bootstrap scripts
 ```
 
@@ -32,7 +32,7 @@ Consolidated operational scripts.
 
 - **`ops/setup/`**: Bootstrapping (`bootstrap-environment.sh`, `setup-local.sh`)
 - **`ops/deploy/`**: Deployment (`deploy-web.sh`, `build-and-publish.sh`)
-- **`ops/backfills/`**: Data tools
+- **`ops/regions/`**: Region boundary reference-data loader (`load_census_regions.py`)
 - **`ops/webhook-management.sh`**: Webhook operations (create, view, delete)
 
 ### `database/`

@@ -29,13 +29,13 @@ Usage:
     export POSTGRES_CONNECTION_STRING="postgresql://user:pass@host/db?sslmode=require"
 
     # Dry run (download + parse, report counts, insert nothing)
-    uv run scripts/ops/backfills/load_census_regions.py --dry-run
+    uv run scripts/ops/regions/load_census_regions.py --dry-run
 
     # Load 2023 vintage (default), skipping rows that already exist
-    uv run scripts/ops/backfills/load_census_regions.py
+    uv run scripts/ops/regions/load_census_regions.py
 
     # Clean reload of both layers
-    uv run scripts/ops/backfills/load_census_regions.py --replace
+    uv run scripts/ops/regions/load_census_regions.py --replace
 
 For the admin connection string in a cloud env:
     export POSTGRES_CONNECTION_STRING=$(gcloud secrets versions access latest \
