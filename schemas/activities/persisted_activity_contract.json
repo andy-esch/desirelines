@@ -1,0 +1,758 @@
+{
+  "version": 1,
+  "fields": {
+    "achievement_count": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "achievement_count"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Analytics-only field outside the PostgreSQL application projection."
+    },
+    "athlete": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [
+        {
+          "kind": "derived_column",
+          "target": "desirelines.activities.user_id",
+          "attribute": "user_id"
+        }
+      ],
+      "bigquery": {"kind": "column", "target": "athlete"},
+      "live": "create_write_and_enriched_pg_upsert",
+      "backfill": "write",
+      "reason": "PostgreSQL stores athlete.id through the computed StandardActivity.user_id attribute."
+    },
+    "athlete_count": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "athlete_count"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Analytics-only field outside the PostgreSQL application projection."
+    },
+    "available_zones": {
+      "detailed": "available",
+      "summary": "unavailable",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "available_zones"},
+      "live": "create_write",
+      "backfill": "leave_unavailable",
+      "reason": "The Strava list endpoint does not return this detailed analytics field."
+    },
+    "average_cadence": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "average_cadence"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Analytics-only field outside the PostgreSQL application projection."
+    },
+    "average_heartrate": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [
+        {
+          "kind": "column",
+          "target": "desirelines.activities.average_heartrate",
+          "attribute": "average_heartrate"
+        }
+      ],
+      "bigquery": {"kind": "column", "target": "average_heartrate"},
+      "live": "create_write_and_enriched_pg_upsert",
+      "backfill": "write"
+    },
+    "average_speed": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [
+        {
+          "kind": "column",
+          "target": "desirelines.activities.average_speed",
+          "attribute": "average_speed"
+        }
+      ],
+      "bigquery": {"kind": "column", "target": "average_speed"},
+      "live": "create_write_and_enriched_pg_upsert",
+      "backfill": "write"
+    },
+    "average_watts": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "average_watts"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Analytics-only field outside the PostgreSQL application projection."
+    },
+    "best_efforts": {
+      "detailed": "available",
+      "summary": "unavailable",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "best_efforts"},
+      "live": "create_write",
+      "backfill": "leave_unavailable",
+      "reason": "The Strava list endpoint does not return detailed best-effort records."
+    },
+    "calories": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "calories"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Analytics-only field outside the PostgreSQL application projection."
+    },
+    "comment_count": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "comment_count"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Analytics-only field outside the PostgreSQL application projection."
+    },
+    "commute": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "commute"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Analytics-only field outside the PostgreSQL application projection."
+    },
+    "description": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "description"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Analytics-only field outside the PostgreSQL application projection."
+    },
+    "device_name": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "device_name"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Analytics-only field outside the PostgreSQL application projection."
+    },
+    "device_watts": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "device_watts"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Analytics-only field outside the PostgreSQL application projection."
+    },
+    "display_hide_heartrate_option": {
+      "detailed": "available",
+      "summary": "unavailable",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {
+        "kind": "column",
+        "target": "display_hide_heartrate_option"
+      },
+      "live": "create_write",
+      "backfill": "leave_unavailable",
+      "reason": "The Strava list endpoint does not return this detailed visibility field."
+    },
+    "distance": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [
+        {
+          "kind": "column",
+          "target": "desirelines.activities.distance",
+          "attribute": "distance"
+        }
+      ],
+      "bigquery": {"kind": "column", "target": "distance"},
+      "live": "create_write_and_enriched_pg_upsert",
+      "backfill": "write"
+    },
+    "elapsed_time": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [
+        {
+          "kind": "column",
+          "target": "desirelines.activities.elapsed_time",
+          "attribute": "elapsed_time"
+        }
+      ],
+      "bigquery": {"kind": "column", "target": "elapsed_time"},
+      "live": "create_write_and_enriched_pg_upsert",
+      "backfill": "write"
+    },
+    "elev_high": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "elev_high"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Analytics-only field outside the PostgreSQL application projection."
+    },
+    "elev_low": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "elev_low"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Analytics-only field outside the PostgreSQL application projection."
+    },
+    "embed_token": {
+      "detailed": "available",
+      "summary": "unavailable",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "embed_token"},
+      "live": "create_write",
+      "backfill": "leave_unavailable",
+      "reason": "The Strava list endpoint does not return the detailed embed token."
+    },
+    "end_latlng": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "end_latlng"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Raw endpoint coordinates are retained in BigQuery; PostgreSQL stores decoded route geometry instead."
+    },
+    "external_id": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "external_id"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Analytics-only field outside the PostgreSQL application projection."
+    },
+    "flagged": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "flagged"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Analytics-only field outside the PostgreSQL application projection."
+    },
+    "from_accepted_tag": {
+      "detailed": "unavailable",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "excluded"},
+      "live": "not_applicable",
+      "backfill": "not_applicable",
+      "reason": "Summary-only Strava field intentionally excluded because it has no persisted destination."
+    },
+    "gear": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "gear"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Analytics-only record outside the PostgreSQL application projection."
+    },
+    "gear_id": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "gear_id"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Analytics-only field outside the PostgreSQL application projection."
+    },
+    "has_heartrate": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "has_heartrate"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "PostgreSQL persists the actual heart-rate values rather than this availability flag."
+    },
+    "has_kudoed": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "has_kudoed"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Analytics-only field outside the PostgreSQL application projection."
+    },
+    "heartrate_opt_out": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "heartrate_opt_out"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Analytics-only field outside the PostgreSQL application projection."
+    },
+    "hide_from_home": {
+      "detailed": "available",
+      "summary": "unavailable",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "hide_from_home"},
+      "live": "create_write",
+      "backfill": "leave_unavailable",
+      "reason": "The Strava list endpoint does not return this detailed visibility field."
+    },
+    "id": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [
+        {
+          "kind": "column",
+          "target": "desirelines.activities.id",
+          "attribute": "id"
+        }
+      ],
+      "bigquery": {"kind": "column", "target": "id"},
+      "live": "create_write_and_enriched_pg_upsert",
+      "backfill": "write"
+    },
+    "kilojoules": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "kilojoules"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Analytics-only field outside the PostgreSQL application projection."
+    },
+    "kudos_count": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "kudos_count"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Analytics-only field outside the PostgreSQL application projection."
+    },
+    "laps": {
+      "detailed": "available",
+      "summary": "unavailable",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "laps"},
+      "live": "create_write",
+      "backfill": "leave_unavailable",
+      "reason": "The Strava list endpoint does not return detailed lap records."
+    },
+    "location_city": {
+      "detailed": "unavailable",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "excluded"},
+      "live": "not_applicable",
+      "backfill": "not_applicable",
+      "reason": "Summary-only location label is outside both persisted schemas."
+    },
+    "location_country": {
+      "detailed": "unavailable",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "excluded"},
+      "live": "not_applicable",
+      "backfill": "not_applicable",
+      "reason": "Summary-only location label is outside both persisted schemas."
+    },
+    "location_state": {
+      "detailed": "unavailable",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "excluded"},
+      "live": "not_applicable",
+      "backfill": "not_applicable",
+      "reason": "Summary-only location label is outside both persisted schemas."
+    },
+    "manual": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [
+        {
+          "kind": "column",
+          "target": "desirelines.activities.manual",
+          "attribute": "manual"
+        }
+      ],
+      "bigquery": {"kind": "column", "target": "manual"},
+      "live": "create_write_and_enriched_pg_upsert",
+      "backfill": "write"
+    },
+    "map": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [
+        {
+          "kind": "route",
+          "target": "desirelines.activity_routes.route",
+          "attribute": "map"
+        }
+      ],
+      "bigquery": {"kind": "column", "target": "map"},
+      "live": "create_write_and_enriched_pg_reconcile_existing_route",
+      "backfill": "derive",
+      "reason": "CREATE stores the detailed polyline; enriched UPDATE only retags an existing route; backfill chooses full or summary polyline and reconciles route and region state."
+    },
+    "max_heartrate": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [
+        {
+          "kind": "column",
+          "target": "desirelines.activities.max_heartrate",
+          "attribute": "max_heartrate"
+        }
+      ],
+      "bigquery": {"kind": "column", "target": "max_heartrate"},
+      "live": "create_write_and_enriched_pg_upsert",
+      "backfill": "write"
+    },
+    "max_speed": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [
+        {
+          "kind": "column",
+          "target": "desirelines.activities.max_speed",
+          "attribute": "max_speed"
+        }
+      ],
+      "bigquery": {"kind": "column", "target": "max_speed"},
+      "live": "create_write_and_enriched_pg_upsert",
+      "backfill": "write"
+    },
+    "max_watts": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "max_watts"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Analytics-only field outside the PostgreSQL application projection."
+    },
+    "moving_time": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [
+        {
+          "kind": "column",
+          "target": "desirelines.activities.moving_time",
+          "attribute": "moving_time"
+        }
+      ],
+      "bigquery": {"kind": "column", "target": "moving_time"},
+      "live": "create_write_and_enriched_pg_upsert",
+      "backfill": "write"
+    },
+    "name": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [
+        {
+          "kind": "column",
+          "target": "desirelines.activities.name",
+          "attribute": "name"
+        }
+      ],
+      "bigquery": {"kind": "column", "target": "name"},
+      "live": "create_write_enriched_pg_upsert_and_bare_metadata",
+      "backfill": "write",
+      "reason": "Bare title UPDATEs safely update only PostgreSQL name; enriched events and backfill write the full projection."
+    },
+    "photo_count": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "photo_count"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Analytics-only field outside the PostgreSQL application projection."
+    },
+    "photos": {
+      "detailed": "available",
+      "summary": "unavailable",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "photos"},
+      "live": "create_write",
+      "backfill": "leave_unavailable",
+      "reason": "The Strava list endpoint does not return detailed photo metadata."
+    },
+    "pr_count": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "pr_count"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Analytics-only field outside the PostgreSQL application projection."
+    },
+    "private": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "private"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Current PostgreSQL projection does not persist visibility; bare private UPDATEs are intentionally no-ops there."
+    },
+    "resource_state": {
+      "detailed": "unavailable",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "excluded"},
+      "live": "not_applicable",
+      "backfill": "not_applicable",
+      "reason": "Top-level summary resource_state conflicts with the persisted athlete.resource_state shape and is explicitly excluded."
+    },
+    "segment_efforts": {
+      "detailed": "available",
+      "summary": "unavailable",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "segment_efforts"},
+      "live": "create_write",
+      "backfill": "leave_unavailable",
+      "reason": "The Strava list endpoint does not return detailed segment efforts."
+    },
+    "splits_metric": {
+      "detailed": "available",
+      "summary": "unavailable",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "splits_metric"},
+      "live": "create_write",
+      "backfill": "leave_unavailable",
+      "reason": "The Strava list endpoint does not return detailed metric splits."
+    },
+    "splits_standard": {
+      "detailed": "available",
+      "summary": "unavailable",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "splits_standard"},
+      "live": "create_write",
+      "backfill": "leave_unavailable",
+      "reason": "The Strava list endpoint does not return detailed standard splits."
+    },
+    "sport_type": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [
+        {
+          "kind": "derived_column",
+          "target": "desirelines.activities.sport",
+          "attribute": "sport"
+        }
+      ],
+      "bigquery": {"kind": "column", "target": "sport_type"},
+      "live": "create_write_and_enriched_pg_upsert",
+      "backfill": "write",
+      "reason": "PostgreSQL stores the raw sport_type through the computed StandardActivity.sport attribute."
+    },
+    "start_date": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "start_date"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "PostgreSQL uses start_date_local; the UTC timestamp remains in BigQuery."
+    },
+    "start_date_local": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [
+        {
+          "kind": "column",
+          "target": "desirelines.activities.start_date_local",
+          "attribute": "start_date_local"
+        },
+        {
+          "kind": "derived_column",
+          "target": "desirelines.activities.year",
+          "attribute": "year"
+        }
+      ],
+      "bigquery": {"kind": "column", "target": "start_date_local"},
+      "live": "create_write_and_enriched_pg_upsert",
+      "backfill": "write",
+      "reason": "StandardActivity.year is computed from start_date_local for PostgreSQL filtering."
+    },
+    "start_latlng": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "start_latlng"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Raw endpoint coordinates are retained in BigQuery; PostgreSQL stores decoded route geometry instead."
+    },
+    "stats_visibility": {
+      "detailed": "available",
+      "summary": "unavailable",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "stats_visibility"},
+      "live": "create_write",
+      "backfill": "leave_unavailable",
+      "reason": "The Strava list endpoint does not return detailed stats-visibility records."
+    },
+    "suffer_score": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "suffer_score"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Analytics-only field outside the PostgreSQL application projection."
+    },
+    "timezone": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "timezone"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "PostgreSQL stores the local timestamp; the source timezone remains in BigQuery."
+    },
+    "total_elevation_gain": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [
+        {
+          "kind": "column",
+          "target": "desirelines.activities.total_elevation_gain",
+          "attribute": "total_elevation_gain"
+        }
+      ],
+      "bigquery": {"kind": "column", "target": "total_elevation_gain"},
+      "live": "create_write_and_enriched_pg_upsert",
+      "backfill": "write"
+    },
+    "total_photo_count": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "total_photo_count"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Analytics-only field outside the PostgreSQL application projection."
+    },
+    "trainer": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [
+        {
+          "kind": "column",
+          "target": "desirelines.activities.trainer",
+          "attribute": "trainer"
+        }
+      ],
+      "bigquery": {"kind": "column", "target": "trainer"},
+      "live": "create_write_and_enriched_pg_upsert",
+      "backfill": "write"
+    },
+    "type": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [
+        {
+          "kind": "column",
+          "target": "desirelines.activities.type",
+          "attribute": "type"
+        }
+      ],
+      "bigquery": {"kind": "column", "target": "type"},
+      "live": "create_write_enriched_pg_upsert_and_bare_metadata",
+      "backfill": "write",
+      "reason": "Bare type UPDATEs change only PostgreSQL type; enriched events recover sport_type and upsert the full projection."
+    },
+    "upload_id": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "upload_id"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Analytics-only field outside the PostgreSQL application projection."
+    },
+    "upload_id_str": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "upload_id_str"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Analytics-only field outside the PostgreSQL application projection."
+    },
+    "utc_offset": {
+      "detailed": "unavailable",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "excluded"},
+      "live": "not_applicable",
+      "backfill": "not_applicable",
+      "reason": "Summary-only offset is excluded because persisted timestamps already carry the required time semantics."
+    },
+    "visibility": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "visibility"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Analytics-only field outside the PostgreSQL application projection."
+    },
+    "weighted_average_watts": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "weighted_average_watts"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Analytics-only field outside the PostgreSQL application projection."
+    },
+    "workout_type": {
+      "detailed": "available",
+      "summary": "available",
+      "postgres": [{"kind": "not_persisted"}],
+      "bigquery": {"kind": "column", "target": "workout_type"},
+      "live": "create_write",
+      "backfill": "write",
+      "reason": "Analytics-only field outside the PostgreSQL application projection; the BQ writer performs the required integer-to-string coercion."
+    }
+  },
+  "nested_differences": {
+    "map.polyline": {
+      "detailed": "available",
+      "summary": "unavailable",
+      "postgres": {
+        "kind": "route",
+        "target": "desirelines.activity_routes.route"
+      },
+      "bigquery": {"kind": "column", "target": "map.polyline"},
+      "live": "create_write_and_enriched_pg_reconcile_existing_route",
+      "backfill": "leave_unavailable",
+      "reason": "Detailed CREATE stores the full polyline. Summary backfill can derive PostgreSQL route geometry from map.summary_polyline but cannot populate the BigQuery full-polyline field."
+    }
+  },
+  "system_columns": {
+    "created_at": {
+      "source": "application_clock",
+      "target": "desirelines.activities.created_at"
+    },
+    "updated_at": {
+      "source": "application_clock",
+      "target": "desirelines.activities.updated_at"
+    }
+  }
+}

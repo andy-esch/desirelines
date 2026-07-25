@@ -11,6 +11,12 @@ schemas/proto/
 ├── buf.yaml                              # Buf linting config
 ├── BUILD                                 # Pants build targets
 └── desirelines/
+    ├── activities/
+    │   └── v1/
+    │       └── activities.proto           # Activity read API contracts
+    ├── bigquery/
+    │   └── v1/
+    │       └── bq_activities.proto        # Generated Storage Write descriptor
     ├── config/
     │   └── v1/
     │       └── user_config.proto         # User settings (Firestore)
@@ -26,9 +32,28 @@ schemas/proto/
 
 | File | Package | Consumers | Status |
 |------|---------|-----------|--------|
+| `desirelines/activities/v1/activities.proto` | `desirelines.activities.v1` | apigateway (Go), web (TS) | Active read contract |
+| `desirelines/bigquery/v1/bq_activities.proto` | `desirelines.bigquery.v1` | stravapipe (Python) | Generated from BigQuery JSON |
 | `desirelines/sports/v1/sports_metrics.proto` | `desirelines.sports.v1` | apigateway (Go), web (TS), stravapipe (Python) | Active |
 | `desirelines/config/v1/user_config.proto` | `desirelines.config.v1` | apigateway (Go), web (TS) | Active |
 | `desirelines/webhook/v1/webhook.proto` | `desirelines.webhook.v1` | dispatcher (Go), stravapipe (Python) | Active |
+
+## Activity Contract Roles
+
+The activity-related protobufs do not form one universal storage model:
+
+- `webhook.proto` owns event metadata. `EnrichedEvent.raw_activity` remains
+  opaque Strava JSON even though the envelope has generated Go and Python
+  types.
+- `activities.proto` owns apigateway/frontend read DTOs. Its renamed and
+  derived response fields are not ingestion or database columns.
+- `bq_activities.proto` is generated from
+  `schemas/bigquery/activities_full.json` and owns the BigQuery Storage Write
+  row descriptor only.
+
+The field-by-field relationship among those contracts, the Pydantic source
+models, PostgreSQL, and backfill is recorded in the
+[persisted activity compatibility contract](../activities/).
 
 ## `sports_metrics.proto`
 
@@ -92,6 +117,10 @@ just proto-fmt    # Format proto files
 just proto-lint   # Lint proto files
 ```
 
+Do not edit `bq_activities.proto` directly. Regenerate and verify it through
+the BigQuery schema recipes documented in
+[`schemas/bigquery/README.md`](../bigquery/README.md).
+
 **Generated code locations:**
 
 - Go (apigateway): `packages/apigateway/types/generated/`
@@ -102,6 +131,7 @@ just proto-lint   # Lint proto files
 ## Related
 
 - [Domain Model](../../docs/architecture/domain-model.md) — cross-package type glossary mapping these proto types to Go, Python, and TypeScript
+- [Persisted Activity Compatibility](../activities/) — source/destination and live/backfill dispositions
 - [API Gateway handlers](../../packages/apigateway/internal/)
 - [Dispatcher proto adapter](../../packages/dispatcher/adapters/proto/)
 - [Stravapipe proto adapter](../../packages/stravapipe/src/stravapipe/adapters/proto/)

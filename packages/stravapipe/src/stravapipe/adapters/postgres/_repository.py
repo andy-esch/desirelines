@@ -34,32 +34,40 @@ _ALLOWED_UPDATE_CLAUSES: Final[dict[str, list[str]]] = {
     "type": ["type = :type"],
 }
 
-# Columns for a full activity write, in INSERT order. Single source of truth so
-# `insert` and `upsert` can't drift when a column is added — adding one here
-# (plus a line in `_activity_write_params`) updates both SQL statements and the
-# upsert SET clause below. `id` and `created_at` are insert-only: never in the
-# ON CONFLICT DO UPDATE SET, so the original `created_at` survives an upsert.
-_ACTIVITY_COLUMNS: Final[tuple[str, ...]] = (
-    "id",
-    "user_id",
-    "name",
-    "type",
-    "sport",
-    "start_date_local",
-    "distance",
-    "moving_time",
-    "elapsed_time",
-    "total_elevation_gain",
-    "average_speed",
-    "max_speed",
-    "average_heartrate",
-    "max_heartrate",
-    "trainer",
-    "manual",
-    "year",
+# Full-write PostgreSQL column -> StandardActivity attribute mapping, in INSERT
+# order. This is the single source of truth for both SQL generation and bind
+# values, so a persisted field cannot be added to one and omitted from the
+# other. Computed StandardActivity attributes (`user_id`, `sport`, and `year`)
+# are intentionally named here alongside direct model fields.
+_ACTIVITY_COLUMN_ATTRIBUTES: Final[dict[str, str]] = {
+    "id": "id",
+    "user_id": "user_id",
+    "name": "name",
+    "type": "type",
+    "sport": "sport",
+    "start_date_local": "start_date_local",
+    "distance": "distance",
+    "moving_time": "moving_time",
+    "elapsed_time": "elapsed_time",
+    "total_elevation_gain": "total_elevation_gain",
+    "average_speed": "average_speed",
+    "max_speed": "max_speed",
+    "average_heartrate": "average_heartrate",
+    "max_heartrate": "max_heartrate",
+    "trainer": "trainer",
+    "manual": "manual",
+    "year": "year",
+}
+_ACTIVITY_SYSTEM_COLUMNS: Final[tuple[str, ...]] = (
     "created_at",
     "updated_at",
 )
+_ACTIVITY_COLUMNS: Final[tuple[str, ...]] = (
+    *_ACTIVITY_COLUMN_ATTRIBUTES,
+    *_ACTIVITY_SYSTEM_COLUMNS,
+)
+# `id` and `created_at` are insert-only: never in the ON CONFLICT DO UPDATE
+# SET clause, so the original `created_at` survives an upsert.
 _ACTIVITY_INSERT_ONLY_COLUMNS: Final[frozenset[str]] = frozenset({"id", "created_at"})
 
 _ACTIVITY_INSERT_SQL: Final[str] = (
@@ -131,27 +139,17 @@ def _activity_write_params(activity: StandardActivity, now: datetime) -> dict[st
     ``created_at`` and ``updated_at`` are both set to ``now``; on an upsert
     conflict ``created_at`` isn't in the SET clause, so the original is kept.
     """
-    return {
-        "id": activity.id,
-        "user_id": activity.user_id,
-        "name": activity.name,
-        "type": activity.type,
-        "sport": activity.sport,
-        "start_date_local": activity.start_date_local,
-        "distance": activity.distance,
-        "moving_time": activity.moving_time,
-        "elapsed_time": activity.elapsed_time,
-        "total_elevation_gain": activity.total_elevation_gain,
-        "average_speed": activity.average_speed,
-        "max_speed": activity.max_speed,
-        "average_heartrate": activity.average_heartrate,
-        "max_heartrate": activity.max_heartrate,
-        "trainer": activity.trainer,
-        "manual": activity.manual,
-        "year": activity.year,
-        "created_at": now,
-        "updated_at": now,
+    params = {
+        column: getattr(activity, attribute)
+        for column, attribute in _ACTIVITY_COLUMN_ATTRIBUTES.items()
     }
+    params.update(
+        {
+            "created_at": now,
+            "updated_at": now,
+        }
+    )
+    return params
 
 
 def _rowcount(result: Result[Any]) -> int:
