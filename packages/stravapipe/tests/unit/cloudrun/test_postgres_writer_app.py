@@ -15,7 +15,11 @@ from fastapi.testclient import TestClient
 import pytest
 
 from stravapipe.cloudrun.postgres_writer_app import app
-from stravapipe.ports.out.postgres import MetadataUpdateResult
+from stravapipe.ports.out.postgres import (
+    DeleteResult,
+    InsertResult,
+    MetadataUpdateResult,
+)
 
 from .conftest import (
     SAMPLE_RAW_ACTIVITY,
@@ -199,7 +203,7 @@ class TestCreateEventHandling:
     def test_create_threads_request_tracer_into_shared_uow(self, client):
         """The normal webhook path retains the same UoW tracing contract."""
         mock_uow = MagicMock()
-        mock_uow.activities.insert.return_value = True
+        mock_uow.activities.insert.return_value = InsertResult.INSERTED
         mock_activity = MagicMock(map=None, user_id=999)
 
         with (
@@ -232,7 +236,7 @@ class TestCreateEventHandling:
     def test_create_event_success(self, client):
         """CREATE event with raw_activity writes to PostgreSQL."""
         mock_uow = MagicMock()
-        mock_uow.activities.insert.return_value = True
+        mock_uow.activities.insert.return_value = InsertResult.INSERTED
         mock_activity = MagicMock()
 
         with (
@@ -265,7 +269,7 @@ class TestCreateEventHandling:
     def test_create_event_already_exists(self, client):
         """CREATE event for existing activity returns skipped."""
         mock_uow = MagicMock()
-        mock_uow.activities.insert.return_value = False  # Already exists
+        mock_uow.activities.insert.return_value = InsertResult.ALREADY_EXISTS
         mock_activity = MagicMock()
 
         with (
@@ -292,10 +296,49 @@ class TestCreateEventHandling:
             assert data["status"] == "skipped"
             assert data["reason"] == "already_exists"
 
+    def test_create_event_resurrection_blocked(self, client):
+        """A CREATE rejected by a deletion tombstone is skipped and counted."""
+        from stravapipe.cloudrun.postgres_writer_app import app
+
+        mock_counter = MagicMock()
+        app.state.resurrection_counter = mock_counter
+
+        mock_uow = MagicMock()
+        mock_uow.activities.insert.return_value = InsertResult.RESURRECTION_BLOCKED
+        mock_activity = MagicMock(map=None, user_id=999)
+
+        with (
+            patch(
+                "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
+                return_value=mock_uow,
+            ),
+            patch(
+                "stravapipe.cloudrun.postgres_writer_app.StandardActivity.model_validate",
+                return_value=mock_activity,
+            ),
+        ):
+            response = client.post(
+                "/",
+                headers=make_cloudevent_headers(),
+                json=make_pubsub_body(
+                    make_webhook_payload(
+                        aspect_type="create", raw_activity=SAMPLE_RAW_ACTIVITY
+                    )
+                ),
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "skipped"
+        assert data["reason"] == "resurrection_blocked"
+        # No route/region work on a blocked resurrection.
+        mock_uow.activities.insert_route.assert_not_called()
+        mock_counter.add.assert_called_once_with(1, {"aspect_type": "create"})
+
     def test_create_event_with_polyline_inserts_route(self, client):
         """CREATE event with map.polyline also inserts route geometry."""
         mock_uow = MagicMock()
-        mock_uow.activities.insert.return_value = True
+        mock_uow.activities.insert.return_value = InsertResult.INSERTED
         mock_uow.activities.insert_route.return_value = True
 
         with (
@@ -329,7 +372,7 @@ class TestCreateEventHandling:
     def test_create_event_non_geographic_stores_route_without_tagging(self, client):
         """CREATE preserves its detailed route-first behavior for indoor activity."""
         mock_uow = MagicMock()
-        mock_uow.activities.insert.return_value = True
+        mock_uow.activities.insert.return_value = InsertResult.INSERTED
         mock_uow.activities.insert_route.return_value = True
         raw_activity = {
             **SAMPLE_RAW_ACTIVITY_WITH_MAP,
@@ -361,7 +404,7 @@ class TestCreateEventHandling:
         valid encoding of <2 points) skips the route insert — and now logs a
         warning so the silently-missing-from-map activity is diagnosable."""
         mock_uow = MagicMock()
-        mock_uow.activities.insert.return_value = True
+        mock_uow.activities.insert.return_value = InsertResult.INSERTED
 
         with (
             patch(
@@ -398,7 +441,7 @@ class TestCreateEventHandling:
     def test_create_event_without_polyline_skips_route(self, client):
         """CREATE event with null polyline does not insert route."""
         mock_uow = MagicMock()
-        mock_uow.activities.insert.return_value = True
+        mock_uow.activities.insert.return_value = InsertResult.INSERTED
 
         with (
             patch(
@@ -422,7 +465,7 @@ class TestCreateEventHandling:
     def test_create_event_without_map_skips_route(self, client):
         """CREATE event without map field does not insert route."""
         mock_uow = MagicMock()
-        mock_uow.activities.insert.return_value = True
+        mock_uow.activities.insert.return_value = InsertResult.INSERTED
 
         with (
             patch(
@@ -446,7 +489,7 @@ class TestCreateEventHandling:
     def test_create_event_duplicate_skips_route(self, client):
         """CREATE event for existing activity skips route insert too."""
         mock_uow = MagicMock()
-        mock_uow.activities.insert.return_value = False  # Already exists
+        mock_uow.activities.insert.return_value = InsertResult.ALREADY_EXISTS
 
         with (
             patch(
@@ -714,7 +757,7 @@ class TestDeleteEventHandling:
     def test_delete_event_success(self, client):
         """DELETE event successfully removes activity."""
         mock_uow = MagicMock()
-        mock_uow.activities.delete.return_value = True
+        mock_uow.activities.delete.return_value = DeleteResult.DELETED
 
         with patch(
             "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
@@ -730,11 +773,16 @@ class TestDeleteEventHandling:
             data = response.json()
             assert data["status"] == "deleted"
             assert data["activity_id"] == 12345678
+            # The delete threads the webhook event_time (for the tombstone) and
+            # the activity id positionally.
+            delete_args = mock_uow.activities.delete.call_args.args
+            assert delete_args[0] == 12345678
+            assert delete_args[1] == 1704067200
 
     def test_delete_event_not_found(self, client):
         """DELETE event for non-existent activity returns skipped."""
         mock_uow = MagicMock()
-        mock_uow.activities.delete.return_value = False  # Not found
+        mock_uow.activities.delete.return_value = DeleteResult.NOT_FOUND
 
         with patch(
             "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
@@ -750,6 +798,33 @@ class TestDeleteEventHandling:
             data = response.json()
             assert data["status"] == "skipped"
             assert data["reason"] == "not_found"
+
+    def test_delete_event_stale_is_dropped(self, client):
+        """A stale DELETE (live row is newer) is skipped as stale_event, counted,
+        and does not remove the row."""
+        from stravapipe.cloudrun.postgres_writer_app import app
+
+        mock_counter = MagicMock()
+        app.state.stale_event_counter = mock_counter
+
+        mock_uow = MagicMock()
+        mock_uow.activities.delete.return_value = DeleteResult.STALE
+
+        with patch(
+            "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
+            return_value=mock_uow,
+        ):
+            response = client.post(
+                "/",
+                headers=make_cloudevent_headers(),
+                json=make_pubsub_body(make_webhook_payload(aspect_type="delete")),
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "skipped"
+        assert data["reason"] == "stale_event"
+        mock_counter.add.assert_called_once_with(1, {"aspect_type": "delete"})
 
 
 class TestErrorHandling:
@@ -847,7 +922,7 @@ class TestFreshnessEmission:
 
         mock_histogram = self._mock_freshness_histogram()
         mock_uow = MagicMock()
-        mock_uow.activities.insert.return_value = True
+        mock_uow.activities.insert.return_value = InsertResult.INSERTED
 
         received_at_ms = int(time.time() * 1000) - 500  # 500ms in the past
 
@@ -886,7 +961,7 @@ class TestFreshnessEmission:
 
         mock_histogram = self._mock_freshness_histogram()
         mock_uow = MagicMock()
-        mock_uow.activities.insert.return_value = True
+        mock_uow.activities.insert.return_value = InsertResult.INSERTED
 
         # Dispatcher timestamp 5s in the FUTURE relative to the writer's clock.
         received_at_ms = int(time.time() * 1000) + 5000
@@ -922,7 +997,7 @@ class TestFreshnessEmission:
         skip rate stays observable."""
         mock_histogram = self._mock_freshness_histogram()
         mock_uow = MagicMock()
-        mock_uow.activities.insert.return_value = True
+        mock_uow.activities.insert.return_value = InsertResult.INSERTED
 
         with (
             patch(
@@ -1022,7 +1097,7 @@ class TestFreshnessEmission:
 
         mock_histogram = self._mock_freshness_histogram()
         mock_uow = MagicMock()
-        mock_uow.activities.delete.return_value = True
+        mock_uow.activities.delete.return_value = DeleteResult.DELETED
 
         received_at_ms = int(time.time() * 1000) - 500
 
@@ -1055,7 +1130,7 @@ class TestFreshnessEmission:
         """
         mock_histogram = self._mock_freshness_histogram()
         mock_uow = MagicMock()
-        mock_uow.activities.insert.return_value = True
+        mock_uow.activities.insert.return_value = InsertResult.INSERTED
 
         with (
             patch(
@@ -1087,8 +1162,11 @@ class TestIdempotency:
     def test_create_event_idempotent_on_redelivery(self, client):
         """First delivery returns CREATED, second returns SKIPPED/ALREADY_EXISTS."""
         mock_uow = MagicMock()
-        # First call inserts (returns True); second call detects duplicate.
-        mock_uow.activities.insert.side_effect = [True, False]
+        # First call inserts; second call detects the duplicate.
+        mock_uow.activities.insert.side_effect = [
+            InsertResult.INSERTED,
+            InsertResult.ALREADY_EXISTS,
+        ]
         mock_activity = MagicMock()
 
         with (

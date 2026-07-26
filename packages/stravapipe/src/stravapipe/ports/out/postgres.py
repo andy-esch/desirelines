@@ -22,6 +22,33 @@ from typing import Any
 from stravapipe.domain import StandardActivity
 
 
+class InsertResult(StrEnum):
+    """Outcome of ``ActivityRepository.insert`` (the CREATE path).
+
+    ``RESURRECTION_BLOCKED`` (a tombstone for this id has a
+    ``deletion_event_time`` >= the incoming CREATE's event_time) is distinguished
+    from ``ALREADY_EXISTS`` so a prevented resurrection is observable. Both are
+    classified atomically in one statement.
+    """
+
+    INSERTED = "inserted"
+    ALREADY_EXISTS = "already_exists"
+    RESURRECTION_BLOCKED = "resurrection_blocked"
+
+
+class DeleteResult(StrEnum):
+    """Outcome of ``ActivityRepository.delete`` (the DELETE path).
+
+    ``STALE`` means the live row is newer than the delete's event_time (a
+    reordered/stale DELETE), so the row is left intact and no tombstone is
+    written. ``DELETED`` and ``NOT_FOUND`` both write/refresh the tombstone.
+    """
+
+    DELETED = "deleted"
+    NOT_FOUND = "not_found"
+    STALE = "stale"
+
+
 class MetadataUpdateResult(StrEnum):
     """Outcome of ``ActivityRepository.update_metadata``.
 
@@ -48,22 +75,29 @@ class ActivityRepository(ABC):
     """
 
     @abstractmethod
-    def insert(self, activity: StandardActivity, event_time: int | None) -> bool:
+    def insert(
+        self, activity: StandardActivity, event_time: int | None
+    ) -> InsertResult:
         """Insert activity to PostgreSQL, ignore if already exists.
 
         Used for CREATE webhooks - writes all activity fields.
-        Uses ON CONFLICT DO NOTHING - duplicates are logged but not errors.
-        Records ``event_time`` as the ``last_event_time`` fence token so a later
-        UPDATE can reject events older than this CREATE.
+        Uses ON CONFLICT DO NOTHING - duplicates are not errors. Also rejects a
+        CREATE whose ``event_time`` is not strictly newer than an existing
+        deletion tombstone (see ``delete``), so a late/reordered CREATE cannot
+        resurrect a deleted activity. Records ``event_time`` as the
+        ``last_event_time`` fence token so a later UPDATE can reject events older
+        than this CREATE. Existence, the tombstone check, and the write are
+        classified in one statement (no race with a concurrent delete).
 
         Args:
             activity: StandardActivity domain model
             event_time: webhook event_time (unix seconds). ``None`` (backfill)
-                stores a NULL token — the row stays unfenced until a live write
-                sets one.
+                stores a NULL token and skips the tombstone guard — the row stays
+                unfenced until a live write sets one.
 
         Returns:
-            True if inserted, False if already existed (conflict)
+            An :class:`InsertResult` (``INSERTED`` / ``ALREADY_EXISTS`` /
+            ``RESURRECTION_BLOCKED``).
         """
         raise NotImplementedError
 
@@ -205,16 +239,33 @@ class ActivityRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def delete(self, activity_id: int) -> bool:
-        """Delete activity by ID.
+    def delete(
+        self, activity_id: int, event_time: int, correlation_id: str | None = None
+    ) -> DeleteResult:
+        """Delete activity by ID and record a deletion tombstone.
 
-        Used for DELETE webhooks - hard delete.
+        Used for DELETE webhooks - hard delete of the activity row plus an
+        upsert into ``deleted_activities`` carrying the delete's ``event_time``.
+        The tombstone is written even when no live row exists (a DELETE that
+        arrives before its CREATE), so a later CREATE not strictly newer than
+        ``event_time`` is rejected by ``insert`` and cannot resurrect the
+        activity. On a repeated/reordered delete the tombstone keeps the newest
+        ``event_time``.
+
+        Fenced on ``last_event_time``: if the live row is newer than
+        ``event_time`` (a reordered/stale DELETE, e.g. arriving after a genuine
+        re-creation), the row is left intact and no tombstone is written
+        (``STALE``). The row read is locked ``FOR UPDATE`` to serialize
+        concurrent writers.
 
         Args:
             activity_id: Strava activity ID
+            event_time: webhook event_time (unix seconds) of the delete; stored
+                as the tombstone's ``deletion_event_time``
+            correlation_id: trace id for the delete, stored for diagnostics
 
         Returns:
-            True if deleted, False if not found
+            A :class:`DeleteResult` (``DELETED`` / ``NOT_FOUND`` / ``STALE``).
         """
         raise NotImplementedError
 
