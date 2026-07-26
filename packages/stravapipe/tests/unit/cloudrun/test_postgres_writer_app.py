@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 import pytest
 
 from stravapipe.cloudrun.postgres_writer_app import app
+from stravapipe.ports.out.postgres import MetadataUpdateResult
 
 from .conftest import (
     SAMPLE_RAW_ACTIVITY,
@@ -257,7 +258,9 @@ class TestCreateEventHandling:
             data = response.json()
             assert data["status"] == "created"
             assert data["activity_id"] == 12345678
-            mock_uow.activities.insert.assert_called_once_with(mock_activity)
+            mock_uow.activities.insert.assert_called_once_with(
+                mock_activity, 1704067200
+            )
 
     def test_create_event_already_exists(self, client):
         """CREATE event for existing activity returns skipped."""
@@ -506,7 +509,7 @@ class TestUpdateEventHandling:
         webhook["updates"] = {"title": "New Title"}
 
         mock_uow = MagicMock()
-        mock_uow.activities.update_metadata.return_value = True
+        mock_uow.activities.update_metadata.return_value = MetadataUpdateResult.UPDATED
 
         with patch(
             "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
@@ -528,9 +531,11 @@ class TestUpdateEventHandling:
         webhook["updates"] = {"type": "Run"}
 
         mock_uow = MagicMock()
-        # update_metadata's RETURNING id yields False when the row is absent —
-        # that (not a separate exists() round-trip) is what signals "not found".
-        mock_uow.activities.update_metadata.return_value = False
+        # Row absent → the repository classifies the update atomically as
+        # NOT_FOUND (no separate exists() probe).
+        mock_uow.activities.update_metadata.return_value = (
+            MetadataUpdateResult.NOT_FOUND
+        )
 
         with patch(
             "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
@@ -616,7 +621,7 @@ class TestUpdateEventHandling:
         webhook["updates"] = {"type": "Ride"}
 
         mock_uow = MagicMock()
-        mock_uow.activities.update_metadata.return_value = True
+        mock_uow.activities.update_metadata.return_value = MetadataUpdateResult.UPDATED
 
         with patch(
             "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
@@ -632,8 +637,75 @@ class TestUpdateEventHandling:
         assert response.json()["status"] == "updated"
         mock_uow.activities.upsert.assert_not_called()
         mock_uow.activities.update_metadata.assert_called_once_with(
-            12345678, {"type": "Ride"}
+            12345678, {"type": "Ride"}, 1704067200
         )
+
+    def test_update_event_enriched_stale_is_dropped(self, client):
+        """A stale enriched UPDATE (fence rejects the upsert) is skipped, leaves
+        region tags untouched, and increments the stale-event counter."""
+        from stravapipe.cloudrun.postgres_writer_app import app
+
+        mock_counter = MagicMock()
+        app.state.stale_event_counter = mock_counter
+
+        webhook = make_webhook_payload(
+            aspect_type="update", raw_activity=SAMPLE_RAW_ACTIVITY
+        )
+        webhook["updates"] = {"type": "Run"}
+
+        mock_uow = MagicMock()
+        # Fence rejected the reordered event: the row stays on its newer state.
+        mock_uow.activities.upsert.return_value = False
+
+        with patch(
+            "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
+            return_value=mock_uow,
+        ):
+            response = client.post(
+                "/",
+                headers=make_cloudevent_headers(),
+                json=make_pubsub_body(webhook),
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "skipped"
+        assert data["reason"] == "stale_event"
+        # Region tags must NOT be reconciled from the stale payload.
+        mock_uow.activities.tag_activity_regions.assert_not_called()
+        mock_uow.activities.clear_activity_regions.assert_not_called()
+        mock_counter.add.assert_called_once_with(1, {"aspect_type": "update"})
+
+    def test_update_event_bare_stale_is_dropped(self, client):
+        """A stale bare UPDATE (row present, fence rejects) is skipped as
+        stale_event — distinct from not_found — and counts the drop."""
+        from stravapipe.cloudrun.postgres_writer_app import app
+
+        mock_counter = MagicMock()
+        app.state.stale_event_counter = mock_counter
+
+        webhook = make_webhook_payload(aspect_type="update")  # no raw_activity
+        webhook["updates"] = {"type": "Ride"}
+
+        mock_uow = MagicMock()
+        # Fence rejected on an existing row → repository classifies as STALE.
+        mock_uow.activities.update_metadata.return_value = MetadataUpdateResult.STALE
+
+        with patch(
+            "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
+            return_value=mock_uow,
+        ):
+            response = client.post(
+                "/",
+                headers=make_cloudevent_headers(),
+                json=make_pubsub_body(webhook),
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "skipped"
+        assert data["reason"] == "stale_event"
+        mock_counter.add.assert_called_once_with(1, {"aspect_type": "update"})
 
 
 class TestDeleteEventHandling:
@@ -885,7 +957,7 @@ class TestFreshnessEmission:
 
         mock_histogram = self._mock_freshness_histogram()
         mock_uow = MagicMock()
-        mock_uow.activities.update_metadata.return_value = True
+        mock_uow.activities.update_metadata.return_value = MetadataUpdateResult.UPDATED
 
         received_at_ms = int(time.time() * 1000) - 500
 
@@ -1058,7 +1130,7 @@ class TestIdempotency:
         webhook["updates"] = {"title": "New Title"}
 
         mock_uow = MagicMock()
-        mock_uow.activities.update_metadata.return_value = True
+        mock_uow.activities.update_metadata.return_value = MetadataUpdateResult.UPDATED
 
         with patch(
             "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",

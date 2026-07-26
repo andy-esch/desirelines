@@ -16,9 +16,25 @@ Error Handling Pattern:
 """
 
 from abc import ABC, abstractmethod
+from enum import StrEnum
 from typing import Any
 
 from stravapipe.domain import StandardActivity
+
+
+class MetadataUpdateResult(StrEnum):
+    """Outcome of ``ActivityRepository.update_metadata``.
+
+    Distinguishes the three DB outcomes that a plain bool conflates — in
+    particular ``STALE`` (row present, event_time older than the stored fence)
+    versus ``NOT_FOUND`` (no such row). These are resolved atomically in one
+    statement so a concurrent CREATE can't flip the classification.
+    """
+
+    UPDATED = "updated"
+    STALE = "stale"
+    NOT_FOUND = "not_found"
+    NO_VALID_UPDATES = "no_valid_updates"
 
 
 class ActivityRepository(ABC):
@@ -32,14 +48,19 @@ class ActivityRepository(ABC):
     """
 
     @abstractmethod
-    def insert(self, activity: StandardActivity) -> bool:
+    def insert(self, activity: StandardActivity, event_time: int | None) -> bool:
         """Insert activity to PostgreSQL, ignore if already exists.
 
         Used for CREATE webhooks - writes all activity fields.
         Uses ON CONFLICT DO NOTHING - duplicates are logged but not errors.
+        Records ``event_time`` as the ``last_event_time`` fence token so a later
+        UPDATE can reject events older than this CREATE.
 
         Args:
             activity: StandardActivity domain model
+            event_time: webhook event_time (unix seconds). ``None`` (backfill)
+                stores a NULL token — the row stays unfenced until a live write
+                sets one.
 
         Returns:
             True if inserted, False if already existed (conflict)
@@ -47,20 +68,28 @@ class ActivityRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def upsert(self, activity: StandardActivity) -> bool:
+    def upsert(self, activity: StandardActivity, event_time: int | None) -> bool:
         """Insert activity, or refresh every column if it already exists.
 
         Used for enriched UPDATE webhooks (a type change), where the dispatcher
         re-fetched the full Strava activity so we can recover the granular
-        ``sport_type`` the webhook omits. Unlike ``insert`` (ON CONFLICT DO
-        NOTHING), this refreshes all columns from authoritative Strava data,
-        preserving the original ``created_at``. Always affects exactly one row.
+        ``sport_type`` the webhook omits, and for backfill. Unlike ``insert``
+        (ON CONFLICT DO NOTHING), this refreshes all columns from authoritative
+        Strava data, preserving the original ``created_at``.
+
+        The conflict branch is fenced on ``last_event_time``: a live event older
+        than the stored token is rejected (returns False). ``event_time=None``
+        (backfill) is unfenced and never advances the token.
 
         Args:
             activity: StandardActivity domain model (full, freshly fetched)
+            event_time: webhook event_time (unix seconds). ``None`` (backfill)
+                disables fencing (the write applies unconditionally) and
+                preserves — never advances or wipes — the stored token.
 
         Returns:
-            True (an upsert always inserts or updates exactly one row)
+            True if the row was inserted or updated; False if a stale live event
+            was rejected by the fence guard.
         """
         raise NotImplementedError
 
@@ -94,20 +123,30 @@ class ActivityRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def update_metadata(self, activity_id: int, updates: dict[str, Any]) -> bool | None:
+    def update_metadata(
+        self, activity_id: int, updates: dict[str, Any], event_time: int | None
+    ) -> MetadataUpdateResult:
         """Update only metadata fields (name, type, sport).
 
         Used for UPDATE webhooks - only updates changed fields.
-        Does NOT require fetching from Strava API.
+        Does NOT require fetching from Strava API. Fenced on ``last_event_time``
+        and classified atomically in one statement, so ``STALE`` (row present,
+        event older than the stored token) is never confused with ``NOT_FOUND``
+        even if a CREATE commits concurrently. ``event_time=None`` disables
+        fencing (applies unconditionally) and preserves the stored token.
 
         Args:
             activity_id: Strava activity ID
             updates: Dict with optional keys: 'title', 'type'
+            event_time: webhook event_time (unix seconds); ``None`` skips fencing
 
         Returns:
-            True if updated successfully
-            False if activity not found
-            None if no valid updates provided (empty dict or unrecognized keys)
+            A :class:`MetadataUpdateResult`: ``UPDATED``, ``STALE`` (fence
+            rejected), ``NOT_FOUND``, or ``NO_VALID_UPDATES`` (empty/unrecognized
+            updates).
+
+        Raises:
+            ValueError: If updates contains unrecognized keys
         """
         raise NotImplementedError
 

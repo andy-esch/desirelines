@@ -153,7 +153,7 @@ class TestBackfillGeographyIntegration:
         )
 
         with uow:
-            assert uow.activities.upsert(seed) is True
+            assert uow.activities.upsert(seed, None) is True
             assert uow.activities.insert_route(activity_id, ORIGINAL_ROUTE) is True
             assert uow.activities.tag_activity_regions(activity_id) >= 1
             uow.commit()
