@@ -44,6 +44,11 @@ resource "google_monitoring_alert_policy" "dlq_bq_inserter" {
 
       This indicates that activities are failing to be inserted into BigQuery.
 
+      **Store divergence**: while this DLQ has traffic, BigQuery is falling
+      behind PostgreSQL (events committed to PG never reached BQ). PostgreSQL is
+      the source of truth and stays correct; BigQuery is an archival mirror that
+      may now lag. See docs/architecture/postgres-bigquery-consistency.md.
+
       **Action Required**:
       1. Check DLQ messages in PubSub console
       2. Review BQ Inserter function logs for errors
@@ -145,6 +150,12 @@ resource "google_monitoring_alert_policy" "dlq_postgres_writer" {
       **CRITICAL**: The PostgreSQL Writer Dead Letter Queue has messages.
 
       This indicates that activities are failing to be written to PostgreSQL.
+
+      **Store divergence**: while this DLQ has traffic, PostgreSQL — the source
+      of truth — is missing events that reached BigQuery, so BigQuery is
+      temporarily ahead. This is product-affecting (reads come from PG); repair
+      PG and reconcile via the backfill job. See
+      docs/architecture/postgres-bigquery-consistency.md.
 
       **Action Required**:
       1. Check DLQ messages in PubSub console

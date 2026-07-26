@@ -6,4 +6,5 @@
 - **[Authentication](authentication.md)** - OAuth2 flow and Firebase auth architecture
 - **[Observability](observability.md)** - Tracing, logging, and metrics topology across Go and Python services. Cross-language trace propagation, sampling, span conventions.
 - **[Pub/Sub Subscription Design](pubsub-subscription-design.md)** - Webhook event delivery via Google Cloud Pub/Sub
+- **[PostgreSQL ↔ BigQuery Consistency](postgres-bigquery-consistency.md)** - The archival-mirror contract: PostgreSQL is the source of truth, BigQuery may lag/diverge, and how (and how not) the stores reconcile.
 - **[Sitemap](sitemap.md)** - Frontend route structure
