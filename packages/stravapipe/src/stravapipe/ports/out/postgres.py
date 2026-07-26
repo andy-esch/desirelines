@@ -120,19 +120,20 @@ class ActivityRepository(ABC):
 
         Used for enriched UPDATE webhooks (a type change), where the dispatcher
         re-fetched the full Strava activity so we can recover the granular
-        ``sport_type`` the webhook omits, and for backfill. Unlike ``insert``
-        (ON CONFLICT DO NOTHING), this refreshes all columns from authoritative
-        Strava data, preserving the original ``created_at``.
+        ``sport_type`` the webhook omits. Unlike ``insert`` (ON CONFLICT DO
+        NOTHING), this refreshes all columns from authoritative Strava data,
+        preserving the original ``created_at``. (Backfill uses
+        ``upsert_backfill``, which fences on the run-start watermark.)
 
         The conflict branch is fenced on ``last_event_time``: a live event older
-        than the stored token is rejected (returns False). ``event_time=None``
-        (backfill) is unfenced and never advances the token.
+        than the stored token is rejected (returns False). ``event_time=None`` is
+        an unfenced upsert (applies unconditionally, never advances the token).
 
         Args:
             activity: StandardActivity domain model (full, freshly fetched)
-            event_time: webhook event_time (unix seconds). ``None`` (backfill)
-                disables fencing (the write applies unconditionally) and
-                preserves — never advances or wipes — the stored token.
+            event_time: webhook event_time (unix seconds). ``None`` disables
+                fencing (the write applies unconditionally) and preserves —
+                never advances or wipes — the stored token.
 
         Returns:
             True if the row was inserted or updated; False if a stale live event

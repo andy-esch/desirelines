@@ -776,6 +776,42 @@ class TestBackfillWatermarkUpsert:
 
         assert self._row(db_session, 100065).name == "bf"
 
+    def test_backfill_applies_when_token_equals_watermark(self, uow, db_session):
+        # Boundary: last_event_time == watermark is at-or-before → APPLIES (guard
+        # is `<= watermark`). Guards this against a future `<` regression.
+        with uow:
+            uow.activities.insert(make_activity(activity_id=100067, name="live"), 200)
+            uow.commit()
+
+        with uow:
+            assert (
+                uow.activities.upsert_backfill(
+                    make_activity(activity_id=100067, name="backfilled"), 200
+                )
+                is BackfillUpsertResult.APPLIED
+            )
+            uow.commit()
+
+        assert self._row(db_session, 100067).name == "backfilled"
+
+    def test_backfill_applies_when_tombstone_equals_watermark(self, uow, db_session):
+        # Boundary: deletion_event_time == watermark does NOT block (guard is
+        # `> watermark`). Guards this against a future `>=` regression.
+        with uow:
+            uow.activities.delete(100068, 200)
+            uow.commit()
+
+        with uow:
+            assert (
+                uow.activities.upsert_backfill(
+                    make_activity(activity_id=100068, name="bf"), 200
+                )
+                is BackfillUpsertResult.APPLIED
+            )
+            uow.commit()
+
+        assert self._row(db_session, 100068).name == "bf"
+
     def test_backfill_idempotent_replay_converges(self, uow, db_session):
         # Re-running the same backfill (same watermark) converges with no churn.
         for _ in range(2):
@@ -791,6 +827,27 @@ class TestBackfillWatermarkUpsert:
         row = self._row(db_session, 100066)
         assert row.name == "bf"
         assert row.last_event_time is None
+
+    def test_backfill_replay_over_live_token_preserves_it(self, uow, db_session):
+        # Replaying backfill over a row a live event owns (token <= watermark)
+        # applies twice and never advances or churns the token.
+        with uow:
+            uow.activities.insert(make_activity(activity_id=100069, name="live"), 100)
+            uow.commit()
+
+        for _ in range(2):
+            with uow:
+                assert (
+                    uow.activities.upsert_backfill(
+                        make_activity(activity_id=100069, name="bf"), 200
+                    )
+                    is BackfillUpsertResult.APPLIED
+                )
+                uow.commit()
+
+        row = self._row(db_session, 100069)
+        assert row.name == "bf"
+        assert row.last_event_time == 100  # unchanged across replays
 
 
 class TestActivityRouteRepository:

@@ -196,16 +196,18 @@ def _log_committed_postgres_batch(
     total_batches: int,
     inserted: int,
     updated: int,
+    skipped: int,
 ) -> None:
     """Log a committed batch without letting logging alter its data outcome."""
     log_best_effort(
         partial(
             logger.info,
-            "PG batch %d/%d: %d inserted, %d updated, 0 errors",
+            "PG batch %d/%d: %d inserted, %d updated, %d skipped, 0 errors",
             batch_num,
             total_batches,
             inserted,
             updated,
+            skipped,
         )
     )
 
@@ -234,6 +236,7 @@ def _log_postgres_cleanup_failure(
     total_batches: int,
     inserted: int,
     updated: int,
+    skipped: int,
     error: Exception,
 ) -> None:
     """Report post-commit cleanup failure without changing committed counts."""
@@ -241,12 +244,13 @@ def _log_postgres_cleanup_failure(
         partial(
             logger.error,
             "PG batch %d/%d cleanup failed after commit (%s); "
-            "%d inserted and %d updated remain authoritative",
+            "%d inserted, %d updated, %d skipped remain authoritative",
             batch_num,
             total_batches,
             type(error).__name__,
             inserted,
             updated,
+            skipped,
             exc_info=(type(error), error, error.__traceback__),
         )
     )
@@ -682,6 +686,7 @@ class BackfillService:
                 total_batches=total_batches,
                 inserted=batch_stats.inserted,
                 updated=batch_stats.updated,
+                skipped=batch_stats.skipped,
             )
 
         return stats
@@ -767,6 +772,7 @@ class BackfillService:
                     total_batches=total_batches,
                     inserted=batch_inserted,
                     updated=batch_updated,
+                    skipped=batch_skipped,
                     error=cleanup_error,
                 )
 

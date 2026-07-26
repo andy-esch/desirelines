@@ -8,7 +8,7 @@ Tests the bulk backfill orchestration logic using mocked adapters:
 
 from datetime import UTC, datetime
 import json
-from unittest.mock import ANY, MagicMock, call, create_autospec, patch
+from unittest.mock import MagicMock, call, create_autospec, patch
 
 from google.api_core import exceptions as gapi_exceptions
 from opentelemetry.sdk.trace import TracerProvider
@@ -530,7 +530,7 @@ class TestPostgresInsertion:
         assert stats == PostgresWriteStats(inserted=2, updated=1, errors=0)
         assert stats.inserted + stats.updated + stats.errors == len(activities)
         assert "cleanup failed after commit (RuntimeError)" in caplog.text
-        assert "2 inserted and 1 updated remain authoritative" in caplog.text
+        assert "2 inserted, 1 updated, 0 skipped remain authoritative" in caplog.text
 
     def test_success_log_failure_preserves_committed_counts(
         self,
@@ -1351,7 +1351,7 @@ class TestMetricLogging:
             record.getMessage()
             for record in caplog.records
             if record.getMessage().startswith("PG batch")
-        ] == ["PG batch 1/1: 1 inserted, 2 updated, 0 errors"]
+        ] == ["PG batch 1/1: 1 inserted, 2 updated, 0 skipped, 0 errors"]
 
     def test_logs_year_metrics(
         self,
@@ -1581,7 +1581,10 @@ class TestLifecycleLoggingIsolation:
         ):
             result = service.backfill_user("12345", years=[2023, 2024])
 
-        assert mock_backfill_year.call_args_list == [call(2023, ANY), call(2024, ANY)]
+        year_calls = mock_backfill_year.call_args_list
+        assert [c.args[0] for c in year_calls] == [2023, 2024]
+        # One run-start watermark is captured once and reused for every year.
+        assert year_calls[0].args[1] == year_calls[1].args[1]
         assert result.year_stats == [
             YearStats(year=2023, processing_errors=1),
             completed_stats,

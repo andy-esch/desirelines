@@ -100,9 +100,9 @@ _ACTIVITY_LAST_EVENT_TIME_SET: Final[str] = (
     "last_event_time = COALESCE(EXCLUDED.last_event_time, activities.last_event_time)"
 )
 # Reject a stale/reordered *live* event on the upsert conflict. NULL on either
-# side means "unfenced": a legacy row (stored NULL) or a backfill write
-# (incoming NULL) is always allowed through — the backfill-vs-live watermark is
-# a separate concern (see task apply-the-backfill-run-start-watermark-...).
+# side means "unfenced": a legacy row (stored NULL) or an unfenced caller
+# (incoming NULL) is always allowed through. Backfill does not use this guard —
+# it goes through `upsert_backfill`, which fences on the run-start watermark.
 _ACTIVITY_UPSERT_EVENT_TIME_GUARD: Final[str] = (
     "activities.last_event_time IS NULL "
     "OR EXCLUDED.last_event_time IS NULL "
@@ -113,11 +113,10 @@ _ACTIVITY_UPSERT_EVENT_TIME_GUARD: Final[str] = (
 # resolved in one statement so a concurrently-committed DELETE can't race the
 # classification. The `tombstone` CTE fires only when the incoming event_time is
 # not strictly newer than a recorded deletion_event_time (>= blocks; a genuine
-# re-creation with a newer event_time is allowed through). event_time=None
-# (backfill) makes the `>=` comparison NULL, so the tombstone never blocks and
-# the row inserts unfenced — backfill-vs-delete ordering is the watermark task's
-# concern. The outer SELECT reports inserted vs blocked so the caller can tell
-# RESURRECTION_BLOCKED from ALREADY_EXISTS.
+# re-creation with a newer event_time is allowed through). An unfenced caller
+# (event_time=None) makes the `>=` comparison NULL, so the tombstone never
+# blocks and the row inserts unfenced. The outer SELECT reports inserted vs
+# blocked so the caller can tell RESURRECTION_BLOCKED from ALREADY_EXISTS.
 _ACTIVITY_TOMBSTONED_INSERT_SQL: Final[str] = (
     "WITH tombstone AS ("
     "  SELECT 1 FROM desirelines.deleted_activities"
@@ -339,19 +338,18 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         """Insert activity, or refresh every column if it already exists.
 
         Used for enriched UPDATE webhooks (a type change) where the dispatcher
-        re-fetched the full Strava activity, and for backfill. ON CONFLICT DO
-        UPDATE refreshes all columns from authoritative Strava data, preserving
-        the original `created_at`.
+        re-fetched the full Strava activity. ON CONFLICT DO UPDATE refreshes all
+        columns from authoritative Strava data, preserving the original
+        `created_at`. (Backfill uses ``upsert_backfill``, which fences on the
+        run-start watermark instead.)
 
         The conflict branch is fenced on ``last_event_time``: a live event whose
         ``event_time`` is older than the row's stored token is rejected (returns
         False — the row is left on its newer state). The insert leg is also
         tombstone-guarded like ``insert`` so a stale enriched UPDATE for a
         deleted activity can't resurrect it via the insert leg (returns False).
-        A backfill write passes ``event_time=None``, which is unfenced against
-        both the token and the tombstone (always applied, never advances the
-        token) — the backfill-vs-live/delete watermark is handled separately
-        (task apply-the-backfill-run-start-watermark-...).
+        ``event_time=None`` is an unfenced upsert (always applied, never advances
+        the token) used for test seeding, not the live path.
 
         Routes are intentionally not touched here: a type change doesn't alter
         geometry, and the route was written on CREATE. (In the rare case the
@@ -389,6 +387,13 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         tombstone), otherwise refreshes all activity columns. Never sets or
         advances ``last_event_time`` — a refreshed row keeps its token and a
         newly-inserted backfill row gets NULL. See ``_ACTIVITY_BACKFILL_UPSERT_SQL``.
+
+        Trade-off (accepted): because backfill leaves ``last_event_time`` at its
+        old/NULL value, a *delayed* live webhook older than the backfilled data
+        can later pass the live fence and overwrite it. Backfill does not
+        fabricate an event_time (clock skew between this job and Strava would
+        risk locking out real live updates), so this is left to converge on the
+        next live event or backfill run rather than fenced here.
 
         Args:
             activity: StandardActivity domain model (from the backfill fetch)
