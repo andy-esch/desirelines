@@ -30,7 +30,7 @@ from stravapipe.domain import (
     is_non_geographic_activity,
 )
 from stravapipe.domain.geometry import decode_polyline_to_geojson
-from stravapipe.ports.out.postgres import ActivityRepository
+from stravapipe.ports.out.postgres import ActivityRepository, BackfillUpsertResult
 from stravapipe.ports.out.read import ReadDetailedActivities
 from stravapipe.ports.out.unit_of_work import AbstractUnitOfWork
 from stravapipe.shared.logging import log_best_effort
@@ -59,17 +59,15 @@ def _iter_batches[T](
 def _upsert_activity(
     repository: ActivityRepository,
     activity: StandardActivity,
-) -> None:
-    """Upsert one activity, failing loudly if the repository affects no row."""
-    # event_time=None: backfill is not a webhook, so it neither carries an
-    # event_time nor advances the live fence token, and is applied unconditionally
-    # (the backfill-vs-live run-start watermark is a separate follow-up — see task
-    # apply-the-backfill-run-start-watermark-so-live-events-are-not-overwritten).
-    success = repository.upsert(activity, event_time=None)
-    if not success:
-        raise RuntimeError(
-            f"PostgreSQL upsert affected no row for activity {activity.id}"
-        )
+    watermark: int,
+) -> BackfillUpsertResult:
+    """Upsert one backfilled activity, fenced on the run-start watermark.
+
+    Returns the repository outcome. ``SKIPPED`` is a normal result (a live event
+    newer than the run start owns the row), not an error — the caller counts it
+    distinctly and does not reconcile geography for a skipped row.
+    """
+    return repository.upsert_backfill(activity, watermark)
 
 
 def _reconcile_activity_geography(
@@ -171,6 +169,7 @@ class YearStats:
     processing_errors: int = 0
     pg_inserted: int = 0
     pg_updated: int = 0
+    pg_skipped: int = 0
     pg_errors: int = 0
     bq_inserted: int = 0
     bq_errors: int = 0
@@ -179,10 +178,15 @@ class YearStats:
 
 @dataclass
 class PostgresWriteStats:
-    """Committed PostgreSQL activity-write outcomes."""
+    """Committed PostgreSQL activity-write outcomes.
+
+    ``skipped`` counts backfill writes the watermark fence declined to apply
+    because a newer live event owns the row — a normal outcome, not an error.
+    """
 
     inserted: int = 0
     updated: int = 0
+    skipped: int = 0
     errors: int = 0
 
 
@@ -289,6 +293,7 @@ class BackfillResult:
     total_processing_errors: int = 0
     total_pg_inserted: int = 0
     total_pg_updated: int = 0
+    total_pg_skipped: int = 0
     total_bq_inserted: int = 0
     total_errors: int = 0
     duration_seconds: float = 0.0
@@ -388,6 +393,11 @@ class BackfillService:
             BackfillResult with aggregate statistics
         """
         start_time = time.monotonic()
+        # Run-start watermark: a single wall-clock instant (unix seconds) captured
+        # once for the whole run and applied to every PostgreSQL write. A live
+        # event newer than this owns its row and must not be overwritten by the
+        # backfill (which fetched Strava as of ~now). Do not recompute per batch.
+        watermark = int(time.time())
         sorted_years = sorted(years)
 
         result = BackfillResult(athlete_id=athlete_id, years=sorted_years)
@@ -421,7 +431,7 @@ class BackfillService:
                     },
                     parent_context=Context(),
                 ):
-                    year_stats = self._backfill_year(year)
+                    year_stats = self._backfill_year(year, watermark)
             except Exception:
                 log_best_effort(
                     partial(
@@ -439,6 +449,7 @@ class BackfillService:
             result.total_processing_errors += year_stats.processing_errors
             result.total_pg_inserted += year_stats.pg_inserted
             result.total_pg_updated += year_stats.pg_updated
+            result.total_pg_skipped += year_stats.pg_skipped
             result.total_bq_inserted += year_stats.bq_inserted
             result.total_errors += (
                 year_stats.source_errors
@@ -476,7 +487,7 @@ class BackfillService:
                     logger.info,
                     "Backfill completed for athlete %s: %d activities across %d %s "
                     "(source errors: %d; processing errors: %d; "
-                    "PG: %d inserted, %d updated; "
+                    "PG: %d inserted, %d updated, %d skipped; "
                     "BQ: %d inserted; errors: %d) in %.1fs",
                     athlete_id,
                     result.total_activities,
@@ -486,6 +497,7 @@ class BackfillService:
                     result.total_processing_errors,
                     result.total_pg_inserted,
                     result.total_pg_updated,
+                    result.total_pg_skipped,
                     result.total_bq_inserted,
                     result.total_errors,
                     result.duration_seconds,
@@ -508,7 +520,7 @@ class BackfillService:
                     logger.warning,
                     "Backfill completed with errors for athlete %s: %d activities "
                     "across %d %s (source errors: %d; processing errors: %d; "
-                    "PG: %d inserted, %d updated; "
+                    "PG: %d inserted, %d updated, %d skipped; "
                     "BQ: %d inserted; errors: %d) in %.1fs",
                     athlete_id,
                     result.total_activities,
@@ -518,6 +530,7 @@ class BackfillService:
                     result.total_processing_errors,
                     result.total_pg_inserted,
                     result.total_pg_updated,
+                    result.total_pg_skipped,
                     result.total_bq_inserted,
                     result.total_errors,
                     result.duration_seconds,
@@ -545,11 +558,11 @@ class BackfillService:
                 )
             )
 
-    def _backfill_year(self, year: int) -> YearStats:
+    def _backfill_year(self, year: int, watermark: int) -> YearStats:
         """Backfill a single year.
 
         1. Fetch activities from Strava API
-        2. Insert to PostgreSQL in batches
+        2. Insert to PostgreSQL in batches (fenced on the run-start ``watermark``)
         3. Insert to BigQuery in batches (if writer configured)
         """
         start_time = time.monotonic()
@@ -590,9 +603,10 @@ class BackfillService:
         stats = YearStats(year=year, activities_found=len(activities))
 
         # Upsert to PostgreSQL
-        pg_stats = self._insert_to_postgres(activities)
+        pg_stats = self._insert_to_postgres(activities, watermark)
         stats.pg_inserted = pg_stats.inserted
         stats.pg_updated = pg_stats.updated
+        stats.pg_skipped = pg_stats.skipped
         stats.pg_errors = pg_stats.errors
 
         # Insert to BigQuery (optional)
@@ -607,12 +621,13 @@ class BackfillService:
             partial(
                 logger.info,
                 "Year %d complete in %.1fs: "
-                "PG(%d inserted, %d updated, %d errors), "
+                "PG(%d inserted, %d updated, %d skipped, %d errors), "
                 "BQ(%d inserted, %d errors)",
                 year,
                 stats.duration_seconds,
                 stats.pg_inserted,
                 stats.pg_updated,
+                stats.pg_skipped,
                 stats.pg_errors,
                 stats.bq_inserted,
                 stats.bq_errors,
@@ -624,6 +639,7 @@ class BackfillService:
     def _insert_to_postgres(
         self,
         activities: Sequence[DetailedStravaActivity | SummaryStravaActivity],
+        watermark: int,
     ) -> PostgresWriteStats:
         """Upsert activities to PostgreSQL in batches.
 
@@ -646,6 +662,7 @@ class BackfillService:
                     batch,
                     batch_num=batch_num,
                     total_batches=total_batches,
+                    watermark=watermark,
                 )
             except Exception:
                 stats.errors += len(batch)
@@ -658,6 +675,7 @@ class BackfillService:
 
             stats.inserted += batch_stats.inserted
             stats.updated += batch_stats.updated
+            stats.skipped += batch_stats.skipped
 
             _log_committed_postgres_batch(
                 batch_num=batch_num,
@@ -674,17 +692,22 @@ class BackfillService:
         *,
         batch_num: int,
         total_batches: int,
+        watermark: int,
     ) -> PostgresWriteStats:
         """Write one PostgreSQL batch with phase-aware transient retry.
 
-        Every attempt owns a fresh Unit of Work and recomputes inserted/updated
-        classification. Only eligible failures before ``commit()`` is invoked
-        may retry. A commit exception is ambiguous and propagates immediately;
-        cleanup failure after a successful commit preserves durable counts.
+        Every attempt owns a fresh Unit of Work and recomputes
+        inserted/updated/skipped classification. A write the ``watermark`` fence
+        skips (a newer live event owns the row) is counted as skipped and its
+        geography is left untouched. Only eligible failures before ``commit()``
+        is invoked may retry. A commit exception is ambiguous and propagates
+        immediately; cleanup failure after a successful commit preserves durable
+        counts.
         """
         for attempt in range(1, _PG_RETRY_ATTEMPTS + 1):
             batch_inserted = 0
             batch_updated = 0
+            batch_skipped = 0
             commit_attempted = False
             commit_succeeded = False
             cleanup_error: Exception | None = None
@@ -699,7 +722,12 @@ class BackfillService:
                         standard = StandardActivity.model_validate(
                             activity, from_attributes=True
                         )
-                        _upsert_activity(uow.activities, standard)
+                        result = _upsert_activity(uow.activities, standard, watermark)
+                        if result is BackfillUpsertResult.SKIPPED:
+                            # A live event newer than the run start owns this
+                            # row — don't reconcile its geography either.
+                            batch_skipped += 1
+                            continue
                         _reconcile_activity_geography(uow.activities, standard)
                         if activity.id in existing_ids:
                             batch_updated += 1
@@ -745,6 +773,7 @@ class BackfillService:
             return PostgresWriteStats(
                 inserted=batch_inserted,
                 updated=batch_updated,
+                skipped=batch_skipped,
             )
 
         # Unreachable: the loop returns on success or re-raises on the final

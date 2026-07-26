@@ -36,6 +36,19 @@ class InsertResult(StrEnum):
     RESURRECTION_BLOCKED = "resurrection_blocked"
 
 
+class BackfillUpsertResult(StrEnum):
+    """Outcome of ``ActivityRepository.upsert_backfill`` (the batch path).
+
+    ``SKIPPED`` means a live event newer than the backfill run's start watermark
+    already owns the row (a newer live UPDATE via ``last_event_time``, or a newer
+    live DELETE via the tombstone) — the backfill write is intentionally not
+    applied. This is a normal outcome, not an error.
+    """
+
+    APPLIED = "applied"
+    SKIPPED = "skipped"
+
+
 class DeleteResult(StrEnum):
     """Outcome of ``ActivityRepository.delete`` (the DELETE path).
 
@@ -124,6 +137,34 @@ class ActivityRepository(ABC):
         Returns:
             True if the row was inserted or updated; False if a stale live event
             was rejected by the fence guard.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def upsert_backfill(
+        self, activity: StandardActivity, watermark: int
+    ) -> BackfillUpsertResult:
+        """Upsert an activity from a backfill run, fenced on the run watermark.
+
+        The batch counterpart to ``upsert``. A backfill fetched its activities as
+        of the run's start (``watermark``, unix seconds), so it must not overwrite
+        state a *newer* live event already wrote. The write is skipped when the
+        row's ``last_event_time`` is strictly newer than ``watermark`` (a live
+        UPDATE landed after the run started) or a deletion tombstone's
+        ``deletion_event_time`` is strictly newer than ``watermark`` (a live
+        DELETE landed after the run started — don't resurrect it). Otherwise it
+        refreshes all activity columns from the fetched data.
+
+        Unlike ``upsert``, this never fabricates or advances ``last_event_time``
+        — that column stays the live path's authority (a backfilled row keeps its
+        existing token, and a newly-inserted backfill row gets NULL).
+
+        Args:
+            activity: StandardActivity domain model (from the backfill fetch)
+            watermark: the backfill run's start time (unix seconds)
+
+        Returns:
+            A :class:`BackfillUpsertResult` (``APPLIED`` / ``SKIPPED``).
         """
         raise NotImplementedError
 

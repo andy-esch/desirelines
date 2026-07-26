@@ -8,7 +8,7 @@ Tests the bulk backfill orchestration logic using mocked adapters:
 
 from datetime import UTC, datetime
 import json
-from unittest.mock import MagicMock, call, create_autospec, patch
+from unittest.mock import ANY, MagicMock, call, create_autospec, patch
 
 from google.api_core import exceptions as gapi_exceptions
 from opentelemetry.sdk.trace import TracerProvider
@@ -37,9 +37,12 @@ from stravapipe.domain.activity import (
     SummaryMap,
     SummaryStravaActivity,
 )
-from stravapipe.ports.out.postgres import ActivityRepository
+from stravapipe.ports.out.postgres import ActivityRepository, BackfillUpsertResult
 from stravapipe.ports.out.read import ReadDetailedActivities
 from stravapipe.ports.out.unit_of_work import AbstractUnitOfWork
+
+WATERMARK = 2_000_000_000  # far-future run-start; realistic tokens are <= it
+
 
 # =============================================================================
 # Test Fixtures
@@ -145,7 +148,7 @@ def mock_activity_repo():
     """Mock activity repository with spec for interface compliance."""
     repository = create_autospec(ActivityRepository, instance=True)
     repository.get_existing_ids.return_value = set()
-    repository.upsert.return_value = True
+    repository.upsert_backfill.return_value = BackfillUpsertResult.APPLIED
     return repository
 
 
@@ -312,7 +315,7 @@ class TestBackfillUser:
             "stravapipe.application.backfill.service.time.monotonic",
             side_effect=[10.0, 12.5],
         ):
-            stats = service._backfill_year(2024)
+            stats = service._backfill_year(2024, WATERMARK)
 
         assert stats.duration_seconds == 2.5
 
@@ -480,7 +483,7 @@ class TestPostgresInsertion:
         assert result.year_stats[0].pg_updated == 2
         assert result.success is True
         mock_activity_repo.get_existing_ids.assert_called_once_with([1, 2, 3])
-        assert mock_activity_repo.upsert.call_count == 3
+        assert mock_activity_repo.upsert_backfill.call_count == 3
 
     def test_commit_failure_discards_batch_counts(
         self,
@@ -522,7 +525,7 @@ class TestPostgresInsertion:
             "ERROR",
             logger="stravapipe.application.backfill.service",
         ):
-            stats = service._insert_to_postgres(activities)
+            stats = service._insert_to_postgres(activities, WATERMARK)
 
         assert stats == PostgresWriteStats(inserted=2, updated=1, errors=0)
         assert stats.inserted + stats.updated + stats.errors == len(activities)
@@ -542,7 +545,7 @@ class TestPostgresInsertion:
             "stravapipe.application.backfill.service.logger.info",
             side_effect=RuntimeError("logging failed"),
         ):
-            stats = service._insert_to_postgres(activities)
+            stats = service._insert_to_postgres(activities, WATERMARK)
 
         assert stats == PostgresWriteStats(inserted=2, updated=1, errors=0)
         assert stats.inserted + stats.updated + stats.errors == len(activities)
@@ -573,30 +576,36 @@ class TestPostgresInsertion:
             "stravapipe.application.backfill.service.logger.exception",
             side_effect=RuntimeError("logging failed"),
         ):
-            stats = service._insert_to_postgres(make_activities(3))
+            stats = service._insert_to_postgres(make_activities(3), WATERMARK)
 
         assert stats == PostgresWriteStats(inserted=1, updated=0, errors=2)
         assert stats.inserted + stats.updated + stats.errors == 3
         assert uow_factory.call_count == 2
 
-    def test_false_upsert_fails_the_whole_transactional_batch(
+    def test_skipped_backfill_write_is_counted_not_errored(
         self,
         service: BackfillService,
         mock_strava_reader,
         mock_activity_repo,
         mock_uow,
     ):
-        """An unexpected false upsert cannot silently disappear from metrics."""
+        """A watermark-fenced skip is counted as skipped (not an error), the batch
+        still commits, and a skipped row's geography is not reconciled."""
         mock_strava_reader.read_activities_by_year.return_value = make_activities(2)
-        mock_activity_repo.upsert.side_effect = [True, False]
+        mock_activity_repo.upsert_backfill.side_effect = [
+            BackfillUpsertResult.APPLIED,
+            BackfillUpsertResult.SKIPPED,
+        ]
 
         result = service.backfill_user("12345", years=[2024])
 
         year_stats = result.year_stats[0]
-        assert year_stats.pg_inserted == 0
-        assert year_stats.pg_updated == 0
-        assert year_stats.pg_errors == 2
-        mock_uow.commit.assert_not_called()
+        assert year_stats.pg_inserted == 1
+        assert year_stats.pg_skipped == 1
+        assert year_stats.pg_errors == 0
+        # Only the applied row reconciles geography; the skipped one does not.
+        assert mock_activity_repo.tag_activity_regions.call_count == 1
+        mock_uow.commit.assert_called_once()
 
     def test_batch_error_is_tracked(
         self,
@@ -699,7 +708,7 @@ class TestPostgresRetry:
                 logger="stravapipe.application.backfill.service",
             ),
         ):
-            stats = service._insert_to_postgres(make_activities(3))
+            stats = service._insert_to_postgres(make_activities(3), WATERMARK)
 
         assert stats == PostgresWriteStats(inserted=2, updated=1)
         assert uow_factory.call_count == 3
@@ -733,7 +742,7 @@ class TestPostgresRetry:
         )
 
         with patch("stravapipe.application.backfill.service.time.sleep") as mock_sleep:
-            stats = service._insert_to_postgres(make_activities(3))
+            stats = service._insert_to_postgres(make_activities(3), WATERMARK)
 
         assert stats == PostgresWriteStats(errors=3)
         assert uow_factory.call_count == 3
@@ -786,7 +795,7 @@ class TestPostgresRetry:
         )
 
         with patch("stravapipe.application.backfill.service.time.sleep") as mock_sleep:
-            stats = service._insert_to_postgres(make_activities(2))
+            stats = service._insert_to_postgres(make_activities(2), WATERMARK)
 
         assert stats == PostgresWriteStats(errors=2)
         uow_factory.assert_called_once_with()
@@ -812,7 +821,7 @@ class TestPostgresRetry:
         )
 
         with patch("stravapipe.application.backfill.service.time.sleep") as mock_sleep:
-            stats = service._insert_to_postgres(make_activities(2))
+            stats = service._insert_to_postgres(make_activities(2), WATERMARK)
 
         assert stats == PostgresWriteStats(errors=2)
         uow_factory.assert_called_once_with()
@@ -839,7 +848,7 @@ class TestPostgresRetry:
         )
 
         with patch("stravapipe.application.backfill.service.time.sleep") as mock_sleep:
-            stats = service._insert_to_postgres(make_activities(2))
+            stats = service._insert_to_postgres(make_activities(2), WATERMARK)
 
         assert stats == PostgresWriteStats(inserted=2)
         uow_factory.assert_called_once_with()
@@ -858,12 +867,15 @@ class TestPostgresRetry:
         )
         first_repo = create_autospec(ActivityRepository, instance=True)
         first_repo.get_existing_ids.return_value = set()
-        first_repo.upsert.side_effect = [True, transient]
+        first_repo.upsert_backfill.side_effect = [
+            BackfillUpsertResult.APPLIED,
+            transient,
+        ]
         first_uow = make_mock_uow(first_repo)
 
         successful_repo = create_autospec(ActivityRepository, instance=True)
         successful_repo.get_existing_ids.return_value = {1}
-        successful_repo.upsert.return_value = True
+        successful_repo.upsert_backfill.return_value = BackfillUpsertResult.APPLIED
         successful_uow = make_mock_uow(successful_repo)
 
         uow_factory = MagicMock(side_effect=[first_uow, successful_uow])
@@ -873,7 +885,7 @@ class TestPostgresRetry:
         )
 
         with patch("stravapipe.application.backfill.service.time.sleep"):
-            stats = service._insert_to_postgres(make_activities(2))
+            stats = service._insert_to_postgres(make_activities(2), WATERMARK)
 
         assert stats == PostgresWriteStats(inserted=1, updated=1)
         assert uow_factory.call_count == 2
@@ -901,7 +913,7 @@ class TestPostgresRetry:
                 side_effect=RuntimeError("logging unavailable"),
             ),
         ):
-            stats = service._insert_to_postgres(make_activities(1))
+            stats = service._insert_to_postgres(make_activities(1), WATERMARK)
 
         assert stats == PostgresWriteStats(inserted=1)
         assert uow_factory.call_count == 2
@@ -923,7 +935,7 @@ class TestPostgresGeographyReconciliation:
         """Summary list geometry fills a missing route before region tagging."""
         mock_activity_repo.insert_route.return_value = True
 
-        stats = service._insert_to_postgres([make_summary_activity()])
+        stats = service._insert_to_postgres([make_summary_activity()], WATERMARK)
 
         assert stats == PostgresWriteStats(inserted=1)
         mock_activity_repo.insert_route.assert_called_once()
@@ -954,7 +966,7 @@ class TestPostgresGeographyReconciliation:
                 return_value='{"type":"LineString","coordinates":[]}',
             ) as mock_decode,
         ):
-            service._insert_to_postgres([make_summary_activity()])
+            service._insert_to_postgres([make_summary_activity()], WATERMARK)
 
         mock_decode.assert_called_once_with("detailed-route")
         mock_activity_repo.insert_route.assert_called_once_with(
@@ -971,7 +983,7 @@ class TestPostgresGeographyReconciliation:
         """An existing route is not overwritten, but its tags are reconciled."""
         mock_activity_repo.insert_route.return_value = False
 
-        stats = service._insert_to_postgres([make_summary_activity()])
+        stats = service._insert_to_postgres([make_summary_activity()], WATERMARK)
 
         assert stats == PostgresWriteStats(inserted=1)
         mock_activity_repo.insert_route.assert_called_once()
@@ -995,7 +1007,7 @@ class TestPostgresGeographyReconciliation:
             ),
         ):
             stats = service._insert_to_postgres(
-                [make_summary_activity(summary_polyline="invalid")]
+                [make_summary_activity(summary_polyline="invalid")], WATERMARK
             )
 
         assert stats == PostgresWriteStats(inserted=1)
@@ -1025,7 +1037,7 @@ class TestPostgresGeographyReconciliation:
             ),
         ):
             stats = service._insert_to_postgres(
-                [make_summary_activity(summary_polyline="invalid")]
+                [make_summary_activity(summary_polyline="invalid")], WATERMARK
             )
 
         assert stats == PostgresWriteStats(inserted=1)
@@ -1040,7 +1052,9 @@ class TestPostgresGeographyReconciliation:
         with patch(
             "stravapipe.application.backfill.service.decode_polyline_to_geojson"
         ) as mock_decode:
-            service._insert_to_postgres([make_summary_activity(summary_polyline="")])
+            service._insert_to_postgres(
+                [make_summary_activity(summary_polyline="")], WATERMARK
+            )
 
         mock_decode.assert_not_called()
         mock_activity_repo.insert_route.assert_not_called()
@@ -1063,7 +1077,7 @@ class TestPostgresGeographyReconciliation:
                 "stravapipe.application.backfill.service.decode_polyline_to_geojson"
             ) as mock_decode,
         ):
-            service._insert_to_postgres([make_summary_activity()])
+            service._insert_to_postgres([make_summary_activity()], WATERMARK)
 
         mock_decode.assert_not_called()
         mock_activity_repo.insert_route.assert_not_called()
@@ -1098,7 +1112,7 @@ class TestPostgresGeographyReconciliation:
         with patch(
             "stravapipe.application.backfill.service.decode_polyline_to_geojson"
         ) as mock_decode:
-            stats = service._insert_to_postgres([activity])
+            stats = service._insert_to_postgres([activity], WATERMARK)
 
         assert stats == PostgresWriteStats(inserted=1)
         mock_activity_repo.clear_activity_regions.assert_called_once_with(12345)
@@ -1128,7 +1142,7 @@ class TestPostgresGeographyReconciliation:
         )
         activity = make_summary_activity(manual=manual)
 
-        stats = service._insert_to_postgres([activity])
+        stats = service._insert_to_postgres([activity], WATERMARK)
 
         assert stats == PostgresWriteStats(errors=1)
         mock_uow.commit.assert_not_called()
@@ -1330,7 +1344,7 @@ class TestMetricLogging:
         mock_activity_repo.get_existing_ids.return_value = {2, 3}
 
         with caplog.at_level("INFO", logger="stravapipe.application.backfill.service"):
-            stats = service._insert_to_postgres(make_activities(3))
+            stats = service._insert_to_postgres(make_activities(3), WATERMARK)
 
         assert stats == PostgresWriteStats(inserted=1, updated=2, errors=0)
         assert [
@@ -1360,7 +1374,7 @@ class TestMetricLogging:
             ),
             caplog.at_level("INFO", logger="stravapipe.application.backfill.service"),
         ):
-            service._backfill_year(2024)
+            service._backfill_year(2024, WATERMARK)
 
         assert [
             record.getMessage()
@@ -1368,7 +1382,7 @@ class TestMetricLogging:
             if record.getMessage().startswith("Year 2024 complete")
         ] == [
             "Year 2024 complete in 2.0s: "
-            "PG(2 inserted, 1 updated, 0 errors), BQ(0 inserted, 0 errors)"
+            "PG(2 inserted, 1 updated, 0 skipped, 0 errors), BQ(0 inserted, 0 errors)"
         ]
 
     @pytest.mark.parametrize(
@@ -1415,14 +1429,14 @@ class TestMetricLogging:
             assert terminal == [
                 "Backfill completed for athlete 12345: 4 activities across 1 year "
                 "(source errors: 0; processing errors: 0; "
-                "PG: 2 inserted, 1 updated; "
+                "PG: 2 inserted, 1 updated, 0 skipped; "
                 "BQ: 4 inserted; errors: 0) in 5.0s"
             ]
         else:
             assert terminal == [
                 "Backfill completed with errors for athlete 12345: 4 activities "
                 "across 1 year (source errors: 0; processing errors: 0; "
-                "PG: 2 inserted, 1 updated; "
+                "PG: 2 inserted, 1 updated, 0 skipped; "
                 "BQ: 4 inserted; errors: 1) in 5.0s"
             ]
 
@@ -1567,7 +1581,7 @@ class TestLifecycleLoggingIsolation:
         ):
             result = service.backfill_user("12345", years=[2023, 2024])
 
-        assert mock_backfill_year.call_args_list == [call(2023), call(2024)]
+        assert mock_backfill_year.call_args_list == [call(2023, ANY), call(2024, ANY)]
         assert result.year_stats == [
             YearStats(year=2023, processing_errors=1),
             completed_stats,

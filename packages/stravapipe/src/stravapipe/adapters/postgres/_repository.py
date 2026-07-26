@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from stravapipe.domain import StandardActivity
 from stravapipe.ports.out.postgres import (
     ActivityRepository,
+    BackfillUpsertResult,
     DeleteResult,
     InsertResult,
     MetadataUpdateResult,
@@ -145,6 +146,28 @@ _ACTIVITY_INSERT_SELECT_SQL: Final[str] = (
     "  SELECT 1 FROM desirelines.deleted_activities"
     "  WHERE id = :id AND deletion_event_time >= :last_event_time"
     ")"
+)
+
+# BACKFILL path. A backfill fetched its activities as of the run's start
+# (:watermark), so it must not overwrite state a newer live event already wrote.
+# It is fenced on the watermark, not on an event_time it doesn't have, and it
+# never touches last_event_time (omitted from the SET; the insert leg binds NULL):
+#   - insert leg blocked by a deletion tombstone strictly newer than the watermark
+#     (a live DELETE after run start — don't resurrect);
+#   - conflict (DO UPDATE) applied only when the row is unfenced (NULL) or its
+#     last_event_time is at-or-before the watermark (no newer live UPDATE).
+# No row returned => the write was skipped (a newer live event owns the row).
+_ACTIVITY_BACKFILL_UPSERT_SQL: Final[str] = (
+    f"INSERT INTO desirelines.activities ({', '.join(_ACTIVITY_INSERT_COLUMNS)}) "
+    f"SELECT {', '.join(f':{col}' for col in _ACTIVITY_INSERT_COLUMNS)} "
+    "WHERE NOT EXISTS ("
+    "  SELECT 1 FROM desirelines.deleted_activities"
+    "  WHERE id = :id AND deletion_event_time > :watermark"
+    ") "
+    f"ON CONFLICT (id) DO UPDATE SET {_ACTIVITY_UPSERT_SET_SQL} "
+    "WHERE activities.last_event_time IS NULL "
+    "OR activities.last_event_time <= :watermark "
+    "RETURNING id"
 )
 
 # DELETE path. Read + lock the live row's fence token first so a stale/reordered
@@ -355,6 +378,35 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         params["last_event_time"] = event_time
         result = self._session.execute(query, params)
         return result.fetchone() is not None
+
+    def upsert_backfill(
+        self, activity: StandardActivity, watermark: int
+    ) -> BackfillUpsertResult:
+        """Upsert an activity from a backfill run, fenced on the run watermark.
+
+        Skips the write when a live event newer than ``watermark`` already owns
+        the row (a live UPDATE via ``last_event_time`` or a live DELETE via the
+        tombstone), otherwise refreshes all activity columns. Never sets or
+        advances ``last_event_time`` — a refreshed row keeps its token and a
+        newly-inserted backfill row gets NULL. See ``_ACTIVITY_BACKFILL_UPSERT_SQL``.
+
+        Args:
+            activity: StandardActivity domain model (from the backfill fetch)
+            watermark: the backfill run's start time (unix seconds)
+
+        Returns:
+            APPLIED if the row was inserted or updated; SKIPPED if a newer live
+            event owns it.
+        """
+        params = _activity_write_params(activity, datetime.now(UTC))
+        params["last_event_time"] = None
+        params["watermark"] = watermark
+        result = self._session.execute(text(_ACTIVITY_BACKFILL_UPSERT_SQL), params)
+        return (
+            BackfillUpsertResult.APPLIED
+            if result.fetchone() is not None
+            else BackfillUpsertResult.SKIPPED
+        )
 
     def insert_route(self, activity_id: int, geojson: str) -> bool:
         """Insert activity route geometry, ignore if already exists.
