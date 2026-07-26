@@ -29,7 +29,11 @@ from stravapipe.domain.activity import (
     is_non_geographic_activity,
 )
 from stravapipe.domain.geometry import decode_polyline_to_geojson
-from stravapipe.ports.out.postgres import MetadataUpdateResult
+from stravapipe.ports.out.postgres import (
+    DeleteResult,
+    InsertResult,
+    MetadataUpdateResult,
+)
 from stravapipe.shared.constants import ResponseStatus, SkipReason
 from stravapipe.shared.correlation import get_dispatcher_received_at_ms
 from stravapipe.shared.logging import setup_logging
@@ -167,6 +171,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 "newer event already landed (out-of-order/reordered delivery)."
             ),
         )
+        # Resurrection guard: incremented when a CREATE is rejected because a
+        # deletion tombstone with a newer-or-equal event_time exists (a late /
+        # reordered CREATE that would otherwise resurrect a deleted activity).
+        app.state.resurrection_counter = meter.create_counter(
+            "desirelines.io/stravapipe/write/resurrection_blocked",
+            description=(
+                "CREATE events rejected because a deletion tombstone would be "
+                "resurrected (late/reordered CREATE after a DELETE)."
+            ),
+        )
         # End-to-end webhook freshness: time from dispatcher receiving the
         # Strava webhook to the activity row landing in postgres. Anchors
         # SLO 3 (data freshness). The dispatcher stamps a
@@ -247,12 +261,20 @@ async def handle_pubsub(request: Request) -> WebhookResponse:
     freshness_hist = request.app.state.freshness_histogram
     webhook_counter = request.app.state.webhook_counter
     stale_counter = request.app.state.stale_event_counter
+    resurrection_counter = request.app.state.resurrection_counter
     tracer = request.app.state.tracer
     return await handle_webhook_cloudevent(
         request,
         logger,
         on_create=lambda event, event_data, cid: _handle_create(
-            event, event_data, cid, session_factory, pg_hist, tracer, freshness_hist
+            event,
+            event_data,
+            cid,
+            session_factory,
+            pg_hist,
+            tracer,
+            freshness_hist,
+            resurrection_counter,
         ),
         on_update=lambda event, event_data, cid: _handle_update(
             event,
@@ -265,7 +287,7 @@ async def handle_pubsub(request: Request) -> WebhookResponse:
             stale_counter,
         ),
         on_delete=lambda event, event_data, cid: _handle_delete(
-            event, cid, session_factory, pg_hist, tracer, freshness_hist
+            event, cid, session_factory, pg_hist, tracer, freshness_hist, stale_counter
         ),
         webhook_counter=webhook_counter,
         tracer=tracer,
@@ -283,11 +305,13 @@ async def _handle_create(
     pg_histogram: Histogram | None = None,
     tracer: Tracer | None = None,
     freshness_histogram: Histogram | None = None,
+    resurrection_counter: Counter | None = None,
 ) -> WebhookResponse:
     """Handle CREATE events - insert new activity to PostgreSQL.
 
     Activity data is provided inline from the dispatcher's enriched event.
-    No Strava API call is needed.
+    No Strava API call is needed. A CREATE that would resurrect a deleted
+    activity (blocked by a deletion tombstone) is skipped, not inserted.
     """
     activity_id = event.object_id
     raw_activity = event_data.get("raw_activity")
@@ -330,9 +354,13 @@ async def _handle_create(
             _pg_span(tracer, "postgres.activities.insert", "INSERT", activity_id),
             record_duration(pg_histogram, {"operation": "activities_insert"}),
         ):
-            inserted = uow.activities.insert(activity, event.event_time)
+            insert_result = uow.activities.insert(activity, event.event_time)
 
-        if inserted and activity.map and activity.map.polyline:
+        if (
+            insert_result is InsertResult.INSERTED
+            and activity.map
+            and activity.map.polyline
+        ):
             with record_span(
                 tracer,
                 "postgres.polyline.decode",
@@ -373,7 +401,7 @@ async def _handle_create(
 
         uow.commit()
 
-    if inserted:
+    if insert_result is InsertResult.INSERTED:
         _record_freshness(freshness_histogram, "create")
 
         logger.info(
@@ -385,6 +413,22 @@ async def _handle_create(
             status=ResponseStatus.CREATED,
             activity_id=activity_id,
             correlation_id=correlation_id,
+        )
+
+    if insert_result is InsertResult.RESURRECTION_BLOCKED:
+        if resurrection_counter is not None:
+            resurrection_counter.add(1, {"aspect_type": "create"})
+        logger.warning(
+            "Blocked resurrecting deleted activity %s "
+            "(CREATE event_time %s not newer than its deletion tombstone)",
+            activity_id,
+            event.event_time,
+        )
+        return WebhookResponse(
+            status=ResponseStatus.SKIPPED,
+            activity_id=activity_id,
+            correlation_id=correlation_id,
+            reason=SkipReason.RESURRECTION_BLOCKED,
         )
 
     logger.warning("Activity %s already exists (duplicate CREATE)", activity_id)
@@ -606,8 +650,13 @@ async def _handle_delete(
     pg_histogram: Histogram | None = None,
     tracer: Tracer | None = None,
     freshness_histogram: Histogram | None = None,
+    stale_event_counter: Counter | None = None,
 ) -> WebhookResponse:
-    """Handle DELETE events - remove activity from PostgreSQL."""
+    """Handle DELETE events - remove activity from PostgreSQL.
+
+    Fenced: a reordered/stale DELETE that would remove a newer (re-created) row
+    is dropped rather than applied.
+    """
     activity_id = event.object_id
     uow = SqlAlchemyUnitOfWork(session_factory, tracer=tracer)
 
@@ -616,10 +665,10 @@ async def _handle_delete(
         record_duration(pg_histogram, {"operation": "delete"}),
         uow,
     ):
-        deleted = uow.activities.delete(activity_id)
+        result = uow.activities.delete(activity_id, event.event_time, correlation_id)
         uow.commit()
 
-    if deleted:
+    if result is DeleteResult.DELETED:
         _record_freshness(freshness_histogram, "delete")
 
         logger.info("Deleted activity %s from PostgreSQL", activity_id)
@@ -627,6 +676,21 @@ async def _handle_delete(
             status=ResponseStatus.DELETED,
             activity_id=activity_id,
             correlation_id=correlation_id,
+        )
+
+    if result is DeleteResult.STALE:
+        _record_stale_drop(stale_event_counter, "delete")
+        logger.info(
+            "Dropped stale DELETE for activity %s "
+            "(event_time %s older than the live row's last_event_time)",
+            activity_id,
+            event.event_time,
+        )
+        return WebhookResponse(
+            status=ResponseStatus.SKIPPED,
+            activity_id=activity_id,
+            correlation_id=correlation_id,
+            reason=SkipReason.STALE_EVENT,
         )
 
     logger.info(

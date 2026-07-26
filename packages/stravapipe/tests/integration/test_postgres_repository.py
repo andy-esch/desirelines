@@ -11,7 +11,11 @@ from sqlalchemy import event, text
 
 from stravapipe.domain import StandardActivity
 from stravapipe.domain.activity import MetaAthlete
-from stravapipe.ports.out.postgres import MetadataUpdateResult
+from stravapipe.ports.out.postgres import (
+    DeleteResult,
+    InsertResult,
+    MetadataUpdateResult,
+)
 
 
 def make_activity(
@@ -45,7 +49,7 @@ class TestActivityRepository:
             result = uow.activities.insert(activity, None)
             uow.commit()
 
-        assert result is True
+        assert result is InsertResult.INSERTED
 
     def test_insert_duplicate_returns_false(self, uow):
         """Insert returns False for duplicate (ON CONFLICT DO NOTHING)."""
@@ -57,12 +61,12 @@ class TestActivityRepository:
             uow.commit()
 
         with uow:
-            # Second insert - should return False
+            # Second insert - should be a no-op (already exists)
             result2 = uow.activities.insert(activity, None)
             uow.commit()
 
-        assert result1 is True
-        assert result2 is False
+        assert result1 is InsertResult.INSERTED
+        assert result2 is InsertResult.ALREADY_EXISTS
 
     def test_exists_returns_true_for_existing(self, uow):
         """exists() returns True after insert."""
@@ -206,10 +210,10 @@ class TestActivityRepository:
             uow.commit()
 
         with uow:
-            result = uow.activities.delete(100006)
+            result = uow.activities.delete(100006, 1700000000)
             uow.commit()
 
-        assert result is True
+        assert result is DeleteResult.DELETED
 
         with uow:
             exists = uow.activities.exists(100006)
@@ -219,10 +223,10 @@ class TestActivityRepository:
     def test_delete_returns_false_for_missing(self, uow):
         """delete returns False for non-existent activity."""
         with uow:
-            result = uow.activities.delete(999999)
+            result = uow.activities.delete(999999, 1700000000)
             uow.commit()
 
-        assert result is False
+        assert result is DeleteResult.NOT_FOUND
 
     def test_get_existing_ids(self, uow):
         """get_existing_ids filters a list of IDs and returns only those that exist."""
@@ -413,6 +417,244 @@ class TestActivityWriteFencing:
         assert row.last_event_time == 300  # COALESCE preserved the live token
 
 
+class TestActivityDeletionTombstone:
+    """Integration tests for the deletion tombstone resurrection guard (V0008)."""
+
+    def _tombstone(self, db_session, activity_id: int):
+        return db_session.execute(
+            text(
+                "SELECT deletion_event_time, deletion_correlation_id "
+                "FROM desirelines.deleted_activities WHERE id = :id"
+            ),
+            {"id": activity_id},
+        ).fetchone()
+
+    def _activity_exists(self, db_session, activity_id: int) -> bool:
+        return (
+            db_session.execute(
+                text("SELECT 1 FROM desirelines.activities WHERE id = :id"),
+                {"id": activity_id},
+            ).fetchone()
+            is not None
+        )
+
+    def test_delete_writes_tombstone_and_removes_row(self, uow, db_session):
+        with uow:
+            uow.activities.insert(make_activity(activity_id=100040, name="v1"), 100)
+            uow.commit()
+
+        with uow:
+            assert (
+                uow.activities.delete(100040, 200, "corr-xyz") is DeleteResult.DELETED
+            )
+            uow.commit()
+
+        assert not self._activity_exists(db_session, 100040)
+        tomb = self._tombstone(db_session, 100040)
+        assert tomb.deletion_event_time == 200
+        assert tomb.deletion_correlation_id == "corr-xyz"
+
+    def test_late_create_after_delete_is_blocked(self, uow, db_session):
+        with uow:
+            uow.activities.insert(make_activity(activity_id=100041, name="v1"), 50)
+            uow.commit()
+
+        with uow:
+            uow.activities.delete(100041, 200)
+            uow.commit()
+
+        # Redelivered/reordered CREATE older than the delete must not resurrect.
+        with uow:
+            assert (
+                uow.activities.insert(
+                    make_activity(activity_id=100041, name="ghost"), 100
+                )
+                is InsertResult.RESURRECTION_BLOCKED
+            )
+            uow.commit()
+
+        assert not self._activity_exists(db_session, 100041)
+
+    def test_delete_before_create_blocks_the_create(self, uow, db_session):
+        # DELETE arrives first (no live row): tombstone is still written.
+        with uow:
+            assert uow.activities.delete(100042, 200) is DeleteResult.NOT_FOUND
+            uow.commit()
+
+        assert self._tombstone(db_session, 100042).deletion_event_time == 200
+
+        with uow:
+            assert (
+                uow.activities.insert(
+                    make_activity(activity_id=100042, name="ghost"), 100
+                )
+                is InsertResult.RESURRECTION_BLOCKED
+            )
+            uow.commit()
+
+        assert not self._activity_exists(db_session, 100042)
+
+    def test_create_equal_to_deletion_event_time_is_blocked(self, uow, db_session):
+        # Ties go to the delete (>=) — resurrection is worse than dropping a CREATE.
+        with uow:
+            uow.activities.delete(100043, 100)
+            uow.commit()
+
+        with uow:
+            assert (
+                uow.activities.insert(
+                    make_activity(activity_id=100043, name="tie"), 100
+                )
+                is InsertResult.RESURRECTION_BLOCKED
+            )
+            uow.commit()
+
+        assert not self._activity_exists(db_session, 100043)
+
+    def test_newer_create_after_delete_is_allowed(self, uow, db_session):
+        # A genuine re-creation strictly newer than the delete is accepted.
+        with uow:
+            uow.activities.delete(100044, 100)
+            uow.commit()
+
+        with uow:
+            assert (
+                uow.activities.insert(
+                    make_activity(activity_id=100044, name="reborn"), 200
+                )
+                is InsertResult.INSERTED
+            )
+            uow.commit()
+
+        assert self._activity_exists(db_session, 100044)
+
+    def test_repeated_delete_keeps_newest_deletion_event_time(self, uow, db_session):
+        with uow:
+            uow.activities.delete(100045, 100)
+            uow.commit()
+        with uow:
+            uow.activities.delete(100045, 300)
+            uow.commit()
+
+        assert self._tombstone(db_session, 100045).deletion_event_time == 300
+
+        # A CREATE between the two delete times is still blocked by the newest.
+        with uow:
+            assert (
+                uow.activities.insert(
+                    make_activity(activity_id=100045, name="mid"), 200
+                )
+                is InsertResult.RESURRECTION_BLOCKED
+            )
+            uow.commit()
+
+    def test_backfill_insert_ignores_tombstone(self, uow, db_session):
+        # Backfill (event_time=None) is unfenced against the tombstone here; the
+        # backfill-vs-delete watermark is a separate follow-up.
+        with uow:
+            uow.activities.delete(100046, 200)
+            uow.commit()
+
+        with uow:
+            assert (
+                uow.activities.insert(
+                    make_activity(activity_id=100046, name="bf"), None
+                )
+                is InsertResult.INSERTED
+            )
+            uow.commit()
+
+        assert self._activity_exists(db_session, 100046)
+
+    def test_backfill_upsert_ignores_tombstone(self, uow, db_session):
+        # Same deferral as insert: backfill upsert (None) applies past a tombstone.
+        with uow:
+            uow.activities.delete(100047, 200)
+            uow.commit()
+
+        with uow:
+            assert (
+                uow.activities.upsert(
+                    make_activity(activity_id=100047, name="bf-upsert"), None
+                )
+                is True
+            )
+            uow.commit()
+
+        assert self._activity_exists(db_session, 100047)
+
+    def test_stale_enriched_update_after_delete_is_blocked(self, uow, db_session):
+        # An enriched UPDATE (upsert) older than the delete must not resurrect
+        # the activity via its insert leg.
+        with uow:
+            uow.activities.insert(make_activity(activity_id=100048, name="v1"), 100)
+            uow.commit()
+        with uow:
+            uow.activities.delete(100048, 200)
+            uow.commit()
+
+        with uow:
+            assert (
+                uow.activities.upsert(
+                    make_activity(activity_id=100048, name="ghost"), 150
+                )
+                is False
+            )
+            uow.commit()
+
+        assert not self._activity_exists(db_session, 100048)
+
+    def test_stale_delete_does_not_remove_newer_recreated_row(self, uow, db_session):
+        # delete@200 -> recreate@300 -> stale delete@250: the recreated row must
+        # survive and the stale delete is reported STALE.
+        with uow:
+            uow.activities.insert(make_activity(activity_id=100049, name="v1"), 100)
+            uow.commit()
+        with uow:
+            uow.activities.delete(100049, 200)
+            uow.commit()
+        with uow:
+            assert (
+                uow.activities.insert(
+                    make_activity(activity_id=100049, name="reborn"), 300
+                )
+                is InsertResult.INSERTED
+            )
+            uow.commit()
+
+        with uow:
+            assert uow.activities.delete(100049, 250) is DeleteResult.STALE
+            uow.commit()
+
+        row = db_session.execute(
+            text(
+                "SELECT name, last_event_time FROM desirelines.activities "
+                "WHERE id = :id"
+            ),
+            {"id": 100049},
+        ).fetchone()
+        assert row is not None
+        assert row.name == "reborn"
+        assert row.last_event_time == 300
+
+    def test_stale_redelete_does_not_overwrite_tombstone_metadata(
+        self, uow, db_session
+    ):
+        # A stale re-delete keeps the newest deletion_event_time AND its metadata.
+        with uow:
+            uow.activities.delete(100050, 200, "corr-authoritative")
+            uow.commit()
+        with uow:
+            # Older re-delete (row already gone): GREATEST keeps 200, and the
+            # correlation_id must stay the authoritative one, not the stale one.
+            uow.activities.delete(100050, 150, "corr-stale")
+            uow.commit()
+
+        tomb = self._tombstone(db_session, 100050)
+        assert tomb.deletion_event_time == 200
+        assert tomb.deletion_correlation_id == "corr-authoritative"
+
+
 class TestActivityRouteRepository:
     """Integration tests for activity route geometry storage."""
 
@@ -468,7 +710,7 @@ class TestActivityRouteRepository:
             uow.commit()
 
         with uow:
-            uow.activities.delete(300003)
+            uow.activities.delete(300003, 1700000000)
             uow.commit()
 
         row = db_session.execute(

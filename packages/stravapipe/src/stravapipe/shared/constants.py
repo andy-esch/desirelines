@@ -27,6 +27,7 @@ class SkipReason(StrEnum):
     NO_RELEVANT_UPDATES = "no_relevant_updates"
     NOT_IMPLEMENTED = "not_implemented"
     STALE_EVENT = "stale_event"
+    RESURRECTION_BLOCKED = "resurrection_blocked"
 
 
 class CloudEventField(StrEnum):

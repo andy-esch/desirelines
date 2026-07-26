@@ -15,7 +15,12 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from stravapipe.domain import StandardActivity
-from stravapipe.ports.out.postgres import ActivityRepository, MetadataUpdateResult
+from stravapipe.ports.out.postgres import (
+    ActivityRepository,
+    DeleteResult,
+    InsertResult,
+    MetadataUpdateResult,
+)
 from stravapipe.shared.logging import log_best_effort
 
 logger = logging.getLogger(__name__)
@@ -80,10 +85,6 @@ _ACTIVITY_INSERT_COLUMNS: Final[tuple[str, ...]] = (
     "last_event_time",
 )
 
-_ACTIVITY_INSERT_SQL: Final[str] = (
-    f"INSERT INTO desirelines.activities ({', '.join(_ACTIVITY_INSERT_COLUMNS)}) "
-    f"VALUES ({', '.join(f':{col}' for col in _ACTIVITY_INSERT_COLUMNS)})"
-)
 _ACTIVITY_UPSERT_SET_SQL: Final[str] = ", ".join(
     f"{col} = EXCLUDED.{col}"
     for col in _ACTIVITY_COLUMNS
@@ -105,6 +106,73 @@ _ACTIVITY_UPSERT_EVENT_TIME_GUARD: Final[str] = (
     "activities.last_event_time IS NULL "
     "OR EXCLUDED.last_event_time IS NULL "
     "OR activities.last_event_time <= EXCLUDED.last_event_time"
+)
+
+# CREATE path. Existence, the deletion-tombstone guard, and the write are all
+# resolved in one statement so a concurrently-committed DELETE can't race the
+# classification. The `tombstone` CTE fires only when the incoming event_time is
+# not strictly newer than a recorded deletion_event_time (>= blocks; a genuine
+# re-creation with a newer event_time is allowed through). event_time=None
+# (backfill) makes the `>=` comparison NULL, so the tombstone never blocks and
+# the row inserts unfenced — backfill-vs-delete ordering is the watermark task's
+# concern. The outer SELECT reports inserted vs blocked so the caller can tell
+# RESURRECTION_BLOCKED from ALREADY_EXISTS.
+_ACTIVITY_TOMBSTONED_INSERT_SQL: Final[str] = (
+    "WITH tombstone AS ("
+    "  SELECT 1 FROM desirelines.deleted_activities"
+    "  WHERE id = :id AND deletion_event_time >= :last_event_time"
+    "), ins AS ("
+    f"  INSERT INTO desirelines.activities ({', '.join(_ACTIVITY_INSERT_COLUMNS)})"
+    f"  SELECT {', '.join(f':{col}' for col in _ACTIVITY_INSERT_COLUMNS)}"
+    "  WHERE NOT EXISTS (SELECT 1 FROM tombstone)"
+    "  ON CONFLICT (id) DO NOTHING"
+    "  RETURNING id"
+    ")"
+    " SELECT"
+    "  EXISTS (SELECT 1 FROM ins) AS inserted,"
+    "  EXISTS (SELECT 1 FROM tombstone) AS blocked"
+)
+
+# UPSERT insert-leg is tombstone-guarded too (enriched UPDATE = a live write that
+# would otherwise resurrect a deleted activity via its insert leg). Same guard as
+# the CREATE path; when the tombstone blocks, the SELECT yields no row so nothing
+# inserts and no conflict fires. On an existing row the SELECT yields a row, the
+# INSERT conflicts, and the fenced DO UPDATE runs as before.
+_ACTIVITY_INSERT_SELECT_SQL: Final[str] = (
+    f"INSERT INTO desirelines.activities ({', '.join(_ACTIVITY_INSERT_COLUMNS)}) "
+    f"SELECT {', '.join(f':{col}' for col in _ACTIVITY_INSERT_COLUMNS)} "
+    "WHERE NOT EXISTS ("
+    "  SELECT 1 FROM desirelines.deleted_activities"
+    "  WHERE id = :id AND deletion_event_time >= :last_event_time"
+    ")"
+)
+
+# DELETE path. Read + lock the live row's fence token first so a stale/reordered
+# DELETE can't remove a newer (re-created) row, then upsert the tombstone and
+# hard-delete. GREATEST keeps the newest deletion_event_time; deleted_at and
+# correlation_id only advance with it (a stale re-delete must not overwrite the
+# authoritative delete's metadata). Everything runs in the caller's Unit of Work.
+_SELECT_ACTIVITY_FENCE_FOR_UPDATE_SQL: Final[str] = (
+    "SELECT last_event_time FROM desirelines.activities "
+    "WHERE id = :activity_id FOR UPDATE"
+)
+_TOMBSTONE_UPSERT_SQL: Final[str] = (
+    "INSERT INTO desirelines.deleted_activities"
+    " (id, deletion_event_time, deleted_at, deletion_correlation_id)"
+    " VALUES (:activity_id, :event_time, :deleted_at, :correlation_id)"
+    " ON CONFLICT (id) DO UPDATE SET"
+    "  deletion_event_time = GREATEST("
+    "    deleted_activities.deletion_event_time, EXCLUDED.deletion_event_time),"
+    "  deleted_at = CASE"
+    "    WHEN EXCLUDED.deletion_event_time >= deleted_activities.deletion_event_time"
+    "    THEN EXCLUDED.deleted_at ELSE deleted_activities.deleted_at END,"
+    "  deletion_correlation_id = CASE"
+    "    WHEN EXCLUDED.deletion_event_time >= deleted_activities.deletion_event_time"
+    "    THEN EXCLUDED.deletion_correlation_id"
+    "    ELSE deleted_activities.deletion_correlation_id END"
+)
+_DELETE_ACTIVITY_SQL: Final[str] = (
+    "DELETE FROM desirelines.activities WHERE id = :activity_id RETURNING id"
 )
 
 _DELETE_ACTIVITY_REGIONS_SQL: Final[str] = (
@@ -211,27 +279,38 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         """
         self._session = session
 
-    def insert(self, activity: StandardActivity, event_time: int | None) -> bool:
-        """Insert activity, ignore if already exists.
+    def insert(
+        self, activity: StandardActivity, event_time: int | None
+    ) -> InsertResult:
+        """Insert activity, ignore if already exists, block resurrection.
 
-        Uses ON CONFLICT DO NOTHING - duplicates are not errors. No fence guard
-        is needed: on conflict nothing is written, so a stale/duplicate CREATE
-        can't overwrite anything. The insert leg records ``event_time`` as
-        ``last_event_time`` so a later UPDATE can fence against this CREATE.
+        ON CONFLICT DO NOTHING makes a duplicate CREATE a no-op. A deletion
+        tombstone (see ``delete``) whose ``deletion_event_time`` is >= this
+        CREATE's ``event_time`` blocks the insert so a late/reordered CREATE
+        can't resurrect a deleted activity; a genuinely newer re-creation is
+        allowed. The insert leg records ``event_time`` as ``last_event_time`` so
+        a later UPDATE can fence against this CREATE. Existence, tombstone, and
+        write are classified in one statement (no race with a concurrent delete).
 
         Args:
             activity: StandardActivity domain model
-            event_time: webhook event_time (unix seconds); ``None`` for backfill
+            event_time: webhook event_time (unix seconds); ``None`` (backfill)
+                skips the tombstone guard and stores a NULL fence token
 
         Returns:
-            True if inserted, False if already existed (conflict)
+            An :class:`InsertResult` (``INSERTED`` / ``ALREADY_EXISTS`` /
+            ``RESURRECTION_BLOCKED``).
         """
-        query = text(f"{_ACTIVITY_INSERT_SQL} ON CONFLICT (id) DO NOTHING RETURNING id")
         params = _activity_write_params(activity, datetime.now(UTC))
         params["last_event_time"] = event_time
-        result = self._session.execute(query, params)
-        # RETURNING id only returns a row if insert happened (not on conflict)
-        return result.fetchone() is not None
+        row = self._session.execute(
+            text(_ACTIVITY_TOMBSTONED_INSERT_SQL), params
+        ).fetchone()
+        if row is not None and row.inserted:
+            return InsertResult.INSERTED
+        if row is not None and row.blocked:
+            return InsertResult.RESURRECTION_BLOCKED
+        return InsertResult.ALREADY_EXISTS
 
     def upsert(self, activity: StandardActivity, event_time: int | None) -> bool:
         """Insert activity, or refresh every column if it already exists.
@@ -243,11 +322,13 @@ class SqlAlchemyActivityRepository(ActivityRepository):
 
         The conflict branch is fenced on ``last_event_time``: a live event whose
         ``event_time`` is older than the row's stored token is rejected (returns
-        False — the row is left on its newer state). A backfill write passes
-        ``event_time=None``, which is treated as unfenced (always applied) and
-        never advances the token — the backfill-vs-live watermark is handled
-        separately (task apply-the-backfill-run-start-watermark-...). The insert
-        leg (no existing row) always applies and returns True.
+        False — the row is left on its newer state). The insert leg is also
+        tombstone-guarded like ``insert`` so a stale enriched UPDATE for a
+        deleted activity can't resurrect it via the insert leg (returns False).
+        A backfill write passes ``event_time=None``, which is unfenced against
+        both the token and the tombstone (always applied, never advances the
+        token) — the backfill-vs-live/delete watermark is handled separately
+        (task apply-the-backfill-run-start-watermark-...).
 
         Routes are intentionally not touched here: a type change doesn't alter
         geometry, and the route was written on CREATE. (In the rare case the
@@ -261,10 +342,10 @@ class SqlAlchemyActivityRepository(ActivityRepository):
 
         Returns:
             True if the row was inserted or updated; False if a stale live event
-            was rejected by the fence guard.
+            was rejected by the fence guard or blocked by a deletion tombstone.
         """
         query = text(
-            f"{_ACTIVITY_INSERT_SQL} "
+            f"{_ACTIVITY_INSERT_SELECT_SQL} "
             f"ON CONFLICT (id) DO UPDATE SET "
             f"{_ACTIVITY_UPSERT_SET_SQL}, {_ACTIVITY_LAST_EVENT_TIME_SET} "
             f"WHERE {_ACTIVITY_UPSERT_EVENT_TIME_GUARD} "
@@ -652,22 +733,59 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             MetadataUpdateResult.UPDATED if row.applied else MetadataUpdateResult.STALE
         )
 
-    def delete(self, activity_id: int) -> bool:
-        """Delete activity by ID.
+    def delete(
+        self, activity_id: int, event_time: int, correlation_id: str | None = None
+    ) -> DeleteResult:
+        """Delete activity by ID and record a deletion tombstone.
+
+        Locks and reads the live row's ``last_event_time`` first: if the row is
+        newer than this delete's ``event_time`` (a reordered/stale DELETE, e.g.
+        arriving after a genuine re-creation), the delete is ignored — the row
+        stays and no tombstone is written (``STALE``). Otherwise it upserts the
+        ``deleted_activities`` tombstone (``GREATEST`` keeps the newest
+        ``deletion_event_time``) and hard-deletes the row. The tombstone is
+        written even when no live row exists (a DELETE before its CREATE), so
+        ``insert``/``upsert`` can reject a later write that isn't strictly newer.
+        All statements run in the caller's Unit of Work and commit together; the
+        ``FOR UPDATE`` lock serializes concurrent writers on the row.
 
         Args:
             activity_id: Strava activity ID
+            event_time: webhook event_time (unix seconds) of the delete
+            correlation_id: trace id for the delete (stored for diagnostics)
 
         Returns:
-            True if deleted, False if not found
+            A :class:`DeleteResult` (``DELETED`` / ``NOT_FOUND`` / ``STALE``).
         """
-        query = text("""
-            DELETE FROM desirelines.activities
-            WHERE id = :activity_id
-            RETURNING id
-        """)
-        result = self._session.execute(query, {"activity_id": activity_id})
-        return result.fetchone() is not None
+        existing = self._session.execute(
+            text(_SELECT_ACTIVITY_FENCE_FOR_UPDATE_SQL), {"activity_id": activity_id}
+        ).fetchone()
+        if (
+            existing is not None
+            and existing.last_event_time is not None
+            and existing.last_event_time > event_time
+        ):
+            # Stale/reordered DELETE: the live row is newer. Leave it, and don't
+            # write a tombstone that could block a legitimate future write.
+            return DeleteResult.STALE
+
+        self._session.execute(
+            text(_TOMBSTONE_UPSERT_SQL),
+            {
+                "activity_id": activity_id,
+                "event_time": event_time,
+                "deleted_at": datetime.now(UTC),
+                "correlation_id": correlation_id,
+            },
+        )
+        result = self._session.execute(
+            text(_DELETE_ACTIVITY_SQL), {"activity_id": activity_id}
+        )
+        return (
+            DeleteResult.DELETED
+            if result.fetchone() is not None
+            else DeleteResult.NOT_FOUND
+        )
 
     def delete_by_user(self, user_id: str) -> int:
         """Delete all activities for a user.
