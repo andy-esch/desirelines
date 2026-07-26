@@ -25,6 +25,7 @@ package desirelines.bigquery.v1;
 // InvalidTargetException. No Go source imports this proto, so the
 // simplest fix is to not generate Go at all. (`go_package` is only
 // required by protoc-gen-go while Go is actually being generated.)
+
 message Activity {
   message Athlete {
     // Athlete ID
