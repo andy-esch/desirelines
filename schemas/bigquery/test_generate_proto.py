@@ -230,6 +230,3 @@ class TestFullSchema:
         # Two calls produce identical output. Catches accidental
         # nondeterminism (set iteration, dict ordering pre-3.7, etc.).
         assert generate() == generate()
-
-
-
