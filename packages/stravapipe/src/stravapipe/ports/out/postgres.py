@@ -16,9 +16,25 @@ Error Handling Pattern:
 """
 
 from abc import ABC, abstractmethod
+from enum import StrEnum
 from typing import Any
 
 from stravapipe.domain import StandardActivity
+
+
+class MetadataUpdateResult(StrEnum):
+    """Outcome of ``ActivityRepository.update_metadata``.
+
+    Distinguishes the three DB outcomes that a plain bool conflates — in
+    particular ``STALE`` (row present, event_time older than the stored fence)
+    versus ``NOT_FOUND`` (no such row). These are resolved atomically in one
+    statement so a concurrent CREATE can't flip the classification.
+    """
+
+    UPDATED = "updated"
+    STALE = "stale"
+    NOT_FOUND = "not_found"
+    NO_VALID_UPDATES = "no_valid_updates"
 
 
 class ActivityRepository(ABC):
@@ -42,7 +58,9 @@ class ActivityRepository(ABC):
 
         Args:
             activity: StandardActivity domain model
-            event_time: webhook event_time (unix seconds); ``None`` for backfill
+            event_time: webhook event_time (unix seconds). ``None`` (backfill)
+                stores a NULL token — the row stays unfenced until a live write
+                sets one.
 
         Returns:
             True if inserted, False if already existed (conflict)
@@ -65,7 +83,9 @@ class ActivityRepository(ABC):
 
         Args:
             activity: StandardActivity domain model (full, freshly fetched)
-            event_time: webhook event_time (unix seconds); ``None`` for backfill
+            event_time: webhook event_time (unix seconds). ``None`` (backfill)
+                disables fencing (the write applies unconditionally) and
+                preserves — never advances or wipes — the stored token.
 
         Returns:
             True if the row was inserted or updated; False if a stale live event
@@ -105,13 +125,15 @@ class ActivityRepository(ABC):
     @abstractmethod
     def update_metadata(
         self, activity_id: int, updates: dict[str, Any], event_time: int | None
-    ) -> bool | None:
+    ) -> MetadataUpdateResult:
         """Update only metadata fields (name, type, sport).
 
         Used for UPDATE webhooks - only updates changed fields.
-        Does NOT require fetching from Strava API. Fenced on ``last_event_time``:
-        a stale/reordered event matches no row and returns False (same value as
-        "not found" — callers disambiguate with ``exists()``).
+        Does NOT require fetching from Strava API. Fenced on ``last_event_time``
+        and classified atomically in one statement, so ``STALE`` (row present,
+        event older than the stored token) is never confused with ``NOT_FOUND``
+        even if a CREATE commits concurrently. ``event_time=None`` disables
+        fencing (applies unconditionally) and preserves the stored token.
 
         Args:
             activity_id: Strava activity ID
@@ -119,9 +141,12 @@ class ActivityRepository(ABC):
             event_time: webhook event_time (unix seconds); ``None`` skips fencing
 
         Returns:
-            True if updated successfully
-            False if activity not found OR the event was stale (fence rejected)
-            None if no valid updates provided (empty dict or unrecognized keys)
+            A :class:`MetadataUpdateResult`: ``UPDATED``, ``STALE`` (fence
+            rejected), ``NOT_FOUND``, or ``NO_VALID_UPDATES`` (empty/unrecognized
+            updates).
+
+        Raises:
+            ValueError: If updates contains unrecognized keys
         """
         raise NotImplementedError
 

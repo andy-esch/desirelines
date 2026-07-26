@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 import pytest
 
 from stravapipe.cloudrun.postgres_writer_app import app
+from stravapipe.ports.out.postgres import MetadataUpdateResult
 
 from .conftest import (
     SAMPLE_RAW_ACTIVITY,
@@ -508,7 +509,7 @@ class TestUpdateEventHandling:
         webhook["updates"] = {"title": "New Title"}
 
         mock_uow = MagicMock()
-        mock_uow.activities.update_metadata.return_value = True
+        mock_uow.activities.update_metadata.return_value = MetadataUpdateResult.UPDATED
 
         with patch(
             "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
@@ -530,11 +531,11 @@ class TestUpdateEventHandling:
         webhook["updates"] = {"type": "Run"}
 
         mock_uow = MagicMock()
-        # update_metadata's RETURNING id yields False for both "not found" and a
-        # stale event; the handler runs exists() to disambiguate. Row absent → the
-        # skip reason is "not_found".
-        mock_uow.activities.update_metadata.return_value = False
-        mock_uow.activities.exists.return_value = False
+        # Row absent → the repository classifies the update atomically as
+        # NOT_FOUND (no separate exists() probe).
+        mock_uow.activities.update_metadata.return_value = (
+            MetadataUpdateResult.NOT_FOUND
+        )
 
         with patch(
             "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
@@ -620,7 +621,7 @@ class TestUpdateEventHandling:
         webhook["updates"] = {"type": "Ride"}
 
         mock_uow = MagicMock()
-        mock_uow.activities.update_metadata.return_value = True
+        mock_uow.activities.update_metadata.return_value = MetadataUpdateResult.UPDATED
 
         with patch(
             "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
@@ -687,9 +688,8 @@ class TestUpdateEventHandling:
         webhook["updates"] = {"type": "Ride"}
 
         mock_uow = MagicMock()
-        # Fence rejected → False, but the row exists → stale (not not-found).
-        mock_uow.activities.update_metadata.return_value = False
-        mock_uow.activities.exists.return_value = True
+        # Fence rejected on an existing row → repository classifies as STALE.
+        mock_uow.activities.update_metadata.return_value = MetadataUpdateResult.STALE
 
         with patch(
             "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",
@@ -957,7 +957,7 @@ class TestFreshnessEmission:
 
         mock_histogram = self._mock_freshness_histogram()
         mock_uow = MagicMock()
-        mock_uow.activities.update_metadata.return_value = True
+        mock_uow.activities.update_metadata.return_value = MetadataUpdateResult.UPDATED
 
         received_at_ms = int(time.time() * 1000) - 500
 
@@ -1130,7 +1130,7 @@ class TestIdempotency:
         webhook["updates"] = {"title": "New Title"}
 
         mock_uow = MagicMock()
-        mock_uow.activities.update_metadata.return_value = True
+        mock_uow.activities.update_metadata.return_value = MetadataUpdateResult.UPDATED
 
         with patch(
             "stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork",

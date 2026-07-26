@@ -29,6 +29,7 @@ from stravapipe.domain.activity import (
     is_non_geographic_activity,
 )
 from stravapipe.domain.geometry import decode_polyline_to_geojson
+from stravapipe.ports.out.postgres import MetadataUpdateResult
 from stravapipe.shared.constants import ResponseStatus, SkipReason
 from stravapipe.shared.correlation import get_dispatcher_received_at_ms
 from stravapipe.shared.logging import setup_logging
@@ -548,18 +549,16 @@ async def _handle_update(
         record_duration(pg_histogram, {"operation": "update_metadata"}),
         uow,
     ):
-        # relevant_updates is non-empty (early return above) and holds only
-        # title/type, so update_metadata returns True (updated) or False
-        # (activity not found OR the event was stale) — never None. The fence
-        # collapses "not found" and "stale" into False, so on False we run one
-        # exists() probe to tell them apart (rare path only).
-        updated = uow.activities.update_metadata(
+        # relevant_updates is non-empty (early return above), so the result is
+        # UPDATED / STALE / NOT_FOUND (never NO_VALID_UPDATES). The repository
+        # classifies stale-vs-not-found atomically, so no exists() probe is
+        # needed here.
+        result = uow.activities.update_metadata(
             activity_id, relevant_updates, event.event_time
         )
-        row_exists = uow.activities.exists(activity_id) if updated is False else True
         uow.commit()
 
-    if updated:
+    if result is MetadataUpdateResult.UPDATED:
         _record_freshness(freshness_histogram, "update")
 
         logger.info(
@@ -573,7 +572,7 @@ async def _handle_update(
             correlation_id=correlation_id,
         )
 
-    if row_exists:
+    if result is MetadataUpdateResult.STALE:
         _record_stale_drop(stale_event_counter, "update")
         logger.info(
             "Dropped stale UPDATE for activity %s "

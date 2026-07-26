@@ -15,7 +15,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from stravapipe.domain import StandardActivity
-from stravapipe.ports.out.postgres import ActivityRepository
+from stravapipe.ports.out.postgres import ActivityRepository, MetadataUpdateResult
 from stravapipe.shared.logging import log_best_effort
 
 logger = logging.getLogger(__name__)
@@ -550,18 +550,19 @@ class SqlAlchemyActivityRepository(ActivityRepository):
 
     def update_metadata(
         self, activity_id: int, updates: dict[str, Any], event_time: int | None
-    ) -> bool | None:
+    ) -> MetadataUpdateResult:
         """Update only metadata fields (name, type, sport).
 
-        Builds dynamic UPDATE query based on which fields changed.
-        Only allows whitelisted update keys to prevent SQL injection.
+        Builds a dynamic UPDATE from whitelisted keys (SQL-injection safe) and
+        fences it on ``last_event_time`` like ``upsert``. ``event_time`` advances
+        the token via ``COALESCE`` (``None`` keeps the existing value and leaves
+        the guard unfenced).
 
-        Fenced on ``last_event_time`` like ``upsert``: a live event older than
-        the row's stored token matches no row and returns False. ``event_time``
-        advances the token via ``COALESCE`` (``None`` keeps the existing value
-        and leaves the guard unfenced). Because a stale event and a missing row
-        both yield False here, callers that need to tell them apart follow up
-        with ``exists()``.
+        A stale event and a missing row both update zero rows, so the outcome is
+        classified in **one statement**: a locking ``target`` CTE reads existence
+        and an ``upd`` CTE performs the guarded write, both under the same
+        snapshot. This tells ``STALE`` apart from ``NOT_FOUND`` without a second
+        ``exists()`` round-trip that a concurrently-committed CREATE could race.
 
         Args:
             activity_id: Strava activity ID
@@ -569,9 +570,8 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             event_time: webhook event_time (unix seconds); ``None`` skips fencing
 
         Returns:
-            True if updated successfully
-            False if activity not found OR the event was stale (fence rejected)
-            None if no valid updates provided (empty dict or no recognized keys)
+            A :class:`MetadataUpdateResult` (``UPDATED`` / ``STALE`` /
+            ``NOT_FOUND`` / ``NO_VALID_UPDATES``).
 
         Raises:
             ValueError: If updates contains unrecognized keys
@@ -602,34 +602,55 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             params["type"] = updates["type"]
 
         if not set_clauses:
-            return None  # No valid updates provided
+            return MetadataUpdateResult.NO_VALID_UPDATES
 
         set_clauses.append("updated_at = :updated_at")
         params["updated_at"] = datetime.now(UTC)
 
         # Fence token: advance to the newer event_time (COALESCE keeps the old
-        # value when event_time is None) and reject a stale/reordered event —
-        # NULL on either side is unfenced (legacy row, or an unfenced caller).
-        set_clauses.append("last_event_time = COALESCE(:event_time, last_event_time)")
+        # value when event_time is None). Qualified `a.last_event_time` because
+        # `target` also exposes the column.
+        set_clauses.append("last_event_time = COALESCE(:event_time, a.last_event_time)")
         params["event_time"] = event_time
 
-        # Fence guard. COALESCE(:event_time, last_event_time) means an unfenced
-        # caller (event_time NULL) compares the row to itself (always applies),
-        # while also giving :event_time a determinable type — a bare
-        # `:event_time IS NULL` would be an AmbiguousParameter to Postgres.
+        # Single-statement existence-and-fence classification. `target` locks the
+        # row (FOR UPDATE) and reports whether it exists; `upd` applies the write
+        # only if the fence allows it. Both share the statement snapshot, so a
+        # CREATE committing concurrently can't make a NOT_FOUND look STALE.
+        # COALESCE(:event_time, target.last_event_time) makes an unfenced caller
+        # (event_time NULL) compare the row to itself (always applies) and gives
+        # :event_time a determinable type — a bare `:event_time IS NULL` would be
+        # an AmbiguousParameter to Postgres.
         query = text(f"""
-            UPDATE desirelines.activities
-            SET {", ".join(set_clauses)}
-            WHERE id = :activity_id
-              AND (
-                last_event_time IS NULL
-                OR last_event_time <= COALESCE(:event_time, last_event_time)
-              )
-            RETURNING id
+            WITH target AS (
+                SELECT id, last_event_time
+                FROM desirelines.activities
+                WHERE id = :activity_id
+                FOR UPDATE
+            ),
+            upd AS (
+                UPDATE desirelines.activities AS a
+                SET {", ".join(set_clauses)}
+                FROM target
+                WHERE a.id = target.id
+                  AND (
+                    target.last_event_time IS NULL
+                    OR target.last_event_time
+                       <= COALESCE(:event_time, target.last_event_time)
+                  )
+                RETURNING a.id
+            )
+            SELECT
+                EXISTS (SELECT 1 FROM target) AS existed,
+                EXISTS (SELECT 1 FROM upd) AS applied
         """)
 
-        result = self._session.execute(query, params)
-        return result.fetchone() is not None
+        row = self._session.execute(query, params).fetchone()
+        if row is None or not row.existed:
+            return MetadataUpdateResult.NOT_FOUND
+        return (
+            MetadataUpdateResult.UPDATED if row.applied else MetadataUpdateResult.STALE
+        )
 
     def delete(self, activity_id: int) -> bool:
         """Delete activity by ID.

@@ -11,6 +11,7 @@ from sqlalchemy import event, text
 
 from stravapipe.domain import StandardActivity
 from stravapipe.domain.activity import MetaAthlete
+from stravapipe.ports.out.postgres import MetadataUpdateResult
 
 
 def make_activity(
@@ -97,7 +98,7 @@ class TestActivityRepository:
             )
             uow.commit()
 
-        assert result is True
+        assert result is MetadataUpdateResult.UPDATED
 
         # Verify in database
         row = db_session.execute(
@@ -127,7 +128,7 @@ class TestActivityRepository:
             result = uow.activities.update_metadata(100005, {"type": "Ride"}, None)
             uow.commit()
 
-        assert result is True
+        assert result is MetadataUpdateResult.UPDATED
 
         row = db_session.execute(
             text("SELECT type, sport FROM desirelines.activities WHERE id = :id"),
@@ -188,13 +189,13 @@ class TestActivityRepository:
         ).fetchone()
         assert row.sport == "GravelRide"
 
-    def test_update_metadata_returns_false_for_missing(self, uow):
-        """update_metadata returns False for non-existent activity."""
+    def test_update_metadata_returns_not_found_for_missing(self, uow):
+        """update_metadata reports NOT_FOUND for a non-existent activity."""
         with uow:
             result = uow.activities.update_metadata(999999, {"title": "New"}, None)
             uow.commit()
 
-        assert result is False
+        assert result is MetadataUpdateResult.NOT_FOUND
 
     def test_delete_removes_activity(self, uow):
         """delete removes activity from database."""
@@ -303,27 +304,67 @@ class TestActivityWriteFencing:
         assert row.last_event_time == 100
 
     def test_update_metadata_fences_out_of_order_events(self, uow, db_session):
-        """update_metadata rejects a stale event (returns False) and keeps state."""
+        """update_metadata reports STALE for an older event and keeps state."""
         with uow:
             uow.activities.insert(make_activity(activity_id=100032, name="v1"), 100)
             uow.commit()
 
         with uow:
-            assert uow.activities.update_metadata(100032, {"title": "v2"}, 200) is True
+            assert (
+                uow.activities.update_metadata(100032, {"title": "v2"}, 200)
+                is MetadataUpdateResult.UPDATED
+            )
             uow.commit()
 
         with uow:
-            # Older event → False (indistinguishable from not-found at this layer;
-            # the handler runs exists() to tell them apart).
+            # Older event → STALE (row present but fence rejected), classified
+            # atomically and distinctly from NOT_FOUND.
             assert (
                 uow.activities.update_metadata(100032, {"title": "v3-stale"}, 150)
-                is False
+                is MetadataUpdateResult.STALE
             )
             uow.commit()
 
         row = self._last_event_time(db_session, 100032)
         assert row.name == "v2"
         assert row.last_event_time == 200
+
+    def test_update_metadata_equal_event_time_still_applies(self, uow, db_session):
+        """Redelivery of the same event (equal event_time) is UPDATED, not STALE."""
+        with uow:
+            uow.activities.insert(make_activity(activity_id=100035, name="v1"), 100)
+            uow.commit()
+
+        with uow:
+            assert (
+                uow.activities.update_metadata(100035, {"title": "v1-again"}, 100)
+                is MetadataUpdateResult.UPDATED
+            )
+            uow.commit()
+
+        assert self._last_event_time(db_session, 100035).last_event_time == 100
+
+    def test_update_metadata_null_last_event_time_is_not_blocked(self, uow, db_session):
+        """A legacy row (last_event_time NULL) accepts a fenced update_metadata
+        write and the token advances to the event_time."""
+        with uow:
+            uow.activities.insert(
+                make_activity(activity_id=100036, name="legacy"), None
+            )
+            uow.commit()
+
+        assert self._last_event_time(db_session, 100036).last_event_time is None
+
+        with uow:
+            assert (
+                uow.activities.update_metadata(100036, {"title": "fenced"}, 500)
+                is MetadataUpdateResult.UPDATED
+            )
+            uow.commit()
+
+        row = self._last_event_time(db_session, 100036)
+        assert row.name == "fenced"
+        assert row.last_event_time == 500
 
     def test_null_last_event_time_is_not_blocked(self, uow, db_session):
         """A legacy/backfill row (last_event_time NULL) accepts the first fenced
