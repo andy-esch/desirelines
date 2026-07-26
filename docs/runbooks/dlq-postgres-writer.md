@@ -4,6 +4,12 @@
 are failing to write to Postgres and have exhausted their delivery retries.
 Fires as CRITICAL to email + Slack.
 
+**Store divergence**: while this DLQ has traffic, PostgreSQL — the source of
+truth — is missing events that reached BigQuery, so BigQuery is temporarily
+ahead. Unlike the bq-inserter DLQ, this **is** product-affecting: reads come
+from PostgreSQL. Repair PG and reconcile via the backfill job. See
+[PostgreSQL ↔ BigQuery Consistency](../architecture/postgres-bigquery-consistency.md).
+
 **First place to look**:
 
 - Console → Pub/Sub → Subscriptions → the postgres-writer dead-letter

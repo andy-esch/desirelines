@@ -4,6 +4,12 @@
 failing to insert into BigQuery and have exhausted their delivery retries.
 Fires as CRITICAL to email + Slack.
 
+**Store divergence**: while this DLQ has traffic, BigQuery is falling behind
+PostgreSQL — those events committed to PG but never reached BQ. PostgreSQL is
+the source of truth and product reads stay correct; BigQuery is an archival
+mirror that may now lag until repaired (re-run the backfill to reconcile). See
+[PostgreSQL ↔ BigQuery Consistency](../architecture/postgres-bigquery-consistency.md).
+
 **First place to look**:
 
 - Console → Pub/Sub → Subscriptions → the bq-inserter dead-letter subscription
