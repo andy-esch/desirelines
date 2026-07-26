@@ -280,7 +280,7 @@ resolution for custom metrics).
 | `firestore/operation.duration` | dispatcher | (per op) | Firestore read/write latency |
 | `http/request.duration` | apigateway, dispatcher | `http.method`, `http.status_code`, `http.route` (chi route pattern, e.g. `/activities/{id}`) | Emitted by `gcplog.HTTPRequestLoggerWithMetrics` (`packages/shared/gcplog/middleware.go`) — **not** otelhttp, whose built-in HTTP server metrics are deliberately left unregistered ([`provider.go`](../../packages/shared/otel/provider.go)). **Excludes** probe paths `/health`+`/ready` (`!isProbePath`). Anchors apigateway availability/latency — see [SLO 4](../slo.md#slo-4--apigateway-availability). |
 | `http.server.duration` | bq-inserter, postgres-writer, deletion-service | OTel `http.*` attrs | Auto-emitted by FastAPI instrumentation (ms; **not** `desirelines.io/`-namespaced). The OTel-standard ingress histogram — distinct from the Go `http/request.duration` above; union both for a cross-pipeline view rather than renaming either. |
-| `webhook/end_to_end.duration` | postgres-writer | `aspect_type=create\|update\|delete` | End-to-end webhook freshness from dispatcher receive to postgres row visible/updated/removed. Anchors SLO 3. Emitted only on success paths (new insert, metadata updated, row deleted) so skips and DLQ don't pollute the latency distribution. |
+| `webhook/end_to_end.duration` | postgres-writer | `aspect_type=create\|update\|delete` | End-to-end webhook freshness from dispatcher receive to postgres row visible/updated/removed. Anchors [SLO 3](../slo.md#slo-3--webhook-ingest-latency-data-freshness). Emitted only on success paths (new insert, metadata updated, row deleted) so skips and DLQ don't pollute the latency distribution. |
 
 ### Counters
 

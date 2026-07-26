@@ -23,6 +23,10 @@ Infisical (source of truth)
 | `/local` | Local development | Used with `infisical run` or `just setup-secrets` |
 | `/ci/deploy` | CI/CD credentials | Terraform authentication (Universal Auth) |
 
+> **`/backend/config` lands in Terraform state** (and `terraform plan` output),
+> so keep credentials, tokens, and keys in `/backend/secrets` — never in
+> `/backend/config`. When in doubt, prefer `/backend/secrets`.
+
 ## Secret Naming Convention
 
 Secrets synced to GCP Secret Manager use the `INFISICAL_` prefix to indicate provenance:

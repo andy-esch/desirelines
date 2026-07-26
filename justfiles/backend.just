@@ -194,12 +194,26 @@ go-tidy-check:
         }
     done
     echo "🐹 Checking go workspace (go.work / go.work.sum + member go.mod sync)..."
+    # `go work sync` has no dry-run and mutates the tree (writes MVS-resolved
+    # versions into go.work.sum + every member go.mod). This is a *check*, so
+    # snapshot the go.* files, sync, diff, then restore on exit — leaving the
+    # contributor's tree exactly as they had it. `go-tidy-fix` is the recipe
+    # that intentionally mutates.
+    sync_files=$(git ls-files 'go.work' 'go.work.sum' '**/go.mod' '**/go.sum')
+    backup=$(mktemp -d)
+    restore() {
+        while IFS= read -r f; do
+            [ -n "$f" ] && cp -p "$backup/$f" "$f"
+        done <<< "$sync_files"
+        rm -rf "$backup"
+    }
+    trap restore EXIT
+    while IFS= read -r f; do
+        [ -n "$f" ] && mkdir -p "$backup/$(dirname "$f")" && cp -p "$f" "$backup/$f"
+    done <<< "$sync_files"
     go work sync
-    # `go work sync` writes the MVS-resolved version of every transitive
-    # dep back into each member's go.mod (per `go help work sync`), so a
-    # filter limited to go.work/go.work.sum would miss those edits. Scope
-    # the diff to every go.* file — catches member-level drift while
-    # ignoring unrelated working-tree changes a contributor may have.
+    # Scope the diff to every go.* file — catches member-level drift the
+    # go.work/go.work.sum-only filter would miss.
     if ! git diff --exit-code -- 'go.work' 'go.work.sum' '**/go.mod' '**/go.sum'; then
         echo "❌ Go workspace is out of sync. Run 'just go-tidy-fix' and commit."
         exit 1
