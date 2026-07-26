@@ -183,7 +183,13 @@ jobs:
           version-file: packages/stravapipe/pyproject.toml
 
       - name: Test with coverage
-        run: "pants --tag='-integration' test --use-coverage packages/stravapipe::"
+        # First-party Python outside packages/ (schemas/bigquery::, scripts/ops::)
+        # lives in the stravapipe resolve but was silently un-gated when this
+        # scoped only to packages/stravapipe:: — the generate_proto test had been
+        # failing for months with no CI signal. Those scopes are now gated for
+        # lint + check (below); schemas/bigquery:: is added here for test too
+        # (scripts/ops:: has no test targets).
+        run: "pants --tag='-integration' test --use-coverage packages/stravapipe:: schemas/bigquery::"
 
       # First-party Python outside stravapipe (schema tooling, ops scripts). Run
       # without --use-coverage so the coverage.xml uploaded below stays scoped to

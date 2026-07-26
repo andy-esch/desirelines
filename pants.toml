@@ -137,6 +137,7 @@ requirements = ["mypy"]
 # output and `pants fmt`/`lint` reports perpetual changes.
 args = ["-i", "2", "-ci"]
 
+
 # golangci-lint configuration
 [golangci-lint]
 # golangci-lint only supports Go versions <= the Go it was *built with*, so this
