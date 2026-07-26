@@ -32,14 +32,17 @@ class ActivityRepository(ABC):
     """
 
     @abstractmethod
-    def insert(self, activity: StandardActivity) -> bool:
+    def insert(self, activity: StandardActivity, event_time: int | None) -> bool:
         """Insert activity to PostgreSQL, ignore if already exists.
 
         Used for CREATE webhooks - writes all activity fields.
         Uses ON CONFLICT DO NOTHING - duplicates are logged but not errors.
+        Records ``event_time`` as the ``last_event_time`` fence token so a later
+        UPDATE can reject events older than this CREATE.
 
         Args:
             activity: StandardActivity domain model
+            event_time: webhook event_time (unix seconds); ``None`` for backfill
 
         Returns:
             True if inserted, False if already existed (conflict)
@@ -47,20 +50,26 @@ class ActivityRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def upsert(self, activity: StandardActivity) -> bool:
+    def upsert(self, activity: StandardActivity, event_time: int | None) -> bool:
         """Insert activity, or refresh every column if it already exists.
 
         Used for enriched UPDATE webhooks (a type change), where the dispatcher
         re-fetched the full Strava activity so we can recover the granular
-        ``sport_type`` the webhook omits. Unlike ``insert`` (ON CONFLICT DO
-        NOTHING), this refreshes all columns from authoritative Strava data,
-        preserving the original ``created_at``. Always affects exactly one row.
+        ``sport_type`` the webhook omits, and for backfill. Unlike ``insert``
+        (ON CONFLICT DO NOTHING), this refreshes all columns from authoritative
+        Strava data, preserving the original ``created_at``.
+
+        The conflict branch is fenced on ``last_event_time``: a live event older
+        than the stored token is rejected (returns False). ``event_time=None``
+        (backfill) is unfenced and never advances the token.
 
         Args:
             activity: StandardActivity domain model (full, freshly fetched)
+            event_time: webhook event_time (unix seconds); ``None`` for backfill
 
         Returns:
-            True (an upsert always inserts or updates exactly one row)
+            True if the row was inserted or updated; False if a stale live event
+            was rejected by the fence guard.
         """
         raise NotImplementedError
 
@@ -94,19 +103,24 @@ class ActivityRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def update_metadata(self, activity_id: int, updates: dict[str, Any]) -> bool | None:
+    def update_metadata(
+        self, activity_id: int, updates: dict[str, Any], event_time: int | None
+    ) -> bool | None:
         """Update only metadata fields (name, type, sport).
 
         Used for UPDATE webhooks - only updates changed fields.
-        Does NOT require fetching from Strava API.
+        Does NOT require fetching from Strava API. Fenced on ``last_event_time``:
+        a stale/reordered event matches no row and returns False (same value as
+        "not found" — callers disambiguate with ``exists()``).
 
         Args:
             activity_id: Strava activity ID
             updates: Dict with optional keys: 'title', 'type'
+            event_time: webhook event_time (unix seconds); ``None`` skips fencing
 
         Returns:
             True if updated successfully
-            False if activity not found
+            False if activity not found OR the event was stale (fence rejected)
             None if no valid updates provided (empty dict or unrecognized keys)
         """
         raise NotImplementedError

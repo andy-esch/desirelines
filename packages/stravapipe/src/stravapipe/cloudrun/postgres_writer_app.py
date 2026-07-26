@@ -15,7 +15,7 @@ from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from opentelemetry.metrics import Histogram
+from opentelemetry.metrics import Counter, Histogram
 from opentelemetry.trace import Tracer
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -116,6 +116,19 @@ def _record_freshness(
     freshness_histogram.record(elapsed_ms, {"aspect_type": aspect_type})
 
 
+def _record_stale_drop(
+    stale_event_counter: Counter | None,
+    aspect_type: str,
+) -> None:
+    """Count a live write dropped by the event_time fence, if the counter exists.
+
+    No-op when the counter isn't available (a test path without lifespan init).
+    """
+    if stale_event_counter is None:
+        return
+    stale_event_counter.add(1, {"aspect_type": aspect_type})
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Initialize shared resources on startup and ensure clean shutdown."""
@@ -141,6 +154,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.webhook_counter = meter.create_counter(
             "desirelines.io/webhook/events",
             description="Webhook events processed",
+        )
+        # Out-of-order fence: incremented whenever a live UPDATE is dropped
+        # because its event_time is older than the row's stored last_event_time
+        # (see V0007). Makes reordering visible in Cloud Monitoring instead of
+        # silently discarded. Labeled by aspect_type.
+        app.state.stale_event_counter = meter.create_counter(
+            "desirelines.io/stravapipe/write/stale_event_dropped",
+            description=(
+                "Live activity writes dropped by the event_time fence because a "
+                "newer event already landed (out-of-order/reordered delivery)."
+            ),
         )
         # End-to-end webhook freshness: time from dispatcher receiving the
         # Strava webhook to the activity row landing in postgres. Anchors
@@ -221,6 +245,7 @@ async def handle_pubsub(request: Request) -> WebhookResponse:
     pg_hist = request.app.state.pg_histogram
     freshness_hist = request.app.state.freshness_histogram
     webhook_counter = request.app.state.webhook_counter
+    stale_counter = request.app.state.stale_event_counter
     tracer = request.app.state.tracer
     return await handle_webhook_cloudevent(
         request,
@@ -229,7 +254,14 @@ async def handle_pubsub(request: Request) -> WebhookResponse:
             event, event_data, cid, session_factory, pg_hist, tracer, freshness_hist
         ),
         on_update=lambda event, event_data, cid: _handle_update(
-            event, event_data, cid, session_factory, pg_hist, tracer, freshness_hist
+            event,
+            event_data,
+            cid,
+            session_factory,
+            pg_hist,
+            tracer,
+            freshness_hist,
+            stale_counter,
         ),
         on_delete=lambda event, event_data, cid: _handle_delete(
             event, cid, session_factory, pg_hist, tracer, freshness_hist
@@ -297,7 +329,7 @@ async def _handle_create(
             _pg_span(tracer, "postgres.activities.insert", "INSERT", activity_id),
             record_duration(pg_histogram, {"operation": "activities_insert"}),
         ):
-            inserted = uow.activities.insert(activity)
+            inserted = uow.activities.insert(activity, event.event_time)
 
         if inserted and activity.map and activity.map.polyline:
             with record_span(
@@ -366,6 +398,7 @@ async def _handle_create(
 def _handle_update_enriched(
     activity_id: int,
     raw_activity: Any,
+    event_time: int,
     correlation_id: str,
     session_factory: sessionmaker[Session],
     pg_histogram: Histogram | None = None,
@@ -376,7 +409,9 @@ def _handle_update_enriched(
 
     Type-change UPDATEs arrive with the full ``raw_activity`` the dispatcher
     re-fetched, so we parse it (same as CREATE) and ``upsert`` the whole row.
-    This is the only path that updates the granular ``sport`` column.
+    This is the only path that updates the granular ``sport`` column. The
+    ``upsert`` is fenced on ``event_time``: a stale/reordered event is dropped
+    (and region tags are left untouched) rather than overwriting newer state.
     """
     # ValidationError → 422 so Pub/Sub acks immediately; retrying a malformed
     # payload will fail identically. Mirrors the CREATE path.
@@ -388,27 +423,47 @@ def _handle_update_enriched(
         record_duration(pg_histogram, {"operation": "upsert"}),
         uow,
     ):
-        uow.activities.upsert(activity)
+        upserted = uow.activities.upsert(activity, event_time)
 
-        # Reconcile region tags: a type change may have crossed the virtual
-        # boundary. Now-virtual -> clear tags (drop it off the map); now-real ->
-        # (re)tag from its existing route. tag_activity_regions is idempotent
-        # (delete-then-insert) and savepoint-isolated, so running it on every
-        # enriched update is safe. (Edge: a virtual ride's fake polyline that's
-        # re-typed to a real sport will tag to the `earth` fallback — rare; a
-        # later re-sync/backfill corrects it.)
-        if is_non_geographic_activity(activity):
-            with _pg_span(
-                tracer, "postgres.activities.clear_regions", "DELETE", activity_id
-            ):
-                uow.activities.clear_activity_regions(activity_id)
-        else:
-            with _pg_span(
-                tracer, "postgres.activities.tag_regions", "INSERT", activity_id
-            ):
-                uow.activities.tag_activity_regions(activity_id)
+        # Only reconcile region tags when the upsert actually applied. A stale
+        # event (fence rejected) leaves the row on its newer state, so retagging
+        # from this older payload would corrupt the map. A type change may have
+        # crossed the virtual boundary: now-virtual -> clear tags (drop it off
+        # the map); now-real -> (re)tag from its existing route.
+        # tag_activity_regions is idempotent (delete-then-insert) and
+        # savepoint-isolated, so running it on every applied enriched update is
+        # safe. (Edge: a virtual ride's fake polyline that's re-typed to a real
+        # sport will tag to the `earth` fallback — rare; a later re-sync/backfill
+        # corrects it.)
+        if upserted:
+            if is_non_geographic_activity(activity):
+                with _pg_span(
+                    tracer, "postgres.activities.clear_regions", "DELETE", activity_id
+                ):
+                    uow.activities.clear_activity_regions(activity_id)
+            else:
+                with _pg_span(
+                    tracer, "postgres.activities.tag_regions", "INSERT", activity_id
+                ):
+                    uow.activities.tag_activity_regions(activity_id)
 
         uow.commit()
+
+    if not upserted:
+        # The stale-drop counter is recorded by the caller (_handle_update) so
+        # both the enriched and bare paths funnel through one accounting point.
+        logger.info(
+            "Dropped stale enriched UPDATE for activity %s "
+            "(event_time %s older than stored last_event_time)",
+            activity_id,
+            event_time,
+        )
+        return WebhookResponse(
+            status=ResponseStatus.SKIPPED,
+            activity_id=activity_id,
+            correlation_id=correlation_id,
+            reason=SkipReason.STALE_EVENT,
+        )
 
     _record_freshness(freshness_histogram, "update")
     logger.info(
@@ -431,6 +486,7 @@ async def _handle_update(
     pg_histogram: Histogram | None = None,
     tracer: Tracer | None = None,
     freshness_histogram: Histogram | None = None,
+    stale_event_counter: Counter | None = None,
 ) -> WebhookResponse:
     """Handle UPDATE events.
 
@@ -448,15 +504,19 @@ async def _handle_update(
 
     raw_activity = event_data.get("raw_activity")
     if raw_activity is not None:
-        return _handle_update_enriched(
+        response = _handle_update_enriched(
             activity_id,
             raw_activity,
+            event.event_time,
             correlation_id,
             session_factory,
             pg_histogram,
             tracer,
             freshness_histogram,
         )
+        if response.reason == SkipReason.STALE_EVENT:
+            _record_stale_drop(stale_event_counter, "update")
+        return response
 
     updates = event.updates
 
@@ -490,11 +550,13 @@ async def _handle_update(
     ):
         # relevant_updates is non-empty (early return above) and holds only
         # title/type, so update_metadata returns True (updated) or False
-        # (activity not found) — never None. Its RETURNING id already
-        # distinguishes found-vs-not-found, so no separate exists() round-trip
-        # is needed (going forward, CREATEs always carry data so backfill is
-        # not needed).
-        updated = uow.activities.update_metadata(activity_id, relevant_updates)
+        # (activity not found OR the event was stale) — never None. The fence
+        # collapses "not found" and "stale" into False, so on False we run one
+        # exists() probe to tell them apart (rare path only).
+        updated = uow.activities.update_metadata(
+            activity_id, relevant_updates, event.event_time
+        )
+        row_exists = uow.activities.exists(activity_id) if updated is False else True
         uow.commit()
 
     if updated:
@@ -509,6 +571,21 @@ async def _handle_update(
             status=ResponseStatus.UPDATED,
             activity_id=activity_id,
             correlation_id=correlation_id,
+        )
+
+    if row_exists:
+        _record_stale_drop(stale_event_counter, "update")
+        logger.info(
+            "Dropped stale UPDATE for activity %s "
+            "(event_time %s older than stored last_event_time)",
+            activity_id,
+            event.event_time,
+        )
+        return WebhookResponse(
+            status=ResponseStatus.SKIPPED,
+            activity_id=activity_id,
+            correlation_id=correlation_id,
+            reason=SkipReason.STALE_EVENT,
         )
 
     logger.warning(

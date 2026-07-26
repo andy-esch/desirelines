@@ -26,6 +26,7 @@ class SkipReason(StrEnum):
     NOT_FOUND = "not_found"
     NO_RELEVANT_UPDATES = "no_relevant_updates"
     NOT_IMPLEMENTED = "not_implemented"
+    STALE_EVENT = "stale_event"
 
 
 class CloudEventField(StrEnum):

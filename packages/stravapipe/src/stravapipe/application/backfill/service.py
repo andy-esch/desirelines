@@ -61,7 +61,11 @@ def _upsert_activity(
     activity: StandardActivity,
 ) -> None:
     """Upsert one activity, failing loudly if the repository affects no row."""
-    success = repository.upsert(activity)
+    # event_time=None: backfill is not a webhook, so it neither carries an
+    # event_time nor advances the live fence token, and is applied unconditionally
+    # (the backfill-vs-live run-start watermark is a separate follow-up — see task
+    # apply-the-backfill-run-start-watermark-so-live-events-are-not-overwritten).
+    success = repository.upsert(activity, event_time=None)
     if not success:
         raise RuntimeError(
             f"PostgreSQL upsert affected no row for activity {activity.id}"

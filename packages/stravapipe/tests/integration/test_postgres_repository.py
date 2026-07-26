@@ -41,7 +41,7 @@ class TestActivityRepository:
         activity = make_activity(activity_id=100001)
 
         with uow:
-            result = uow.activities.insert(activity)
+            result = uow.activities.insert(activity, None)
             uow.commit()
 
         assert result is True
@@ -52,12 +52,12 @@ class TestActivityRepository:
 
         with uow:
             # First insert
-            result1 = uow.activities.insert(activity)
+            result1 = uow.activities.insert(activity, None)
             uow.commit()
 
         with uow:
             # Second insert - should return False
-            result2 = uow.activities.insert(activity)
+            result2 = uow.activities.insert(activity, None)
             uow.commit()
 
         assert result1 is True
@@ -68,7 +68,7 @@ class TestActivityRepository:
         activity = make_activity(activity_id=100003)
 
         with uow:
-            uow.activities.insert(activity)
+            uow.activities.insert(activity, None)
             uow.commit()
 
         with uow:
@@ -88,11 +88,13 @@ class TestActivityRepository:
         activity = make_activity(activity_id=100004)
 
         with uow:
-            uow.activities.insert(activity)
+            uow.activities.insert(activity, None)
             uow.commit()
 
         with uow:
-            result = uow.activities.update_metadata(100004, {"title": "Evening Run"})
+            result = uow.activities.update_metadata(
+                100004, {"title": "Evening Run"}, None
+            )
             uow.commit()
 
         assert result is True
@@ -118,11 +120,11 @@ class TestActivityRepository:
         activity = activity.model_copy(update={"sport_type": "MountainBikeRide"})
 
         with uow:
-            uow.activities.insert(activity)
+            uow.activities.insert(activity, None)
             uow.commit()
 
         with uow:
-            result = uow.activities.update_metadata(100005, {"type": "Ride"})
+            result = uow.activities.update_metadata(100005, {"type": "Ride"}, None)
             uow.commit()
 
         assert result is True
@@ -140,7 +142,7 @@ class TestActivityRepository:
         original = make_activity(activity_id=100007, name="Old Name")
         original = original.model_copy(update={"sport_type": "Run"})
         with uow:
-            uow.activities.insert(original)
+            uow.activities.insert(original, None)
             uow.commit()
 
         created_row = db_session.execute(
@@ -154,7 +156,7 @@ class TestActivityRepository:
             update={"type": "Ride", "sport_type": "MountainBikeRide"}
         )
         with uow:
-            result = uow.activities.upsert(refreshed)
+            result = uow.activities.upsert(refreshed, None)
             uow.commit()
 
         assert result is True
@@ -176,7 +178,7 @@ class TestActivityRepository:
         activity = activity.model_copy(update={"sport_type": "GravelRide"})
 
         with uow:
-            result = uow.activities.upsert(activity)
+            result = uow.activities.upsert(activity, None)
             uow.commit()
 
         assert result is True
@@ -189,7 +191,7 @@ class TestActivityRepository:
     def test_update_metadata_returns_false_for_missing(self, uow):
         """update_metadata returns False for non-existent activity."""
         with uow:
-            result = uow.activities.update_metadata(999999, {"title": "New"})
+            result = uow.activities.update_metadata(999999, {"title": "New"}, None)
             uow.commit()
 
         assert result is False
@@ -199,7 +201,7 @@ class TestActivityRepository:
         activity = make_activity(activity_id=100006)
 
         with uow:
-            uow.activities.insert(activity)
+            uow.activities.insert(activity, None)
             uow.commit()
 
         with uow:
@@ -227,8 +229,8 @@ class TestActivityRepository:
         activity2 = make_activity(activity_id=100022)
 
         with uow:
-            uow.activities.insert(activity1)
-            uow.activities.insert(activity2)
+            uow.activities.insert(activity1, None)
+            uow.activities.insert(activity2, None)
             uow.commit()
 
         with uow:
@@ -243,6 +245,133 @@ class TestActivityRepository:
         assert existing == set()
 
 
+class TestActivityWriteFencing:
+    """Integration tests for the last_event_time out-of-order write fence (V0007)."""
+
+    def _last_event_time(self, db_session, activity_id: int):
+        return db_session.execute(
+            text(
+                "SELECT name, last_event_time FROM desirelines.activities "
+                "WHERE id = :id"
+            ),
+            {"id": activity_id},
+        ).fetchone()
+
+    def test_upsert_fences_out_of_order_events(self, uow, db_session):
+        """A newer event wins; a later-delivered older event is rejected."""
+        with uow:
+            uow.activities.insert(make_activity(activity_id=100030, name="v1"), 100)
+            uow.commit()
+
+        # Newer event (200) applies.
+        with uow:
+            assert (
+                uow.activities.upsert(make_activity(activity_id=100030, name="v2"), 200)
+                is True
+            )
+            uow.commit()
+
+        # Older event (150) arrives late — rejected, row stays on the newer value.
+        with uow:
+            assert (
+                uow.activities.upsert(
+                    make_activity(activity_id=100030, name="v3-stale"), 150
+                )
+                is False
+            )
+            uow.commit()
+
+        row = self._last_event_time(db_session, 100030)
+        assert row.name == "v2"
+        assert row.last_event_time == 200
+
+    def test_upsert_equal_event_time_still_applies(self, uow, db_session):
+        """Redelivery of the same event (equal event_time) is not fenced out —
+        idempotent re-apply, not a stale drop."""
+        with uow:
+            uow.activities.insert(make_activity(activity_id=100031, name="v1"), 100)
+            uow.commit()
+
+        with uow:
+            assert (
+                uow.activities.upsert(make_activity(activity_id=100031, name="v1"), 100)
+                is True
+            )
+            uow.commit()
+
+        row = self._last_event_time(db_session, 100031)
+        assert row.last_event_time == 100
+
+    def test_update_metadata_fences_out_of_order_events(self, uow, db_session):
+        """update_metadata rejects a stale event (returns False) and keeps state."""
+        with uow:
+            uow.activities.insert(make_activity(activity_id=100032, name="v1"), 100)
+            uow.commit()
+
+        with uow:
+            assert uow.activities.update_metadata(100032, {"title": "v2"}, 200) is True
+            uow.commit()
+
+        with uow:
+            # Older event → False (indistinguishable from not-found at this layer;
+            # the handler runs exists() to tell them apart).
+            assert (
+                uow.activities.update_metadata(100032, {"title": "v3-stale"}, 150)
+                is False
+            )
+            uow.commit()
+
+        row = self._last_event_time(db_session, 100032)
+        assert row.name == "v2"
+        assert row.last_event_time == 200
+
+    def test_null_last_event_time_is_not_blocked(self, uow, db_session):
+        """A legacy/backfill row (last_event_time NULL) accepts the first fenced
+        live write — NULL is treated as older."""
+        with uow:
+            # event_time=None → last_event_time stored NULL (legacy row shape).
+            uow.activities.insert(
+                make_activity(activity_id=100033, name="legacy"), None
+            )
+            uow.commit()
+
+        assert self._last_event_time(db_session, 100033).last_event_time is None
+
+        with uow:
+            assert (
+                uow.activities.upsert(
+                    make_activity(activity_id=100033, name="fenced"), 500
+                )
+                is True
+            )
+            uow.commit()
+
+        row = self._last_event_time(db_session, 100033)
+        assert row.name == "fenced"
+        assert row.last_event_time == 500
+
+    def test_backfill_upsert_preserves_live_fence_token(self, uow, db_session):
+        """Backfill (event_time=None) refreshes columns but must neither advance
+        nor wipe a live-set last_event_time — it stays authoritative for fencing.
+        (The backfill-vs-live run-start watermark is a separate follow-up.)"""
+        with uow:
+            uow.activities.insert(make_activity(activity_id=100034, name="live"), 300)
+            uow.commit()
+
+        with uow:
+            assert (
+                uow.activities.upsert(
+                    make_activity(activity_id=100034, name="backfilled"), None
+                )
+                is True
+            )
+            uow.commit()
+
+        row = self._last_event_time(db_session, 100034)
+        assert row.name == "backfilled"  # additive/upsert-only backfill applied
+        assert row.last_event_time == 300  # COALESCE preserved the live token
+
+
 class TestActivityRouteRepository:
     """Integration tests for activity route geometry storage."""
 
@@ -252,7 +381,7 @@ class TestActivityRouteRepository:
         geojson = '{"type":"LineString","coordinates":[[-120.2,38.5],[-120.95,40.7],[-126.453,43.252]]}'
 
         with uow:
-            uow.activities.insert(activity)
+            uow.activities.insert(activity, None)
             result = uow.activities.insert_route(300001, geojson)
             uow.commit()
 
@@ -276,7 +405,7 @@ class TestActivityRouteRepository:
         geojson = '{"type":"LineString","coordinates":[[-120.2,38.5],[-120.95,40.7]]}'
 
         with uow:
-            uow.activities.insert(activity)
+            uow.activities.insert(activity, None)
             result1 = uow.activities.insert_route(300002, geojson)
             uow.commit()
 
@@ -293,7 +422,7 @@ class TestActivityRouteRepository:
         geojson = '{"type":"LineString","coordinates":[[-120.2,38.5],[-120.95,40.7]]}'
 
         with uow:
-            uow.activities.insert(activity)
+            uow.activities.insert(activity, None)
             uow.activities.insert_route(300003, geojson)
             uow.commit()
 
@@ -374,7 +503,7 @@ class TestActivityRegionTagging:
             manual=False,
         )
         with uow:
-            uow.activities.insert(activity)
+            uow.activities.insert(activity, None)
             uow.commit()
 
         row = db_session.execute(
@@ -389,7 +518,7 @@ class TestActivityRegionTagging:
         region_id = _insert_test_region(db_session, code="r1", wkt=_TEST_REGION_WKT)
 
         with uow:
-            uow.activities.insert(activity)
+            uow.activities.insert(activity, None)
             uow.activities.insert_route(
                 activity.id,
                 '{"type":"LineString","coordinates":[[-30.5,-0.5],[-30,0],[-29.5,0.5]]}',
@@ -411,7 +540,7 @@ class TestActivityRegionTagging:
         ).fetchone()[0]
 
         with uow:
-            uow.activities.insert(activity)
+            uow.activities.insert(activity, None)
             uow.activities.insert_route(
                 activity.id,
                 '{"type":"LineString","coordinates":[[-45,0],[-44,0]]}',
@@ -430,7 +559,7 @@ class TestActivityRegionTagging:
         activity = make_activity(activity_id=210006)
 
         with caplog.at_level(logging.ERROR), uow:
-            uow.activities.insert(activity)
+            uow.activities.insert(activity, None)
             uow.activities.insert_route(
                 activity.id,
                 '{"type":"LineString","coordinates":[[-45,0],[-44,0]]}',
@@ -467,7 +596,7 @@ class TestActivityRegionTagging:
         activity = make_activity(activity_id=210007)
 
         with caplog.at_level(logging.ERROR), uow:
-            uow.activities.insert(activity)
+            uow.activities.insert(activity, None)
             uow.activities.insert_route(
                 activity.id,
                 '{"type":"LineString","coordinates":[[-45,0],[-44,0]]}',
@@ -490,7 +619,7 @@ class TestActivityRegionTagging:
         )
 
         with uow:
-            uow.activities.insert(activity)
+            uow.activities.insert(activity, None)
             uow.activities.insert_route(
                 activity.id,
                 '{"type":"LineString","coordinates":[[-30.5,-0.5],[-29.5,0.5]]}',
@@ -542,7 +671,7 @@ class TestActivityRegionTagging:
         )
         try:
             with caplog.at_level(logging.WARNING), uow:
-                uow.activities.insert(activity)
+                uow.activities.insert(activity, None)
                 uow.activities.insert_route(
                     activity.id,
                     '{"type":"LineString","coordinates":[[-30.5,-0.5],[-29.5,0.5]]}',
@@ -565,7 +694,7 @@ class TestActivityRegionTagging:
         activity = make_activity(activity_id=210003)
 
         with uow:
-            uow.activities.insert(activity)
+            uow.activities.insert(activity, None)
             count = uow.activities.tag_activity_regions(activity.id)
             uow.commit()
 
@@ -578,7 +707,7 @@ class TestActivityRegionTagging:
         region_id = _insert_test_region(db_session, code="r2", wkt=_TEST_REGION_WKT)
 
         with uow:
-            uow.activities.insert(activity)
+            uow.activities.insert(activity, None)
             uow.activities.insert_route(
                 activity.id,
                 '{"type":"LineString","coordinates":[[-30,0],[-29.5,0.2]]}',
@@ -597,7 +726,7 @@ class TestActivityRegionTagging:
         _insert_test_region(db_session, code="r3", wkt=_TEST_REGION_WKT)
 
         with uow:
-            uow.activities.insert(activity)
+            uow.activities.insert(activity, None)
             uow.activities.insert_route(
                 activity.id,
                 '{"type":"LineString","coordinates":[[-30,0],[-29.5,0.2]]}',
@@ -621,7 +750,7 @@ class TestTransactionRollback:
         activity = make_activity(activity_id=200001)
 
         with uow:
-            uow.activities.insert(activity)
+            uow.activities.insert(activity, None)
             uow.commit()
 
         with uow:

@@ -70,14 +70,41 @@ _ACTIVITY_COLUMNS: Final[tuple[str, ...]] = (
 # SET clause, so the original `created_at` survives an upsert.
 _ACTIVITY_INSERT_ONLY_COLUMNS: Final[frozenset[str]] = frozenset({"id", "created_at"})
 
+# `last_event_time` is the out-of-order write fence (see V0007). It rides on the
+# INSERT column list but is NOT in `_ACTIVITY_COLUMN_ATTRIBUTES` — it's an
+# attribute of the webhook *event*, not of `StandardActivity` — so it threads in
+# as a separate `event_time` param, and it gets bespoke SET/WHERE handling below
+# rather than the generic `col = EXCLUDED.col` refresh.
+_ACTIVITY_INSERT_COLUMNS: Final[tuple[str, ...]] = (
+    *_ACTIVITY_COLUMNS,
+    "last_event_time",
+)
+
 _ACTIVITY_INSERT_SQL: Final[str] = (
-    f"INSERT INTO desirelines.activities ({', '.join(_ACTIVITY_COLUMNS)}) "
-    f"VALUES ({', '.join(f':{col}' for col in _ACTIVITY_COLUMNS)})"
+    f"INSERT INTO desirelines.activities ({', '.join(_ACTIVITY_INSERT_COLUMNS)}) "
+    f"VALUES ({', '.join(f':{col}' for col in _ACTIVITY_INSERT_COLUMNS)})"
 )
 _ACTIVITY_UPSERT_SET_SQL: Final[str] = ", ".join(
     f"{col} = EXCLUDED.{col}"
     for col in _ACTIVITY_COLUMNS
     if col not in _ACTIVITY_INSERT_ONLY_COLUMNS
+)
+
+# Advance the fence only when the caller supplies a newer event_time. Backfill
+# passes event_time=None (EXCLUDED.last_event_time IS NULL), so COALESCE keeps
+# the existing live token rather than wiping it. Kept out of the generated SET
+# above so backfill can never clobber a live-set value.
+_ACTIVITY_LAST_EVENT_TIME_SET: Final[str] = (
+    "last_event_time = COALESCE(EXCLUDED.last_event_time, activities.last_event_time)"
+)
+# Reject a stale/reordered *live* event on the upsert conflict. NULL on either
+# side means "unfenced": a legacy row (stored NULL) or a backfill write
+# (incoming NULL) is always allowed through — the backfill-vs-live watermark is
+# a separate concern (see task apply-the-backfill-run-start-watermark-...).
+_ACTIVITY_UPSERT_EVENT_TIME_GUARD: Final[str] = (
+    "activities.last_event_time IS NULL "
+    "OR EXCLUDED.last_event_time IS NULL "
+    "OR activities.last_event_time <= EXCLUDED.last_event_time"
 )
 
 _DELETE_ACTIVITY_REGIONS_SQL: Final[str] = (
@@ -138,6 +165,8 @@ def _activity_write_params(activity: StandardActivity, now: datetime) -> dict[st
 
     ``created_at`` and ``updated_at`` are both set to ``now``; on an upsert
     conflict ``created_at`` isn't in the SET clause, so the original is kept.
+    The ``last_event_time`` fence token is bound by the caller (``insert`` /
+    ``upsert``) since it comes from the event envelope, not the activity model.
     """
     params = {
         column: getattr(activity, attribute)
@@ -182,46 +211,68 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         """
         self._session = session
 
-    def insert(self, activity: StandardActivity) -> bool:
+    def insert(self, activity: StandardActivity, event_time: int | None) -> bool:
         """Insert activity, ignore if already exists.
 
-        Uses ON CONFLICT DO NOTHING - duplicates are not errors.
+        Uses ON CONFLICT DO NOTHING - duplicates are not errors. No fence guard
+        is needed: on conflict nothing is written, so a stale/duplicate CREATE
+        can't overwrite anything. The insert leg records ``event_time`` as
+        ``last_event_time`` so a later UPDATE can fence against this CREATE.
 
         Args:
             activity: StandardActivity domain model
+            event_time: webhook event_time (unix seconds); ``None`` for backfill
 
         Returns:
             True if inserted, False if already existed (conflict)
         """
         query = text(f"{_ACTIVITY_INSERT_SQL} ON CONFLICT (id) DO NOTHING RETURNING id")
-        result = self._session.execute(
-            query, _activity_write_params(activity, datetime.now(UTC))
-        )
+        params = _activity_write_params(activity, datetime.now(UTC))
+        params["last_event_time"] = event_time
+        result = self._session.execute(query, params)
         # RETURNING id only returns a row if insert happened (not on conflict)
         return result.fetchone() is not None
 
-    def upsert(self, activity: StandardActivity) -> bool:
+    def upsert(self, activity: StandardActivity, event_time: int | None) -> bool:
         """Insert activity, or refresh every column if it already exists.
 
         Used for enriched UPDATE webhooks (a type change) where the dispatcher
-        re-fetched the full Strava activity. ON CONFLICT DO UPDATE refreshes all
-        columns from authoritative Strava data, preserving the original
-        `created_at`. Always affects one row, so always returns True.
+        re-fetched the full Strava activity, and for backfill. ON CONFLICT DO
+        UPDATE refreshes all columns from authoritative Strava data, preserving
+        the original `created_at`.
+
+        The conflict branch is fenced on ``last_event_time``: a live event whose
+        ``event_time`` is older than the row's stored token is rejected (returns
+        False — the row is left on its newer state). A backfill write passes
+        ``event_time=None``, which is treated as unfenced (always applied) and
+        never advances the token — the backfill-vs-live watermark is handled
+        separately (task apply-the-backfill-run-start-watermark-...). The insert
+        leg (no existing row) always applies and returns True.
 
         Routes are intentionally not touched here: a type change doesn't alter
         geometry, and the route was written on CREATE. (In the rare case the
         row is *inserted* here — a type-change UPDATE arriving before its
         CREATE — the route is left unpopulated; a later re-sync/backfill covers
         that edge.)
+
+        Args:
+            activity: StandardActivity domain model (full, freshly fetched)
+            event_time: webhook event_time (unix seconds); ``None`` for backfill
+
+        Returns:
+            True if the row was inserted or updated; False if a stale live event
+            was rejected by the fence guard.
         """
         query = text(
             f"{_ACTIVITY_INSERT_SQL} "
-            f"ON CONFLICT (id) DO UPDATE SET {_ACTIVITY_UPSERT_SET_SQL} "
+            f"ON CONFLICT (id) DO UPDATE SET "
+            f"{_ACTIVITY_UPSERT_SET_SQL}, {_ACTIVITY_LAST_EVENT_TIME_SET} "
+            f"WHERE {_ACTIVITY_UPSERT_EVENT_TIME_GUARD} "
             f"RETURNING id"
         )
-        result = self._session.execute(
-            query, _activity_write_params(activity, datetime.now(UTC))
-        )
+        params = _activity_write_params(activity, datetime.now(UTC))
+        params["last_event_time"] = event_time
+        result = self._session.execute(query, params)
         return result.fetchone() is not None
 
     def insert_route(self, activity_id: int, geojson: str) -> bool:
@@ -497,19 +548,29 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         result = self._session.execute(query, {"ids": list(activity_ids)})
         return {row.id for row in result.fetchall()}
 
-    def update_metadata(self, activity_id: int, updates: dict[str, Any]) -> bool | None:
+    def update_metadata(
+        self, activity_id: int, updates: dict[str, Any], event_time: int | None
+    ) -> bool | None:
         """Update only metadata fields (name, type, sport).
 
         Builds dynamic UPDATE query based on which fields changed.
         Only allows whitelisted update keys to prevent SQL injection.
 
+        Fenced on ``last_event_time`` like ``upsert``: a live event older than
+        the row's stored token matches no row and returns False. ``event_time``
+        advances the token via ``COALESCE`` (``None`` keeps the existing value
+        and leaves the guard unfenced). Because a stale event and a missing row
+        both yield False here, callers that need to tell them apart follow up
+        with ``exists()``.
+
         Args:
             activity_id: Strava activity ID
             updates: Dict with optional keys: 'title', 'type'
+            event_time: webhook event_time (unix seconds); ``None`` skips fencing
 
         Returns:
             True if updated successfully
-            False if activity not found
+            False if activity not found OR the event was stale (fence rejected)
             None if no valid updates provided (empty dict or no recognized keys)
 
         Raises:
@@ -546,10 +607,24 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         set_clauses.append("updated_at = :updated_at")
         params["updated_at"] = datetime.now(UTC)
 
+        # Fence token: advance to the newer event_time (COALESCE keeps the old
+        # value when event_time is None) and reject a stale/reordered event —
+        # NULL on either side is unfenced (legacy row, or an unfenced caller).
+        set_clauses.append("last_event_time = COALESCE(:event_time, last_event_time)")
+        params["event_time"] = event_time
+
+        # Fence guard. COALESCE(:event_time, last_event_time) means an unfenced
+        # caller (event_time NULL) compares the row to itself (always applies),
+        # while also giving :event_time a determinable type — a bare
+        # `:event_time IS NULL` would be an AmbiguousParameter to Postgres.
         query = text(f"""
             UPDATE desirelines.activities
             SET {", ".join(set_clauses)}
             WHERE id = :activity_id
+              AND (
+                last_event_time IS NULL
+                OR last_event_time <= COALESCE(:event_time, last_event_time)
+              )
             RETURNING id
         """)
 
