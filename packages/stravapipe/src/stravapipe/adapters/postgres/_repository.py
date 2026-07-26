@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from stravapipe.domain import StandardActivity
 from stravapipe.ports.out.postgres import (
     ActivityRepository,
+    BackfillUpsertResult,
     DeleteResult,
     InsertResult,
     MetadataUpdateResult,
@@ -99,9 +100,9 @@ _ACTIVITY_LAST_EVENT_TIME_SET: Final[str] = (
     "last_event_time = COALESCE(EXCLUDED.last_event_time, activities.last_event_time)"
 )
 # Reject a stale/reordered *live* event on the upsert conflict. NULL on either
-# side means "unfenced": a legacy row (stored NULL) or a backfill write
-# (incoming NULL) is always allowed through — the backfill-vs-live watermark is
-# a separate concern (see task apply-the-backfill-run-start-watermark-...).
+# side means "unfenced": a legacy row (stored NULL) or an unfenced caller
+# (incoming NULL) is always allowed through. Backfill does not use this guard —
+# it goes through `upsert_backfill`, which fences on the run-start watermark.
 _ACTIVITY_UPSERT_EVENT_TIME_GUARD: Final[str] = (
     "activities.last_event_time IS NULL "
     "OR EXCLUDED.last_event_time IS NULL "
@@ -112,11 +113,10 @@ _ACTIVITY_UPSERT_EVENT_TIME_GUARD: Final[str] = (
 # resolved in one statement so a concurrently-committed DELETE can't race the
 # classification. The `tombstone` CTE fires only when the incoming event_time is
 # not strictly newer than a recorded deletion_event_time (>= blocks; a genuine
-# re-creation with a newer event_time is allowed through). event_time=None
-# (backfill) makes the `>=` comparison NULL, so the tombstone never blocks and
-# the row inserts unfenced — backfill-vs-delete ordering is the watermark task's
-# concern. The outer SELECT reports inserted vs blocked so the caller can tell
-# RESURRECTION_BLOCKED from ALREADY_EXISTS.
+# re-creation with a newer event_time is allowed through). An unfenced caller
+# (event_time=None) makes the `>=` comparison NULL, so the tombstone never
+# blocks and the row inserts unfenced. The outer SELECT reports inserted vs
+# blocked so the caller can tell RESURRECTION_BLOCKED from ALREADY_EXISTS.
 _ACTIVITY_TOMBSTONED_INSERT_SQL: Final[str] = (
     "WITH tombstone AS ("
     "  SELECT 1 FROM desirelines.deleted_activities"
@@ -145,6 +145,28 @@ _ACTIVITY_INSERT_SELECT_SQL: Final[str] = (
     "  SELECT 1 FROM desirelines.deleted_activities"
     "  WHERE id = :id AND deletion_event_time >= :last_event_time"
     ")"
+)
+
+# BACKFILL path. A backfill fetched its activities as of the run's start
+# (:watermark), so it must not overwrite state a newer live event already wrote.
+# It is fenced on the watermark, not on an event_time it doesn't have, and it
+# never touches last_event_time (omitted from the SET; the insert leg binds NULL):
+#   - insert leg blocked by a deletion tombstone strictly newer than the watermark
+#     (a live DELETE after run start — don't resurrect);
+#   - conflict (DO UPDATE) applied only when the row is unfenced (NULL) or its
+#     last_event_time is at-or-before the watermark (no newer live UPDATE).
+# No row returned => the write was skipped (a newer live event owns the row).
+_ACTIVITY_BACKFILL_UPSERT_SQL: Final[str] = (
+    f"INSERT INTO desirelines.activities ({', '.join(_ACTIVITY_INSERT_COLUMNS)}) "
+    f"SELECT {', '.join(f':{col}' for col in _ACTIVITY_INSERT_COLUMNS)} "
+    "WHERE NOT EXISTS ("
+    "  SELECT 1 FROM desirelines.deleted_activities"
+    "  WHERE id = :id AND deletion_event_time > :watermark"
+    ") "
+    f"ON CONFLICT (id) DO UPDATE SET {_ACTIVITY_UPSERT_SET_SQL} "
+    "WHERE activities.last_event_time IS NULL "
+    "OR activities.last_event_time <= :watermark "
+    "RETURNING id"
 )
 
 # DELETE path. Read + lock the live row's fence token first so a stale/reordered
@@ -316,19 +338,18 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         """Insert activity, or refresh every column if it already exists.
 
         Used for enriched UPDATE webhooks (a type change) where the dispatcher
-        re-fetched the full Strava activity, and for backfill. ON CONFLICT DO
-        UPDATE refreshes all columns from authoritative Strava data, preserving
-        the original `created_at`.
+        re-fetched the full Strava activity. ON CONFLICT DO UPDATE refreshes all
+        columns from authoritative Strava data, preserving the original
+        `created_at`. (Backfill uses ``upsert_backfill``, which fences on the
+        run-start watermark instead.)
 
         The conflict branch is fenced on ``last_event_time``: a live event whose
         ``event_time`` is older than the row's stored token is rejected (returns
         False — the row is left on its newer state). The insert leg is also
         tombstone-guarded like ``insert`` so a stale enriched UPDATE for a
         deleted activity can't resurrect it via the insert leg (returns False).
-        A backfill write passes ``event_time=None``, which is unfenced against
-        both the token and the tombstone (always applied, never advances the
-        token) — the backfill-vs-live/delete watermark is handled separately
-        (task apply-the-backfill-run-start-watermark-...).
+        ``event_time=None`` is an unfenced upsert (always applied, never advances
+        the token) used for test seeding, not the live path.
 
         Routes are intentionally not touched here: a type change doesn't alter
         geometry, and the route was written on CREATE. (In the rare case the
@@ -355,6 +376,42 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         params["last_event_time"] = event_time
         result = self._session.execute(query, params)
         return result.fetchone() is not None
+
+    def upsert_backfill(
+        self, activity: StandardActivity, watermark: int
+    ) -> BackfillUpsertResult:
+        """Upsert an activity from a backfill run, fenced on the run watermark.
+
+        Skips the write when a live event newer than ``watermark`` already owns
+        the row (a live UPDATE via ``last_event_time`` or a live DELETE via the
+        tombstone), otherwise refreshes all activity columns. Never sets or
+        advances ``last_event_time`` — a refreshed row keeps its token and a
+        newly-inserted backfill row gets NULL. See ``_ACTIVITY_BACKFILL_UPSERT_SQL``.
+
+        Trade-off (accepted): because backfill leaves ``last_event_time`` at its
+        old/NULL value, a *delayed* live webhook older than the backfilled data
+        can later pass the live fence and overwrite it. Backfill does not
+        fabricate an event_time (clock skew between this job and Strava would
+        risk locking out real live updates), so this is left to converge on the
+        next live event or backfill run rather than fenced here.
+
+        Args:
+            activity: StandardActivity domain model (from the backfill fetch)
+            watermark: the backfill run's start time (unix seconds)
+
+        Returns:
+            APPLIED if the row was inserted or updated; SKIPPED if a newer live
+            event owns it.
+        """
+        params = _activity_write_params(activity, datetime.now(UTC))
+        params["last_event_time"] = None
+        params["watermark"] = watermark
+        result = self._session.execute(text(_ACTIVITY_BACKFILL_UPSERT_SQL), params)
+        return (
+            BackfillUpsertResult.APPLIED
+            if result.fetchone() is not None
+            else BackfillUpsertResult.SKIPPED
+        )
 
     def insert_route(self, activity_id: int, geojson: str) -> bool:
         """Insert activity route geometry, ignore if already exists.

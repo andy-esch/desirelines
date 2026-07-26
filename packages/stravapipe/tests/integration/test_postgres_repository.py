@@ -12,6 +12,7 @@ from sqlalchemy import event, text
 from stravapipe.domain import StandardActivity
 from stravapipe.domain.activity import MetaAthlete
 from stravapipe.ports.out.postgres import (
+    BackfillUpsertResult,
     DeleteResult,
     InsertResult,
     MetadataUpdateResult,
@@ -653,6 +654,200 @@ class TestActivityDeletionTombstone:
         tomb = self._tombstone(db_session, 100050)
         assert tomb.deletion_event_time == 200
         assert tomb.deletion_correlation_id == "corr-authoritative"
+
+
+class TestBackfillWatermarkUpsert:
+    """Integration tests for upsert_backfill: the run-start watermark fence."""
+
+    def _row(self, db_session, activity_id: int):
+        return db_session.execute(
+            text(
+                "SELECT name, last_event_time FROM desirelines.activities "
+                "WHERE id = :id"
+            ),
+            {"id": activity_id},
+        ).fetchone()
+
+    def test_backfill_inserts_new_row_with_null_token(self, uow, db_session):
+        with uow:
+            assert (
+                uow.activities.upsert_backfill(
+                    make_activity(activity_id=100060, name="bf"), 2000
+                )
+                is BackfillUpsertResult.APPLIED
+            )
+            uow.commit()
+
+        row = self._row(db_session, 100060)
+        assert row.name == "bf"
+        assert row.last_event_time is None  # backfill never sets the token
+
+    def test_backfill_applies_on_null_legacy_token(self, uow, db_session):
+        with uow:
+            # Legacy row: last_event_time NULL (never touched by a live write).
+            uow.activities.insert(make_activity(activity_id=100061, name="old"), None)
+            uow.commit()
+
+        with uow:
+            assert (
+                uow.activities.upsert_backfill(
+                    make_activity(activity_id=100061, name="refreshed"), 2000
+                )
+                is BackfillUpsertResult.APPLIED
+            )
+            uow.commit()
+
+        row = self._row(db_session, 100061)
+        assert row.name == "refreshed"
+        assert row.last_event_time is None  # still unfenced
+
+    def test_backfill_applies_when_token_at_or_before_watermark(self, uow, db_session):
+        with uow:
+            # A live CREATE at event_time 100, before the run started (wm=200).
+            uow.activities.insert(make_activity(activity_id=100062, name="live"), 100)
+            uow.commit()
+
+        with uow:
+            assert (
+                uow.activities.upsert_backfill(
+                    make_activity(activity_id=100062, name="backfilled"), 200
+                )
+                is BackfillUpsertResult.APPLIED
+            )
+            uow.commit()
+
+        row = self._row(db_session, 100062)
+        assert row.name == "backfilled"
+        assert row.last_event_time == 100  # backfill did not advance the token
+
+    def test_backfill_skips_when_live_event_newer_than_watermark(self, uow, db_session):
+        with uow:
+            # A live UPDATE landed at event_time 300, after the run start (wm=200).
+            uow.activities.insert(make_activity(activity_id=100063, name="live"), 300)
+            uow.commit()
+
+        with uow:
+            assert (
+                uow.activities.upsert_backfill(
+                    make_activity(activity_id=100063, name="stale-backfill"), 200
+                )
+                is BackfillUpsertResult.SKIPPED
+            )
+            uow.commit()
+
+        row = self._row(db_session, 100063)
+        assert row.name == "live"  # the newer live value is preserved
+        assert row.last_event_time == 300
+
+    def test_backfill_skips_when_tombstone_newer_than_watermark(self, uow, db_session):
+        # A live DELETE (event_time 300) landed after the run start (wm=200):
+        # backfill must not resurrect the activity.
+        with uow:
+            uow.activities.delete(100064, 300)
+            uow.commit()
+
+        with uow:
+            assert (
+                uow.activities.upsert_backfill(
+                    make_activity(activity_id=100064, name="ghost"), 200
+                )
+                is BackfillUpsertResult.SKIPPED
+            )
+            uow.commit()
+
+        assert self._row(db_session, 100064) is None
+
+    def test_backfill_applies_when_tombstone_at_or_before_watermark(
+        self, uow, db_session
+    ):
+        # A delete older than the run start does not block backfill.
+        with uow:
+            uow.activities.delete(100065, 100)
+            uow.commit()
+
+        with uow:
+            assert (
+                uow.activities.upsert_backfill(
+                    make_activity(activity_id=100065, name="bf"), 200
+                )
+                is BackfillUpsertResult.APPLIED
+            )
+            uow.commit()
+
+        assert self._row(db_session, 100065).name == "bf"
+
+    def test_backfill_applies_when_token_equals_watermark(self, uow, db_session):
+        # Boundary: last_event_time == watermark is at-or-before → APPLIES (guard
+        # is `<= watermark`). Guards this against a future `<` regression.
+        with uow:
+            uow.activities.insert(make_activity(activity_id=100067, name="live"), 200)
+            uow.commit()
+
+        with uow:
+            assert (
+                uow.activities.upsert_backfill(
+                    make_activity(activity_id=100067, name="backfilled"), 200
+                )
+                is BackfillUpsertResult.APPLIED
+            )
+            uow.commit()
+
+        assert self._row(db_session, 100067).name == "backfilled"
+
+    def test_backfill_applies_when_tombstone_equals_watermark(self, uow, db_session):
+        # Boundary: deletion_event_time == watermark does NOT block (guard is
+        # `> watermark`). Guards this against a future `>=` regression.
+        with uow:
+            uow.activities.delete(100068, 200)
+            uow.commit()
+
+        with uow:
+            assert (
+                uow.activities.upsert_backfill(
+                    make_activity(activity_id=100068, name="bf"), 200
+                )
+                is BackfillUpsertResult.APPLIED
+            )
+            uow.commit()
+
+        assert self._row(db_session, 100068).name == "bf"
+
+    def test_backfill_idempotent_replay_converges(self, uow, db_session):
+        # Re-running the same backfill (same watermark) converges with no churn.
+        for _ in range(2):
+            with uow:
+                assert (
+                    uow.activities.upsert_backfill(
+                        make_activity(activity_id=100066, name="bf"), 2000
+                    )
+                    is BackfillUpsertResult.APPLIED
+                )
+                uow.commit()
+
+        row = self._row(db_session, 100066)
+        assert row.name == "bf"
+        assert row.last_event_time is None
+
+    def test_backfill_replay_over_live_token_preserves_it(self, uow, db_session):
+        # Replaying backfill over a row a live event owns (token <= watermark)
+        # applies twice and never advances or churns the token.
+        with uow:
+            uow.activities.insert(make_activity(activity_id=100069, name="live"), 100)
+            uow.commit()
+
+        for _ in range(2):
+            with uow:
+                assert (
+                    uow.activities.upsert_backfill(
+                        make_activity(activity_id=100069, name="bf"), 200
+                    )
+                    is BackfillUpsertResult.APPLIED
+                )
+                uow.commit()
+
+        row = self._row(db_session, 100069)
+        assert row.name == "bf"
+        assert row.last_event_time == 100  # unchanged across replays
 
 
 class TestActivityRouteRepository:

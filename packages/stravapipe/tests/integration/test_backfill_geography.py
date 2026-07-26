@@ -16,6 +16,7 @@ from stravapipe.domain import StandardActivity, SummaryMap, SummaryStravaActivit
 from stravapipe.domain.activity import MetaAthlete
 from stravapipe.ports.out.read import ReadDetailedActivities
 
+WATERMARK = 2_000_000_000  # far-future run-start; seeded rows have NULL tokens
 VALID_POLYLINE = "_p~iF~ps|U_ulLnnqC_mqNvxq`@"
 ORIGINAL_ROUTE = (
     '{"type":"LineString","coordinates":[[-30.5,-0.5],[-30,0],[-29.5,0.5]]}'
@@ -163,7 +164,7 @@ class TestBackfillGeographyIntegration:
 
         service = make_service(session_factory)
         non_geographic_stats = service._insert_to_postgres(
-            [make_summary_activity(activity_id, manual=True)]
+            [make_summary_activity(activity_id, manual=True)], WATERMARK
         )
 
         assert non_geographic_stats == PostgresWriteStats(updated=1)
@@ -179,7 +180,8 @@ class TestBackfillGeographyIntegration:
                     # A valid but different incoming route must lose the conflict.
                     summary_polyline=VALID_POLYLINE,
                 )
-            ]
+            ],
+            WATERMARK,
         )
 
         assert geographic_stats == PostgresWriteStats(updated=1)
@@ -221,7 +223,7 @@ class TestBackfillGeographyIntegration:
             failing_operation,
             new=fail_on_second_activity,
         ):
-            stats = service._insert_to_postgres(activities)
+            stats = service._insert_to_postgres(activities, WATERMARK)
 
         assert stats == PostgresWriteStats(errors=2)
         for table in ("activity_regions", "activity_routes", "activities"):
