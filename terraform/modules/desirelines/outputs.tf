@@ -152,3 +152,8 @@ output "firebase_web_app_config" {
     measurement_id      = lookup(data.google_firebase_web_app_config.web_app, "measurement_id", null)
   }
 }
+
+output "activity_rows_topic" {
+  description = "Pub/Sub topic carrying activity ROW messages for the BigQuery CDC subscription prototype"
+  value       = google_pubsub_topic.activity_rows.name
+}
