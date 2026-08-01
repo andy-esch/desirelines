@@ -76,6 +76,9 @@ automating. Until then, the blanket backfill job is the reconciliation path.
 
 ## Related
 
+- [BigQuery Write Architecture](bigquery-write-architecture.md) — the planned move
+  of the BigQuery write onto a Pub/Sub BigQuery subscription (CDC), which also
+  reshapes how the archival mirror is populated and re-seeded.
 - [Pub/Sub Subscription Design](pubsub-subscription-design.md) — the fan-out and
   DLQ mechanics.
 - DLQ runbooks: [`dlq-postgres-writer.md`](../runbooks/dlq-postgres-writer.md),
