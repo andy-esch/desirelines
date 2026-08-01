@@ -44,6 +44,13 @@ type Config struct {
 	WriteTimeout           time.Duration
 	ReadHeaderTimeout      time.Duration
 	MaxRequestBodySize     int64
+	// ActivityRowPublishEnabled turns on the best-effort second publish of each
+	// activity as a BigQuery CDC row, alongside the primary webhook publish.
+	// Default off: the feature is additive and its destination table has no
+	// readers, so it ships dark and is switched on per environment.
+	// GCPPubSubActivityRowsTopicID is required only when this is true.
+	ActivityRowPublishEnabled    bool
+	GCPPubSubActivityRowsTopicID string
 	// AllowlistCacheTTL / TokenCacheTTL: 0 disables the respective cache, so a
 	// suspected staleness bug can be ruled out in prod by setting the env var to
 	// "0" and redeploying — no code change, no rollback.
@@ -109,17 +116,32 @@ func LoadConfig() (*Config, error) {
 		return nil, err
 	}
 
+	activityRowPublishEnabled, err := parseBoolEnv("ACTIVITY_ROW_PUBLISH_ENABLED", false)
+	if err != nil {
+		return nil, err
+	}
+
+	// Only required when the flag is on, but then it is required outright:
+	// turning the feature on without a destination is a misconfiguration
+	// worth failing at boot rather than discovering in the logs.
+	gcpPubSubActivityRowsTopicID := os.Getenv("GCP_PUBSUB_ACTIVITY_ROWS_TOPIC")
+	if activityRowPublishEnabled && gcpPubSubActivityRowsTopicID == "" {
+		return nil, fmt.Errorf("environment variable GCP_PUBSUB_ACTIVITY_ROWS_TOPIC is required when ACTIVITY_ROW_PUBLISH_ENABLED is true")
+	}
+
 	return &Config{
-		GCPProjectID:           gcpProjectID,
-		GCPPubSubTopicID:       gcpPubSubTopicID,
-		GCPPubSubDeauthTopicID: gcpPubSubDeauthTopicID,
-		FirestoreDatabase:      firestoreDatabase,
-		ReadTimeout:            readTimeout,
-		WriteTimeout:           writeTimeout,
-		ReadHeaderTimeout:      readHeaderTimeout,
-		MaxRequestBodySize:     maxBodySize,
-		AllowlistCacheTTL:      allowlistCacheTTL,
-		TokenCacheTTL:          tokenCacheTTL,
+		GCPProjectID:                 gcpProjectID,
+		GCPPubSubTopicID:             gcpPubSubTopicID,
+		GCPPubSubDeauthTopicID:       gcpPubSubDeauthTopicID,
+		FirestoreDatabase:            firestoreDatabase,
+		ReadTimeout:                  readTimeout,
+		WriteTimeout:                 writeTimeout,
+		ReadHeaderTimeout:            readHeaderTimeout,
+		MaxRequestBodySize:           maxBodySize,
+		AllowlistCacheTTL:            allowlistCacheTTL,
+		TokenCacheTTL:                tokenCacheTTL,
+		ActivityRowPublishEnabled:    activityRowPublishEnabled,
+		GCPPubSubActivityRowsTopicID: gcpPubSubActivityRowsTopicID,
 	}, nil
 }
 
@@ -157,6 +179,22 @@ func parseDurationEnvAllowZero(key string, defaultValue time.Duration) (time.Dur
 		return 0, fmt.Errorf("%s must not be negative", key)
 	}
 	return d, nil
+}
+
+// parseBoolEnv parses a bool from an environment variable, accepting the forms
+// strconv.ParseBool does ("true"/"false", "1"/"0", "t"/"f"). Unset takes the
+// default; an unparseable value is an error rather than a silent false, so a
+// typo in a feature flag surfaces at boot instead of looking like "off".
+func parseBoolEnv(key string, defaultValue bool) (bool, error) {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue, nil
+	}
+	b, err := strconv.ParseBool(value)
+	if err != nil {
+		return false, fmt.Errorf("invalid %s: %w", key, err)
+	}
+	return b, nil
 }
 
 // parseInt64Env parses an int64 from an environment variable.

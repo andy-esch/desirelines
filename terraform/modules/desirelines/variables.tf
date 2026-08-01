@@ -181,6 +181,9 @@ variable "app_config" {
     # staleness bug, settable via GitOps with no code change.
     dispatcher_allowlist_cache_ttl = optional(string, "5m")
     dispatcher_token_cache_ttl     = optional(string, "5m")
+    # Best-effort dual-publish of activity rows to the BigQuery CDC topic.
+    # Default off: additive, and its destination table has no readers yet.
+    dispatcher_activity_row_publish_enabled = optional(bool, false)
   })
   default = {
     log_level = "INFO"

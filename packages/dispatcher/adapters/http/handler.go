@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/andy-esch/desirelines/packages/dispatcher/adapters/bqrow"
 	webhookproto "github.com/andy-esch/desirelines/packages/dispatcher/adapters/proto"
 	pubsubadapter "github.com/andy-esch/desirelines/packages/dispatcher/adapters/pubsub"
 	"github.com/andy-esch/desirelines/packages/dispatcher/config"
@@ -63,6 +64,32 @@ const (
 	ownerCheckError   = "error"
 )
 
+// Outcomes of the best-effort activity-row publish (label values for the
+// row_publish counter). Every activity event that reaches the publish step
+// records exactly one of these.
+const (
+	rowPublishPublished = "published"
+	rowPublishSkipped   = "skipped"
+	rowPublishError     = "error"
+)
+
+// Reasons an activity event produces no row (the `detail` label on a
+// rowPublishSkipped count). Only aspect types that carry no publishable row
+// appear here; anything unexpected is an error, not a skip.
+const (
+	// rowSkipPartialUpdate: an UPDATE with no activity payload — a title- or
+	// visibility-only edit. A CDC upsert replaces the whole row, so publishing
+	// the handful of fields such an event carries would blank every other
+	// column. Skipping leaves the existing row intact and slightly stale.
+	rowSkipPartialUpdate = "partial_update"
+	// rowSkipNoActivity: a CREATE whose Strava fetch found nothing, because
+	// the activity was deleted between the webhook and the fetch. There is no
+	// row to write; the DELETE event that follows is what matters.
+	rowSkipNoActivity = "no_activity"
+	// rowSkipUnsupportedAspect: an aspect type outside create/update/delete.
+	rowSkipUnsupportedAspect = "unsupported_aspect"
+)
+
 // Internal constants for recurring strings
 const (
 	hubModeSubscribe    = "subscribe"
@@ -88,6 +115,7 @@ type Handler struct {
 	secretProvider     ports.SecretProvider
 	publisher          ports.Publisher
 	deauthPublisher    ports.Publisher
+	rowPublisher       ports.RawPublisher
 	stravaClient       ports.StravaClient
 	tokenStore         ports.TokenStore
 	allowlist          allowlist.Checker
@@ -96,6 +124,7 @@ type Handler struct {
 	maxRequestBodySize int64
 	webhookCounter     metric.Int64Counter
 	ownerCheckCounter  metric.Int64Counter
+	rowPublishCounter  metric.Int64Counter
 	httpHistogram      metric.Float64Histogram
 	tracer             trace.Tracer
 }
@@ -107,6 +136,13 @@ type HandlerConfig struct {
 	WebhookCounter     metric.Int64Counter
 	OwnerCheckCounter  metric.Int64Counter
 	HTTPHistogram      metric.Float64Histogram
+	// RowPublisher enables the best-effort second publish of each activity as
+	// a BigQuery CDC row. Nil — the default — disables it entirely; that is
+	// what the feature flag being off looks like from in here.
+	RowPublisher ports.RawPublisher
+	// RowPublishCounter counts the outcome of every row publish attempt
+	// (published / skipped / error). Optional; nil disables the metric.
+	RowPublishCounter metric.Int64Counter
 	// Tracer is used for handler-level spans (e.g. allowlist check). If nil
 	// at construction time the handler falls back to a no-op tracer; spans
 	// inside the handler simply don't get emitted.
@@ -134,6 +170,7 @@ func NewHandler(publisher, deauthPublisher ports.Publisher, secretProvider ports
 		secretProvider:     secretProvider,
 		publisher:          publisher,
 		deauthPublisher:    deauthPublisher,
+		rowPublisher:       cfg.RowPublisher,
 		stravaClient:       stravaClient,
 		tokenStore:         tokenStore,
 		allowlist:          allowChecker,
@@ -142,6 +179,7 @@ func NewHandler(publisher, deauthPublisher ports.Publisher, secretProvider ports
 		maxRequestBodySize: maxBodySize,
 		webhookCounter:     cfg.WebhookCounter,
 		ownerCheckCounter:  cfg.OwnerCheckCounter,
+		rowPublishCounter:  cfg.RowPublishCounter,
 		httpHistogram:      cfg.HTTPHistogram,
 		tracer:             tracer,
 	}
@@ -552,7 +590,136 @@ func (h *Handler) handleActivityEvent(ctx context.Context, w http.ResponseWriter
 		return
 	}
 
+	// Strictly after the primary publish has succeeded, and strictly unable to
+	// change what happens next: see publishActivityRow.
+	h.publishActivityRow(ctx, enriched, correlationID)
+
 	h.writeSuccess(w)
+}
+
+// publishActivityRow publishes the activity as a BigQuery CDC row on the side.
+// It is best-effort by construction and reports nothing back: no return value,
+// no error, no effect on the response already headed for Strava. Whatever
+// happens in here — a malformed payload, a dead topic, a panic — is logged,
+// counted, and dropped, because the webhook has already been handled
+// successfully by the time it runs. Callers must keep it that way.
+//
+// A nil rowPublisher means the feature is switched off, which is the default.
+//
+// It publishes synchronously, so it does spend webhook-response time: one more
+// publish on a path that already makes one, bounded by whatever is left of
+// handleEventDeadline. That fits inside Strava's 2s expectation with room to
+// spare, and buys ordering that a detached goroutine would not — the row
+// cannot overtake the primary event it followed.
+func (h *Handler) publishActivityRow(ctx context.Context, enriched *generated.EnrichedEvent, correlationID string) {
+	if h.rowPublisher == nil {
+		return
+	}
+	webhook := enriched.Event
+
+	// The row mapping walks arbitrary JSON from Strava. A panic there would
+	// otherwise unwind through a handler that has already done its job — the
+	// primary publish is committed and the 200 is about to be written — and
+	// turn a successful webhook into a failed one.
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			h.recordRowPublish(ctx, webhook, rowPublishError, "panic")
+			h.logger.Error("Panic in activity-row publish, ignoring",
+				"correlation_id", correlationID,
+				"object_id", webhook.ObjectId,
+				"panic", recovered)
+		}
+	}()
+
+	body, changeType, skipReason := h.buildActivityRow(enriched)
+	if skipReason != "" {
+		h.recordRowPublish(ctx, webhook, rowPublishSkipped, skipReason)
+		h.logger.Info("Skipping activity-row publish",
+			"correlation_id", correlationID,
+			"object_id", webhook.ObjectId,
+			"aspect_type", webhookproto.AspectTypeToString(webhook.AspectType),
+			"reason", skipReason)
+		return
+	}
+	if body == nil {
+		// buildActivityRow already logged the mapping failure.
+		h.recordRowPublish(ctx, webhook, rowPublishError, "build")
+		return
+	}
+
+	if err := h.rowPublisher.PublishRaw(ctx, body, correlationID); err != nil {
+		h.recordRowPublish(ctx, webhook, rowPublishError, "publish")
+		h.logger.Error("Activity-row publish failed, ignoring",
+			"correlation_id", correlationID,
+			"object_id", webhook.ObjectId,
+			"change_type", changeType,
+			"error", err)
+		return
+	}
+
+	h.recordRowPublish(ctx, webhook, rowPublishPublished, changeType)
+	h.logger.Info("Published activity row",
+		"correlation_id", correlationID,
+		"object_id", webhook.ObjectId,
+		"change_type", changeType)
+}
+
+// buildActivityRow maps a webhook event onto a CDC message body. It returns
+// either a body and its change type, or a non-empty skip reason for events
+// that legitimately produce no row. A nil body with no skip reason means the
+// mapping failed; it is logged here and counted by the caller.
+func (h *Handler) buildActivityRow(enriched *generated.EnrichedEvent) (body []byte, changeType, skipReason string) {
+	webhook := enriched.Event
+	// Section 2 of the sequence number orders events Strava stamped in the
+	// same second; now() is the closest thing to their arrival order.
+	sequenceNumber := bqrow.SequenceNumber(webhook.EventTime, time.Now())
+
+	var err error
+	switch webhook.AspectType {
+	case generated.AspectType_ASPECT_TYPE_DELETE:
+		body, err = bqrow.Delete(webhook.ObjectId, sequenceNumber)
+		changeType = bqrow.ChangeTypeDelete
+	case generated.AspectType_ASPECT_TYPE_CREATE, generated.AspectType_ASPECT_TYPE_UPDATE:
+		if enriched.RawActivity == nil {
+			// Which of the two no-payload cases this is depends on the aspect
+			// type: an UPDATE never fetched one, a CREATE fetched and found
+			// the activity already gone.
+			if webhook.AspectType == generated.AspectType_ASPECT_TYPE_UPDATE {
+				return nil, "", rowSkipPartialUpdate
+			}
+			return nil, "", rowSkipNoActivity
+		}
+		body, err = bqrow.Upsert(enriched.RawActivity, sequenceNumber)
+		changeType = bqrow.ChangeTypeUpsert
+	default:
+		return nil, "", rowSkipUnsupportedAspect
+	}
+
+	if err != nil {
+		h.logger.Error("Failed to build activity row, ignoring",
+			"object_id", webhook.ObjectId,
+			"aspect_type", webhookproto.AspectTypeToString(webhook.AspectType),
+			"error", err)
+		return nil, "", ""
+	}
+	return body, changeType, ""
+}
+
+// recordRowPublish increments the activity-row publish counter, labeled by
+// outcome (published / skipped / error) and by a detail that reads differently
+// per outcome: the change type for a publish, the reason otherwise. No-op when
+// no counter is configured.
+func (h *Handler) recordRowPublish(ctx context.Context, webhook *generated.WebhookEvent, result, detail string) {
+	if h.rowPublishCounter == nil {
+		return
+	}
+	h.rowPublishCounter.Add(ctx, 1,
+		metric.WithAttributes(
+			attribute.String("result", result),
+			attribute.String("detail", detail),
+			attribute.String("aspect_type", webhookproto.AspectTypeToString(webhook.AspectType)),
+		),
+	)
 }
 
 // handleAthleteEvent processes athlete-type webhook events.

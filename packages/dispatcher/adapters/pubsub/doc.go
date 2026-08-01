@@ -1,7 +1,8 @@
 // Package pubsub provides a Google Cloud Pub/Sub adapter for the dispatcher.
 //
 // This adapter implements [ports.Publisher] to publish Strava webhook events
-// to a Pub/Sub topic for downstream processing.
+// to a Pub/Sub topic for downstream processing, and [ports.RawPublisher] for
+// topics whose consumer defines the wire format (see Message Format below).
 //
 // # Basic Usage
 //
@@ -24,6 +25,11 @@
 // Published messages contain:
 //   - Data: JSON-serialized webhook event (with string enum values for compatibility)
 //   - Attributes: correlation_id for request tracing
+//
+// [Publisher.PublishRaw] sends a body the caller has already serialized,
+// leaving attributes, tracing and metrics identical. It exists for topics
+// where the consumer, not this adapter, dictates the message format — the
+// BigQuery subscription, which reads JSON matched against a table schema.
 //
 // # Timeouts
 //

@@ -43,8 +43,8 @@ module "desirelines" {
 | Name | Version |
 | ---- | ------- |
 | <a name="provider_external"></a> [external](#provider\_external) | 2.4.0 |
-| <a name="provider_google"></a> [google](#provider\_google) | 7.40.0 |
-| <a name="provider_google-beta"></a> [google-beta](#provider\_google-beta) | 7.40.0 |
+| <a name="provider_google"></a> [google](#provider\_google) | 7.42.0 |
+| <a name="provider_google-beta"></a> [google-beta](#provider\_google-beta) | 7.42.0 |
 | <a name="provider_terraform"></a> [terraform](#provider\_terraform) | n/a |
 
 ## Resources
@@ -60,8 +60,10 @@ module "desirelines" {
 | [google_bigquery_dataset_iam_member.deletion_service_data_editor](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/bigquery_dataset_iam_member) | resource |
 | [google_bigquery_dataset_iam_member.developer_owner](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/bigquery_dataset_iam_member) | resource |
 | [google_bigquery_table.activities](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/bigquery_table) | resource |
+| [google_bigquery_table.activities_live](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/bigquery_table) | resource |
 | [google_bigquery_table.activities_staging](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/bigquery_table) | resource |
 | [google_bigquery_table.deleted_activities](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/bigquery_table) | resource |
+| [google_bigquery_table_iam_member.activities_live_pubsub_writer](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/bigquery_table_iam_member) | resource |
 | [google_cloud_run_v2_job.backfill](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/cloud_run_v2_job) | resource |
 | [google_cloud_run_v2_service.api_gateway](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/cloud_run_v2_service) | resource |
 | [google_cloud_run_v2_service.bq_inserter](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/cloud_run_v2_service) | resource |
@@ -144,6 +146,8 @@ module "desirelines" {
 | [google_project_service.firebase](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_service) | resource |
 | [google_project_service.firebase_hosting](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_service) | resource |
 | [google_project_service.required_apis](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_service) | resource |
+| [google_pubsub_subscription.activities_live_writer](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_subscription) | resource |
+| [google_pubsub_subscription.activity_rows_dlq_monitoring](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_subscription) | resource |
 | [google_pubsub_subscription.bq_inserter](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_subscription) | resource |
 | [google_pubsub_subscription.bq_inserter_dlq](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_subscription) | resource |
 | [google_pubsub_subscription.dead_letter_monitoring](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_subscription) | resource |
@@ -151,11 +155,16 @@ module "desirelines" {
 | [google_pubsub_subscription.deletion_service_dlq](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_subscription) | resource |
 | [google_pubsub_subscription.postgres_writer](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_subscription) | resource |
 | [google_pubsub_subscription.postgres_writer_dlq](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_subscription) | resource |
+| [google_pubsub_subscription_iam_member.activities_live_writer_dlq_subscriber](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_subscription_iam_member) | resource |
 | [google_pubsub_subscription_iam_member.dlq_subscriber](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_subscription_iam_member) | resource |
 | [google_pubsub_topic.activity_events](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_topic) | resource |
+| [google_pubsub_topic.activity_rows](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_topic) | resource |
+| [google_pubsub_topic.activity_rows_dead_letter](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_topic) | resource |
 | [google_pubsub_topic.dead_letter](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_topic) | resource |
 | [google_pubsub_topic.deauth_events](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_topic) | resource |
+| [google_pubsub_topic_iam_member.activity_rows_dlq_publisher](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_topic_iam_member) | resource |
 | [google_pubsub_topic_iam_member.dead_letter_publisher](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_topic_iam_member) | resource |
+| [google_pubsub_topic_iam_member.dispatcher_activity_rows_publisher](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_topic_iam_member) | resource |
 | [google_pubsub_topic_iam_member.dispatcher_deauth_publisher](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_topic_iam_member) | resource |
 | [google_pubsub_topic_iam_member.dispatcher_publisher](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_topic_iam_member) | resource |
 | [google_secret_manager_secret.allowed_emails](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/secret_manager_secret) | resource |
@@ -208,7 +217,7 @@ module "desirelines" {
 | <a name="input_gcp_project_number"></a> [gcp\_project\_number](#input\_gcp\_project\_number) | Google Cloud Project Number (needed for service account IAM) | `string` | n/a | yes |
 | <a name="input_infisical_project_id"></a> [infisical\_project\_id](#input\_infisical\_project\_id) | Infisical Project ID (used as suffix for integration Service Account) | `string` | n/a | yes |
 | <a name="input_api_gateway_allowed_origins"></a> [api\_gateway\_allowed\_origins](#input\_api\_gateway\_allowed\_origins) | Comma-separated list of allowed CORS origins for API Gateway | `string` | `""` | no |
-| <a name="input_app_config"></a> [app\_config](#input\_app\_config) | Application configuration values from Infisical | <pre>object({<br/>    log_level         = string<br/>    frontend_url      = optional(string, "")<br/>    auth_callback_url = optional(string, "")<br/>    # Dispatcher Firestore-lookup cache TTLs (Go duration strings, e.g. "5m").<br/>    # "0" disables the respective cache — the incident kill switch for a suspected<br/>    # staleness bug, settable via GitOps with no code change.<br/>    dispatcher_allowlist_cache_ttl = optional(string, "5m")<br/>    dispatcher_token_cache_ttl     = optional(string, "5m")<br/>  })</pre> | <pre>{<br/>  "log_level": "INFO"<br/>}</pre> | no |
+| <a name="input_app_config"></a> [app\_config](#input\_app\_config) | Application configuration values from Infisical | <pre>object({<br/>    log_level         = string<br/>    frontend_url      = optional(string, "")<br/>    auth_callback_url = optional(string, "")<br/>    # Dispatcher Firestore-lookup cache TTLs (Go duration strings, e.g. "5m").<br/>    # "0" disables the respective cache — the incident kill switch for a suspected<br/>    # staleness bug, settable via GitOps with no code change.<br/>    dispatcher_allowlist_cache_ttl = optional(string, "5m")<br/>    dispatcher_token_cache_ttl     = optional(string, "5m")<br/>    # Best-effort dual-publish of activity rows to the BigQuery CDC topic.<br/>    # Default off: additive, and its destination table has no readers yet.<br/>    dispatcher_activity_row_publish_enabled = optional(bool, false)<br/>  })</pre> | <pre>{<br/>  "log_level": "INFO"<br/>}</pre> | no |
 | <a name="input_bigquery_location"></a> [bigquery\_location](#input\_bigquery\_location) | BigQuery dataset location | `string` | `"US"` | no |
 | <a name="input_deployment_version"></a> [deployment\_version](#input\_deployment\_version) | Version tag for all deployed code (Cloud Run images and Cloud Function source packages). Typically a git SHA for code provenance and observability (e.g., 'b30d6ea' or 'latest') | `string` | `"latest"` | no |
 | <a name="input_developer_email"></a> [developer\_email](#input\_developer\_email) | Email of the developer account for BigQuery console access (optional) | `string` | `null` | no |
@@ -226,6 +235,7 @@ module "desirelines" {
 
 | Name | Description |
 | ---- | ----------- |
+| <a name="output_activity_rows_topic"></a> [activity\_rows\_topic](#output\_activity\_rows\_topic) | Pub/Sub topic carrying activity ROW messages for the BigQuery CDC subscription prototype |
 | <a name="output_alert_policy_ids"></a> [alert\_policy\_ids](#output\_alert\_policy\_ids) | IDs of created alert policies |
 | <a name="output_application_config"></a> [application\_config](#output\_application\_config) | Configuration values needed by the applications |
 | <a name="output_bigquery_dataset_id"></a> [bigquery\_dataset\_id](#output\_bigquery\_dataset\_id) | ID of the BigQuery dataset |

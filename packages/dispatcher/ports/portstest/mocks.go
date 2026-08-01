@@ -71,6 +71,55 @@ func (m *MockPublisher) PublishedRawActivities() []map[string]any {
 	return result
 }
 
+// MockRawPublisher is a mock implementation of the RawPublisher interface for
+// testing. Safe for concurrent use.
+type MockRawPublisher struct {
+	mu sync.Mutex
+	// PublishErr is the error to return from PublishRaw. Set during test setup.
+	PublishErr error
+	// Published tracks the body of every successfully published message.
+	Published [][]byte
+}
+
+// PublishRaw implements the mock raw publisher.
+func (m *MockRawPublisher) PublishRaw(_ context.Context, data []byte, _ string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.PublishErr == nil {
+		m.Published = append(m.Published, data)
+	}
+	return m.PublishErr
+}
+
+// Close implements the RawPublisher interface for MockRawPublisher.
+func (m *MockRawPublisher) Close(_ context.Context) error {
+	return nil
+}
+
+// PublishedCount returns the number of published messages.
+func (m *MockRawPublisher) PublishedCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.Published)
+}
+
+// PublishedBodies returns every published message body parsed as a map, for
+// easy assertion. A body that fails to parse yields a single "_parse_error" key.
+func (m *MockRawPublisher) PublishedBodies() []map[string]any {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	result := make([]map[string]any, 0, len(m.Published))
+	for _, body := range m.Published {
+		var parsed map[string]any
+		if err := json.Unmarshal(body, &parsed); err != nil {
+			result = append(result, map[string]any{"_parse_error": err.Error()})
+			continue
+		}
+		result = append(result, parsed)
+	}
+	return result
+}
+
 // MockSecretProvider is a mock implementation of SecretProvider for testing.
 // Already safe for concurrent use (returns fixed values, no mutation).
 type MockSecretProvider struct {

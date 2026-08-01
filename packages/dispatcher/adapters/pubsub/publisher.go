@@ -140,11 +140,57 @@ func NewPublisher(ctx context.Context, projectID, topicID string, logger *slog.L
 // Publish sends an enriched webhook event to the configured Pub/Sub topic.
 // Returns ErrPublisherClosed if called after Close.
 // If the context has no deadline, a default timeout of 30s is applied.
-func (p *Publisher) Publish(ctx context.Context, enriched *generated.EnrichedEvent, correlationID string) (err error) {
+func (p *Publisher) Publish(ctx context.Context, enriched *generated.EnrichedEvent, correlationID string) error {
+	// Use ToEnrichedJSON to serialize with string enums ("create", "activity")
+	// and include raw_activity as a nested JSON object.
+	data, err := webhookproto.ToEnrichedJSON(enriched)
+	if err != nil {
+		return fmt.Errorf("failed to marshal enriched event: %w", err)
+	}
+
+	id, err := p.publishBytes(ctx, data, correlationID)
+	if err != nil {
+		return err
+	}
+
+	webhook := enriched.Event
+	p.logger.Info("Successfully published enriched event to PubSub",
+		"message_id", id,
+		"correlation_id", correlationID,
+		"object_id", webhook.ObjectId,
+		"aspect_type", webhookproto.AspectTypeToString(webhook.AspectType),
+		"owner_id", webhook.OwnerId,
+		"has_raw_activity", enriched.RawActivity != nil)
+	return nil
+}
+
+// PublishRaw sends data verbatim as the message body, for topics whose
+// consumer — not this adapter — defines the wire format. Attributes,
+// timeout, tracing and metrics are identical to Publish.
+// Returns ErrPublisherClosed if called after Close.
+func (p *Publisher) PublishRaw(ctx context.Context, data []byte, correlationID string) error {
+	id, err := p.publishBytes(ctx, data, correlationID)
+	if err != nil {
+		return err
+	}
+
+	p.logger.Debug("Successfully published raw message to PubSub",
+		"message_id", id,
+		"correlation_id", correlationID,
+		"topic", p.topic,
+		"bytes", len(data))
+	return nil
+}
+
+// publishBytes publishes an already-serialized message body and returns the
+// assigned Pub/Sub message ID. It owns everything the two exported publish
+// methods share: the closed-check, the fallback deadline, the span, the
+// attributes, and the duration metric. Callers add only their own logging.
+func (p *Publisher) publishBytes(ctx context.Context, data []byte, correlationID string) (id string, err error) {
 	p.mu.RLock()
 	if p.closed {
 		p.mu.RUnlock()
-		return ErrPublisherClosed
+		return "", ErrPublisherClosed
 	}
 	p.inflight.Add(1)
 	p.mu.RUnlock()
@@ -164,13 +210,6 @@ func (p *Publisher) Publish(ctx context.Context, enriched *generated.EnrichedEve
 		attribute.String("messaging.operation", "publish"),
 	)
 	defer func() { spanDone(err) }()
-
-	// Use ToEnrichedJSON to serialize with string enums ("create", "activity")
-	// and include raw_activity as a nested JSON object.
-	data, err := webhookproto.ToEnrichedJSON(enriched)
-	if err != nil {
-		return fmt.Errorf("failed to marshal enriched event: %w", err)
-	}
 
 	// Inject W3C traceparent into message attributes so downstream Python
 	// consumers can continue the distributed trace. Also stamp the
@@ -196,21 +235,12 @@ func (p *Publisher) Publish(ctx context.Context, enriched *generated.EnrichedEve
 
 	// Get blocks until the message is published or context is canceled.
 	done := otel.RecordDuration(ctx, p.histogram)
-	id, err := result.Get(ctx)
+	id, err = result.Get(ctx)
 	done(err)
 	if err != nil {
-		return fmt.Errorf("failed to publish to PubSub: %w", err)
+		return "", fmt.Errorf("failed to publish to PubSub: %w", err)
 	}
-
-	webhook := enriched.Event
-	p.logger.Info("Successfully published enriched event to PubSub",
-		"message_id", id,
-		"correlation_id", correlationID,
-		"object_id", webhook.ObjectId,
-		"aspect_type", webhookproto.AspectTypeToString(webhook.AspectType),
-		"owner_id", webhook.OwnerId,
-		"has_raw_activity", enriched.RawActivity != nil)
-	return nil
+	return id, nil
 }
 
 // Close releases resources held by the PubSub client. It blocks until all

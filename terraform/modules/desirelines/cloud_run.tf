@@ -137,6 +137,20 @@ resource "google_cloud_run_v2_service" "dispatcher" {
         value = var.app_config.dispatcher_token_cache_ttl
       }
 
+      # Best-effort second publish of each activity as a BigQuery CDC row, on
+      # top of the primary activity_events publish. Default off; the topic is
+      # always wired so enabling it is a one-value change. See
+      # bigquery_subscription.tf for what consumes the topic.
+      env {
+        name  = "ACTIVITY_ROW_PUBLISH_ENABLED"
+        value = tostring(var.app_config.dispatcher_activity_row_publish_enabled)
+      }
+
+      env {
+        name  = "GCP_PUBSUB_ACTIVITY_ROWS_TOPIC"
+        value = google_pubsub_topic.activity_rows.name
+      }
+
       startup_probe {
         http_get {
           path = "/health"
