@@ -158,6 +158,8 @@ func run(log *slog.Logger) error {
 type Dependencies struct {
 	publisher       *pubsub.Publisher
 	deauthPublisher *pubsub.Publisher
+	// rowPublisher is nil unless the activity-row publish is enabled.
+	rowPublisher    *pubsub.Publisher
 	firestoreClient *firestore.Client
 	handler         *httpadapter.Handler
 	logger          *slog.Logger
@@ -172,6 +174,11 @@ func (d *Dependencies) Close() {
 	}
 	if err := d.deauthPublisher.Close(closeCtx); err != nil {
 		d.logger.Error("Failed to close deauth publisher", "error", err)
+	}
+	if d.rowPublisher != nil {
+		if err := d.rowPublisher.Close(closeCtx); err != nil {
+			d.logger.Error("Failed to close activity-row publisher", "error", err)
+		}
 	}
 	if err := d.firestoreClient.Close(); err != nil {
 		d.logger.Error("Failed to close Firestore client", "error", err)
@@ -212,6 +219,7 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 	pubsubHist := newHistogram(meter, log, "desirelines.io/pubsub/publish.duration", "PubSub publish duration")
 	webhookCounter := newCounter(meter, log, "desirelines.io/webhook/events", "Webhook events processed")
 	ownerCheckCounter := newCounter(meter, log, "desirelines.io/webhook/owner_check", "Webhook owner allowlist check outcomes (allowed/stray/orphan/error)")
+	rowPublishCounter := newCounter(meter, log, "desirelines.io/bigquery/row_publish", "BigQuery activity-row publish outcomes (published/skipped/error)")
 	httpHist := newHistogram(meter, log, "desirelines.io/http/request.duration", "HTTP request duration")
 
 	// 2. Initialize infrastructure adapters
@@ -224,6 +232,24 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 	if err != nil {
 		return nil, fmt.Errorf("pubsub deauth publisher: %w", err)
 	}
+
+	// The activity-row publisher exists only while the feature is enabled;
+	// otherwise no client is created and the handler never sees a publisher.
+	// Kept as a typed nil here and widened to the port interface below —
+	// assigning a nil *Publisher straight into the interface field would
+	// produce a non-nil interface and defeat the handler's own nil check.
+	var rowPublisher *pubsub.Publisher
+	var rowPublisherPort ports.RawPublisher
+	if cfg.ActivityRowPublishEnabled {
+		rowPublisher, err = pubsub.NewPublisher(startupCtx, cfg.GCPProjectID, cfg.GCPPubSubActivityRowsTopicID, log, pubsubHist, tracer)
+		if err != nil {
+			return nil, fmt.Errorf("pubsub activity-row publisher: %w", err)
+		}
+		rowPublisherPort = rowPublisher
+	}
+	log.Info("Activity-row publish configured",
+		"enabled", cfg.ActivityRowPublishEnabled,
+		"topic", cfg.GCPPubSubActivityRowsTopicID)
 
 	firestoreClient, err := firestore.NewClientWithDatabase(startupCtx, cfg.GCPProjectID, cfg.FirestoreDatabase)
 	if err != nil {
@@ -292,12 +318,15 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 		WebhookCounter:     webhookCounter,
 		OwnerCheckCounter:  ownerCheckCounter,
 		HTTPHistogram:      httpHist,
+		RowPublisher:       rowPublisherPort,
+		RowPublishCounter:  rowPublishCounter,
 		Tracer:             tracer,
 	})
 
 	return &Dependencies{
 		publisher:       publisher,
 		deauthPublisher: deauthPublisher,
+		rowPublisher:    rowPublisher,
 		firestoreClient: firestoreClient,
 		handler:         handler,
 		logger:          log,

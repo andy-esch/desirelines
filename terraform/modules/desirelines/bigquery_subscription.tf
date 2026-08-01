@@ -1,5 +1,5 @@
 # ==============================================================================
-# BigQuery-subscription CDC prototype (ADDITIVE — nothing publishes yet)
+# BigQuery-subscription CDC prototype (ADDITIVE — off by default)
 # ==============================================================================
 #
 # An isolated prototype of the target BigQuery write path: Pub/Sub writes
@@ -8,10 +8,11 @@
 #
 # Everything here is additive: the existing activity_events topic, the
 # postgres-writer / bq-inserter subscriptions, and the activities /
-# activities_staging / deleted_activities tables are untouched, and *nothing
-# publishes to the new topic yet* (the dispatcher dual-publish is a separate,
-# flagged change). A misbehaving prototype can only affect activities_live,
-# which nothing reads.
+# activities_staging / deleted_activities tables are untouched. The only
+# producer is the dispatcher's best-effort dual-publish, which is off unless
+# app_config.dispatcher_activity_row_publish_enabled says otherwise and which
+# cannot fail a webhook. A misbehaving prototype can only affect
+# activities_live, which nothing reads.
 #
 # ---- Mode: use_table_schema + JSON (prototype) --------------------------------
 # The subscription maps JSON message fields to the destination table's schema
@@ -144,6 +145,16 @@ resource "google_pubsub_subscription" "activities_live_writer" {
 }
 
 # ---- IAM (least privilege) ----------------------------------------------------
+# The dispatcher publishes activity rows here when its dual-publish flag is on.
+# Granted unconditionally: the grant alone changes no behavior (the flag gates
+# whether anything is published), and having it in place keeps flipping the flag
+# a config-only change.
+resource "google_pubsub_topic_iam_member" "dispatcher_activity_rows_publisher" {
+  topic  = google_pubsub_topic.activity_rows.name
+  role   = "roles/pubsub.publisher"
+  member = "serviceAccount:${google_service_account.dispatcher.email}"
+}
+
 # The Pub/Sub service agent writes the rows into BigQuery.
 resource "google_bigquery_table_iam_member" "activities_live_pubsub_writer" {
   dataset_id = google_bigquery_dataset.activities_dataset.dataset_id

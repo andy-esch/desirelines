@@ -346,3 +346,76 @@ func TestLoadConfig_CacheTTLKillSwitch(t *testing.T) {
 		}
 	})
 }
+
+// The activity-row publish is a dark-launched feature: unset means off, and
+// turning it on without a topic is a misconfiguration worth failing at boot
+// rather than discovering as a silent no-op in the logs.
+func TestLoadConfig_ActivityRowPublish(t *testing.T) {
+	setRequired := func(t *testing.T) {
+		t.Setenv("GCP_PROJECT_ID", "test-project")
+		t.Setenv("GCP_PUBSUB_TOPIC", "test-topic")
+		t.Setenv("GCP_PUBSUB_DEAUTH_TOPIC", "test-deauth-topic")
+		t.Setenv("FIRESTORE_DATABASE", "test-db")
+	}
+
+	t.Run("unset defaults to off", func(t *testing.T) {
+		setRequired(t)
+		unsetEnv(t, "ACTIVITY_ROW_PUBLISH_ENABLED")
+		unsetEnv(t, "GCP_PUBSUB_ACTIVITY_ROWS_TOPIC")
+
+		cfg, err := LoadConfig()
+		if err != nil {
+			t.Fatalf("LoadConfig failed: %v", err)
+		}
+		if cfg.ActivityRowPublishEnabled {
+			t.Error("ActivityRowPublishEnabled = true, want false by default")
+		}
+	})
+
+	t.Run("off without a topic is fine", func(t *testing.T) {
+		setRequired(t)
+		t.Setenv("ACTIVITY_ROW_PUBLISH_ENABLED", "false")
+		unsetEnv(t, "GCP_PUBSUB_ACTIVITY_ROWS_TOPIC")
+
+		if _, err := LoadConfig(); err != nil {
+			t.Fatalf("LoadConfig failed with the feature off: %v", err)
+		}
+	})
+
+	t.Run("on with a topic is loaded", func(t *testing.T) {
+		setRequired(t)
+		t.Setenv("ACTIVITY_ROW_PUBLISH_ENABLED", "true")
+		t.Setenv("GCP_PUBSUB_ACTIVITY_ROWS_TOPIC", "test-activity-rows-topic")
+
+		cfg, err := LoadConfig()
+		if err != nil {
+			t.Fatalf("LoadConfig failed: %v", err)
+		}
+		if !cfg.ActivityRowPublishEnabled {
+			t.Error("ActivityRowPublishEnabled = false, want true")
+		}
+		if cfg.GCPPubSubActivityRowsTopicID != "test-activity-rows-topic" {
+			t.Errorf("GCPPubSubActivityRowsTopicID = %q, want %q",
+				cfg.GCPPubSubActivityRowsTopicID, "test-activity-rows-topic")
+		}
+	})
+
+	t.Run("on without a topic is rejected", func(t *testing.T) {
+		setRequired(t)
+		t.Setenv("ACTIVITY_ROW_PUBLISH_ENABLED", "true")
+		unsetEnv(t, "GCP_PUBSUB_ACTIVITY_ROWS_TOPIC")
+
+		if _, err := LoadConfig(); err == nil {
+			t.Error("LoadConfig accepted the feature enabled with no topic; want an error")
+		}
+	})
+
+	t.Run("unparseable flag is rejected", func(t *testing.T) {
+		setRequired(t)
+		t.Setenv("ACTIVITY_ROW_PUBLISH_ENABLED", "yes-please")
+
+		if _, err := LoadConfig(); err == nil {
+			t.Error("LoadConfig accepted a non-boolean flag value; want an error")
+		}
+	})
+}

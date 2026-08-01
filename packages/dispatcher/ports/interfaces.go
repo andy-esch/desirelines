@@ -28,6 +28,19 @@ type Publisher interface {
 	Close(ctx context.Context) error
 }
 
+// RawPublisher defines the outbound port for publishing a message the caller
+// has already serialized. It exists for topics whose consumer defines the wire
+// format — currently the BigQuery subscription, which reads JSON matched
+// against the destination table's schema rather than the webhook envelope
+// [Publisher] sends.
+type RawPublisher interface {
+	// PublishRaw sends data verbatim as the message body.
+	PublishRaw(ctx context.Context, data []byte, correlationID string) error
+	// Close releases resources held by the publisher.
+	// The context can be used to set a deadline for graceful shutdown.
+	Close(ctx context.Context) error
+}
+
 // SecretProvider defines the outbound port for retrieving webhook secrets.
 // The subscription ID is returned as int32 to match the protobuf field type.
 //
