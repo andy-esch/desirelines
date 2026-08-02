@@ -334,14 +334,30 @@ func TestActivityRowPublish_RecordsOutcome(t *testing.T) {
 			stravaErr:    ports.ErrActivityNotFound,
 			rowPublisher: &portstest.MockRawPublisher{},
 			wantResult:   rowPublishSkipped,
-			wantDetail:   rowSkipRefetchFailed,
+			wantDetail:   rowSkipNoActivity,
+		},
+		{
+			// The same re-fetch failing for any OTHER reason is not a skip.
+			// Strava being unreachable means rows have stopped updating, and
+			// counting that as "skipped" would keep the error-rate alert green
+			// through an outage.
+			name: "unreachable Strava on re-fetch is an error, not a skip",
+			payload: func() webhookproto.StravaWebhookJSON {
+				p := activityWebhook("update")
+				p.Updates = map[string]any{"title": "New name"}
+				return p
+			}(),
+			stravaErr:    errors.New("strava api unavailable"),
+			rowPublisher: &portstest.MockRawPublisher{},
+			wantResult:   rowPublishError,
+			wantDetail:   rowErrorRefetch,
 		},
 		{
 			name:         "error",
 			payload:      activityWebhook("create"),
 			rowPublisher: &portstest.MockRawPublisher{PublishErr: errors.New("topic unavailable")},
 			wantResult:   rowPublishError,
-			wantDetail:   "publish",
+			wantDetail:   rowErrorPublish,
 		},
 	}
 

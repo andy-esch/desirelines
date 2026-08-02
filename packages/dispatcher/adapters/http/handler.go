@@ -77,18 +77,30 @@ const (
 // rowPublishSkipped count). Only aspect types that carry no publishable row
 // appear here; anything unexpected is an error, not a skip.
 const (
-	// rowSkipRefetchFailed: a metadata-only UPDATE whose activity could not be
-	// re-fetched from Strava. Such an event carries no payload of its own and a
-	// CDC upsert replaces the whole row, so without the re-fetch there is
-	// nothing publishable. The row keeps its previous state until an event that
-	// does carry a payload arrives.
-	rowSkipRefetchFailed = "refetch_failed"
-	// rowSkipNoActivity: a CREATE whose Strava fetch found nothing, because
-	// the activity was deleted between the webhook and the fetch. There is no
-	// row to write; the DELETE event that follows is what matters.
+	// rowSkipNoActivity: the activity no longer exists in Strava, so there is
+	// no row to write — either a CREATE whose fetch found nothing, or a
+	// metadata-only UPDATE whose re-fetch 404'd. The DELETE event that follows
+	// is what matters.
 	rowSkipNoActivity = "no_activity"
 	// rowSkipUnsupportedAspect: an aspect type outside create/update/delete.
 	rowSkipUnsupportedAspect = "unsupported_aspect"
+)
+
+// Where a rowPublishError happened (the `detail` label on an error count).
+// These are the values an alert on the error rate resolves to a cause, so keep
+// them distinct enough to act on without reading logs first.
+const (
+	// rowErrorRefetch: Strava would not re-serve an activity that still
+	// exists — an outage, a rate limit, a token problem. Deliberately an error
+	// and not a skip: sustained, it means rows have stopped updating, which is
+	// precisely what the error-rate alert exists to catch.
+	rowErrorRefetch = "refetch"
+	// rowErrorBuild: the activity payload could not be mapped onto a row.
+	rowErrorBuild = "build"
+	// rowErrorPublish: the row was built but Pub/Sub rejected it.
+	rowErrorPublish = "publish"
+	// rowErrorPanic: a bug in the mapping. Should never appear.
+	rowErrorPanic = "panic"
 )
 
 // Internal constants for recurring strings
@@ -624,7 +636,7 @@ func (h *Handler) publishActivityRow(ctx context.Context, enriched *generated.En
 	// turn a successful webhook into a failed one.
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			h.recordRowPublish(ctx, webhook, rowPublishError, "panic")
+			h.recordRowPublish(ctx, webhook, rowPublishError, rowErrorPanic)
 			h.logger.Error("Panic in activity-row publish, ignoring",
 				"correlation_id", correlationID,
 				"object_id", webhook.ObjectId,
@@ -632,7 +644,7 @@ func (h *Handler) publishActivityRow(ctx context.Context, enriched *generated.En
 		}
 	}()
 
-	body, changeType, skipReason := h.buildActivityRow(ctx, enriched, correlationID)
+	body, changeType, skipReason, errDetail := h.buildActivityRow(ctx, enriched, correlationID)
 	if skipReason != "" {
 		h.recordRowPublish(ctx, webhook, rowPublishSkipped, skipReason)
 		h.logger.Info("Skipping activity-row publish",
@@ -642,14 +654,14 @@ func (h *Handler) publishActivityRow(ctx context.Context, enriched *generated.En
 			"reason", skipReason)
 		return
 	}
-	if body == nil {
-		// buildActivityRow already logged the mapping failure.
-		h.recordRowPublish(ctx, webhook, rowPublishError, "build")
+	if errDetail != "" {
+		// buildActivityRow already logged the failure.
+		h.recordRowPublish(ctx, webhook, rowPublishError, errDetail)
 		return
 	}
 
 	if err := h.rowPublisher.PublishRaw(ctx, body, correlationID); err != nil {
-		h.recordRowPublish(ctx, webhook, rowPublishError, "publish")
+		h.recordRowPublish(ctx, webhook, rowPublishError, rowErrorPublish)
 		h.logger.Error("Activity-row publish failed, ignoring",
 			"correlation_id", correlationID,
 			"object_id", webhook.ObjectId,
@@ -666,11 +678,11 @@ func (h *Handler) publishActivityRow(ctx context.Context, enriched *generated.En
 }
 
 // buildActivityRow maps a webhook event onto a CDC message body, re-fetching
-// the activity when the event did not carry one. It returns either a body and
-// its change type, or a non-empty skip reason for events that produce no row. A
-// nil body with no skip reason means the mapping failed; it is logged here and
-// counted by the caller.
-func (h *Handler) buildActivityRow(ctx context.Context, enriched *generated.EnrichedEvent, correlationID string) (body []byte, changeType, skipReason string) {
+// the activity when the event did not carry one. Exactly one of three outcomes
+// is returned: a body with its change type, a skip reason for an event that
+// legitimately produces no row, or an error detail naming what failed. Failures
+// are logged here and counted by the caller.
+func (h *Handler) buildActivityRow(ctx context.Context, enriched *generated.EnrichedEvent, correlationID string) (body []byte, changeType, skipReason, errDetail string) {
 	webhook := enriched.Event
 	// Section 2 of the sequence number orders events Strava stamped in the
 	// same second; now() is the closest thing to their arrival order.
@@ -695,19 +707,28 @@ func (h *Handler) buildActivityRow(ctx context.Context, enriched *generated.Enri
 			// every rename into a full PostgreSQL row upsert plus a region
 			// retag. Keeping the extra call inside the best-effort block means
 			// this feature cannot change what the source of truth receives.
-			rawActivity = h.fetchActivityForRow(ctx, webhook, correlationID)
-			if rawActivity == nil {
-				return nil, "", rowSkipRefetchFailed
+			var fetchErr error
+			rawActivity, fetchErr = h.fetchActivityForRow(ctx, webhook, correlationID)
+			switch {
+			case fetchErr == nil:
+			case errors.Is(fetchErr, ports.ErrActivityNotFound):
+				// Deleted between the webhook and the re-fetch. Nothing to
+				// publish, and the DELETE that follows is what matters.
+				return nil, "", rowSkipNoActivity, ""
+			default:
+				// The activity still exists and Strava would not serve it.
+				// An error, not a skip — see rowErrorRefetch.
+				return nil, "", "", rowErrorRefetch
 			}
 		}
 		if rawActivity == nil {
 			// A CREATE whose fetch already found the activity gone.
-			return nil, "", rowSkipNoActivity
+			return nil, "", rowSkipNoActivity, ""
 		}
 		body, err = bqrow.Upsert(rawActivity, sequenceNumber)
 		changeType = bqrow.ChangeTypeUpsert
 	default:
-		return nil, "", rowSkipUnsupportedAspect
+		return nil, "", rowSkipUnsupportedAspect, ""
 	}
 
 	if err != nil {
@@ -715,26 +736,33 @@ func (h *Handler) buildActivityRow(ctx context.Context, enriched *generated.Enri
 			"object_id", webhook.ObjectId,
 			"aspect_type", webhookproto.AspectTypeToString(webhook.AspectType),
 			"error", err)
-		return nil, "", ""
+		return nil, "", "", rowErrorBuild
 	}
-	return body, changeType, ""
+	return body, changeType, "", ""
 }
 
 // fetchActivityForRow re-fetches an activity that its webhook did not carry, so
-// a metadata-only edit can still produce a complete CDC row. Returns nil on any
-// failure — including the activity having been deleted — and the caller skips.
-// Errors are warnings, not failures: this runs after the webhook is already
-// handled, and a missed row self-corrects on the next event for the activity.
-func (h *Handler) fetchActivityForRow(ctx context.Context, webhook *generated.WebhookEvent, correlationID string) []byte {
+// a metadata-only edit can still produce a complete CDC row.
+//
+// The error is returned rather than flattened to nil because the caller has to
+// tell two very different situations apart: an activity that no longer exists
+// (nothing to publish, expected) from Strava refusing to serve one that does
+// (the feature is failing). Logged at Warn either way — this runs after the
+// webhook is already handled, and a missed row self-corrects on the next event
+// carrying a payload.
+func (h *Handler) fetchActivityForRow(ctx context.Context, webhook *generated.WebhookEvent, correlationID string) ([]byte, error) {
 	rawActivity, err := h.stravaClient.FetchActivity(ctx, webhook.OwnerId, webhook.ObjectId)
 	if err != nil {
 		h.logger.Warn("Activity re-fetch for row publish failed, skipping row",
 			"correlation_id", correlationID,
 			"object_id", webhook.ObjectId,
 			"error", err)
-		return nil
+		// %w, not %v: the caller classifies on ports.ErrActivityNotFound and a
+		// flattened error would send every Strava outage down the "activity is
+		// gone" branch.
+		return nil, fmt.Errorf("re-fetch activity %d for row publish: %w", webhook.ObjectId, err)
 	}
-	return rawActivity
+	return rawActivity, nil
 }
 
 // recordRowPublish increments the activity-row publish counter, labeled by
