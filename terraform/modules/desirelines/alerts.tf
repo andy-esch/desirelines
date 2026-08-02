@@ -558,13 +558,18 @@ resource "google_monitoring_alert_policy" "old_messages" {
     display_name = "Oldest unacked message > 5 minutes"
 
     condition_threshold {
-      # Scope to the three live push subscriptions (…-{service}-{env}) only.
+      # Scope to the live delivery subscriptions (…-{service}-{env}) only.
       # The DLQ inspection subscriptions (…-{service}-dlq-{env}) retain unacked
       # messages by design, so they must be excluded. GCP Monitoring filters
       # have no NOT operator and RE2 has no negative lookahead, so this is an
       # explicit allowlist alternation: the trailing `-[a-z]+` matches the env
       # token (dev/prod) but not the `-dlq-{env}` suffix, which fails full_match.
-      filter          = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=monitoring.regex.full_match(\"desirelines-(bq-inserter|postgres-writer|deletion-service)-[a-z]+\") AND metric.type=\"pubsub.googleapis.com/subscription/oldest_unacked_message_age\""
+      #
+      # activities-live-writer is a BigQuery subscription with no subscriber
+      # code, but it acks on a successful BigQuery write like any other — so a
+      # stalled write surfaces here as ageing messages, ahead of the DLQ alert
+      # that only fires once delivery attempts are exhausted.
+      filter          = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=monitoring.regex.full_match(\"desirelines-(bq-inserter|postgres-writer|deletion-service|activities-live-writer)-[a-z]+\") AND metric.type=\"pubsub.googleapis.com/subscription/oldest_unacked_message_age\""
       duration        = "300s" # 5 minutes
       comparison      = "COMPARISON_GT"
       threshold_value = 300 # 5 minutes in seconds
@@ -1174,13 +1179,14 @@ resource "google_monitoring_alert_policy" "dlq_activity_rows" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/dlq-activity-rows.md
+
       **CRITICAL**: BigQuery rejected one or more activity rows, and they have
       exhausted delivery to the `activities_live` CDC subscription.
 
       **Read this first**: each dead-lettered message carries a
       `CloudPubSubDeadLetterSourceDeliveryErrorMessage` attribute stating
-      exactly why BigQuery refused it. Pull one and read that attribute before
-      anything else:
+      exactly why BigQuery refused it.
 
       ```
       gcloud pubsub subscriptions pull ${google_pubsub_subscription.activity_rows_dlq_monitoring.name} \
@@ -1191,13 +1197,6 @@ resource "google_monitoring_alert_policy" "dlq_activity_rows" {
       **Blast radius is bounded**: this path is best-effort and additive.
       PostgreSQL and the existing BigQuery tables are unaffected — only
       `activities_live` falls behind, and no product surface reads it.
-
-      **Common causes**:
-      1. A column the row does not supply is REQUIRED in the table schema. A CDC
-         delete carries only the primary key, so any REQUIRED column beyond `id`
-         rejects every delete.
-      2. A value whose JSON type does not match its column type.
-      3. Strava sending a field shape the mapping does not normalize.
 
       Dashboard: ${google_monitoring_dashboard.desirelines_observability.id}
     EOT
@@ -1242,24 +1241,15 @@ resource "google_monitoring_alert_policy" "activity_row_publish_errors" {
 
   documentation {
     content = <<-EOT
+      **Runbook**: docs/runbooks/activity-row-publish-failing.md
+
       **MEDIUM**: The dispatcher is failing to publish activity rows to the
       BigQuery CDC topic. Webhooks and the primary pipeline are unaffected by
       design — the failure is swallowed — so this alert is the only signal.
 
-      **`result="error"` only.** `result="skipped"` is normal and must not page:
-      an update whose activity Strava will not re-serve, or a create whose
-      activity was deleted before the fetch, legitimately produce no row.
-
-      **Action**:
-      1. Read the `detail` label to localize the failure — `publish` (topic or
-         IAM), `build` (mapping), `refetch` (Strava unreachable), `panic` (bug).
-      2. Search dispatcher logs for `Activity-row publish failed` or
-         `Failed to build activity row`.
-      3. Confirm the dispatcher service account still holds
-         `roles/pubsub.publisher` on the activity-rows topic.
-      4. The feature is flag-gated: setting
-         `dispatcher_activity_row_publish_enabled = false` disables it cleanly
-         while you investigate.
+      Read the `detail` label to localize the failure: `publish` (topic or IAM),
+      `build` (mapping), `refetch` (Strava unreachable), `panic` (bug).
+      `result="skipped"` is normal and does not page.
 
       Dashboard: ${google_monitoring_dashboard.desirelines_observability.id}
     EOT
