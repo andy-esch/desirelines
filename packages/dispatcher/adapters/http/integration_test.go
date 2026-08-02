@@ -93,7 +93,7 @@ func TestIntegration_ConcurrentRequests(t *testing.T) {
 	statusCounts := make(map[int]int)
 	for status := range results {
 		statusCounts[status]++
-		if status == http.StatusCreated {
+		if status == http.StatusOK {
 			successCount++
 		}
 	}
@@ -144,7 +144,7 @@ func TestIntegration_SecretReload(t *testing.T) {
 	rr1 := httptest.NewRecorder()
 	router.ServeHTTP(rr1, req1)
 
-	if rr1.Code != http.StatusCreated {
+	if rr1.Code != http.StatusOK {
 		t.Errorf("first request: expected 201, got %d (body: %s)", rr1.Code, rr1.Body.String())
 	}
 
@@ -183,7 +183,7 @@ func TestIntegration_SecretReload(t *testing.T) {
 	rr3 := httptest.NewRecorder()
 	router.ServeHTTP(rr3, req3)
 
-	if rr3.Code != http.StatusCreated {
+	if rr3.Code != http.StatusOK {
 		t.Errorf("expected 201 with new secret, got %d (body: %s)", rr3.Code, rr3.Body.String())
 	}
 }

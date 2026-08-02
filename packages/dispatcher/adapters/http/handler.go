@@ -855,14 +855,21 @@ type webhookResponse struct {
 	Action  string `json:"action"`
 }
 
-// writeSuccess returns 201 Created when a message is published to Pub/Sub.
+// writeSuccess returns 200 OK when a message is published to Pub/Sub.
 //
-// NOTE: Strava docs specify "200 OK" for acknowledgment. In practice Strava
-// accepts any 2xx, but if retries are observed this should be changed to 200.
-// We use 201 to distinguish "published to Pub/Sub" from "acknowledged but ignored".
+// This used to return 201 Created, to distinguish "published to Pub/Sub" from
+// "acknowledged but ignored", on the assumption that Strava accepts any 2xx.
+// It does not: Strava's spec says 200, and anything else is treated as a failed
+// delivery. Prod request logs settled it — every 201 was redelivered three
+// times at 120s intervals despite sub-second latency, while a 200 was accepted
+// on the spot and never redelivered. Three deliveries meant triple the Strava
+// API calls and triple the downstream writes for every event.
+//
+// The published-vs-acknowledged distinction lives in the response body's
+// `action` field, which is where a caller that cares can still read it.
 func (h *Handler) writeSuccess(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", contentTypeJSON)
-	w.WriteHeader(http.StatusCreated)
+	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(webhookResponse{Success: true, Action: webhookPublished}); err != nil {
 		h.logger.Error("Failed to encode success response", "error", err)
 	}

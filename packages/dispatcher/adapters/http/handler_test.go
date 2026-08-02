@@ -224,7 +224,7 @@ func TestHandler_HandleEvent(t *testing.T) {
 			payload:        validPayload,
 			mockSubID:      testSubscriptionID,
 			stravaResult:   []byte(`{"id":12345,"name":"Morning Run"}`),
-			expectedStatus: http.StatusCreated,
+			expectedStatus: http.StatusOK,
 			expectedBody:   "published",
 		},
 		{
@@ -241,7 +241,7 @@ func TestHandler_HandleEvent(t *testing.T) {
 				Updates:        map[string]any{"title": "Evening Run"},
 			},
 			mockSubID:      testSubscriptionID,
-			expectedStatus: http.StatusCreated,
+			expectedStatus: http.StatusOK,
 			expectedBody:   "published",
 		},
 		{
@@ -257,7 +257,7 @@ func TestHandler_HandleEvent(t *testing.T) {
 				SubscriptionID: testSubscriptionID,
 			},
 			mockSubID:      testSubscriptionID,
-			expectedStatus: http.StatusCreated,
+			expectedStatus: http.StatusOK,
 			expectedBody:   "published",
 		},
 		{
@@ -379,7 +379,7 @@ func TestHandler_HandleEvent(t *testing.T) {
 			payload:        validPayload,
 			mockSubID:      testSubscriptionID,
 			stravaErr:      ports.ErrActivityNotFound,
-			expectedStatus: http.StatusCreated,
+			expectedStatus: http.StatusOK,
 			expectedBody:   "published",
 		},
 		{
@@ -546,7 +546,7 @@ func runHandleEventTest(t *testing.T, tt *handleEventTestCase) {
 	}
 
 	// Verify published enriched events for successful publishes
-	if tt.expectedStatus == http.StatusCreated && len(mockPublisher.Published) > 0 {
+	if tt.expectedStatus == http.StatusOK && len(mockPublisher.Published) > 0 {
 		enriched := mockPublisher.Published[0]
 		if enriched.Event == nil {
 			t.Fatal("published enriched event has nil Event")
@@ -897,7 +897,7 @@ func TestHandler_OwnerCheck_CounterLabels(t *testing.T) {
 			name:         "allowed",
 			allowlist:    portstest.NewAllowAllMockAllowlist(),
 			wantResult:   "allowed",
-			wantStatus:   http.StatusCreated,
+			wantStatus:   http.StatusOK,
 			payloadBytes: validBody,
 		},
 		{
@@ -1025,7 +1025,7 @@ func TestHandler_EnrichmentBehavior_Create(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	if w.Code != http.StatusCreated {
+	if w.Code != http.StatusOK {
 		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
 	}
 
@@ -1075,7 +1075,7 @@ func TestHandler_EnrichmentBehavior_Update_TitleOnly(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	if w.Code != http.StatusCreated {
+	if w.Code != http.StatusOK {
 		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
 	}
 
@@ -1119,7 +1119,7 @@ func TestHandler_EnrichmentBehavior_Update_TypeChange(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	if w.Code != http.StatusCreated {
+	if w.Code != http.StatusOK {
 		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
 	}
 
@@ -1166,7 +1166,7 @@ func TestHandler_EnrichmentBehavior_Update_TypeChange_ActivityGone(t *testing.T)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	if w.Code != http.StatusCreated {
+	if w.Code != http.StatusOK {
 		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
 	}
 	if len(mockPublisher.Published) != 1 {
@@ -1256,7 +1256,7 @@ func TestHandler_EnrichmentBehavior_Delete(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	if w.Code != http.StatusCreated {
+	if w.Code != http.StatusOK {
 		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
 	}
 
