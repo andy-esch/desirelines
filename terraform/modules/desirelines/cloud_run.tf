@@ -151,13 +151,21 @@ resource "google_cloud_run_v2_service" "dispatcher" {
         value = google_pubsub_topic.activity_rows.name
       }
 
+      # Cloud Run serves no traffic until this probe passes, so the poll period
+      # is a floor on cold-start latency — and Strava retries any webhook not
+      # answered within 2s. The app binds its port in ~290ms, so a 1s period
+      # catches it on the second poll.
+      #
+      # period_seconds and failure_threshold multiply into the total startup
+      # budget (~10s here). Change them together: shrinking the period alone
+      # starts killing containers whose image pull runs long.
       startup_probe {
         http_get {
           path = "/health"
         }
         initial_delay_seconds = 0
-        period_seconds        = 3
-        failure_threshold     = 3
+        period_seconds        = 1
+        failure_threshold     = 10
       }
 
       # Mount Strava Webhook secrets as atomic volumes
