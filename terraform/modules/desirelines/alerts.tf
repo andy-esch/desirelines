@@ -1234,7 +1234,12 @@ resource "google_monitoring_alert_policy" "dlq_activity_rows" {
 # next webhook recovers from. Mirrors webhook_owner_check_error rather than the
 # single-event orphan template.
 resource "google_monitoring_alert_policy" "activity_row_publish_errors" {
-  count = var.enable_application_metric_alerts ? 1 : 0
+  # Gated on the feature flag as well as the metric-alerts switch. This counter
+  # only exists in a project once the dispatcher has published a row there, so
+  # creating the alert where the feature is off fails the apply with a 404 on
+  # the metric type. Enabling the feature in a new environment therefore takes
+  # two applies: one to start publishing, one to add the alert.
+  count = var.enable_application_metric_alerts && var.app_config.dispatcher_activity_row_publish_enabled ? 1 : 0
 
   display_name = "⚠️ Activity-row publish failing"
   combiner     = "OR"
