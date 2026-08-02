@@ -113,14 +113,26 @@ func TestActivityRowPublish_ChangeTypes(t *testing.T) {
 			wantChangeType: bqrow.ChangeTypeDelete,
 		},
 		{
-			// Title-only edit: no activity is fetched, so a row published
-			// here would overwrite the stored activity with almost nothing.
-			name: "title-only update publishes nothing",
+			// Title-only edit: the webhook carries no activity, so the row
+			// publish re-fetches one rather than skipping — otherwise a rename
+			// would never reach the table.
+			name: "title-only update re-fetches and publishes an upsert",
 			payload: func() webhookproto.StravaWebhookJSON {
 				p := activityWebhook("update")
 				p.Updates = map[string]any{"title": "New name"}
 				return p
 			}(),
+			wantPublished:  1,
+			wantChangeType: bqrow.ChangeTypeUpsert,
+		},
+		{
+			name: "title-only update whose re-fetch fails publishes nothing",
+			payload: func() webhookproto.StravaWebhookJSON {
+				p := activityWebhook("update")
+				p.Updates = map[string]any{"title": "New name"}
+				return p
+			}(),
+			stravaErr:     ports.ErrActivityNotFound,
 			wantPublished: 0,
 		},
 		{
@@ -168,6 +180,36 @@ func TestActivityRowPublish_ChangeTypes(t *testing.T) {
 				t.Errorf("id = %#v, want %d", row["id"], testObjectID)
 			}
 		})
+	}
+}
+
+// The re-fetch a metadata-only update triggers must stay inside the best-effort
+// block. If it leaked into the enriched envelope, postgres-writer would switch
+// from a bare metadata update to a full row upsert plus a region retag on every
+// rename — this feature changing what the source of truth receives, which is
+// exactly what it must never do.
+func TestActivityRowPublish_RefetchDoesNotEnrichPrimaryEnvelope(t *testing.T) {
+	primary := &portstest.MockPublisher{}
+	strava := &portstest.MockStravaClient{FetchResult: rowPublishTestActivity}
+	rowPublisher := &portstest.MockRawPublisher{}
+
+	payload := activityWebhook("update")
+	payload.Updates = map[string]any{"title": "New name"}
+
+	setup := &rowPublishSetup{rowPublisher: rowPublisher, primary: primary, strava: strava}
+	serveRowPublishWebhook(t, setup, payload)
+
+	// The row was published, so the re-fetch definitely happened...
+	if got := rowPublisher.PublishedCount(); got != 1 {
+		t.Fatalf("published %d rows, want 1", got)
+	}
+	// ...but the primary event still carries no activity payload.
+	published := primary.PublishedRawActivities()
+	if len(published) != 1 {
+		t.Fatalf("primary published %d events, want 1", len(published))
+	}
+	if published[0] != nil {
+		t.Errorf("primary envelope carries raw_activity %v, want none — the re-fetch leaked into the primary path", published[0])
 	}
 }
 
@@ -270,6 +312,7 @@ func TestActivityRowPublish_RecordsOutcome(t *testing.T) {
 	tests := []struct {
 		name         string
 		payload      webhookproto.StravaWebhookJSON
+		stravaErr    error
 		rowPublisher ports.RawPublisher
 		wantResult   string
 		wantDetail   string
@@ -288,9 +331,10 @@ func TestActivityRowPublish_RecordsOutcome(t *testing.T) {
 				p.Updates = map[string]any{"title": "New name"}
 				return p
 			}(),
+			stravaErr:    ports.ErrActivityNotFound,
 			rowPublisher: &portstest.MockRawPublisher{},
 			wantResult:   rowPublishSkipped,
-			wantDetail:   rowSkipPartialUpdate,
+			wantDetail:   rowSkipRefetchFailed,
 		},
 		{
 			name:         "error",
@@ -308,7 +352,10 @@ func TestActivityRowPublish_RecordsOutcome(t *testing.T) {
 				rowPublisher: tt.rowPublisher,
 				rowCounter:   reader,
 				primary:      &portstest.MockPublisher{},
-				strava:       &portstest.MockStravaClient{FetchResult: rowPublishTestActivity},
+				strava: &portstest.MockStravaClient{
+					FetchResult: rowPublishTestActivity,
+					FetchErr:    tt.stravaErr,
+				},
 			}
 
 			serveRowPublishWebhook(t, setup, tt.payload)
