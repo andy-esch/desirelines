@@ -54,7 +54,7 @@ func BenchmarkHandler_ServeHTTP_ValidWebhook(b *testing.B) {
 
 		router.ServeHTTP(rr, req)
 
-		if rr.Code != http.StatusCreated {
+		if rr.Code != http.StatusOK {
 			b.Fatalf("unexpected status: %d", rr.Code)
 		}
 	}
@@ -119,8 +119,8 @@ func BenchmarkHandler_ServeHTTP_Concurrent(b *testing.B) {
 
 			router.ServeHTTP(rr, req)
 
-			if rr.Code != http.StatusCreated {
-				b.Errorf("unexpected status in concurrent test: got %d, want %d", rr.Code, http.StatusCreated)
+			if rr.Code != http.StatusOK {
+				b.Errorf("unexpected status in concurrent test: got %d, want %d", rr.Code, http.StatusOK)
 			}
 		}
 	})

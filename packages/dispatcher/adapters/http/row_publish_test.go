@@ -158,7 +158,7 @@ func TestActivityRowPublish_ChangeTypes(t *testing.T) {
 			}
 
 			w := serveRowPublishWebhook(t, setup, tt.payload)
-			if w.Code != http.StatusCreated && w.Code != http.StatusOK {
+			if w.Code != http.StatusOK {
 				t.Fatalf("status = %d, want a success (body: %s)", w.Code, w.Body.String())
 			}
 
@@ -229,8 +229,8 @@ func TestActivityRowPublish_DisabledPublishesNothing(t *testing.T) {
 
 	w := serveRowPublishWebhook(t, setup, activityWebhook("create"))
 
-	if w.Code != http.StatusCreated {
-		t.Errorf("status = %d, want %d (body: %s)", w.Code, http.StatusCreated, w.Body.String())
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d (body: %s)", w.Code, http.StatusOK, w.Body.String())
 	}
 	if got := primary.PublishedCount(); got != 1 {
 		t.Errorf("primary published %d events, want 1", got)
@@ -283,9 +283,9 @@ func TestActivityRowPublish_FailureDoesNotAffectWebhook(t *testing.T) {
 
 			w := serveRowPublishWebhook(t, setup, activityWebhook("create"))
 
-			if w.Code != http.StatusCreated {
+			if w.Code != http.StatusOK {
 				t.Errorf("status = %d, want %d — a row-publish failure must not fail the webhook (body: %s)",
-					w.Code, http.StatusCreated, w.Body.String())
+					w.Code, http.StatusOK, w.Body.String())
 			}
 			if got := primary.PublishedCount(); got != 1 {
 				t.Errorf("primary published %d events, want 1 — the primary path must be untouched", got)
