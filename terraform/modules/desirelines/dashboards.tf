@@ -1338,6 +1338,93 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               }]
             }
           }
+        },
+
+        # ====================================================================
+        # BIGQUERY CDC ACTIVITY-ROW PATH - Row 92
+        # ====================================================================
+        {
+          yPos   = 92
+          width  = 12
+          height = 2
+          widget = {
+            title = "🧪 BigQuery CDC Activity Rows"
+            text = {
+              content = "Best-effort second publish to `activities_live`. Failures cannot affect webhooks or the primary pipeline, so these tiles are the only view of it."
+              format  = "MARKDOWN"
+              style   = {}
+            }
+          }
+        },
+
+        # Activity-row publish outcomes - Row 94, Left
+        {
+          yPos   = 94
+          width  = 6
+          height = 4
+          widget = {
+            title = "Activity Row Publish Outcomes (per minute)"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "metric.type=\"workload.googleapis.com/desirelines.io/bigquery/row_publish\" AND resource.type=\"generic_task\""
+                    aggregation = {
+                      alignmentPeriod    = "60s"
+                      perSeriesAligner   = "ALIGN_RATE"
+                      crossSeriesReducer = "REDUCE_SUM"
+                      # `result` separates published/skipped/error; `detail`
+                      # says which change type or which failure. Skipped is
+                      # normal — do not read it as a problem.
+                      groupByFields = ["metric.label.result", "metric.label.detail"]
+                    }
+                  }
+                }
+                plotType   = "LINE"
+                targetAxis = "Y1"
+              }]
+              timeshiftDuration = "0s"
+              yAxis = {
+                label = "Events/sec"
+                scale = "LINEAR"
+              }
+            }
+          }
+        },
+
+        # Activity-rows DLQ - Row 94, Right
+        {
+          xPos   = 6
+          yPos   = 94
+          width  = 6
+          height = 4
+          widget = {
+            title = "Activity Rows DLQ Messages (BigQuery rejected)"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"${google_pubsub_subscription.activity_rows_dlq_monitoring.name}\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
+                    aggregation = {
+                      alignmentPeriod    = "60s"
+                      perSeriesAligner   = "ALIGN_MEAN"
+                      crossSeriesReducer = "REDUCE_SUM"
+                    }
+                  }
+                }
+                plotType   = "LINE"
+                targetAxis = "Y1"
+              }]
+              timeshiftDuration = "0s"
+              yAxis = {
+                label = "Messages"
+                scale = "LINEAR"
+              }
+              thresholds = [{
+                value = 1
+              }]
+            }
+          }
         }
       ]
     }
