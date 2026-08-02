@@ -80,6 +80,37 @@ resource "google_pubsub_subscription" "activity_rows_dlq_monitoring" {
 }
 
 # ---- BigQuery destination table (CDC requires a primary key) ------------------
+#
+# The schema is the production activities schema with every top-level column
+# except the primary key relaxed to NULLABLE. That is not cosmetic — it is what
+# makes deletes possible:
+#
+# A CDC delete is addressed by primary key alone and carries no other column.
+# But `use_table_schema` validates every message against the whole table schema
+# before BigQuery ever sees the CDC semantics, so a REQUIRED column that a
+# delete cannot supply rejects the message outright:
+#
+#   "JSON is missing required field: athlete, name, moving_time, …"
+#
+# and the delete dead-letters instead of removing the row. So a CDC table whose
+# producer issues deletes cannot declare REQUIRED columns beyond its key.
+#
+# `id` stays REQUIRED — BigQuery requires a primary-key column to be
+# non-nullable, and every message supplies it. Nested REQUIRED fields are left
+# alone: their parent records are nullable, so a delete simply omits the parent
+# and never has to satisfy them. Upserts are unaffected — they still carry the
+# full row.
+locals {
+  activities_full_schema = jsondecode(file("${path.module}/../../../schemas/bigquery/activities_full.json")).schema
+
+  activities_live_schema = [
+    for field in local.activities_full_schema :
+    field.name == "id" ? field : merge(field, {
+      mode = field.mode == "REQUIRED" ? "NULLABLE" : field.mode
+    })
+  ]
+}
+
 resource "google_bigquery_table" "activities_live" {
   dataset_id          = google_bigquery_dataset.activities_dataset.dataset_id
   table_id            = "activities_live"
@@ -89,8 +120,7 @@ resource "google_bigquery_table" "activities_live" {
 
   labels = local.common_labels
 
-  # Same schema as the production activities table.
-  schema = jsonencode(jsondecode(file("${path.module}/../../../schemas/bigquery/activities_full.json")).schema)
+  schema = jsonencode(local.activities_live_schema)
 
   # CDC upserts/deletes key on this primary key (non-enforced in BigQuery).
   table_constraints {

@@ -77,11 +77,12 @@ const (
 // rowPublishSkipped count). Only aspect types that carry no publishable row
 // appear here; anything unexpected is an error, not a skip.
 const (
-	// rowSkipPartialUpdate: an UPDATE with no activity payload — a title- or
-	// visibility-only edit. A CDC upsert replaces the whole row, so publishing
-	// the handful of fields such an event carries would blank every other
-	// column. Skipping leaves the existing row intact and slightly stale.
-	rowSkipPartialUpdate = "partial_update"
+	// rowSkipRefetchFailed: a metadata-only UPDATE whose activity could not be
+	// re-fetched from Strava. Such an event carries no payload of its own and a
+	// CDC upsert replaces the whole row, so without the re-fetch there is
+	// nothing publishable. The row keeps its previous state until an event that
+	// does carry a payload arrives.
+	rowSkipRefetchFailed = "refetch_failed"
 	// rowSkipNoActivity: a CREATE whose Strava fetch found nothing, because
 	// the activity was deleted between the webhook and the fetch. There is no
 	// row to write; the DELETE event that follows is what matters.
@@ -631,7 +632,7 @@ func (h *Handler) publishActivityRow(ctx context.Context, enriched *generated.En
 		}
 	}()
 
-	body, changeType, skipReason := h.buildActivityRow(enriched)
+	body, changeType, skipReason := h.buildActivityRow(ctx, enriched, correlationID)
 	if skipReason != "" {
 		h.recordRowPublish(ctx, webhook, rowPublishSkipped, skipReason)
 		h.logger.Info("Skipping activity-row publish",
@@ -664,11 +665,12 @@ func (h *Handler) publishActivityRow(ctx context.Context, enriched *generated.En
 		"change_type", changeType)
 }
 
-// buildActivityRow maps a webhook event onto a CDC message body. It returns
-// either a body and its change type, or a non-empty skip reason for events
-// that legitimately produce no row. A nil body with no skip reason means the
-// mapping failed; it is logged here and counted by the caller.
-func (h *Handler) buildActivityRow(enriched *generated.EnrichedEvent) (body []byte, changeType, skipReason string) {
+// buildActivityRow maps a webhook event onto a CDC message body, re-fetching
+// the activity when the event did not carry one. It returns either a body and
+// its change type, or a non-empty skip reason for events that produce no row. A
+// nil body with no skip reason means the mapping failed; it is logged here and
+// counted by the caller.
+func (h *Handler) buildActivityRow(ctx context.Context, enriched *generated.EnrichedEvent, correlationID string) (body []byte, changeType, skipReason string) {
 	webhook := enriched.Event
 	// Section 2 of the sequence number orders events Strava stamped in the
 	// same second; now() is the closest thing to their arrival order.
@@ -680,16 +682,29 @@ func (h *Handler) buildActivityRow(enriched *generated.EnrichedEvent) (body []by
 		body, err = bqrow.Delete(webhook.ObjectId, sequenceNumber)
 		changeType = bqrow.ChangeTypeDelete
 	case generated.AspectType_ASPECT_TYPE_CREATE, generated.AspectType_ASPECT_TYPE_UPDATE:
-		if enriched.RawActivity == nil {
-			// Which of the two no-payload cases this is depends on the aspect
-			// type: an UPDATE never fetched one, a CREATE fetched and found
-			// the activity already gone.
-			if webhook.AspectType == generated.AspectType_ASPECT_TYPE_UPDATE {
-				return nil, "", rowSkipPartialUpdate
+		rawActivity := enriched.RawActivity
+		if rawActivity == nil && webhook.AspectType == generated.AspectType_ASPECT_TYPE_UPDATE {
+			// A metadata-only edit — a rename, a visibility change, a photo
+			// added — arrives with no activity payload, because the primary
+			// pipeline can apply it from the webhook alone. A CDC upsert
+			// replaces the whole row, so the row publish needs the complete
+			// activity or it cannot publish at all.
+			//
+			// Fetched here rather than by widening shouldFetchActivity: that
+			// would attach the payload to the primary envelope too, turning
+			// every rename into a full PostgreSQL row upsert plus a region
+			// retag. Keeping the extra call inside the best-effort block means
+			// this feature cannot change what the source of truth receives.
+			rawActivity = h.fetchActivityForRow(ctx, webhook, correlationID)
+			if rawActivity == nil {
+				return nil, "", rowSkipRefetchFailed
 			}
+		}
+		if rawActivity == nil {
+			// A CREATE whose fetch already found the activity gone.
 			return nil, "", rowSkipNoActivity
 		}
-		body, err = bqrow.Upsert(enriched.RawActivity, sequenceNumber)
+		body, err = bqrow.Upsert(rawActivity, sequenceNumber)
 		changeType = bqrow.ChangeTypeUpsert
 	default:
 		return nil, "", rowSkipUnsupportedAspect
@@ -703,6 +718,23 @@ func (h *Handler) buildActivityRow(enriched *generated.EnrichedEvent) (body []by
 		return nil, "", ""
 	}
 	return body, changeType, ""
+}
+
+// fetchActivityForRow re-fetches an activity that its webhook did not carry, so
+// a metadata-only edit can still produce a complete CDC row. Returns nil on any
+// failure — including the activity having been deleted — and the caller skips.
+// Errors are warnings, not failures: this runs after the webhook is already
+// handled, and a missed row self-corrects on the next event for the activity.
+func (h *Handler) fetchActivityForRow(ctx context.Context, webhook *generated.WebhookEvent, correlationID string) []byte {
+	rawActivity, err := h.stravaClient.FetchActivity(ctx, webhook.OwnerId, webhook.ObjectId)
+	if err != nil {
+		h.logger.Warn("Activity re-fetch for row publish failed, skipping row",
+			"correlation_id", correlationID,
+			"object_id", webhook.ObjectId,
+			"error", err)
+		return nil
+	}
+	return rawActivity
 }
 
 // recordRowPublish increments the activity-row publish counter, labeled by
