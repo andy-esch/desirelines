@@ -558,13 +558,18 @@ resource "google_monitoring_alert_policy" "old_messages" {
     display_name = "Oldest unacked message > 5 minutes"
 
     condition_threshold {
-      # Scope to the three live push subscriptions (…-{service}-{env}) only.
+      # Scope to the live delivery subscriptions (…-{service}-{env}) only.
       # The DLQ inspection subscriptions (…-{service}-dlq-{env}) retain unacked
       # messages by design, so they must be excluded. GCP Monitoring filters
       # have no NOT operator and RE2 has no negative lookahead, so this is an
       # explicit allowlist alternation: the trailing `-[a-z]+` matches the env
       # token (dev/prod) but not the `-dlq-{env}` suffix, which fails full_match.
-      filter          = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=monitoring.regex.full_match(\"desirelines-(bq-inserter|postgres-writer|deletion-service)-[a-z]+\") AND metric.type=\"pubsub.googleapis.com/subscription/oldest_unacked_message_age\""
+      #
+      # activities-live-writer is a BigQuery subscription with no subscriber
+      # code, but it acks on a successful BigQuery write like any other — so a
+      # stalled write surfaces here as ageing messages, ahead of the DLQ alert
+      # that only fires once delivery attempts are exhausted.
+      filter          = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=monitoring.regex.full_match(\"desirelines-(bq-inserter|postgres-writer|deletion-service|activities-live-writer)-[a-z]+\") AND metric.type=\"pubsub.googleapis.com/subscription/oldest_unacked_message_age\""
       duration        = "300s" # 5 minutes
       comparison      = "COMPARISON_GT"
       threshold_value = 300 # 5 minutes in seconds
@@ -1138,6 +1143,126 @@ resource "google_monitoring_alert_policy" "webhook_owner_check_error" {
       # "rate > 1/min" intent becomes 1/60 = 0.01667. The pre-2026-05-12
       # value of `1` was actually requiring 60 errors/min — 60× too high —
       # which made the alert silently false-negative since it was authored.
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0.01667
+
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_RATE"
+        cross_series_reducer = "REDUCE_SUM"
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+
+  alert_strategy {
+    auto_close = "3600s"
+  }
+}
+
+# ==============================================================================
+# BigQuery CDC activity-row path
+# ==============================================================================
+# The dispatcher's activity-row publish is best-effort: every failure is logged,
+# counted and swallowed so it cannot affect the webhook response or the primary
+# activity_events publish. That isolation is deliberate, and it means these two
+# alerts are the only evidence the path works at all — without them it can fail
+# on every event silently.
+
+# CRITICAL: BigQuery rejected activity rows outright.
+# Messages land here when the row fails the destination table's schema —
+# a missing REQUIRED column, a type the column will not accept, malformed JSON.
+resource "google_monitoring_alert_policy" "dlq_activity_rows" {
+  display_name = "🚨 DLQ: Activity Rows (BigQuery CDC) Has Messages"
+  combiner     = "OR"
+
+  documentation {
+    content = <<-EOT
+      **Runbook**: docs/runbooks/dlq-activity-rows.md
+
+      **CRITICAL**: BigQuery rejected one or more activity rows, and they have
+      exhausted delivery to the `activities_live` CDC subscription.
+
+      **Read this first**: each dead-lettered message carries a
+      `CloudPubSubDeadLetterSourceDeliveryErrorMessage` attribute stating
+      exactly why BigQuery refused it.
+
+      ```
+      gcloud pubsub subscriptions pull ${google_pubsub_subscription.activity_rows_dlq_monitoring.name} \
+        --project=${var.gcp_project_id} --limit=5 \
+        --format="value(message.attributes.CloudPubSubDeadLetterSourceDeliveryErrorMessage)"
+      ```
+
+      **Blast radius is bounded**: this path is best-effort and additive.
+      PostgreSQL and the existing BigQuery tables are unaffected — only
+      `activities_live` falls behind, and no product surface reads it.
+
+      Dashboard: ${google_monitoring_dashboard.desirelines_observability.id}
+    EOT
+  }
+
+  conditions {
+    display_name = "Activity rows DLQ has messages"
+
+    condition_threshold {
+      filter          = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"${google_pubsub_subscription.activity_rows_dlq_monitoring.name}\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
+      duration        = "60s"
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0
+
+      aggregations {
+        alignment_period   = "60s"
+        per_series_aligner = "ALIGN_MEAN"
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+
+  alert_strategy {
+    auto_close = "1800s"
+  }
+}
+
+# MEDIUM: the dispatcher cannot publish activity rows at all.
+# Distinct from the DLQ alert above, which catches rows BigQuery received and
+# refused; this catches rows that never left the dispatcher — a marshal failure,
+# a dead topic, a revoked publish permission.
+#
+# Sustained-rate, not single-event: one failure is a transient publish error the
+# next webhook recovers from. Mirrors webhook_owner_check_error rather than the
+# single-event orphan template.
+resource "google_monitoring_alert_policy" "activity_row_publish_errors" {
+  count = var.enable_application_metric_alerts ? 1 : 0
+
+  display_name = "⚠️ Activity-row publish failing"
+  combiner     = "OR"
+
+  documentation {
+    content = <<-EOT
+      **Runbook**: docs/runbooks/activity-row-publish-failing.md
+
+      **MEDIUM**: The dispatcher is failing to publish activity rows to the
+      BigQuery CDC topic. Webhooks and the primary pipeline are unaffected by
+      design — the failure is swallowed — so this alert is the only signal.
+
+      Read the `detail` label to localize the failure: `publish` (topic or IAM),
+      `build` (mapping), `refetch` (Strava unreachable), `panic` (bug).
+      `result="skipped"` is normal and does not page.
+
+      Dashboard: ${google_monitoring_dashboard.desirelines_observability.id}
+    EOT
+  }
+
+  conditions {
+    display_name = "row_publish{result=error} rate > 1/min for 10m"
+
+    condition_threshold {
+      filter   = "metric.type=\"workload.googleapis.com/desirelines.io/bigquery/row_publish\" AND resource.type=\"generic_task\" AND metric.labels.result=\"error\""
+      duration = "600s"
+      # ALIGN_RATE yields events-per-second, so "1/min" is 1/60. See the same
+      # conversion on webhook_owner_check_error.
       comparison      = "COMPARISON_GT"
       threshold_value = 0.01667
 

@@ -12,6 +12,7 @@ look**, **Likely causes** (ranked), **Quick mitigations**, **If still stuck**.
 - [DLQ: BQ Inserter has messages](dlq-bq-inserter.md)
 - [DLQ: PostgreSQL Writer has messages](dlq-postgres-writer.md)
 - [DLQ: Deletion Service has messages](dlq-deletion-service.md)
+- [DLQ: Activity Rows (BigQuery CDC) has messages](dlq-activity-rows.md)
 - [Cloud Run 5xx errors on non-SLO services](service-5xx-server-errors.md)
 - [apigateway /api/health uptime failing](apigateway-uptime-failing.md)
 - [frontend root uptime failing](frontend-uptime-failing.md)
@@ -38,6 +39,7 @@ look**, **Likely causes** (ranked), **Quick mitigations**, **If still stuck**.
 - [Firestore operation P99 latency high](firestore-operation-latency.md)
 - [Pub/Sub publish P99 latency high](pubsub-publish-latency.md)
 - [Allowlist read errors elevated](webhook-owner-check-error.md)
+- [Activity-row publish failing](activity-row-publish-failing.md)
 
 ## SLO burn-rate
 
