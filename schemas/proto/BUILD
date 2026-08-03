@@ -40,5 +40,24 @@ protobuf_sources(
     name="bq_activities",
     sources=["desirelines/bigquery/v1/bq_activities.proto"],
     python_resolve="stravapipe",
+    # Python is the only consumer, but `export-codegen` runs the Go backend for
+    # every proto regardless. Without an address Pants cannot pick among the
+    # repo's three go_mod targets and the whole goal fails, so name one; the
+    # generated Go is never copied into the tree.
+    go_mod_address="packages/dispatcher:mod",
+)
+
+# BigQuery activity ROW proto (Go only — used by the dispatcher to publish to
+# the CDC topic under use_topic_schema). Same table schema as bq_activities
+# above, but timestamps are RFC 3339 strings rather than micros, and it carries
+# the CDC pseudocolumns. GENERATED FILE — regenerate via `just generate-bq-proto`.
+#
+# go_mod_address is required, not optional: the proto declares `option
+# go_package`, and without an address Pants cannot tell which of the repo's
+# several go_mod targets owns the generated Go, failing every broad goal.
+protobuf_sources(
+    name="bq_activity_rows",
+    sources=["desirelines/bigquery/cdc/v1/bq_activity_rows.proto"],
+    go_mod_address="packages/dispatcher:mod",
 )
 
