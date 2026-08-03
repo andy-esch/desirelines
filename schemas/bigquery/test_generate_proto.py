@@ -12,17 +12,18 @@ Run via:
 
 from __future__ import annotations
 
+import json
+
 from generate_proto import (
+    _CDC_COLUMNS,
     BQ_SCHEMA_PATH,
     PUBSUB_CDC,
     STORAGE_WRITE,
-    _CDC_COLUMNS,
     _Emit,
     _emit_message,
     _to_message_name,
     generate,
 )
-import json
 import pytest
 
 
@@ -280,9 +281,9 @@ class TestProfiles:
 
         # Adding a column must not move them.
         schema = json.loads(BQ_SCHEMA_PATH.read_text())["schema"]
-        grown = schema + [{"name": "new_col", "type": "STRING", "mode": "NULLABLE"}]
+        grown = [*schema, {"name": "new_col", "type": "STRING", "mode": "NULLABLE"}]
         out = _Emit(lines=[], profile=PUBSUB_CDC)
-        _emit_message(grown + _CDC_COLUMNS, "ActivityRow", out)
+        _emit_message([*grown, *_CDC_COLUMNS], "ActivityRow", out)
         body = "\n".join(out.lines)
         assert "optional string _CHANGE_TYPE = 998;" in body
         assert "optional string _CHANGE_SEQUENCE_NUMBER = 999;" in body
@@ -294,5 +295,5 @@ class TestProfiles:
         ]
         out = _Emit(lines=[], profile=PUBSUB_CDC)
         with pytest.raises(RuntimeError) as excinfo:
-            _emit_message(schema + _CDC_COLUMNS, "T", out)
+            _emit_message([*schema, *_CDC_COLUMNS], "T", out)
         assert "998" in str(excinfo.value)
