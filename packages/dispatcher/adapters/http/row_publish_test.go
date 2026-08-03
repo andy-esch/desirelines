@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/andy-esch/desirelines/packages/dispatcher/adapters/bqrow"
 	webhookproto "github.com/andy-esch/desirelines/packages/dispatcher/adapters/proto"
@@ -28,6 +29,9 @@ type rowPublishSetup struct {
 	rowCounter   *sdkmetric.ManualReader
 	primary      *portstest.MockPublisher
 	strava       *portstest.MockStravaClient
+	// refetchTimeout overrides DefaultRowRefetchTimeout so a timeout test does
+	// not have to wait out the real budget.
+	refetchTimeout time.Duration
 }
 
 // serveRowPublishWebhook runs one webhook through a handler wired for the
@@ -35,7 +39,7 @@ type rowPublishSetup struct {
 func serveRowPublishWebhook(t *testing.T, setup *rowPublishSetup, payload webhookproto.StravaWebhookJSON) *httptest.ResponseRecorder {
 	t.Helper()
 
-	cfg := &HandlerConfig{RowPublisher: setup.rowPublisher}
+	cfg := &HandlerConfig{RowPublisher: setup.rowPublisher, RowRefetchTimeout: setup.refetchTimeout}
 	if setup.rowCounter != nil {
 		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(setup.rowCounter))
 		counter, err := provider.Meter("test").Int64Counter("desirelines.io/bigquery/row_publish")
@@ -423,4 +427,72 @@ func rowPublishLabels(rm metricdata.ResourceMetrics) []rowPublishLabel {
 		}
 	}
 	return out
+}
+
+// The re-fetch runs after the webhook has already been handled, on behalf of a
+// table nothing reads. It must not be able to spend the request's remaining
+// budget: Strava redelivers anything it does not get answered inside 2s, so a
+// slow fetch here would turn every rename into a duplicate delivery.
+func TestActivityRowPublish_RefetchIsBounded(t *testing.T) {
+	metadataUpdate := func() webhookproto.StravaWebhookJSON {
+		p := activityWebhook("update")
+		p.Updates = map[string]any{"title": "New name"}
+		return p
+	}
+
+	t.Run("fetch gets its own deadline, not the request budget", func(t *testing.T) {
+		strava := &portstest.MockStravaClient{FetchResult: rowPublishTestActivity}
+		setup := &rowPublishSetup{
+			rowPublisher: &portstest.MockRawPublisher{},
+			primary:      &portstest.MockPublisher{},
+			strava:       strava,
+		}
+
+		start := time.Now()
+		serveRowPublishWebhook(t, setup, metadataUpdate())
+
+		deadline, ok := strava.LastFetchDeadline()
+		if !ok {
+			t.Fatal("re-fetch ran with no deadline — it inherited the full request budget")
+		}
+		budget := deadline.Sub(start)
+		if budget > DefaultRowRefetchTimeout+250*time.Millisecond {
+			t.Errorf("re-fetch budget = %v, want ~%v", budget, DefaultRowRefetchTimeout)
+		}
+		if budget >= handleEventDeadline {
+			t.Errorf("re-fetch budget = %v, must be well under handleEventDeadline %v", budget, handleEventDeadline)
+		}
+	})
+
+	t.Run("a slow Strava is cut off and does not delay the response", func(t *testing.T) {
+		primary := &portstest.MockPublisher{}
+		rowPublisher := &portstest.MockRawPublisher{}
+		setup := &rowPublishSetup{
+			rowPublisher: rowPublisher,
+			primary:      primary,
+			// Far slower than the budget below, so the timeout decides.
+			strava: &portstest.MockStravaClient{
+				FetchResult: rowPublishTestActivity,
+				FetchDelay:  5 * time.Second,
+			},
+			refetchTimeout: 50 * time.Millisecond,
+		}
+
+		start := time.Now()
+		w := serveRowPublishWebhook(t, setup, metadataUpdate())
+		elapsed := time.Since(start)
+
+		if elapsed > time.Second {
+			t.Errorf("webhook took %v — the re-fetch was not cut off", elapsed)
+		}
+		if w.Code != http.StatusOK {
+			t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+		}
+		if got := primary.PublishedCount(); got != 1 {
+			t.Errorf("primary published %d events, want 1", got)
+		}
+		if got := rowPublisher.PublishedCount(); got != 0 {
+			t.Errorf("published %d rows, want 0 — a timed-out fetch has no row to send", got)
+		}
+	})
 }

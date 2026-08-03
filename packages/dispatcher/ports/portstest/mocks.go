@@ -10,6 +10,7 @@ package portstest
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -141,19 +142,50 @@ type MockStravaClient struct {
 	FetchResult []byte
 	// FetchErr is the error to return. Set during test setup.
 	FetchErr error
+	// FetchDelay simulates a slow Strava. The fetch waits this long before
+	// returning, but yields early if the caller's context expires first — so a
+	// delay longer than the caller's deadline exercises the timeout path.
+	FetchDelay time.Duration
 	// FetchedIDs tracks which activity IDs were fetched.
 	FetchedIDs []int64
 	// FetchedOwnerIDs tracks which owner IDs were passed.
 	FetchedOwnerIDs []int64
+	// FetchDeadlines records the deadline on each call's context, so a test can
+	// assert the caller bounded the fetch rather than handing over its own
+	// budget. Zero time means the context carried no deadline.
+	FetchDeadlines []time.Time
 }
 
 // FetchActivity implements the StravaClient interface.
-func (m *MockStravaClient) FetchActivity(_ context.Context, ownerID, activityID int64) ([]byte, error) {
+func (m *MockStravaClient) FetchActivity(ctx context.Context, ownerID, activityID int64) ([]byte, error) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	m.FetchedOwnerIDs = append(m.FetchedOwnerIDs, ownerID)
 	m.FetchedIDs = append(m.FetchedIDs, activityID)
-	return m.FetchResult, m.FetchErr
+	deadline, _ := ctx.Deadline()
+	m.FetchDeadlines = append(m.FetchDeadlines, deadline)
+	delay, result, err := m.FetchDelay, m.FetchResult, m.FetchErr
+	m.mu.Unlock()
+
+	if delay > 0 {
+		select {
+		case <-time.After(delay):
+		case <-ctx.Done():
+			return nil, fmt.Errorf("mock strava fetch: %w", ctx.Err())
+		}
+	}
+	return result, err
+}
+
+// LastFetchDeadline returns the deadline seen by the most recent fetch, and
+// whether one was set.
+func (m *MockStravaClient) LastFetchDeadline() (time.Time, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if len(m.FetchDeadlines) == 0 {
+		return time.Time{}, false
+	}
+	d := m.FetchDeadlines[len(m.FetchDeadlines)-1]
+	return d, !d.IsZero()
 }
 
 // FetchedCount returns the number of fetch calls made.
