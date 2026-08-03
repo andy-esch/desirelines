@@ -123,6 +123,19 @@ const maxChallengeLength = 256
 // staying well under Cloud Run's default 60s request timeout.
 const handleEventDeadline = 10 * time.Second
 
+// DefaultRowRefetchTimeout bounds the Strava re-fetch the activity-row publish
+// makes for a metadata-only update. It is deliberately far tighter than
+// handleEventDeadline: that budget exists for work the webhook depends on, and
+// this call is best-effort for a table nothing reads. Left on the full budget, a
+// slow Strava would spend seconds here after the webhook was already handled and
+// push the response past the 2s Strava allows before redelivering.
+//
+// 1s against an observed ~288ms mean for an activity fetch — roughly 3× headroom
+// for a normal call, while cutting off the pathological one. It also admits only
+// a single attempt, since the client's retry backoff starts at 1s; retries belong
+// on the primary path, not here.
+const DefaultRowRefetchTimeout = 1 * time.Second
+
 // Handler orchestrates the webhook processing.
 type Handler struct {
 	secretProvider     ports.SecretProvider
@@ -138,6 +151,7 @@ type Handler struct {
 	webhookCounter     metric.Int64Counter
 	ownerCheckCounter  metric.Int64Counter
 	rowPublishCounter  metric.Int64Counter
+	rowRefetchTimeout  time.Duration
 	httpHistogram      metric.Float64Histogram
 	tracer             trace.Tracer
 }
@@ -156,6 +170,9 @@ type HandlerConfig struct {
 	// RowPublishCounter counts the outcome of every row publish attempt
 	// (published / skipped / error). Optional; nil disables the metric.
 	RowPublishCounter metric.Int64Counter
+	// RowRefetchTimeout bounds the Strava re-fetch made for a metadata-only
+	// update. Zero takes DefaultRowRefetchTimeout.
+	RowRefetchTimeout time.Duration
 	// Tracer is used for handler-level spans (e.g. allowlist check). If nil
 	// at construction time the handler falls back to a no-op tracer; spans
 	// inside the handler simply don't get emitted.
@@ -170,6 +187,10 @@ func NewHandler(publisher, deauthPublisher ports.Publisher, secretProvider ports
 	maxBodySize := config.DefaultMaxRequestBodySize
 	if cfg.MaxRequestBodySize > 0 {
 		maxBodySize = cfg.MaxRequestBodySize
+	}
+	rowRefetchTimeout := DefaultRowRefetchTimeout
+	if cfg.RowRefetchTimeout > 0 {
+		rowRefetchTimeout = cfg.RowRefetchTimeout
 	}
 	tracer := cfg.Tracer
 	if tracer == nil {
@@ -193,6 +214,7 @@ func NewHandler(publisher, deauthPublisher ports.Publisher, secretProvider ports
 		webhookCounter:     cfg.WebhookCounter,
 		ownerCheckCounter:  cfg.OwnerCheckCounter,
 		rowPublishCounter:  cfg.RowPublishCounter,
+		rowRefetchTimeout:  rowRefetchTimeout,
 		httpHistogram:      cfg.HTTPHistogram,
 		tracer:             tracer,
 	}
@@ -751,6 +773,9 @@ func (h *Handler) buildActivityRow(ctx context.Context, enriched *generated.Enri
 // webhook is already handled, and a missed row self-corrects on the next event
 // carrying a payload.
 func (h *Handler) fetchActivityForRow(ctx context.Context, webhook *generated.WebhookEvent, correlationID string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, h.rowRefetchTimeout)
+	defer cancel()
+
 	rawActivity, err := h.stravaClient.FetchActivity(ctx, webhook.OwnerId, webhook.ObjectId)
 	if err != nil {
 		h.logger.Warn("Activity re-fetch for row publish failed, skipping row",
