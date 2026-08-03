@@ -67,6 +67,15 @@ resource "google_pubsub_topic" "activity_rows_dead_letter" {
   name   = "${var.project_name}-activity-rows-dlq-${var.environment}"
   labels = local.common_labels
 
+  # Retention matters more here than on any other topic. Clearing this DLQ is
+  # how its CRITICAL alert is silenced, and the only record of *why* BigQuery
+  # rejected a row is the CloudPubSubDeadLetterSourceDeliveryErrorMessage
+  # attribute on the message itself. Without topic retention the inspection
+  # subscription cannot seek backwards, so silencing the alert destroys the
+  # diagnosis — which has already cost two investigations. Matches the
+  # production dead_letter topic's 14 days.
+  message_retention_duration = "1209600s" # 14 days
+
   depends_on = [google_project_service.required_apis]
 }
 

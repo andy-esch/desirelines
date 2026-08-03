@@ -109,9 +109,16 @@ func normalize(row map[string]any) {
 		row["workout_type"] = n.String()
 	}
 
-	// photos.primary.urls is a JSON column and a REQUIRED field, so a primary
-	// photo whose urls are empty or missing would fail the whole row. Such a
-	// photo carries nothing anyway; drop it and keep the rest of the activity.
+	// photos.primary.urls is a JSON column, and the subscription wants JSON
+	// *text* for one — not the nested object Strava sends. Passing the object
+	// through rejects the entire message with invalid_argument, so every
+	// activity that has a photo silently dead-letters while photo-less ones
+	// succeed. BigQuery parses the text back into a JSON object on arrival, so
+	// the stored shape is the same either way; only the wire form differs.
+	//
+	// The field is also REQUIRED, so a primary photo with no usable urls would
+	// fail the row regardless. Such a photo carries nothing — drop it and keep
+	// the rest of the activity.
 	photos, ok := row["photos"].(map[string]any)
 	if !ok {
 		return
@@ -120,22 +127,38 @@ func normalize(row map[string]any) {
 	if !ok {
 		return
 	}
-	if !hasPhotoURLs(primary["urls"]) {
+	encoded, ok := encodePhotoURLs(primary["urls"])
+	if !ok {
 		photos["primary"] = nil
+		return
 	}
+	primary["urls"] = encoded
 }
 
-// hasPhotoURLs reports whether a photos.primary.urls value is worth sending.
-// The empty string is called out explicitly: it is what an over-eager
-// serializer produces for "no urls", and BigQuery stores it as an empty JSON
-// string rather than the NULL the caller meant.
-func hasPhotoURLs(urls any) bool {
+// encodePhotoURLs renders a photos.primary.urls value as the JSON text the
+// destination column expects. Reports false when there is nothing worth
+// sending, which the caller turns into a dropped primary photo rather than a
+// null in a REQUIRED field.
+//
+// A value that is already a string is passed through: it is either JSON text
+// from an earlier encoding, or the empty string that stands for "no urls".
+func encodePhotoURLs(urls any) (string, bool) {
 	switch v := urls.(type) {
 	case map[string]any:
-		return len(v) > 0
+		if len(v) == 0 {
+			return "", false
+		}
+		encoded, err := json.Marshal(v)
+		if err != nil {
+			// Values came from decoding Strava's JSON, so they re-encode; a
+			// failure here means something unexpected, and dropping the photo
+			// is better than failing the whole row.
+			return "", false
+		}
+		return string(encoded), true
 	case string:
-		return v != ""
+		return v, v != ""
 	default:
-		return false
+		return "", false
 	}
 }

@@ -225,7 +225,7 @@ func TestUpsert_PhotoPrimaryURLs(t *testing.T) {
 		wantPrimary bool
 	}{
 		{
-			name:        "urls object is kept",
+			name:        "urls object becomes JSON text",
 			raw:         `{"id": 1, "photos": {"count": 1, "primary": {"unique_id": "u", "urls": {"100": "https://example.test/a.jpg"}}}}`,
 			wantPrimary: true,
 		},
@@ -274,8 +274,17 @@ func TestUpsert_PhotoPrimaryURLs(t *testing.T) {
 				}
 				return
 			}
-			if _, isObject := primary["urls"].(map[string]any); !isObject {
-				t.Errorf("photos.primary.urls = %#v, want the urls object unchanged", primary["urls"])
+			encoded, isString := primary["urls"].(string)
+			if !isString {
+				t.Fatalf("photos.primary.urls = %#v, want JSON text (a string), not a nested object", primary["urls"])
+			}
+			// The text must still parse back to what Strava sent.
+			var decoded map[string]string
+			if err := json.Unmarshal([]byte(encoded), &decoded); err != nil {
+				t.Fatalf("photos.primary.urls is not valid JSON text: %v (%q)", err, encoded)
+			}
+			if decoded["100"] != "https://example.test/a.jpg" {
+				t.Errorf("urls round-tripped to %#v, want the original entries", decoded)
 			}
 		})
 	}
