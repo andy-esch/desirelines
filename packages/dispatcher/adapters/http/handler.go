@@ -82,6 +82,15 @@ const (
 	// metadata-only UPDATE whose re-fetch 404'd. The DELETE event that follows
 	// is what matters.
 	rowSkipNoActivity = "no_activity"
+	// rowSkipNoTokens: the athlete has no stored Strava tokens, so the activity
+	// cannot be re-fetched. A deauthorization that has not been cleaned up yet,
+	// or a revoked grant. Retrying cannot help and nothing is broken on our
+	// side, so this is a skip rather than an error — paging on it would wake
+	// someone for a user-state condition.
+	//
+	// Only reachable for metadata-only updates: any event that fetches on the
+	// primary path hits the orphan branch there and returns before this runs.
+	rowSkipNoTokens = "no_tokens"
 	// rowSkipUnsupportedAspect: an aspect type outside create/update/delete.
 	rowSkipUnsupportedAspect = "unsupported_aspect"
 )
@@ -737,6 +746,9 @@ func (h *Handler) buildActivityRow(ctx context.Context, enriched *generated.Enri
 				// Deleted between the webhook and the re-fetch. Nothing to
 				// publish, and the DELETE that follows is what matters.
 				return nil, "", rowSkipNoActivity, ""
+			case errors.Is(fetchErr, ports.ErrTokenNotFound):
+				// No tokens for this athlete — see rowSkipNoTokens.
+				return nil, "", rowSkipNoTokens, ""
 			default:
 				// The activity still exists and Strava would not serve it.
 				// An error, not a skip — see rowErrorRefetch.

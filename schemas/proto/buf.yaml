@@ -3,6 +3,13 @@ version: v1
 lint:
   use:
     - STANDARD
+  ignore_only:
+    # BigQuery names the CDC pseudocolumns `_CHANGE_TYPE` and
+    # `_CHANGE_SEQUENCE_NUMBER`; the subscription matches on those exact
+    # names, so they cannot be lower_snake_case. Scoped to the one generated
+    # file that carries them rather than relaxing the rule everywhere.
+    FIELD_LOWER_SNAKE_CASE:
+      - desirelines/bigquery/cdc/v1/bq_activity_rows.proto
 
 breaking:
   use:

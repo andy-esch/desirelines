@@ -60,9 +60,115 @@ _BQ_TO_PROTO_SCALAR: dict[str, str] = {
     "FLOAT": "double",
     "STRING": "string",
     "BOOLEAN": "bool",
-    "TIMESTAMP": "int64",  # micros-since-epoch; see module docstring
     "JSON": "string",  # JSON-encoded; see module docstring
 }
+# TIMESTAMP is deliberately absent: the two profiles encode it differently, so
+# _emit_field resolves it from the profile before consulting this map.
+
+
+@dataclass(frozen=True)
+class _Profile:
+    """The parts of the emitted proto that differ per consumer.
+
+    Two consumers want the same table shape with different encodings:
+
+    - **storage-write** — the BigQuery Storage Write API, via stravapipe.
+      Requires TIMESTAMP as int64 micros-since-epoch. Python only.
+    - **pubsub-cdc** — the Pub/Sub BigQuery subscription, via the dispatcher.
+      Its proto→BQ mapping accepts a `string` for a TIMESTAMP column provided
+      the value is a valid BigQuery timestamp, which Strava's RFC 3339 already
+      is. That lets the producer pass timestamps through untouched instead of
+      converting every one, so this profile takes `string`. It also carries the
+      two CDC pseudocolumns, and generates Go.
+
+    Both are emitted from the same BQ schema, so the table stays the single
+    source of truth for either path.
+    """
+
+    output_path: Path
+    proto_package: str
+    message_name: str
+    timestamp_type: str
+    timestamp_note: str
+    purpose: str
+    go_package: str | None = None
+    cdc_fields: bool = False
+
+
+# The CDC pseudocolumns, shaped like BQ columns so the normal field emitter
+# handles them. They are not columns in activities_full.json — BigQuery
+# consumes them as operation metadata rather than storing them — so they are
+# appended here rather than added to the table schema.
+#
+# Their field numbers are PINNED, unlike every other field, which is numbered by
+# position. On a schema-bound topic the encoding is binary, so the field number
+# is the wire identity: if these were numbered by position they would shift the
+# moment a column is added to the table, and messages already in flight would
+# decode into the wrong fields. Pinning them far above the column range means
+# the table can grow without ever disturbing them.
+_CDC_FIELD_NUMBER = "_proto_field_number"
+_CDC_COLUMNS: list[dict[str, Any]] = [
+    {
+        "name": "_CHANGE_TYPE",
+        "mode": "NULLABLE",
+        "type": "STRING",
+        "description": "CDC operation: UPSERT or DELETE",
+        _CDC_FIELD_NUMBER: 998,
+    },
+    {
+        "name": "_CHANGE_SEQUENCE_NUMBER",
+        "mode": "NULLABLE",
+        "type": "STRING",
+        "description": "CDC ordering key; hex sections compared as unsigned numbers",
+        _CDC_FIELD_NUMBER: 999,
+    },
+]
+
+STORAGE_WRITE = _Profile(
+    output_path=REPO_ROOT / "schemas/proto/desirelines/bigquery/v1/bq_activities.proto",
+    proto_package="desirelines.bigquery.v1",
+    message_name="Activity",
+    timestamp_type="int64",
+    timestamp_note="micros since epoch",
+    purpose=(
+        "Mirrors the BigQuery `activities` table schema for use with the\n"
+        "// BigQuery Storage Write API."
+    ),
+    # Only Python consumes this proto, but `go_package` is not optional:
+    # `pants export-codegen` runs every enabled backend, and protoc-gen-go
+    # fails outright on a proto that lacks it. The generated Go is never copied
+    # into the source tree — see proto-gen-backend, which copies by filename.
+    go_package="github.com/andy-esch/desirelines/packages/stravapipe/types/generated",
+)
+
+PUBSUB_CDC = _Profile(
+    # Its own directory and proto package, deliberately. Sharing a package with
+    # the Python-only bq_activities proto made Pants' Go backend try to generate
+    # Go for that one too, which fails since it has no `option go_package`.
+    output_path=REPO_ROOT
+    / "schemas/proto/desirelines/bigquery/cdc/v1/bq_activity_rows.proto",
+    proto_package="desirelines.bigquery.cdc.v1",
+    message_name="ActivityRow",
+    timestamp_type="string",
+    timestamp_note="RFC 3339 string; Pub/Sub maps string to a TIMESTAMP column",
+    purpose=(
+        "Mirrors the BigQuery `activities` table schema for the Pub/Sub\n"
+        "// BigQuery subscription (use_topic_schema), plus the CDC\n"
+        "// pseudocolumns. Timestamps are strings here, not micros: the\n"
+        "// subscription accepts a string for a TIMESTAMP column, so the\n"
+        "// producer forwards Strava's RFC 3339 values unchanged."
+    ),
+    go_package="github.com/andy-esch/desirelines/packages/dispatcher/types/generated",
+    cdc_fields=True,
+)
+
+PROFILES: tuple[_Profile, ...] = (STORAGE_WRITE, PUBSUB_CDC)
+
+# Guard for the positional numbering in _emit_message: growing the table past
+# these would silently collide with the pins.
+_PINNED_FIELD_NUMBERS: frozenset[int] = frozenset(
+    col[_CDC_FIELD_NUMBER] for col in _CDC_COLUMNS
+)
 
 
 def _to_message_name(field_name: str) -> str:
@@ -75,6 +181,9 @@ class _Emit:
     """Mutable accumulator for the recursive emit step."""
 
     lines: list[str]
+    # Defaults to the original profile so callers that predate the split — and
+    # the generator's own unit tests — construct an _Emit unchanged.
+    profile: _Profile = STORAGE_WRITE
     indent: int = 0
 
     def write(self, line: str = "") -> None:
@@ -104,9 +213,19 @@ def _emit_message(
             _emit_message(col["fields"], nested_name, out)
             out.write()
 
-    # Second pass: emit field declarations.
+    # Second pass: emit field declarations. Numbering is by position, except
+    # for fields carrying an explicit pin (the CDC pseudocolumns).
     field_number = 1
     for col in schema:
+        pinned = col.get(_CDC_FIELD_NUMBER)
+        if pinned is not None:
+            _emit_field(col, pinned, out)
+            continue
+        if field_number in _PINNED_FIELD_NUMBERS:
+            raise RuntimeError(
+                f"positional numbering reached {field_number}, which is pinned for a "
+                "CDC pseudocolumn; move the pins higher before growing the table"
+            )
         _emit_field(col, field_number, out)
         field_number += 1
 
@@ -133,6 +252,9 @@ def _emit_field(col: dict[str, Any], field_number: int, out: _Emit) -> None:
 
     if bq_type == "RECORD":
         type_name = _to_message_name(name)
+    elif bq_type == "TIMESTAMP":
+        # Profile-driven: the two consumers disagree on the encoding.
+        type_name = out.profile.timestamp_type
     else:
         try:
             type_name = _BQ_TO_PROTO_SCALAR[bq_type]
@@ -158,22 +280,29 @@ def _emit_field(col: dict[str, Any], field_number: int, out: _Emit) -> None:
     # generator's output byte-identical to buf's canonical form.
     suffix = ""
     if bq_type == "TIMESTAMP":
-        suffix = " // BQ TIMESTAMP — micros since epoch"
+        suffix = f" // BQ TIMESTAMP — {out.profile.timestamp_note}"
     elif bq_type == "JSON":
         suffix = " // BQ JSON — JSON-encoded string"
 
     out.write(f"{prefix}{type_name} {name} = {field_number};{suffix}")
 
 
-def generate(bq_schema_path: Path = BQ_SCHEMA_PATH) -> str:
+def generate(
+    bq_schema_path: Path = BQ_SCHEMA_PATH,
+    profile: _Profile = STORAGE_WRITE,
+) -> str:
     """Produce the full `.proto` file content from the BQ JSON schema."""
     schema_doc = json.loads(bq_schema_path.read_text())
     schema = schema_doc["schema"]
+    if profile.cdc_fields:
+        # Appended, not merged into the table schema: BigQuery consumes these
+        # as operation metadata rather than storing them as columns.
+        schema = schema + _CDC_COLUMNS
     # Hardcoded: BQ table name is plural ("activities"); proto convention
     # is singular for row-shaped messages. If we generalize this generator
     # to other tables, accept the message name as input rather than
     # depluralize automatically (English plurals are gnarly).
-    message_name = "Activity"
+    message_name = profile.message_name
 
     rel_input = bq_schema_path.relative_to(REPO_ROOT).as_posix()
 
@@ -181,10 +310,10 @@ def generate(bq_schema_path: Path = BQ_SCHEMA_PATH) -> str:
         "// Code generated by schemas/bigquery/generate_proto.py. DO NOT EDIT.",
         f"// Source: {rel_input}",
         "//",
-        "// Mirrors the BigQuery `activities` table schema for use with the",
-        "// BigQuery Storage Write API. Field numbering is sequential per-",
-        "// message; the API matches by name, not number, so reordering is",
-        "// safe.",
+        f"// {profile.purpose}",
+        "//",
+        "// Field numbering is sequential per-message; consumers match by name,",
+        "// not number, so reordering is safe.",
         "//",
         "// Syntax is proto2 (NOT proto3) because Storage Write rejects",
         "// descriptors carrying the [proto3_optional=true] annotation that",
@@ -195,53 +324,72 @@ def generate(bq_schema_path: Path = BQ_SCHEMA_PATH) -> str:
         "",
         'syntax = "proto2";',
         "",
-        "package desirelines.bigquery.v1;",
+        f"package {profile.proto_package};",
         "",
-        "// Deliberately no `option go_package`: this proto is Python-only.",
-        "// Declaring it made Pants' Go protobuf backend generate Go for it,",
-        "// and with more than one `go_mod` target in the repo and no",
-        "// `go_mod_address` set, that made the owning module ambiguous —",
-        "// every broad goal (`pants lint ::`, `pants check ::`) died with",
-        "// InvalidTargetException. No Go source imports this proto, so the",
-        "// simplest fix is to not generate Go at all. (`go_package` is only",
-        "// required by protoc-gen-go while Go is actually being generated.)",
+        *_go_package_lines(profile),
         "",
     ]
 
-    out = _Emit(lines=header.copy())
+    out = _Emit(lines=header.copy(), profile=profile)
     _emit_message(schema, message_name, out)
 
     # Trailing newline for POSIX hygiene.
     return "\n".join(out.lines) + "\n"
 
 
+def _go_package_lines(profile: _Profile) -> list[str]:
+    """The `option go_package` declaration, or an explanation of its absence.
+
+    `go_package` and the target's `go_mod_address` must be set together. With
+    the option but no address, Pants' Go backend generates Go for the proto and
+    cannot tell which of the repo's several `go_mod` targets owns it — every
+    broad goal then fails with InvalidTargetException. See schemas/proto/BUILD.
+    """
+    if profile.go_package is None:
+        return [
+            "// Deliberately no `option go_package`: this proto is Python-only,",
+            "// and declaring it without a matching `go_mod_address` on the",
+            "// Pants target makes the owning Go module ambiguous.",
+        ]
+    return [
+        "// Generates Go; the Pants target sets a matching `go_mod_address`.",
+        f'option go_package = "{profile.go_package}";',
+    ]
+
+
 def main(argv: list[str] | None = None) -> int:
-    """Default mode: regenerate and write. With ``--check``, regenerate
-    in-memory and exit non-zero if the result differs from the committed
+    """Regenerate every profile and write. With ``--check``, regenerate
+    in-memory and exit non-zero if any output differs from its committed
     file. ``--check`` is the form `verify-schemas` calls in CI.
     """
     args = argv if argv is not None else sys.argv[1:]
     check_only = "--check" in args
 
-    content = generate()
-    rel_output = OUTPUT_PATH.relative_to(REPO_ROOT).as_posix()
+    failed = False
+    for profile in PROFILES:
+        content = generate(profile=profile)
+        rel_output = profile.output_path.relative_to(REPO_ROOT).as_posix()
 
-    if check_only:
-        existing = OUTPUT_PATH.read_text() if OUTPUT_PATH.exists() else ""
-        if existing != content:
-            print(
-                f"FAIL: {rel_output} is out of sync with activities_full.json.\n"
-                "   Run: just generate-bq-proto",
-                file=sys.stderr,
+        if check_only:
+            existing = (
+                profile.output_path.read_text() if profile.output_path.exists() else ""
             )
-            return 1
-        print(f"OK: {rel_output} is in sync")
-        return 0
+            if existing != content:
+                print(
+                    f"FAIL: {rel_output} is out of sync with activities_full.json.\n"
+                    "   Run: just generate-bq-proto",
+                    file=sys.stderr,
+                )
+                failed = True
+            else:
+                print(f"OK: {rel_output} is in sync")
+            continue
 
-    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT_PATH.write_text(content)
-    print(f"OK: generated {rel_output} ({len(content)} bytes)")
-    return 0
+        profile.output_path.parent.mkdir(parents=True, exist_ok=True)
+        profile.output_path.write_text(content)
+        print(f"OK: generated {rel_output} ({len(content)} bytes)")
+
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

@@ -278,6 +278,7 @@ proto-gen-backend: generate-bq-proto
     @find dist/codegen/schemas/proto \( -name "sports_metrics.pb.go" -o -name "user_config.pb.go" \) -exec cp {} packages/apigateway/types/generated/ \;
     @find dist/codegen/schemas/proto -name "activities.pb.go" -exec cp {} packages/apigateway/types/generated/activitiesv1/ \;
     @find dist/codegen/schemas/proto -name "webhook.pb.go" -exec cp {} packages/dispatcher/types/generated/ \;
+    @find dist/codegen/schemas/proto -name "bq_activity_rows.pb.go" -exec cp {} packages/dispatcher/types/generated/ \;
     @echo "✅ Backend generation complete"
 
 # Regenerate protos and sync JSON configs
