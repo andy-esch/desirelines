@@ -369,7 +369,7 @@ message ActivityRow {
   // Activity visibility setting
   optional string visibility = 64;
   // CDC operation: UPSERT or DELETE
-  optional string _CHANGE_TYPE = 65;
+  optional string _CHANGE_TYPE = 998;
   // CDC ordering key; hex sections compared as unsigned numbers
-  optional string _CHANGE_SEQUENCE_NUMBER = 66;
+  optional string _CHANGE_SEQUENCE_NUMBER = 999;
 }

@@ -341,6 +341,21 @@ func TestActivityRowPublish_RecordsOutcome(t *testing.T) {
 			wantDetail:   rowSkipNoActivity,
 		},
 		{
+			// A deauthorized athlete has no tokens, so the activity cannot be
+			// re-fetched. Nothing is broken on our side and retrying cannot
+			// help — a skip, not a page.
+			name: "missing tokens on re-fetch is a skip",
+			payload: func() webhookproto.StravaWebhookJSON {
+				p := activityWebhook("update")
+				p.Updates = map[string]any{"title": "New name"}
+				return p
+			}(),
+			stravaErr:    ports.ErrTokenNotFound,
+			rowPublisher: &portstest.MockRawPublisher{},
+			wantResult:   rowPublishSkipped,
+			wantDetail:   rowSkipNoTokens,
+		},
+		{
 			// The same re-fetch failing for any OTHER reason is not a skip.
 			// Strava being unreachable means rows have stopped updating, and
 			// counting that as "skipped" would keep the error-rate alert green

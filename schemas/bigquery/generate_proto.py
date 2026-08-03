@@ -99,18 +99,28 @@ class _Profile:
 # handles them. They are not columns in activities_full.json — BigQuery
 # consumes them as operation metadata rather than storing them — so they are
 # appended here rather than added to the table schema.
+#
+# Their field numbers are PINNED, unlike every other field, which is numbered by
+# position. On a schema-bound topic the encoding is binary, so the field number
+# is the wire identity: if these were numbered by position they would shift the
+# moment a column is added to the table, and messages already in flight would
+# decode into the wrong fields. Pinning them far above the column range means
+# the table can grow without ever disturbing them.
+_CDC_FIELD_NUMBER = "_proto_field_number"
 _CDC_COLUMNS: list[dict[str, Any]] = [
     {
         "name": "_CHANGE_TYPE",
         "mode": "NULLABLE",
         "type": "STRING",
         "description": "CDC operation: UPSERT or DELETE",
+        _CDC_FIELD_NUMBER: 998,
     },
     {
         "name": "_CHANGE_SEQUENCE_NUMBER",
         "mode": "NULLABLE",
         "type": "STRING",
         "description": "CDC ordering key; hex sections compared as unsigned numbers",
+        _CDC_FIELD_NUMBER: 999,
     },
 ]
 
@@ -154,6 +164,12 @@ PUBSUB_CDC = _Profile(
 
 PROFILES: tuple[_Profile, ...] = (STORAGE_WRITE, PUBSUB_CDC)
 
+# Guard for the positional numbering in _emit_message: growing the table past
+# these would silently collide with the pins.
+_PINNED_FIELD_NUMBERS: frozenset[int] = frozenset(
+    col[_CDC_FIELD_NUMBER] for col in _CDC_COLUMNS
+)
+
 
 def _to_message_name(field_name: str) -> str:
     """snake_case → PascalCase for nested message types."""
@@ -195,9 +211,19 @@ def _emit_message(
             _emit_message(col["fields"], nested_name, out)
             out.write()
 
-    # Second pass: emit field declarations.
+    # Second pass: emit field declarations. Numbering is by position, except
+    # for fields carrying an explicit pin (the CDC pseudocolumns).
     field_number = 1
     for col in schema:
+        pinned = col.get(_CDC_FIELD_NUMBER)
+        if pinned is not None:
+            _emit_field(col, pinned, out)
+            continue
+        if field_number in _PINNED_FIELD_NUMBERS:
+            raise RuntimeError(
+                f"positional numbering reached {field_number}, which is pinned for a "
+                "CDC pseudocolumn; move the pins higher before growing the table"
+            )
         _emit_field(col, field_number, out)
         field_number += 1
 
