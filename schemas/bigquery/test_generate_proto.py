@@ -12,7 +12,17 @@ Run via:
 
 from __future__ import annotations
 
-from generate_proto import _Emit, _emit_message, _to_message_name, generate
+from generate_proto import (
+    BQ_SCHEMA_PATH,
+    PUBSUB_CDC,
+    STORAGE_WRITE,
+    _CDC_COLUMNS,
+    _Emit,
+    _emit_message,
+    _to_message_name,
+    generate,
+)
+import json
 import pytest
 
 
@@ -230,3 +240,59 @@ class TestFullSchema:
         # Two calls produce identical output. Catches accidental
         # nondeterminism (set iteration, dict ordering pre-3.7, etc.).
         assert generate() == generate()
+
+
+class TestProfiles:
+    """The two consumers want the same table with different encodings, so the
+    generator emits one proto per profile from the same BQ schema."""
+
+    def test_storage_write_keeps_timestamps_as_micros(self):
+        content = generate(profile=STORAGE_WRITE)
+        assert "message Activity {" in content
+        assert "optional int64 start_date = " in content
+        # Python-only, so no Go is generated for it by name.
+        assert "optional string _CHANGE_TYPE" not in content
+
+    def test_pubsub_cdc_uses_string_timestamps(self):
+        # Pub/Sub's proto→BQ mapping accepts a string for a TIMESTAMP column,
+        # which lets the producer forward Strava's RFC 3339 values untouched
+        # instead of converting every one to micros.
+        content = generate(profile=PUBSUB_CDC)
+        assert "message ActivityRow {" in content
+        assert "optional string start_date = " in content
+        assert "optional int64 start_date = " not in content
+
+    def test_pubsub_cdc_carries_the_cdc_fields(self):
+        content = generate(profile=PUBSUB_CDC)
+        assert "optional string _CHANGE_TYPE = " in content
+        assert "optional string _CHANGE_SEQUENCE_NUMBER = " in content
+
+    def test_cdc_field_numbers_are_pinned_not_positional(self):
+        """The CDC fields must keep their numbers as the table grows.
+
+        On a schema-bound topic the encoding is binary, so the field number is
+        the wire identity. Numbering these by position would shift them the
+        moment a column is added, silently mis-decoding messages in flight.
+        """
+        content = generate(profile=PUBSUB_CDC)
+        assert "optional string _CHANGE_TYPE = 998;" in content
+        assert "optional string _CHANGE_SEQUENCE_NUMBER = 999;" in content
+
+        # Adding a column must not move them.
+        schema = json.loads(BQ_SCHEMA_PATH.read_text())["schema"]
+        grown = schema + [{"name": "new_col", "type": "STRING", "mode": "NULLABLE"}]
+        out = _Emit(lines=[], profile=PUBSUB_CDC)
+        _emit_message(grown + _CDC_COLUMNS, "ActivityRow", out)
+        body = "\n".join(out.lines)
+        assert "optional string _CHANGE_TYPE = 998;" in body
+        assert "optional string _CHANGE_SEQUENCE_NUMBER = 999;" in body
+
+    def test_positional_numbering_colliding_with_a_pin_is_fatal(self):
+        # Better to fail the build than to silently renumber a CDC field.
+        schema = [
+            {"name": f"c{i}", "type": "STRING", "mode": "NULLABLE"} for i in range(999)
+        ]
+        out = _Emit(lines=[], profile=PUBSUB_CDC)
+        with pytest.raises(RuntimeError) as excinfo:
+            _emit_message(schema + _CDC_COLUMNS, "T", out)
+        assert "998" in str(excinfo.value)

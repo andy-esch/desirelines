@@ -181,7 +181,9 @@ class _Emit:
     """Mutable accumulator for the recursive emit step."""
 
     lines: list[str]
-    profile: _Profile
+    # Defaults to the original profile so callers that predate the split — and
+    # the generator's own unit tests — construct an _Emit unchanged.
+    profile: _Profile = STORAGE_WRITE
     indent: int = 0
 
     def write(self, line: str = "") -> None:
