@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/firestore"
+	"github.com/andy-esch/desirelines/packages/dispatcher/adapters/bqrow"
 	cacheadapter "github.com/andy-esch/desirelines/packages/dispatcher/adapters/cache"
 	envadapter "github.com/andy-esch/desirelines/packages/dispatcher/adapters/env"
 	firestoreadapter "github.com/andy-esch/desirelines/packages/dispatcher/adapters/firestore"
@@ -249,7 +250,8 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 	}
 	log.Info("Activity-row publish configured",
 		"enabled", cfg.ActivityRowPublishEnabled,
-		"topic", cfg.GCPPubSubActivityRowsTopicID)
+		"topic", cfg.GCPPubSubActivityRowsTopicID,
+		"encoding", cfg.ActivityRowEncoding)
 
 	firestoreClient, err := firestore.NewClientWithDatabase(startupCtx, cfg.GCPProjectID, cfg.FirestoreDatabase)
 	if err != nil {
@@ -320,6 +322,7 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 		HTTPHistogram:      httpHist,
 		RowPublisher:       rowPublisherPort,
 		RowPublishCounter:  rowPublishCounter,
+		RowEncoding:        bqrow.Encoding(cfg.ActivityRowEncoding),
 		Tracer:             tracer,
 	})
 

@@ -91,6 +91,11 @@ const (
 	// Only reachable for metadata-only updates: any event that fetches on the
 	// primary path hits the orphan branch there and returns before this runs.
 	rowSkipNoTokens = "no_tokens"
+	// rowSkipAuthRevoked: Strava permanently rejected the athlete's credentials.
+	// Same operational answer as rowSkipNoTokens — the athlete must
+	// re-authorize — but kept a distinct label so the runbook can tell "we
+	// never had tokens" from "the tokens we had were revoked".
+	rowSkipAuthRevoked = "auth_revoked"
 	// rowSkipUnsupportedAspect: an aspect type outside create/update/delete.
 	rowSkipUnsupportedAspect = "unsupported_aspect"
 )
@@ -160,6 +165,7 @@ type Handler struct {
 	webhookCounter     metric.Int64Counter
 	ownerCheckCounter  metric.Int64Counter
 	rowPublishCounter  metric.Int64Counter
+	rowEncoding        bqrow.Encoding
 	rowRefetchTimeout  time.Duration
 	httpHistogram      metric.Float64Histogram
 	tracer             trace.Tracer
@@ -179,6 +185,10 @@ type HandlerConfig struct {
 	// RowPublishCounter counts the outcome of every row publish attempt
 	// (published / skipped / error). Optional; nil disables the metric.
 	RowPublishCounter metric.Int64Counter
+	// RowEncoding is the wire format for activity rows. Empty takes
+	// bqrow.EncodingJSON, which is what the topic accepts until a schema is
+	// attached to it.
+	RowEncoding bqrow.Encoding
 	// RowRefetchTimeout bounds the Strava re-fetch made for a metadata-only
 	// update. Zero takes DefaultRowRefetchTimeout.
 	RowRefetchTimeout time.Duration
@@ -196,6 +206,10 @@ func NewHandler(publisher, deauthPublisher ports.Publisher, secretProvider ports
 	maxBodySize := config.DefaultMaxRequestBodySize
 	if cfg.MaxRequestBodySize > 0 {
 		maxBodySize = cfg.MaxRequestBodySize
+	}
+	rowEncoding := cfg.RowEncoding
+	if !rowEncoding.Valid() {
+		rowEncoding = bqrow.EncodingJSON
 	}
 	rowRefetchTimeout := DefaultRowRefetchTimeout
 	if cfg.RowRefetchTimeout > 0 {
@@ -223,6 +237,7 @@ func NewHandler(publisher, deauthPublisher ports.Publisher, secretProvider ports
 		webhookCounter:     cfg.WebhookCounter,
 		ownerCheckCounter:  cfg.OwnerCheckCounter,
 		rowPublishCounter:  cfg.RowPublishCounter,
+		rowEncoding:        rowEncoding,
 		rowRefetchTimeout:  rowRefetchTimeout,
 		httpHistogram:      cfg.HTTPHistogram,
 		tracer:             tracer,
@@ -722,7 +737,7 @@ func (h *Handler) buildActivityRow(ctx context.Context, enriched *generated.Enri
 	var err error
 	switch webhook.AspectType {
 	case generated.AspectType_ASPECT_TYPE_DELETE:
-		body, err = bqrow.Delete(webhook.ObjectId, sequenceNumber)
+		body, err = bqrow.BuildDelete(h.rowEncoding, webhook.ObjectId, sequenceNumber)
 		changeType = bqrow.ChangeTypeDelete
 	case generated.AspectType_ASPECT_TYPE_CREATE, generated.AspectType_ASPECT_TYPE_UPDATE:
 		rawActivity := enriched.RawActivity
@@ -740,18 +755,12 @@ func (h *Handler) buildActivityRow(ctx context.Context, enriched *generated.Enri
 			// this feature cannot change what the source of truth receives.
 			var fetchErr error
 			rawActivity, fetchErr = h.fetchActivityForRow(ctx, webhook, correlationID)
-			switch {
-			case fetchErr == nil:
-			case errors.Is(fetchErr, ports.ErrActivityNotFound):
-				// Deleted between the webhook and the re-fetch. Nothing to
-				// publish, and the DELETE that follows is what matters.
-				return nil, "", rowSkipNoActivity, ""
-			case errors.Is(fetchErr, ports.ErrTokenNotFound):
-				// No tokens for this athlete — see rowSkipNoTokens.
-				return nil, "", rowSkipNoTokens, ""
-			default:
-				// The activity still exists and Strava would not serve it.
-				// An error, not a skip — see rowErrorRefetch.
+			if fetchErr != nil {
+				if skip := rowSkipReasonFor(fetchErr); skip != "" {
+					return nil, "", skip, ""
+				}
+				// Not a settled athlete-side fact, so something is actually
+				// wrong — see rowErrorRefetch.
 				return nil, "", "", rowErrorRefetch
 			}
 		}
@@ -759,7 +768,7 @@ func (h *Handler) buildActivityRow(ctx context.Context, enriched *generated.Enri
 			// A CREATE whose fetch already found the activity gone.
 			return nil, "", rowSkipNoActivity, ""
 		}
-		body, err = bqrow.Upsert(rawActivity, sequenceNumber)
+		body, err = bqrow.BuildUpsert(h.rowEncoding, rawActivity, sequenceNumber)
 		changeType = bqrow.ChangeTypeUpsert
 	default:
 		return nil, "", rowSkipUnsupportedAspect, ""
@@ -773,6 +782,30 @@ func (h *Handler) buildActivityRow(ctx context.Context, enriched *generated.Enri
 		return nil, "", "", rowErrorBuild
 	}
 	return body, changeType, "", ""
+}
+
+// rowSkipReasonFor maps a re-fetch failure to a skip reason, or "" when the
+// failure deserves to be counted as an error.
+//
+// The dividing line is whether retrying could ever help. An activity that no
+// longer exists, an athlete with no stored tokens, and an athlete whose
+// authorization Strava has revoked are all settled facts about the world: the
+// row publish can do nothing about them and neither can an on-caller. A Strava
+// outage, a rate limit or a timeout is a different thing entirely, and sustained
+// it means rows have quietly stopped updating — which is what the error-rate
+// alert exists to catch. Filing a permanent condition as an error would page
+// someone for a user's account state.
+func rowSkipReasonFor(err error) string {
+	switch {
+	case errors.Is(err, ports.ErrActivityNotFound):
+		return rowSkipNoActivity
+	case errors.Is(err, ports.ErrTokenNotFound):
+		return rowSkipNoTokens
+	case errors.Is(err, ports.ErrStravaAuthFailed):
+		return rowSkipAuthRevoked
+	default:
+		return ""
+	}
 }
 
 // fetchActivityForRow re-fetches an activity that its webhook did not carry, so

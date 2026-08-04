@@ -30,6 +30,11 @@ const (
 	// against out-of-process token writes the in-process cache can't see (apigateway
 	// re-auth); local mutations invalidate directly. Set the env var to "0" to disable.
 	DefaultTokenCacheTTL = 5 * time.Minute
+
+	// DefaultActivityRowEncoding is applied when ACTIVITY_ROW_ENCODING is unset.
+	// JSON is the safe default: it is what the topic accepts until a protobuf
+	// schema is attached to it.
+	DefaultActivityRowEncoding = "json"
 )
 
 // Config holds non-secret configuration for the dispatcher.
@@ -51,6 +56,11 @@ type Config struct {
 	// GCPPubSubActivityRowsTopicID is required only when this is true.
 	ActivityRowPublishEnabled    bool
 	GCPPubSubActivityRowsTopicID string
+	// ActivityRowEncoding is the wire format for activity rows: "json" or
+	// "proto". It must match what the topic accepts — a schema-bound topic
+	// rejects JSON at publish time, and a schemaless one hands protobuf to a
+	// subscription that cannot parse it. Defaults to "json".
+	ActivityRowEncoding string
 	// AllowlistCacheTTL / TokenCacheTTL: 0 disables the respective cache, so a
 	// suspected staleness bug can be ruled out in prod by setting the env var to
 	// "0" and redeploying — no code change, no rollback.
@@ -116,17 +126,9 @@ func LoadConfig() (*Config, error) {
 		return nil, err
 	}
 
-	activityRowPublishEnabled, err := parseBoolEnv("ACTIVITY_ROW_PUBLISH_ENABLED", false)
+	rowPublish, err := loadActivityRowConfig()
 	if err != nil {
 		return nil, err
-	}
-
-	// Only required when the flag is on, but then it is required outright:
-	// turning the feature on without a destination is a misconfiguration
-	// worth failing at boot rather than discovering in the logs.
-	gcpPubSubActivityRowsTopicID := os.Getenv("GCP_PUBSUB_ACTIVITY_ROWS_TOPIC")
-	if activityRowPublishEnabled && gcpPubSubActivityRowsTopicID == "" {
-		return nil, fmt.Errorf("environment variable GCP_PUBSUB_ACTIVITY_ROWS_TOPIC is required when ACTIVITY_ROW_PUBLISH_ENABLED is true")
 	}
 
 	return &Config{
@@ -140,9 +142,47 @@ func LoadConfig() (*Config, error) {
 		MaxRequestBodySize:           maxBodySize,
 		AllowlistCacheTTL:            allowlistCacheTTL,
 		TokenCacheTTL:                tokenCacheTTL,
-		ActivityRowPublishEnabled:    activityRowPublishEnabled,
-		GCPPubSubActivityRowsTopicID: gcpPubSubActivityRowsTopicID,
+		ActivityRowPublishEnabled:    rowPublish.enabled,
+		GCPPubSubActivityRowsTopicID: rowPublish.topicID,
+		ActivityRowEncoding:          rowPublish.encoding,
 	}, nil
+}
+
+// activityRowSettings groups the activity-row publish knobs, which are read
+// together and constrain each other.
+type activityRowSettings struct {
+	enabled  bool
+	topicID  string
+	encoding string
+}
+
+// loadActivityRowConfig reads the activity-row publish settings, rejecting the
+// combinations that cannot work rather than letting them fail later in prod.
+func loadActivityRowConfig() (activityRowSettings, error) {
+	enabled, err := parseBoolEnv("ACTIVITY_ROW_PUBLISH_ENABLED", false)
+	if err != nil {
+		return activityRowSettings{}, err
+	}
+
+	// Only required when the flag is on, but then required outright: turning
+	// the feature on without a destination is a misconfiguration worth failing
+	// at boot rather than discovering in the logs.
+	topicID := os.Getenv("GCP_PUBSUB_ACTIVITY_ROWS_TOPIC")
+	if enabled && topicID == "" {
+		return activityRowSettings{}, fmt.Errorf(
+			"environment variable GCP_PUBSUB_ACTIVITY_ROWS_TOPIC is required when ACTIVITY_ROW_PUBLISH_ENABLED is true")
+	}
+
+	// Validated, not defaulted: the encoding must match what the topic accepts,
+	// and a typo quietly selecting the wrong one produces publish failures that
+	// look like an outage.
+	encoding := GetEnvOrDefault("ACTIVITY_ROW_ENCODING", DefaultActivityRowEncoding)
+	if encoding != "json" && encoding != "proto" {
+		return activityRowSettings{}, fmt.Errorf(
+			"invalid ACTIVITY_ROW_ENCODING %q: must be \"json\" or \"proto\"", encoding)
+	}
+
+	return activityRowSettings{enabled: enabled, topicID: topicID, encoding: encoding}, nil
 }
 
 // parseDurationEnv parses a duration from an environment variable.

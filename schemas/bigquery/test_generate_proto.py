@@ -13,7 +13,9 @@ Run via:
 from __future__ import annotations
 
 import json
+import re
 
+import generate_proto
 from generate_proto import (
     _CDC_COLUMNS,
     BQ_SCHEMA_PATH,
@@ -297,3 +299,111 @@ class TestProfiles:
         with pytest.raises(RuntimeError) as excinfo:
             _emit_message([*schema, *_CDC_COLUMNS], "T", out)
         assert "998" in str(excinfo.value)
+
+
+def _field_numbers(proto_text: str) -> dict[str, int]:
+    """Map ``Message.field`` → field number for every field in a .proto.
+
+    Deliberately a small regex walk rather than a real parser: the input is
+    this generator's own output, whose shape is fixed.
+    """
+    numbers: dict[str, int] = {}
+    stack: list[str] = []
+    for line in proto_text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("message "):
+            stack.append(stripped.split()[1])
+            continue
+        if stripped.startswith("}") and stack:
+            stack.pop()
+            continue
+        match = re.match(r"(?:optional|repeated)\s+\S+\s+(\S+)\s*=\s*(\d+);", stripped)
+        if match and stack:
+            numbers[f"{stack[-1]}.{match.group(1)}"] = int(match.group(2))
+    return numbers
+
+
+class TestFieldNumberLock:
+    """Field numbers are the wire identity on a schema-bound topic.
+
+    The pubsub-cdc proto travels as binary against a Pub/Sub topic schema, so a
+    consumer decodes by field number, not name. Numbering by position would make
+    appending a column safe but inserting or reordering one silently
+    destructive. The lock removes position from the equation.
+    """
+
+    def _numbers(self, proto_text: str) -> dict[str, int]:
+        found: dict[str, int] = {}
+        stack: list[str] = []
+        for line in proto_text.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("message "):
+                stack.append(stripped.split()[1])
+                continue
+            if stripped.startswith("}") and stack:
+                stack.pop()
+                continue
+            match = re.match(
+                r"(?:optional|repeated)\s+\S+\s+(\S+)\s*=\s*(\d+);", stripped
+            )
+            if match and stack:
+                found[f"{stack[-1]}.{match.group(1)}"] = int(match.group(2))
+        return found
+
+    def test_reordering_columns_does_not_move_field_numbers(self):
+        """The failure mode this exists to prevent."""
+        schema = json.loads(BQ_SCHEMA_PATH.read_text())["schema"]
+        lock = generate_proto.load_field_numbers()
+
+        baseline = self._numbers(generate(profile=PUBSUB_CDC, numbers=dict(lock)))
+
+        # Move a column from the end to the front — the worst case for
+        # positional numbering, which would shift every field after it.
+        reordered = [schema[-1], *schema[:-1]]
+        shuffled_path = BQ_SCHEMA_PATH.parent / "_reordered.json"
+        shuffled_path.write_text(json.dumps({"schema": reordered}))
+        try:
+            after = self._numbers(
+                generate(shuffled_path, profile=PUBSUB_CDC, numbers=dict(lock))
+            )
+        finally:
+            shuffled_path.unlink()
+
+        moved = {
+            k: (baseline[k], after[k]) for k in baseline if after.get(k) != baseline[k]
+        }
+        assert not moved, f"reordering moved these field numbers: {moved}"
+
+    def test_a_new_column_gets_a_fresh_number_and_disturbs_nothing(self):
+        schema = json.loads(BQ_SCHEMA_PATH.read_text())["schema"]
+        lock = generate_proto.load_field_numbers()
+        baseline = self._numbers(generate(profile=PUBSUB_CDC, numbers=dict(lock)))
+
+        grown = [*schema, {"name": "brand_new", "type": "STRING", "mode": "NULLABLE"}]
+        grown_path = BQ_SCHEMA_PATH.parent / "_grown.json"
+        grown_path.write_text(json.dumps({"schema": grown}))
+        try:
+            after = self._numbers(
+                generate(grown_path, profile=PUBSUB_CDC, numbers=dict(lock))
+            )
+        finally:
+            grown_path.unlink()
+
+        assert "ActivityRow.brand_new" in after
+        assert after["ActivityRow.brand_new"] not in baseline.values()
+        moved = {
+            k: (baseline[k], after[k]) for k in baseline if after.get(k) != baseline[k]
+        }
+        assert not moved, f"adding a column moved these field numbers: {moved}"
+
+    def test_allocation_never_lands_on_a_pinned_cdc_number(self):
+        numbers = {"ActivityRow.a": 997}
+        allocated = generate_proto._locked_number(numbers, "ActivityRow", "b")
+        assert allocated not in (998, 999)
+
+    def test_the_committed_proto_matches_the_committed_lock(self):
+        numbers = self._numbers(generate(profile=PUBSUB_CDC))
+        lock = generate_proto.load_field_numbers()
+        for key, value in lock.items():
+            if key in numbers:
+                assert numbers[key] == value, f"{key} drifted from the lock"

@@ -14,24 +14,23 @@
 # cannot fail a webhook. A misbehaving prototype can only affect
 # activities_live, which nothing reads.
 #
-# ---- Mode: use_table_schema + JSON (prototype) --------------------------------
-# The subscription maps JSON message fields to the destination table's schema
-# (use_table_schema), so there is NO Pub/Sub topic schema and NO protobuf here.
-# CDC is implicit: because activities_live has a primary key, a message whose
-# body carries `_CHANGE_TYPE = "UPSERT" | "DELETE"` (and optional
-# `_CHANGE_SEQUENCE_NUMBER` for ordering) is applied as an upsert/delete rather
-# than a plain append.
+# ---- Mode: selected by app_config.dispatcher_activity_row_encoding ------------
+# One value drives three things that must agree: the dispatcher's
+# ACTIVITY_ROW_ENCODING, whether this topic carries a protobuf schema, and
+# whether the subscription maps by topic or table schema.
 #
-# ---- The 1-to-1 seam to protobuf (future) -------------------------------------
-# Moving to publish-time-typed protobuf is a small, local change and does NOT
-# touch the table, the CDC semantics, the DLQ, or the IAM below:
-#   1. add a `google_pubsub_schema` (PROTOCOL_BUFFER) built from the
-#      `bq_activities` proto + the two CDC fields, and set `schema_settings` on
-#      `activity_rows` below;
-#   2. flip `use_table_schema` -> `use_topic_schema` in the bigquery_config;
-#   3. the producer publishes proto bytes instead of JSON.
-# (proto <-> BQ schema mapping is fiddly, but that is deliberately out of scope
-# for this spike.)
+#   "json"  — schemaless topic; the subscription matches JSON field names
+#             against the destination table (use_table_schema). Malformed rows
+#             are accepted at publish and rejected later by BigQuery, so they
+#             surface as dead letters.
+#   "proto" — topic bound to the generated bq_activity_rows schema; the
+#             subscription reads that (use_topic_schema). Pub/Sub validates at
+#             publish time, so a bad row fails the publish call instead.
+#
+# CDC is implicit either way: because activities_live has a primary key, a
+# message carrying `_CHANGE_TYPE = "UPSERT" | "DELETE"` (with
+# `_CHANGE_SEQUENCE_NUMBER` for ordering) is applied as an upsert or delete
+# rather than appended.
 #
 # ---- Smoke test (run after apply; needs a dev project) ------------------------
 #   T="$(terraform output -raw activity_rows_topic)"      # or the literal name
@@ -47,15 +46,38 @@
 # that photos.urls (JSON) accepts null/omitted (never ""), for the producer task.
 # ==============================================================================
 
-# ---- Topic that carries activity ROW messages (schemaless for the JSON spike) -
+# ---- Topic schema, bound only when the producer speaks protobuf ---------------
+# Created unconditionally so the schema exists to switch onto; binding it to the
+# topic is what actually changes behavior, and that is gated below.
+resource "google_pubsub_schema" "activity_rows" {
+  name       = "${var.project_name}-activity-rows-${var.environment}"
+  type       = "PROTOCOL_BUFFER"
+  definition = file("${path.module}/../../../schemas/proto/desirelines/bigquery/cdc/v1/bq_activity_rows.proto")
+}
+
 resource "google_pubsub_topic" "activity_rows" {
   name   = "${var.project_name}-activity-rows-${var.environment}"
   labels = local.common_labels
 
   message_retention_duration = "604800s" # 7 days
 
-  # NOTE (proto seam): add `schema_settings { schema = ..., encoding = "BINARY" }`
-  # here when moving to use_topic_schema + protobuf.
+  # Binding the schema makes Pub/Sub validate at publish time, which is the
+  # point of protobuf here: a row that does not fit the table is refused by the
+  # publish call rather than accepted, delivered, and dead-lettered by BigQuery
+  # minutes later.
+  #
+  # It also makes the topic reject JSON outright, so this and the dispatcher's
+  # ACTIVITY_ROW_ENCODING must move together — hence both reading the same
+  # variable. A Cloud Run revision does not roll instantly, so expect a brief
+  # window where publishes fail; they surface as row_publish{result="error"}
+  # and dead-letter nothing.
+  dynamic "schema_settings" {
+    for_each = var.app_config.dispatcher_activity_row_encoding == "proto" ? [1] : []
+    content {
+      schema   = google_pubsub_schema.activity_rows.id
+      encoding = "BINARY"
+    }
+  }
 
   depends_on = [google_project_service.required_apis]
 }
@@ -155,9 +177,15 @@ resource "google_pubsub_subscription" "activities_live_writer" {
   bigquery_config {
     table = "${var.gcp_project_id}.${google_bigquery_dataset.activities_dataset.dataset_id}.${google_bigquery_table.activities_live.table_id}"
 
-    # JSON messages mapped to the table schema (prototype). CDC is implicit via
-    # the table primary key + the message's _CHANGE_TYPE field.
-    use_table_schema = true
+    # Which schema the subscription maps messages through, following the
+    # producer's encoding. CDC is implicit either way, via the table primary key
+    # plus the message's _CHANGE_TYPE field.
+    #
+    # use_topic_schema reads the protobuf schema bound to the topic above;
+    # use_table_schema matches JSON field names against the destination table.
+    # Exactly one may be set.
+    use_topic_schema = var.app_config.dispatcher_activity_row_encoding == "proto"
+    use_table_schema = var.app_config.dispatcher_activity_row_encoding != "proto"
 
     # Tolerate Strava fields that aren't columns in the BQ schema. The CDC
     # pseudo-fields (_CHANGE_TYPE / _CHANGE_SEQUENCE_NUMBER) are reserved and

@@ -1,7 +1,6 @@
 package bqrow
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -54,27 +53,18 @@ func clampToUint64(v int64) uint64 {
 //
 // Returns [ErrNoActivityID] if the payload carries no "id".
 func Upsert(rawActivity []byte, sequenceNumber string) ([]byte, error) {
-	// UseNumber keeps integer literals exactly as Strava sent them. Decoding
-	// into float64 would re-encode large IDs in exponent notation, which
-	// BigQuery rejects for an INTEGER column.
-	decoder := json.NewDecoder(bytes.NewReader(rawActivity))
-	decoder.UseNumber()
-
-	var row map[string]any
-	if err := decoder.Decode(&row); err != nil {
-		return nil, fmt.Errorf("decode raw activity: %w", err)
-	}
-	if row[fieldID] == nil {
-		return nil, ErrNoActivityID
+	row, err := decodeActivity(rawActivity)
+	if err != nil {
+		return nil, err
 	}
 
 	normalize(row)
 	row[fieldChangeType] = ChangeTypeUpsert
 	row[fieldChangeSeq] = sequenceNumber
 
-	body, err := json.Marshal(row)
-	if err != nil {
-		return nil, fmt.Errorf("marshal activity row: %w", err)
+	body, marshalErr := json.Marshal(row)
+	if marshalErr != nil {
+		return nil, fmt.Errorf("marshal activity row: %w", marshalErr)
 	}
 	return body, nil
 }
