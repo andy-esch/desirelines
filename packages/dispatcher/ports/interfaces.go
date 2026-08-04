@@ -15,6 +15,11 @@ var (
 	ErrActivityNotFound = errors.New("activity not found")
 	// ErrTokenNotFound is returned when no Strava tokens exist for an athlete.
 	ErrTokenNotFound = errors.New("token not found")
+	// ErrStravaAuthFailed is returned when Strava permanently rejected the
+	// athlete's credentials — a revoked, rotated or otherwise dead refresh
+	// token. Deliberately distinct from a transient Strava failure: retrying
+	// cannot resolve it, only the athlete re-authorizing can.
+	ErrStravaAuthFailed = errors.New("strava authentication failed")
 	// ErrTokenConflict is returned when a concurrent token refresh was detected.
 	// The caller should re-read the tokens and retry with the winner's values.
 	ErrTokenConflict = errors.New("token conflict: concurrent refresh detected")

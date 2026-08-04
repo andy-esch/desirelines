@@ -31,8 +31,10 @@ var (
 	// ErrActivityNotFound is an alias for ports.ErrActivityNotFound for
 	// backward compatibility within this package's tests.
 	ErrActivityNotFound = ports.ErrActivityNotFound
-	ErrStravaAuth       = errors.New("strava: authentication failed after retry")
-	ErrStravaAPI        = errors.New("strava: API error")
+	// ErrStravaAuth is an alias for ports.ErrStravaAuthFailed. The port owns the
+	// contract because callers outside this package classify on it.
+	ErrStravaAuth = ports.ErrStravaAuthFailed
+	ErrStravaAPI  = errors.New("strava: API error")
 
 	// errRefreshTokenRejected marks a 400/401 response from Strava's
 	// /oauth/token endpoint. The stored refresh token itself has been

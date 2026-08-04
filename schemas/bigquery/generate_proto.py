@@ -93,6 +93,9 @@ class _Profile:
     purpose: str
     go_package: str | None = None
     cdc_fields: bool = False
+    # Whether field numbers come from the committed lock rather than position.
+    # Only the encoding that travels as binary needs it.
+    locked_numbers: bool = False
 
 
 # The CDC pseudocolumns, shaped like BQ columns so the normal field emitter
@@ -160,9 +163,23 @@ PUBSUB_CDC = _Profile(
     ),
     go_package="github.com/andy-esch/desirelines/packages/dispatcher/types/generated",
     cdc_fields=True,
+    locked_numbers=True,
 )
 
 PROFILES: tuple[_Profile, ...] = (STORAGE_WRITE, PUBSUB_CDC)
+
+# Committed field-number assignments for the pubsub-cdc profile.
+#
+# That profile is published as binary against a Pub/Sub topic schema, where a
+# field's NUMBER is its wire identity. Numbering by position would make
+# appending a column safe but inserting or reordering one silently destructive:
+# every following field shifts and in-flight messages decode into the wrong
+# fields. Locking the assignments makes position irrelevant — a column can move
+# anywhere in the BQ schema and keep its number.
+#
+# Regenerating updates this file: existing paths keep their number, new ones get
+# the next free one in their message. Numbers are never reused.
+FIELD_NUMBERS_PATH = REPO_ROOT / "schemas/bigquery/cdc_field_numbers.json"
 
 # Guard for the positional numbering in _emit_message: growing the table past
 # these would silently collide with the pins.
@@ -181,6 +198,10 @@ class _Emit:
     """Mutable accumulator for the recursive emit step."""
 
     lines: list[str]
+    # Locked `Message.field` → number assignments, mutated as new fields are
+    # allocated. None means number by position (the storage-write profile,
+    # which is matched by name and does not care).
+    numbers: dict[str, int] | None = None
     # Defaults to the original profile so callers that predate the split — and
     # the generator's own unit tests — construct an _Emit unchanged.
     profile: _Profile = STORAGE_WRITE
@@ -213,13 +234,15 @@ def _emit_message(
             _emit_message(col["fields"], nested_name, out)
             out.write()
 
-    # Second pass: emit field declarations. Numbering is by position, except
-    # for fields carrying an explicit pin (the CDC pseudocolumns).
+    # Second pass: emit field declarations.
     field_number = 1
     for col in schema:
         pinned = col.get(_CDC_FIELD_NUMBER)
         if pinned is not None:
             _emit_field(col, pinned, out)
+            continue
+        if out.numbers is not None:
+            _emit_field(col, _locked_number(out.numbers, name, col["name"]), out)
             continue
         if field_number in _PINNED_FIELD_NUMBERS:
             raise RuntimeError(
@@ -231,6 +254,27 @@ def _emit_message(
 
     out.indent -= 1
     out.write("}")
+
+
+def _locked_number(numbers: dict[str, int], message: str, field: str) -> int:
+    """Return this field's locked number, allocating one if it is new.
+
+    Allocation is per-message and takes the next free number above whatever that
+    message already uses, so a new column can never take a number an existing
+    one has held. Numbers are never reused, so removing a column leaves a gap
+    rather than handing its number to something else.
+    """
+    key = f"{message}.{field}"
+    if key in numbers:
+        return numbers[key]
+
+    prefix = f"{message}."
+    used = {n for k, n in numbers.items() if k.startswith(prefix)}
+    candidate = 1
+    while candidate in used or candidate in _PINNED_FIELD_NUMBERS:
+        candidate += 1
+    numbers[key] = candidate
+    return candidate
 
 
 def _emit_field(col: dict[str, Any], field_number: int, out: _Emit) -> None:
@@ -287,11 +331,23 @@ def _emit_field(col: dict[str, Any], field_number: int, out: _Emit) -> None:
     out.write(f"{prefix}{type_name} {name} = {field_number};{suffix}")
 
 
+def load_field_numbers() -> dict[str, int]:
+    """Read the committed field-number lock, or start empty on first run."""
+    if not FIELD_NUMBERS_PATH.exists():
+        return {}
+    return json.loads(FIELD_NUMBERS_PATH.read_text())
+
+
 def generate(
     bq_schema_path: Path = BQ_SCHEMA_PATH,
     profile: _Profile = STORAGE_WRITE,
+    numbers: dict[str, int] | None = None,
 ) -> str:
-    """Produce the full `.proto` file content from the BQ JSON schema."""
+    """Produce the full `.proto` file content from the BQ JSON schema.
+
+    For the pubsub-cdc profile, ``numbers`` is the field-number lock; it is
+    mutated in place as new fields are allocated so the caller can persist it.
+    """
     schema_doc = json.loads(bq_schema_path.read_text())
     schema = schema_doc["schema"]
     if profile.cdc_fields:
@@ -330,7 +386,9 @@ def generate(
         "",
     ]
 
-    out = _Emit(lines=header.copy(), profile=profile)
+    if profile.locked_numbers and numbers is None:
+        numbers = load_field_numbers()
+    out = _Emit(lines=header.copy(), profile=profile, numbers=numbers)
     _emit_message(schema, message_name, out)
 
     # Trailing newline for POSIX hygiene.
@@ -366,8 +424,11 @@ def main(argv: list[str] | None = None) -> int:
     check_only = "--check" in args
 
     failed = False
+    numbers = load_field_numbers()
     for profile in PROFILES:
-        content = generate(profile=profile)
+        content = generate(
+            profile=profile, numbers=numbers if profile.locked_numbers else None
+        )
         rel_output = profile.output_path.relative_to(REPO_ROOT).as_posix()
 
         if check_only:
@@ -388,6 +449,18 @@ def main(argv: list[str] | None = None) -> int:
         profile.output_path.parent.mkdir(parents=True, exist_ok=True)
         profile.output_path.write_text(content)
         print(f"OK: generated {rel_output} ({len(content)} bytes)")
+
+    if not check_only:
+        FIELD_NUMBERS_PATH.write_text(
+            json.dumps(dict(sorted(numbers.items())), indent=2) + "\n"
+        )
+    elif numbers != load_field_numbers():
+        print(
+            f"FAIL: {FIELD_NUMBERS_PATH.relative_to(REPO_ROOT).as_posix()} is out of sync.\n"
+            "   Run: just generate-bq-proto",
+            file=sys.stderr,
+        )
+        failed = True
 
     return 1 if failed else 0
 

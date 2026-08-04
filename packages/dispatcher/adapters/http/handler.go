@@ -91,6 +91,11 @@ const (
 	// Only reachable for metadata-only updates: any event that fetches on the
 	// primary path hits the orphan branch there and returns before this runs.
 	rowSkipNoTokens = "no_tokens"
+	// rowSkipAuthRevoked: Strava permanently rejected the athlete's credentials.
+	// Same operational answer as rowSkipNoTokens — the athlete must
+	// re-authorize — but kept a distinct label so the runbook can tell "we
+	// never had tokens" from "the tokens we had were revoked".
+	rowSkipAuthRevoked = "auth_revoked"
 	// rowSkipUnsupportedAspect: an aspect type outside create/update/delete.
 	rowSkipUnsupportedAspect = "unsupported_aspect"
 )
@@ -750,18 +755,12 @@ func (h *Handler) buildActivityRow(ctx context.Context, enriched *generated.Enri
 			// this feature cannot change what the source of truth receives.
 			var fetchErr error
 			rawActivity, fetchErr = h.fetchActivityForRow(ctx, webhook, correlationID)
-			switch {
-			case fetchErr == nil:
-			case errors.Is(fetchErr, ports.ErrActivityNotFound):
-				// Deleted between the webhook and the re-fetch. Nothing to
-				// publish, and the DELETE that follows is what matters.
-				return nil, "", rowSkipNoActivity, ""
-			case errors.Is(fetchErr, ports.ErrTokenNotFound):
-				// No tokens for this athlete — see rowSkipNoTokens.
-				return nil, "", rowSkipNoTokens, ""
-			default:
-				// The activity still exists and Strava would not serve it.
-				// An error, not a skip — see rowErrorRefetch.
+			if fetchErr != nil {
+				if skip := rowSkipReasonFor(fetchErr); skip != "" {
+					return nil, "", skip, ""
+				}
+				// Not a settled athlete-side fact, so something is actually
+				// wrong — see rowErrorRefetch.
 				return nil, "", "", rowErrorRefetch
 			}
 		}
@@ -783,6 +782,30 @@ func (h *Handler) buildActivityRow(ctx context.Context, enriched *generated.Enri
 		return nil, "", "", rowErrorBuild
 	}
 	return body, changeType, "", ""
+}
+
+// rowSkipReasonFor maps a re-fetch failure to a skip reason, or "" when the
+// failure deserves to be counted as an error.
+//
+// The dividing line is whether retrying could ever help. An activity that no
+// longer exists, an athlete with no stored tokens, and an athlete whose
+// authorization Strava has revoked are all settled facts about the world: the
+// row publish can do nothing about them and neither can an on-caller. A Strava
+// outage, a rate limit or a timeout is a different thing entirely, and sustained
+// it means rows have quietly stopped updating — which is what the error-rate
+// alert exists to catch. Filing a permanent condition as an error would page
+// someone for a user's account state.
+func rowSkipReasonFor(err error) string {
+	switch {
+	case errors.Is(err, ports.ErrActivityNotFound):
+		return rowSkipNoActivity
+	case errors.Is(err, ports.ErrTokenNotFound):
+		return rowSkipNoTokens
+	case errors.Is(err, ports.ErrStravaAuthFailed):
+		return rowSkipAuthRevoked
+	default:
+		return ""
+	}
 }
 
 // fetchActivityForRow re-fetches an activity that its webhook did not carry, so

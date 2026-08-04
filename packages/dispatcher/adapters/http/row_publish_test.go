@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -362,6 +363,21 @@ func TestActivityRowPublish_RecordsOutcome(t *testing.T) {
 			rowPublisher: &portstest.MockRawPublisher{},
 			wantResult:   rowPublishSkipped,
 			wantDetail:   rowSkipNoTokens,
+		},
+		{
+			// Strava revoked the athlete's credentials. Same class as missing
+			// tokens: permanent, athlete-side, and no amount of retrying or
+			// on-call attention changes it.
+			name: "revoked authorization on re-fetch is a skip",
+			payload: func() webhookproto.StravaWebhookJSON {
+				p := activityWebhook("update")
+				p.Updates = map[string]any{"title": "New name"}
+				return p
+			}(),
+			stravaErr:    fmt.Errorf("proactive token refresh failed: %w", ports.ErrStravaAuthFailed),
+			rowPublisher: &portstest.MockRawPublisher{},
+			wantResult:   rowPublishSkipped,
+			wantDetail:   rowSkipAuthRevoked,
 		},
 		{
 			// The same re-fetch failing for any OTHER reason is not a skip.
