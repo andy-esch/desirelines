@@ -181,6 +181,27 @@ PROFILES: tuple[_Profile, ...] = (STORAGE_WRITE, PUBSUB_CDC)
 # the next free one in their message. Numbers are never reused.
 FIELD_NUMBERS_PATH = REPO_ROOT / "schemas/bigquery/cdc_field_numbers.json"
 
+# The destination table schema for the CDC path, derived from
+# activities_full.json with every mode except the primary key relaxed.
+#
+# Two independent reasons, both discovered the hard way:
+#
+#   1. A CDC delete is addressed by primary key alone. Under use_table_schema
+#      the subscription validates each message against the table, so any
+#      REQUIRED column a delete cannot supply rejects the delete outright.
+#   2. Under use_topic_schema Pub/Sub compares the two *schemas* statically,
+#      before any message exists. Every field is `optional` in proto2, so a
+#      REQUIRED column at any depth fails with INCOMPATIBLE_MODE — including
+#      nested ones, which reason (1) alone would have left alone.
+#
+# Generated rather than transformed in HCL: the nesting is three deep, HCL
+# cannot recurse, and merge() would inject a null `fields` key onto scalars.
+LIVE_SCHEMA_PATH = REPO_ROOT / "schemas/bigquery/activities_live.json"
+
+# The one column that must stay REQUIRED: BigQuery requires a primary-key
+# column to be non-nullable, and every message supplies it.
+_PRIMARY_KEY = "id"
+
 # Guard for the positional numbering in _emit_message: growing the table past
 # these would silently collide with the pins.
 _PINNED_FIELD_NUMBERS: frozenset[int] = frozenset(
@@ -331,6 +352,24 @@ def _emit_field(col: dict[str, Any], field_number: int, out: _Emit) -> None:
     out.write(f"{prefix}{type_name} {name} = {field_number};{suffix}")
 
 
+def relax_schema(fields: list[dict[str, Any]], depth: int = 0) -> list[dict[str, Any]]:
+    """Return the schema with every REQUIRED mode relaxed to NULLABLE.
+
+    The top-level primary key is the sole exception. REPEATED is left alone —
+    it is a cardinality, not a nullability, and proto `repeated` matches it.
+    """
+    relaxed: list[dict[str, Any]] = []
+    for field in fields:
+        copy = dict(field)
+        keep_required = depth == 0 and copy["name"] == _PRIMARY_KEY
+        if copy.get("mode") == "REQUIRED" and not keep_required:
+            copy["mode"] = "NULLABLE"
+        if copy.get("fields"):
+            copy["fields"] = relax_schema(copy["fields"], depth + 1)
+        relaxed.append(copy)
+    return relaxed
+
+
 def load_field_numbers() -> dict[str, int]:
     """Read the committed field-number lock, or start empty on first run.
 
@@ -478,6 +517,29 @@ def main(argv: list[str] | None = None) -> int:
         profile.output_path.parent.mkdir(parents=True, exist_ok=True)
         profile.output_path.write_text(content)
         print(f"OK: generated {rel_output} ({len(content)} bytes)")
+
+    live_schema = (
+        json.dumps(
+            {"schema": relax_schema(json.loads(BQ_SCHEMA_PATH.read_text())["schema"])},
+            indent=2,
+        )
+        + "\n"
+    )
+    rel_live = LIVE_SCHEMA_PATH.relative_to(REPO_ROOT).as_posix()
+    if check_only:
+        existing = LIVE_SCHEMA_PATH.read_text() if LIVE_SCHEMA_PATH.exists() else ""
+        if existing != live_schema:
+            print(
+                f"FAIL: {rel_live} is out of sync with activities_full.json.\n"
+                "   Run: just generate-bq-proto",
+                file=sys.stderr,
+            )
+            failed = True
+        else:
+            print(f"OK: {rel_live} is in sync")
+    else:
+        LIVE_SCHEMA_PATH.write_text(live_schema)
+        print(f"OK: generated {rel_live} ({len(live_schema)} bytes)")
 
     if not check_only:
         FIELD_NUMBERS_PATH.write_text(

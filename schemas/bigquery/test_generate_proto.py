@@ -407,3 +407,55 @@ class TestFieldNumberLock:
         for key, value in lock.items():
             if key in numbers:
                 assert numbers[key] == value, f"{key} drifted from the lock"
+
+
+class TestLiveTableSchema:
+    """The CDC table cannot declare REQUIRED columns beyond its primary key.
+
+    Two independent reasons, both found in prod: a CDC delete carries only the
+    key, so under use_table_schema any REQUIRED column rejects it; and under
+    use_topic_schema Pub/Sub compares the schemas statically, where every
+    proto2 field is `optional`, so a REQUIRED column at any depth fails the
+    subscription update with INCOMPATIBLE_MODE.
+    """
+
+    def _required_paths(self, fields: list[dict], prefix: str = "") -> list[str]:
+        found = []
+        for field in fields:
+            path = f"{prefix}{field['name']}"
+            if field.get("mode") == "REQUIRED":
+                found.append(path)
+            if field.get("fields"):
+                found += self._required_paths(field["fields"], path + ".")
+        return found
+
+    def test_only_the_primary_key_stays_required(self):
+        schema = json.loads(BQ_SCHEMA_PATH.read_text())["schema"]
+        assert self._required_paths(generate_proto.relax_schema(schema)) == ["id"]
+
+    def test_nested_required_fields_are_relaxed(self):
+        """The case that broke the dev apply: `laps.start_date`."""
+        schema = json.loads(BQ_SCHEMA_PATH.read_text())["schema"]
+        source_nested = [p for p in self._required_paths(schema) if "." in p]
+        assert source_nested, "fixture no longer exercises nested REQUIRED fields"
+        assert "laps.start_date" in source_nested
+
+        relaxed = generate_proto.relax_schema(schema)
+        assert not [p for p in self._required_paths(relaxed) if "." in p]
+
+    def test_repeated_is_left_alone(self):
+        """REPEATED is cardinality, not nullability; proto `repeated` matches it."""
+        schema = json.loads(BQ_SCHEMA_PATH.read_text())["schema"]
+        before = {f["name"] for f in schema if f.get("mode") == "REPEATED"}
+        after = {
+            f["name"]
+            for f in generate_proto.relax_schema(schema)
+            if f.get("mode") == "REPEATED"
+        }
+        assert before, "fixture no longer exercises REPEATED fields"
+        assert before == after
+
+    def test_the_committed_live_schema_matches(self):
+        schema = json.loads(BQ_SCHEMA_PATH.read_text())["schema"]
+        committed = json.loads(generate_proto.LIVE_SCHEMA_PATH.read_text())["schema"]
+        assert committed == generate_proto.relax_schema(schema)
