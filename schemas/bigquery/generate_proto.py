@@ -332,10 +332,39 @@ def _emit_field(col: dict[str, Any], field_number: int, out: _Emit) -> None:
 
 
 def load_field_numbers() -> dict[str, int]:
-    """Read the committed field-number lock, or start empty on first run."""
+    """Read the committed field-number lock, or start empty on first run.
+
+    The shape is checked rather than trusted. This file is committed and
+    editable by hand, and these numbers are wire identity — a bad entry that
+    slipped through would surface as a mis-numbered field on a live topic
+    rather than as a failed generation.
+    """
     if not FIELD_NUMBERS_PATH.exists():
         return {}
-    return json.loads(FIELD_NUMBERS_PATH.read_text())
+
+    raw = json.loads(FIELD_NUMBERS_PATH.read_text())
+    if not isinstance(raw, dict):
+        raise TypeError(
+            f"{FIELD_NUMBERS_PATH.name} must be a JSON object mapping "
+            f"'Message.field' to a field number, got {type(raw).__name__}"
+        )
+
+    numbers: dict[str, int] = {}
+    for key, value in raw.items():
+        # bool is an int subclass, and `true` in the JSON would otherwise
+        # silently become field number 1.
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise TypeError(
+                f"{FIELD_NUMBERS_PATH.name}: {key!r} maps to {value!r}; "
+                "field numbers must be integers"
+            )
+        if value < 1:
+            raise ValueError(
+                f"{FIELD_NUMBERS_PATH.name}: {key!r} maps to {value}; "
+                "field numbers start at 1"
+            )
+        numbers[str(key)] = value
+    return numbers
 
 
 def generate(
