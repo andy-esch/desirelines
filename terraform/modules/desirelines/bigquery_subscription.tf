@@ -126,22 +126,21 @@ resource "google_pubsub_subscription" "activity_rows_dlq_monitoring" {
 # and the delete dead-letters instead of removing the row. So a CDC table whose
 # producer issues deletes cannot declare REQUIRED columns beyond its key.
 #
-# `id` stays REQUIRED — BigQuery requires a primary-key column to be
-# non-nullable, and every message supplies it. Nested REQUIRED fields are left
-# alone: their parent records are nullable, so a delete simply omits the parent
-# and never has to satisfy them. Upserts are unaffected — they still carry the
-# full row.
-locals {
-  activities_full_schema = jsondecode(file("${path.module}/../../../schemas/bigquery/activities_full.json")).schema
-
-  activities_live_schema = [
-    for field in local.activities_full_schema :
-    field.name == "id" ? field : merge(field, {
-      mode = field.mode == "REQUIRED" ? "NULLABLE" : field.mode
-    })
-  ]
-}
-
+# Under use_topic_schema there is a second, stricter reason. Pub/Sub compares
+# the topic schema against the table schema statically, before any message
+# exists, and proto2 labels every field `optional`. A REQUIRED column at ANY
+# depth then fails the subscription update outright:
+#
+#   "Incompatible schema: field laps.start_date is required in table, but
+#    nullable in topic"
+#
+# So nested REQUIRED fields cannot survive either — 106 of them. `id` is the
+# sole exception, since BigQuery requires a primary-key column to be
+# non-nullable and every message supplies it.
+#
+# The relaxed schema is generated rather than transformed here: the nesting is
+# three deep, HCL cannot recurse, and merge() would attach a null `fields` key
+# to every scalar. See schemas/bigquery/generate_proto.py.
 resource "google_bigquery_table" "activities_live" {
   dataset_id          = google_bigquery_dataset.activities_dataset.dataset_id
   table_id            = "activities_live"
@@ -151,7 +150,7 @@ resource "google_bigquery_table" "activities_live" {
 
   labels = local.common_labels
 
-  schema = jsonencode(local.activities_live_schema)
+  schema = jsonencode(jsondecode(file("${path.module}/../../../schemas/bigquery/activities_live.json")).schema)
 
   # CDC upserts/deletes key on this primary key (non-enforced in BigQuery).
   table_constraints {
