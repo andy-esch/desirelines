@@ -184,6 +184,11 @@ variable "app_config" {
     # Best-effort dual-publish of activity rows to the BigQuery CDC topic.
     # Default off: additive, and its destination table has no readers yet.
     dispatcher_activity_row_publish_enabled = optional(bool, false)
+    # Wire format for activity rows: "json" or "proto". Drives the dispatcher's
+    # ACTIVITY_ROW_ENCODING, whether the topic carries a protobuf schema, and
+    # whether the subscription maps by topic or table schema — they must agree,
+    # so they read one value.
+    dispatcher_activity_row_encoding = optional(string, "json")
   })
   default = {
     log_level = "INFO"

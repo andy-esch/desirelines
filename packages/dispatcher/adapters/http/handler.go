@@ -160,6 +160,7 @@ type Handler struct {
 	webhookCounter     metric.Int64Counter
 	ownerCheckCounter  metric.Int64Counter
 	rowPublishCounter  metric.Int64Counter
+	rowEncoding        bqrow.Encoding
 	rowRefetchTimeout  time.Duration
 	httpHistogram      metric.Float64Histogram
 	tracer             trace.Tracer
@@ -179,6 +180,10 @@ type HandlerConfig struct {
 	// RowPublishCounter counts the outcome of every row publish attempt
 	// (published / skipped / error). Optional; nil disables the metric.
 	RowPublishCounter metric.Int64Counter
+	// RowEncoding is the wire format for activity rows. Empty takes
+	// bqrow.EncodingJSON, which is what the topic accepts until a schema is
+	// attached to it.
+	RowEncoding bqrow.Encoding
 	// RowRefetchTimeout bounds the Strava re-fetch made for a metadata-only
 	// update. Zero takes DefaultRowRefetchTimeout.
 	RowRefetchTimeout time.Duration
@@ -196,6 +201,10 @@ func NewHandler(publisher, deauthPublisher ports.Publisher, secretProvider ports
 	maxBodySize := config.DefaultMaxRequestBodySize
 	if cfg.MaxRequestBodySize > 0 {
 		maxBodySize = cfg.MaxRequestBodySize
+	}
+	rowEncoding := cfg.RowEncoding
+	if !rowEncoding.Valid() {
+		rowEncoding = bqrow.EncodingJSON
 	}
 	rowRefetchTimeout := DefaultRowRefetchTimeout
 	if cfg.RowRefetchTimeout > 0 {
@@ -223,6 +232,7 @@ func NewHandler(publisher, deauthPublisher ports.Publisher, secretProvider ports
 		webhookCounter:     cfg.WebhookCounter,
 		ownerCheckCounter:  cfg.OwnerCheckCounter,
 		rowPublishCounter:  cfg.RowPublishCounter,
+		rowEncoding:        rowEncoding,
 		rowRefetchTimeout:  rowRefetchTimeout,
 		httpHistogram:      cfg.HTTPHistogram,
 		tracer:             tracer,
@@ -722,7 +732,7 @@ func (h *Handler) buildActivityRow(ctx context.Context, enriched *generated.Enri
 	var err error
 	switch webhook.AspectType {
 	case generated.AspectType_ASPECT_TYPE_DELETE:
-		body, err = bqrow.Delete(webhook.ObjectId, sequenceNumber)
+		body, err = bqrow.BuildDelete(h.rowEncoding, webhook.ObjectId, sequenceNumber)
 		changeType = bqrow.ChangeTypeDelete
 	case generated.AspectType_ASPECT_TYPE_CREATE, generated.AspectType_ASPECT_TYPE_UPDATE:
 		rawActivity := enriched.RawActivity
@@ -759,7 +769,7 @@ func (h *Handler) buildActivityRow(ctx context.Context, enriched *generated.Enri
 			// A CREATE whose fetch already found the activity gone.
 			return nil, "", rowSkipNoActivity, ""
 		}
-		body, err = bqrow.Upsert(rawActivity, sequenceNumber)
+		body, err = bqrow.BuildUpsert(h.rowEncoding, rawActivity, sequenceNumber)
 		changeType = bqrow.ChangeTypeUpsert
 	default:
 		return nil, "", rowSkipUnsupportedAspect, ""

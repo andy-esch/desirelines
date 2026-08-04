@@ -14,9 +14,11 @@ import (
 	webhookproto "github.com/andy-esch/desirelines/packages/dispatcher/adapters/proto"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports/portstest"
+	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+	"google.golang.org/protobuf/proto"
 )
 
 // rowPublishTestActivity is the payload the mock Strava client returns when a
@@ -32,6 +34,8 @@ type rowPublishSetup struct {
 	// refetchTimeout overrides DefaultRowRefetchTimeout so a timeout test does
 	// not have to wait out the real budget.
 	refetchTimeout time.Duration
+	// encoding selects the row wire format; empty means JSON.
+	encoding bqrow.Encoding
 }
 
 // serveRowPublishWebhook runs one webhook through a handler wired for the
@@ -39,7 +43,11 @@ type rowPublishSetup struct {
 func serveRowPublishWebhook(t *testing.T, setup *rowPublishSetup, payload webhookproto.StravaWebhookJSON) *httptest.ResponseRecorder {
 	t.Helper()
 
-	cfg := &HandlerConfig{RowPublisher: setup.rowPublisher, RowRefetchTimeout: setup.refetchTimeout}
+	cfg := &HandlerConfig{
+		RowPublisher:      setup.rowPublisher,
+		RowRefetchTimeout: setup.refetchTimeout,
+		RowEncoding:       setup.encoding,
+	}
 	if setup.rowCounter != nil {
 		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(setup.rowCounter))
 		counter, err := provider.Meter("test").Int64Counter("desirelines.io/bigquery/row_publish")
@@ -508,6 +516,53 @@ func TestActivityRowPublish_RefetchIsBounded(t *testing.T) {
 		}
 		if got := rowPublisher.PublishedCount(); got != 0 {
 			t.Errorf("published %d rows, want 0 — a timed-out fetch has no row to send", got)
+		}
+	})
+}
+
+// The wire format has to be switchable without a deploy: attaching a schema to
+// the topic makes it reject JSON, so the producer and the topic have to change
+// over together, and the change has to be reversible.
+func TestActivityRowPublish_EncodingIsSelectable(t *testing.T) {
+	publishOne := func(t *testing.T, enc bqrow.Encoding) []byte {
+		t.Helper()
+		rowPublisher := &portstest.MockRawPublisher{}
+		setup := &rowPublishSetup{
+			rowPublisher: rowPublisher,
+			primary:      &portstest.MockPublisher{},
+			strava:       &portstest.MockStravaClient{FetchResult: rowPublishTestActivity},
+			encoding:     enc,
+		}
+		serveRowPublishWebhook(t, setup, activityWebhook("create"))
+		if got := rowPublisher.PublishedCount(); got != 1 {
+			t.Fatalf("published %d rows, want 1", got)
+		}
+		return rowPublisher.Published[0]
+	}
+
+	t.Run("default is JSON", func(t *testing.T) {
+		body := publishOne(t, "")
+		var parsed map[string]any
+		if err := json.Unmarshal(body, &parsed); err != nil {
+			t.Fatalf("default encoding is not JSON: %v", err)
+		}
+		if parsed["_CHANGE_TYPE"] != bqrow.ChangeTypeUpsert {
+			t.Errorf("_CHANGE_TYPE = %v, want %q", parsed["_CHANGE_TYPE"], bqrow.ChangeTypeUpsert)
+		}
+	})
+
+	t.Run("proto emits protobuf, not JSON", func(t *testing.T) {
+		body := publishOne(t, bqrow.EncodingProto)
+		var parsed map[string]any
+		if json.Unmarshal(body, &parsed) == nil {
+			t.Fatal("proto encoding produced parseable JSON — the switch did not route")
+		}
+		var msg generated.ActivityRow
+		if err := proto.Unmarshal(body, &msg); err != nil {
+			t.Fatalf("proto encoding did not produce a valid row message: %v", err)
+		}
+		if msg.GetXCHANGE_TYPE() != bqrow.ChangeTypeUpsert {
+			t.Errorf("_CHANGE_TYPE = %q, want %q", msg.GetXCHANGE_TYPE(), bqrow.ChangeTypeUpsert)
 		}
 	})
 }

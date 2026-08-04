@@ -419,3 +419,48 @@ func TestLoadConfig_ActivityRowPublish(t *testing.T) {
 		}
 	})
 }
+
+// The encoding must match what the topic accepts: a schema-bound topic rejects
+// JSON at publish, and a schemaless one hands protobuf to a subscription that
+// cannot parse it. A typo silently selecting the wrong one is worse than a boot
+// failure, so it is validated rather than defaulted.
+func TestLoadConfig_ActivityRowEncoding(t *testing.T) {
+	setRequired := func(t *testing.T) {
+		t.Setenv("GCP_PROJECT_ID", "test-project")
+		t.Setenv("GCP_PUBSUB_TOPIC", "test-topic")
+		t.Setenv("GCP_PUBSUB_DEAUTH_TOPIC", "test-deauth-topic")
+		t.Setenv("FIRESTORE_DATABASE", "test-db")
+	}
+
+	t.Run("unset defaults to json", func(t *testing.T) {
+		setRequired(t)
+		unsetEnv(t, "ACTIVITY_ROW_ENCODING")
+		cfg, err := LoadConfig()
+		if err != nil {
+			t.Fatalf("LoadConfig failed: %v", err)
+		}
+		if cfg.ActivityRowEncoding != "json" {
+			t.Errorf("ActivityRowEncoding = %q, want json", cfg.ActivityRowEncoding)
+		}
+	})
+
+	t.Run("proto is accepted", func(t *testing.T) {
+		setRequired(t)
+		t.Setenv("ACTIVITY_ROW_ENCODING", "proto")
+		cfg, err := LoadConfig()
+		if err != nil {
+			t.Fatalf("LoadConfig failed: %v", err)
+		}
+		if cfg.ActivityRowEncoding != "proto" {
+			t.Errorf("ActivityRowEncoding = %q, want proto", cfg.ActivityRowEncoding)
+		}
+	})
+
+	t.Run("an unknown encoding is rejected at boot", func(t *testing.T) {
+		setRequired(t)
+		t.Setenv("ACTIVITY_ROW_ENCODING", "protobuf")
+		if _, err := LoadConfig(); err == nil {
+			t.Error("LoadConfig accepted an unknown encoding; want an error")
+		}
+	})
+}

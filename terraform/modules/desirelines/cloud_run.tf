@@ -151,6 +151,11 @@ resource "google_cloud_run_v2_service" "dispatcher" {
         value = google_pubsub_topic.activity_rows.name
       }
 
+      env {
+        name  = "ACTIVITY_ROW_ENCODING"
+        value = var.app_config.dispatcher_activity_row_encoding
+      }
+
       # Cloud Run serves no traffic until this probe passes, so the poll period
       # is a floor on cold-start latency — and Strava retries any webhook not
       # answered within 2s. The app binds its port in ~290ms, so a 1s period
