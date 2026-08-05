@@ -192,15 +192,19 @@ FIELD_NUMBERS_PATH = REPO_ROOT / "schemas/bigquery/cdc_field_numbers.json"
 #   2. Under use_topic_schema Pub/Sub compares the two *schemas* statically,
 #      before any message exists. Every field is `optional` in proto2, so a
 #      REQUIRED column at any depth fails with INCOMPATIBLE_MODE — including
-#      nested ones, which reason (1) alone would have left alone.
+#      the primary key, and including nested fields, which reason (1) alone
+#      would have left alone.
+#
+# That means EVERY column is relaxed, the primary key included. BigQuery permits
+# a primary key on a NULLABLE column — verified against a real table, which kept
+# its `primaryKey` constraint with `id` NULLABLE — and the constraint is NOT
+# ENFORCED regardless, so the mode was never what guaranteed a key was present.
+# The producer is what guarantees that: bqrow refuses to build a row without an
+# id (ErrNoActivityID).
 #
 # Generated rather than transformed in HCL: the nesting is three deep, HCL
 # cannot recurse, and merge() would inject a null `fields` key onto scalars.
 LIVE_SCHEMA_PATH = REPO_ROOT / "schemas/bigquery/activities_live.json"
-
-# The one column that must stay REQUIRED: BigQuery requires a primary-key
-# column to be non-nullable, and every message supplies it.
-_PRIMARY_KEY = "id"
 
 # Guard for the positional numbering in _emit_message: growing the table past
 # these would silently collide with the pins.
@@ -352,20 +356,20 @@ def _emit_field(col: dict[str, Any], field_number: int, out: _Emit) -> None:
     out.write(f"{prefix}{type_name} {name} = {field_number};{suffix}")
 
 
-def relax_schema(fields: list[dict[str, Any]], depth: int = 0) -> list[dict[str, Any]]:
+def relax_schema(fields: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Return the schema with every REQUIRED mode relaxed to NULLABLE.
 
-    The top-level primary key is the sole exception. REPEATED is left alone —
-    it is a cardinality, not a nullability, and proto `repeated` matches it.
+    No exceptions, the primary key included — see LIVE_SCHEMA_PATH for why.
+    REPEATED is left alone: it is a cardinality rather than a nullability, and
+    proto `repeated` matches it.
     """
     relaxed: list[dict[str, Any]] = []
     for field in fields:
         copy = dict(field)
-        keep_required = depth == 0 and copy["name"] == _PRIMARY_KEY
-        if copy.get("mode") == "REQUIRED" and not keep_required:
+        if copy.get("mode") == "REQUIRED":
             copy["mode"] = "NULLABLE"
         if copy.get("fields"):
-            copy["fields"] = relax_schema(copy["fields"], depth + 1)
+            copy["fields"] = relax_schema(copy["fields"])
         relaxed.append(copy)
     return relaxed
 
