@@ -429,9 +429,17 @@ class TestLiveTableSchema:
                 found += self._required_paths(field["fields"], path + ".")
         return found
 
-    def test_only_the_primary_key_stays_required(self):
+    def test_nothing_stays_required_not_even_the_primary_key(self):
+        """Under use_topic_schema, a REQUIRED column anywhere is incompatible.
+
+        Every proto2 field is `optional`, so Pub/Sub rejects the subscription
+        with INCOMPATIBLE_MODE for any REQUIRED column — the primary key
+        included. BigQuery keeps the primary-key constraint on a NULLABLE
+        column, and it is NOT ENFORCED regardless; the producer is what
+        guarantees a key is present (bqrow.ErrNoActivityID).
+        """
         schema = json.loads(BQ_SCHEMA_PATH.read_text())["schema"]
-        assert self._required_paths(generate_proto.relax_schema(schema)) == ["id"]
+        assert self._required_paths(generate_proto.relax_schema(schema)) == []
 
     def test_nested_required_fields_are_relaxed(self):
         """The case that broke the dev apply: `laps.start_date`."""
