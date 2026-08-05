@@ -241,7 +241,7 @@ message ActivityRow {
   }
 
   // Strava activity ID (primary key)
-  optional int64 id = 1;
+  required int64 id = 1;
   // External activity ID
   optional string external_id = 2;
   // Strava upload ID

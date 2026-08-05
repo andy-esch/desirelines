@@ -174,3 +174,31 @@ func TestUpsertProto_RealStravaFixtures(t *testing.T) {
 		})
 	}
 }
+
+// The primary key is labeled `required` in the CDC proto so its mode matches
+// the table's key column, which BigQuery will not let us relax. The label is
+// not decorative: proto.Marshal refuses a message without it, so a row that
+// somehow lost its key fails locally instead of reaching the topic.
+func TestActivityRow_RequiresThePrimaryKey(t *testing.T) {
+	var missingKey generated.ActivityRow
+	missingKey.XCHANGE_TYPE = proto.String(ChangeTypeUpsert)
+	if _, err := proto.Marshal(&missingKey); err == nil {
+		t.Error("marshaled a row with no id; the required label is not being enforced")
+	}
+
+	// And both producer paths do set it, so neither can hit that.
+	upsert, err := UpsertProto([]byte(rawActivity), testSeq)
+	if err != nil {
+		t.Fatalf("UpsertProto() error = %v", err)
+	}
+	if decodeRowMessage(t, upsert).GetId() == 0 {
+		t.Error("upsert produced no id")
+	}
+	del, err := DeleteProto(42, testSeq)
+	if err != nil {
+		t.Fatalf("DeleteProto() error = %v", err)
+	}
+	if decodeRowMessage(t, del).GetId() != 42 {
+		t.Error("delete produced no id")
+	}
+}

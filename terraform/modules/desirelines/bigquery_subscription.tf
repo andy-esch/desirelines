@@ -134,13 +134,15 @@ resource "google_pubsub_subscription" "activity_rows_dlq_monitoring" {
 #   "Incompatible schema: field laps.start_date is required in table, but
 #    nullable in topic"
 #
-# So no column can be REQUIRED — 106 nested ones, and the primary key too.
+# So no column can be REQUIRED — 106 nested ones included. The primary key is
+# the exception, because BigQuery will not relax a key column on an existing
+# table:
 #
-# NULLABLE here is a schema-compatibility artifact, not a claim that `id` is
-# ever absent. It never is: the producer refuses to build a row without one
-# (bqrow.ErrNoActivityID), and a delete carries the key by definition. The
-# column's mode was not what guaranteed that anyway — BigQuery primary keys are
-# NOT ENFORCED, so the guarantee has always lived in the producer.
+#   "Key column id cannot be modified or removed.
+#    column's mode changed: REQUIRED -> NULLABLE"
+#
+# It stays REQUIRED here and the CDC proto labels it `required` to match, so the
+# two schemas agree without this table being replaced.
 #
 # The relaxed schema is generated rather than transformed here: the nesting is
 # three deep, HCL cannot recurse, and merge() would attach a null `fields` key

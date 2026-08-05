@@ -24,6 +24,27 @@ breaking:
     MESSAGE_SAME_JSON_FORMAT:
       - desirelines/bigquery/v1/bq_activities.proto
 
+    # bq_activity_rows.proto labels its primary key `required`, which buf
+    # rightly flags: a required field cannot be removed later without breaking
+    # every consumer, and a producer unaware of it emits messages that fail
+    # validation.
+    #
+    # Neither hazard applies here. The field is `id`, the CDC primary key: every
+    # message must carry it — an upsert and a delete alike — and the sole
+    # producer refuses to build a row without one (bqrow.ErrNoActivityID). The
+    # sole consumer is a Pub/Sub BigQuery subscription. No message has ever been
+    # published under the previous cardinality; the topic carried JSON until
+    # this migration.
+    #
+    # The label is not a preference. BigQuery will not relax a primary-key
+    # column on an existing table ("Key column id cannot be modified or
+    # removed"), so the table's REQUIRED mode is fixed, and use_topic_schema
+    # rejects the subscription unless the proto agrees.
+    FIELD_WIRE_JSON_COMPATIBLE_CARDINALITY:
+      - desirelines/bigquery/cdc/v1/bq_activity_rows.proto
+    MESSAGE_SAME_REQUIRED_FIELDS:
+      - desirelines/bigquery/cdc/v1/bq_activity_rows.proto
+
 # Buf configuration for Desirelines protobuf schemas
 #
 # Lint (STANDARD) includes:

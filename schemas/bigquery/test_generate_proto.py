@@ -429,17 +429,30 @@ class TestLiveTableSchema:
                 found += self._required_paths(field["fields"], path + ".")
         return found
 
-    def test_nothing_stays_required_not_even_the_primary_key(self):
-        """Under use_topic_schema, a REQUIRED column anywhere is incompatible.
+    def test_only_the_primary_key_stays_required(self):
+        """BigQuery refuses to relax a key column on an existing table:
 
-        Every proto2 field is `optional`, so Pub/Sub rejects the subscription
-        with INCOMPATIBLE_MODE for any REQUIRED column — the primary key
-        included. BigQuery keeps the primary-key constraint on a NULLABLE
-        column, and it is NOT ENFORCED regardless; the producer is what
-        guarantees a key is present (bqrow.ErrNoActivityID).
+            Key column id cannot be modified or removed.
+            column's mode changed: REQUIRED -> NULLABLE
+
+        So the key stays REQUIRED and the CDC proto labels it `required` to
+        match. Everything else relaxes.
         """
         schema = json.loads(BQ_SCHEMA_PATH.read_text())["schema"]
-        assert self._required_paths(generate_proto.relax_schema(schema)) == []
+        assert self._required_paths(generate_proto.relax_schema(schema)) == ["id"]
+
+    def test_the_cdc_proto_marks_the_primary_key_required(self):
+        """The other half of that agreement — without it the modes disagree
+        and Pub/Sub rejects the subscription with INCOMPATIBLE_MODE."""
+        content = generate(profile=PUBSUB_CDC)
+        assert "required int64 id = 1;" in content
+        # Nested records have their own `id`; only the row's key is required.
+        assert content.count("required ") == 1
+
+    def test_the_storage_write_proto_has_no_required_fields(self):
+        """Storage Write wants every field optional; only the CDC profile
+        carries the label."""
+        assert "required " not in generate(profile=STORAGE_WRITE)
 
     def test_nested_required_fields_are_relaxed(self):
         """The case that broke the dev apply: `laps.start_date`."""
