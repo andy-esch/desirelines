@@ -134,15 +134,20 @@ resource "google_pubsub_subscription" "activity_rows_dlq_monitoring" {
 #   "Incompatible schema: field laps.start_date is required in table, but
 #    nullable in topic"
 #
-# So no column can be REQUIRED — 106 nested ones included. The primary key is
-# the exception, because BigQuery will not relax a key column on an existing
-# table:
+# So no column can be REQUIRED — 106 nested ones and the primary key alike.
 #
-#   "Key column id cannot be modified or removed.
-#    column's mode changed: REQUIRED -> NULLABLE"
+# The key cannot be relaxed on an existing table ("Key column id cannot be
+# modified or removed"), and the proto cannot be made `required` to match
+# instead, because Pub/Sub refuses a schema revision that adds a required field.
+# The table therefore has to be REPLACED to pick up a nullable key. BigQuery
+# keeps the primary-key constraint on a NULLABLE column, and the constraint is
+# NOT ENFORCED regardless; the producer is what guarantees a key is present
+# (bqrow.ErrNoActivityID).
 #
-# It stays REQUIRED here and the CDC proto labels it `required` to match, so the
-# two schemas agree without this table being replaced.
+# Replacing it is cheap by design: deletion_protection is off and nothing reads
+# this table. Drop it before applying and Terraform recreates it correctly:
+#
+#   bq rm -f -t <project>:<dataset>.activities_live
 #
 # The relaxed schema is generated rather than transformed here: the nesting is
 # three deep, HCL cannot recurse, and merge() would attach a null `fields` key

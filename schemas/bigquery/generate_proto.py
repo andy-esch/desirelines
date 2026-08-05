@@ -96,10 +96,6 @@ class _Profile:
     # Whether field numbers come from the committed lock rather than position.
     # Only the encoding that travels as binary needs it.
     locked_numbers: bool = False
-    # Whether to label the primary key `required`. Only the profile whose schema
-    # is compared against the table needs it; the Storage Write API wants every
-    # field `optional`.
-    required_primary_key: bool = False
 
 
 # The CDC pseudocolumns, shaped like BQ columns so the normal field emitter
@@ -168,7 +164,6 @@ PUBSUB_CDC = _Profile(
     go_package="github.com/andy-esch/desirelines/packages/dispatcher/types/generated",
     cdc_fields=True,
     locked_numbers=True,
-    required_primary_key=True,
 )
 
 PROFILES: tuple[_Profile, ...] = (STORAGE_WRITE, PUBSUB_CDC)
@@ -200,30 +195,25 @@ FIELD_NUMBERS_PATH = REPO_ROOT / "schemas/bigquery/cdc_field_numbers.json"
 #      the primary key, and including nested fields, which reason (1) alone
 #      would have left alone.
 #
-# Every column is relaxed EXCEPT the primary key, which BigQuery will not let
-# go: relaxing it on an existing table fails with
+# EVERY column is relaxed, the primary key included, because proto2 has no way
+# to say otherwise that survives. Two attempts failed:
 #
-#   "Key column id cannot be modified or removed.
-#    column's mode changed: REQUIRED -> NULLABLE"
+#   - Relaxing the key on the existing table: "Key column id cannot be modified
+#     or removed." A table can be *created* with a nullable key but not altered
+#     into one, so the table must be replaced.
+#   - Labelling the key `required` in the proto instead: Pub/Sub refuses the
+#     schema revision, since adding a required field is incompatible with the
+#     previous one.
 #
-# (A table can be *created* with a nullable primary key, but not altered into
-# one, and replacing this table is not worth it.) Compatibility is restored from
-# the other side instead: the CDC proto labels the primary key `required`, so
-# both schemas agree it is non-null. See _PRIMARY_KEY below.
+# So the table is replaced with a nullable key. BigQuery keeps the primary-key
+# constraint on a NULLABLE column — verified — and the constraint is NOT
+# ENFORCED regardless, so the mode never guaranteed a key was present. The
+# producer does: bqrow refuses to build a row without one (ErrNoActivityID).
 #
 # Generated rather than transformed in HCL: the nesting is three deep, HCL
 # cannot recurse, and merge() would inject a null `fields` key onto scalars.
 LIVE_SCHEMA_PATH = REPO_ROOT / "schemas/bigquery/activities_live.json"
 
-# The primary key. Kept REQUIRED in the table because BigQuery will not relax a
-# key column, and labelled `required` in the CDC proto so the two schemas match.
-#
-# proto2 `required` is normally worth avoiding — it cannot be removed later
-# without breaking every consumer on the wire. It is right here: this is the CDC
-# key, every message must carry it (an upsert and a delete alike), and the
-# producer already refuses to build a row without one (bqrow.ErrNoActivityID).
-# The label states an invariant that already holds rather than adding one.
-_PRIMARY_KEY = "id"
 
 # Guard for the positional numbering in _emit_message: growing the table past
 # these would silently collide with the pins.
@@ -361,14 +351,7 @@ def _emit_field(col: dict[str, Any], field_number: int, out: _Emit) -> None:
     # everything `optional` (even fields BQ declares REQUIRED) per
     # Google's BQ Storage Write API guidance; BQ enforces REQUIRED at
     # insert time independently of the proto label.
-    if mode == "REPEATED":
-        prefix = "repeated "
-    elif out.profile.required_primary_key and out.depth == 0 and name == _PRIMARY_KEY:
-        # Matches the table's REQUIRED key column, which BigQuery will not let
-        # us relax. See _PRIMARY_KEY.
-        prefix = "required "
-    else:
-        prefix = "optional "
+    prefix = "repeated " if mode == "REPEATED" else "optional "
 
     # Add a tag comment for TIMESTAMP/JSON so readers know the BQ semantics.
     #
@@ -387,22 +370,20 @@ def _emit_field(col: dict[str, Any], field_number: int, out: _Emit) -> None:
     out.write(f"{prefix}{type_name} {name} = {field_number};{suffix}")
 
 
-def relax_schema(fields: list[dict[str, Any]], depth: int = 0) -> list[dict[str, Any]]:
+def relax_schema(fields: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Return the schema with every REQUIRED mode relaxed to NULLABLE.
 
-    The top-level primary key is the one exception — BigQuery refuses to relax a
-    key column — and the CDC proto labels it `required` to match. REPEATED is
+    No exceptions, the primary key included — see LIVE_SCHEMA_PATH. REPEATED is
     left alone: it is a cardinality rather than a nullability, and proto
     `repeated` matches it.
     """
     relaxed: list[dict[str, Any]] = []
     for field in fields:
         copy = dict(field)
-        is_primary_key = depth == 0 and copy["name"] == _PRIMARY_KEY
-        if copy.get("mode") == "REQUIRED" and not is_primary_key:
+        if copy.get("mode") == "REQUIRED":
             copy["mode"] = "NULLABLE"
         if copy.get("fields"):
-            copy["fields"] = relax_schema(copy["fields"], depth + 1)
+            copy["fields"] = relax_schema(copy["fields"])
         relaxed.append(copy)
     return relaxed
 
