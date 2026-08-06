@@ -134,19 +134,38 @@ resource "google_pubsub_subscription" "activity_rows_dlq_monitoring" {
 #   "Incompatible schema: field laps.start_date is required in table, but
 #    nullable in topic"
 #
-# So no column can be REQUIRED — 106 nested ones included. The primary key is
-# the exception, because BigQuery will not relax a key column on an existing
-# table:
+# So no column can be REQUIRED — 106 nested ones and the primary key alike.
 #
-#   "Key column id cannot be modified or removed.
-#    column's mode changed: REQUIRED -> NULLABLE"
+# The key cannot be relaxed on an existing table ("Key column id cannot be
+# modified or removed"), and the proto cannot be made `required` to match
+# instead, because Pub/Sub refuses a schema revision that adds a required field.
+# The table therefore has to be REPLACED to pick up a nullable key. BigQuery
+# keeps the primary-key constraint on a NULLABLE column, and the constraint is
+# NOT ENFORCED regardless; the producer is what guarantees a key is present
+# (bqrow.ErrNoActivityID).
 #
-# It stays REQUIRED here and the CDC proto labels it `required` to match, so the
-# two schemas agree without this table being replaced.
+# Replacing it is cheap by design: deletion_protection is off and nothing reads
+# this table. It is also automatic — the table is recreated whenever its schema
+# file changes, via the replace trigger below. Without that, a schema change
+# lands as an in-place update that BigQuery silently declines for key columns,
+# and the subscription then fails to bind with INCOMPATIBLE_MODE. Since deploys
+# apply on merge, there is no reliable moment to drop the table by hand.
+#
+# REMOVE the trigger before this table carries data anything reads. Recreating
+# on every schema change is only acceptable while the table is a rebuildable
+# projection of the event stream.
 #
 # The relaxed schema is generated rather than transformed here: the nesting is
 # three deep, HCL cannot recurse, and merge() would attach a null `fields` key
 # to every scalar. See schemas/bigquery/generate_proto.py.
+# Tracks the schema file so a change to it forces the table to be recreated
+# rather than updated in place. BigQuery accepts most schema edits in place but
+# refuses some — notably relaxing a key column — and a declined edit is not an
+# apply error, so the drift would otherwise persist silently.
+resource "terraform_data" "activities_live_schema" {
+  input = filesha256("${path.module}/../../../schemas/bigquery/activities_live.json")
+}
+
 resource "google_bigquery_table" "activities_live" {
   dataset_id          = google_bigquery_dataset.activities_dataset.dataset_id
   table_id            = "activities_live"
@@ -167,6 +186,10 @@ resource "google_bigquery_table" "activities_live" {
 
   # Cluster on the CDC key for upsert/merge efficiency.
   clustering = ["id"]
+
+  lifecycle {
+    replace_triggered_by = [terraform_data.activities_live_schema]
+  }
 }
 
 # ---- The CDC BigQuery subscription (no subscriber code) -----------------------
