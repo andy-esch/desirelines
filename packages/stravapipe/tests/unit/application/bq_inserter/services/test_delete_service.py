@@ -52,11 +52,7 @@ def test_delete_activity_not_found():
 
 
 def test_delete_activity_retains_no_copy():
-    """Deletion must not archive the row into another table.
-
-    This service used to INSERT the activity into `deleted_activities` first,
-    which retained the very data the deletion existed to remove.
-    """
+    """No archive table: a copy of the row would defeat the deletion."""
     service, client = _make_service()
     client.execute_dml_query.return_value = 1
 

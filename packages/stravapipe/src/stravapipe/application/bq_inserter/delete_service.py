@@ -1,14 +1,7 @@
-"""Remove a deleted activity from the legacy BigQuery activities table.
+"""Remove a deleted activity from the legacy BigQuery `activities` table.
 
-This previously copied the activity into a `deleted_activities` table before
-deleting it, described as an audit trail. It was not one — the copy carried the
-whole activity payload, so a deletion moved the data rather than removing it.
-The record of a deletion is now the log line below.
-
-Legacy path. The CDC subscription already deletes natively: the dispatcher
-publishes `_CHANGE_TYPE=DELETE` and BigQuery removes the row from
-`activities_live` with no DML and no service. This exists only for the
-`activities` table and retires with it.
+Legacy path — `activities_live` needs no equivalent, since the CDC subscription
+applies the dispatcher's `_CHANGE_TYPE=DELETE` natively. Retires with the table.
 """
 
 from dataclasses import dataclass

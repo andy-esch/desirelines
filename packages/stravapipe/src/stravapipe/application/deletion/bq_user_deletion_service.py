@@ -1,31 +1,16 @@
-"""BigQuery user deletion service for Strava deauthorization.
+"""Delete an athlete's BigQuery data on Strava deauthorization.
 
-When a user disconnects the app from Strava, the Strava API Agreement
-(Section 5.4, https://www.strava.com/legal/api) requires that all user
-data is deleted within 48 hours.
+Required within 48 hours by the Strava API Agreement §5.4
+(https://www.strava.com/legal/api). Covers every table holding activity rows:
+`activities`, `activities_staging`, and `activities_live`.
 
-This service handles the BigQuery portion of that deletion, removing the
-athlete's rows from every table that holds them:
+Nothing is archived. The deletion record is the log line below — athlete id,
+row counts, correlation id — which is what evidences a deletion without
+retaining what was deleted.
 
-1. activities        — the legacy table written by bq-inserter
-2. activities_staging — its landing zone
-3. activities_live   — the CDC table written by the Pub/Sub subscription
-
-**The record of a deletion is the log line, not a table.** An earlier version
-copied every row into a `deleted_activities` table first, described as an audit
-trail. It was not one: 64 of its 67 columns were the activity payload —
-athlete, route polylines, start/end coordinates, photos, description — so a
-deauthorization moved the data rather than deleting it, under a name that read
-as handled. Proving a deletion happened needs the athlete id, a timestamp, a
-row count and a correlation id; it does not need the data that was deleted.
-Those four are logged below and retained in Cloud Logging.
-
-DML rather than CDC deletes for `activities_live`, deliberately. A per-activity
-delete already flows through CDC — the dispatcher publishes `_CHANGE_TYPE=DELETE`
-and the subscription applies it — but a deauthorization removes every activity an
-athlete has, which as CDC messages would be one publish per activity (thousands
-for an established account) and eventually consistent, against a single DML
-statement that returns the row count it deleted.
+DML rather than CDC deletes for `activities_live`: a deauthorization removes
+every activity an athlete has, which as CDC messages would be one publish each
+and eventually consistent, against one statement that returns its row count.
 
 All operations are idempotent — safe to retry on partial failure via
 Pub/Sub dead-letter redelivery.
@@ -100,9 +85,8 @@ class BQUserDeletionService:
         staging_deleted = purge("activities_staging")
         live_deleted = purge("activities_live")
 
-        # This is the deletion record. It carries what proving a deletion
-        # requires — who, when, how much, and the correlation id to tie it to
-        # the deauthorization event — and none of what was deleted.
+        # The deletion record: who, when, how much — and none of what was
+        # deleted. Retained in Cloud Logging.
         logger.info(
             "Deleted BigQuery data for user %s: activities=%d staging=%d live=%d",
             user_id,

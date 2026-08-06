@@ -36,12 +36,7 @@ class TestBQUserDeletionService:
         assert result.live_deleted == 5
 
     def test_purges_activities_live(self, service, mock_client):
-        """The CDC table is covered — it was the gap this closes.
-
-        activities_live is written by the Pub/Sub subscription and is the only
-        BigQuery activity table left after the cutover, so a deauthorization
-        that skipped it would leave the athlete's data behind.
-        """
+        """The CDC table must be covered — it is where activity data now lives."""
         mock_client.execute_dml_query.side_effect = [0, 0, 0]
         service.run("12345", "corr-123", 1704067200)
 
@@ -49,12 +44,7 @@ class TestBQUserDeletionService:
         assert any("activities_live" in q for q in queries)
 
     def test_retains_no_copy_of_the_deleted_data(self, service, mock_client):
-        """Deletion must not archive the rows into another table.
-
-        An earlier version copied every row into `deleted_activities` as an
-        "audit trail", which retained exactly the data the deletion was required
-        to remove. The record is the log line instead.
-        """
+        """No archive table: a copy of the rows would defeat the deletion."""
         mock_client.execute_dml_query.side_effect = [1, 1, 1]
         service.run("12345", "corr-123", 1704067200)
 
