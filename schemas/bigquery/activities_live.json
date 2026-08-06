@@ -1,7 +1,7 @@
 {
   "schema": [
     {
-      "mode": "NULLABLE",
+      "mode": "REQUIRED",
       "name": "id",
       "type": "INTEGER",
       "description": "Strava activity ID (primary key)"
