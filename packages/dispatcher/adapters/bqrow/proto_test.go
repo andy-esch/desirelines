@@ -175,10 +175,18 @@ func TestUpsertProto_RealStravaFixtures(t *testing.T) {
 	}
 }
 
-// Every row carries the CDC primary key. The proto cannot enforce that —
-// proto2 `required` is refused by Pub/Sub's schema-revision compatibility check
-// — so the producer is the only guard, and this pins both paths to it.
-func TestActivityRow_AlwaysCarriesThePrimaryKey(t *testing.T) {
+// The primary key is labeled `required` in the CDC proto so its mode matches
+// the table's key column, which BigQuery will not let us relax. The label is
+// not decorative: proto.Marshal refuses a message without it, so a row that
+// somehow lost its key fails locally instead of reaching the topic.
+func TestActivityRow_RequiresThePrimaryKey(t *testing.T) {
+	var missingKey generated.ActivityRow
+	missingKey.XCHANGE_TYPE = proto.String(ChangeTypeUpsert)
+	if _, err := proto.Marshal(&missingKey); err == nil {
+		t.Error("marshaled a row with no id; the required label is not being enforced")
+	}
+
+	// And both producer paths do set it, so neither can hit that.
 	upsert, err := UpsertProto([]byte(rawActivity), testSeq)
 	if err != nil {
 		t.Fatalf("UpsertProto() error = %v", err)
@@ -186,17 +194,11 @@ func TestActivityRow_AlwaysCarriesThePrimaryKey(t *testing.T) {
 	if decodeRowMessage(t, upsert).GetId() == 0 {
 		t.Error("upsert produced no id")
 	}
-
 	del, err := DeleteProto(42, testSeq)
 	if err != nil {
 		t.Fatalf("DeleteProto() error = %v", err)
 	}
 	if decodeRowMessage(t, del).GetId() != 42 {
 		t.Error("delete produced no id")
-	}
-
-	// A payload with no id never reaches the wire at all.
-	if _, keyErr := UpsertProto([]byte(`{"name":"no id"}`), testSeq); !errors.Is(keyErr, ErrNoActivityID) {
-		t.Errorf("UpsertProto without an id = %v, want ErrNoActivityID", keyErr)
 	}
 }

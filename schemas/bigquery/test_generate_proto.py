@@ -429,23 +429,30 @@ class TestLiveTableSchema:
                 found += self._required_paths(field["fields"], path + ".")
         return found
 
-    def test_nothing_stays_required_not_even_the_primary_key(self):
-        """proto2 labels every field `optional`, so any REQUIRED column makes
-        the topic and table schemas incompatible — the key included.
+    def test_only_the_primary_key_stays_required(self):
+        """BigQuery refuses to relax a key column on an existing table:
 
-        Two narrower fixes were tried and rejected by the platform: relaxing the
-        key on the existing table ("Key column id cannot be modified or
-        removed") and labelling it `required` in the proto instead (Pub/Sub
-        refuses the schema revision). The table is replaced instead.
+            Key column id cannot be modified or removed.
+            column's mode changed: REQUIRED -> NULLABLE
+
+        So the key stays REQUIRED and the CDC proto labels it `required` to
+        match. Everything else relaxes.
         """
         schema = json.loads(BQ_SCHEMA_PATH.read_text())["schema"]
-        assert self._required_paths(generate_proto.relax_schema(schema)) == []
+        assert self._required_paths(generate_proto.relax_schema(schema)) == ["id"]
 
-    def test_neither_proto_uses_the_required_label(self):
-        """Storage Write rejects it, and Pub/Sub refuses a revision that adds
-        it. Every field is `optional` in both profiles."""
+    def test_the_cdc_proto_marks_the_primary_key_required(self):
+        """The other half of that agreement — without it the modes disagree
+        and Pub/Sub rejects the subscription with INCOMPATIBLE_MODE."""
+        content = generate(profile=PUBSUB_CDC)
+        assert "required int64 id = 1;" in content
+        # Nested records have their own `id`; only the row's key is required.
+        assert content.count("required ") == 1
+
+    def test_the_storage_write_proto_has_no_required_fields(self):
+        """Storage Write wants every field optional; only the CDC profile
+        carries the label."""
         assert "required " not in generate(profile=STORAGE_WRITE)
-        assert "required " not in generate(profile=PUBSUB_CDC)
 
     def test_nested_required_fields_are_relaxed(self):
         """The case that broke the dev apply: `laps.start_date`."""

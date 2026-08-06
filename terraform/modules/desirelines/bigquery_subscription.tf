@@ -134,22 +134,24 @@ resource "google_pubsub_subscription" "activity_rows_dlq_monitoring" {
 #   "Incompatible schema: field laps.start_date is required in table, but
 #    nullable in topic"
 #
-# So no column can be REQUIRED — 106 nested ones and the primary key alike.
+# So no column can be REQUIRED — 106 nested ones included. The primary key is
+# the exception, because BigQuery will not relax a key column on an existing
+# table:
 #
-# The key cannot be relaxed on an existing table ("Key column id cannot be
-# modified or removed"), and the proto cannot be made `required` to match
-# instead, because Pub/Sub refuses a schema revision that adds a required field.
-# The table therefore has to be REPLACED to pick up a nullable key. BigQuery
-# keeps the primary-key constraint on a NULLABLE column, and the constraint is
-# NOT ENFORCED regardless; the producer is what guarantees a key is present
-# (bqrow.ErrNoActivityID).
+#   "Key column id cannot be modified or removed.
+#    column's mode changed: REQUIRED -> NULLABLE"
 #
-# Replacing it is cheap by design: deletion_protection is off and nothing reads
-# this table. It is also automatic — the table is recreated whenever its schema
-# file changes, via the replace trigger below. Without that, a schema change
-# lands as an in-place update that BigQuery silently declines for key columns,
-# and the subscription then fails to bind with INCOMPATIBLE_MODE. Since deploys
-# apply on merge, there is no reliable moment to drop the table by hand.
+# It stays REQUIRED here and the CDC proto labels it `required` to match, so the
+# two schemas agree without this table being replaced. That pairing only binds
+# when both are created together: Pub/Sub rejects a schema *revision* that adds
+# or removes a required field, so changing it later means recreating the schema,
+# the topic bound to it, and this table.
+#
+# The replace trigger below covers the table half of that. BigQuery silently
+# declines some in-place schema edits — relaxing a key column among them — and a
+# declined edit is not an apply error, so the drift would otherwise persist
+# until the subscription failed to bind. Deploys apply on merge, so there is no
+# reliable moment to drop the table by hand.
 #
 # REMOVE the trigger before this table carries data anything reads. Recreating
 # on every schema change is only acceptable while the table is a rebuildable
