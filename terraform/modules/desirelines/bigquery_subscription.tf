@@ -49,10 +49,39 @@
 # ---- Topic schema, bound only when the producer speaks protobuf ---------------
 # Created unconditionally so the schema exists to switch onto; binding it to the
 # topic is what actually changes behavior, and that is gated below.
+locals {
+  activity_rows_proto_path = "${path.module}/../../../schemas/proto/desirelines/bigquery/cdc/v1/bq_activity_rows.proto"
+
+  # A short digest of the definition, carried in the schema's name so a changed
+  # definition produces a different resource.
+  activity_rows_schema_suffix = substr(filesha256(local.activity_rows_proto_path), 0, 8)
+}
+
+# The name embeds a digest of the definition ON PURPOSE.
+#
+# Pub/Sub validates every schema revision against the previous one and rejects
+# anything incompatible — in BOTH directions. Adding a required field is
+# rejected; removing one is rejected too. This definition is generated from the
+# BigQuery table schema, so an ordinary column change can produce an
+# incompatible revision, and updating in place then fails the apply:
+#
+#   "Revision is incompatible with previous revision: …"
+#
+# Digesting the definition into the name sidesteps revisions entirely: a changed
+# definition is a new schema at revision 1, with nothing to be compatible with.
+# Terraform creates it, repoints the topic (verified to work in place, so the
+# subscription is untouched), then deletes the old one.
+#
+# create_before_destroy is required, not decorative — the topic below cannot be
+# repointed to a schema that has already been deleted.
 resource "google_pubsub_schema" "activity_rows" {
-  name       = "${var.project_name}-activity-rows-${var.environment}"
+  name       = "${var.project_name}-activity-rows-${var.environment}-${local.activity_rows_schema_suffix}"
   type       = "PROTOCOL_BUFFER"
-  definition = file("${path.module}/../../../schemas/proto/desirelines/bigquery/cdc/v1/bq_activity_rows.proto")
+  definition = file(local.activity_rows_proto_path)
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "google_pubsub_topic" "activity_rows" {
@@ -164,6 +193,9 @@ resource "google_pubsub_subscription" "activity_rows_dlq_monitoring" {
 # rather than updated in place. BigQuery accepts most schema edits in place but
 # refuses some — notably relaxing a key column — and a declined edit is not an
 # apply error, so the drift would otherwise persist silently.
+# Both this and the topic schema above are generated from activities_full.json,
+# so a column change regenerates both and they move in the same apply: a new
+# schema is created and bound, and the table is replaced.
 resource "terraform_data" "activities_live_schema" {
   input = filesha256("${path.module}/../../../schemas/bigquery/activities_live.json")
 }
