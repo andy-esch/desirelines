@@ -67,7 +67,7 @@ WORKDIR /app
 # Standalone CPython, pinned to a specific patch (matches
 # `.python-version`). Without the patch, `uv python install 3.14`
 # resolves to whatever 3.14.x is latest at build time → builds drift.
-RUN uv python install 3.14.6
+RUN uv python install 3.14.7
 
 # Prune the standalone CPython stdlib of server-irrelevant directories.
 # uv ships python-build-standalone's "install_only" tarball (no
