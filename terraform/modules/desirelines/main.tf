@@ -135,12 +135,23 @@ resource "google_bigquery_table" "activities_staging" {
 }
 
 # BigQuery Table for Deleted Activities (archive)
+# SCHEDULED FOR REMOVAL — nothing writes to this table.
+#
+# It held a full copy of every deleted activity: 64 of its 67 columns are the
+# activity payload, so a deauthorization moved an athlete's data here rather
+# than removing it. The deletion services now delete outright and record the
+# deletion in their logs.
+#
+# deletion_protection is off so the next change can drop it. Removing the
+# resource and turning off protection cannot happen in one apply — Terraform
+# would plan a destroy against a still-protected table — so this lands first
+# and the resource removal follows.
 resource "google_bigquery_table" "deleted_activities" {
   dataset_id          = google_bigquery_dataset.activities_dataset.dataset_id
   table_id            = "deleted_activities"
-  friendly_name       = "Deleted Strava Activities Archive"
-  description         = "Archive of deleted Strava activities with deletion metadata - preserves data for audit trail"
-  deletion_protection = var.environment == "prod"
+  friendly_name       = "Deleted Strava Activities Archive (scheduled for removal)"
+  description         = "Unused. Retained a full copy of deleted activities; scheduled for removal."
+  deletion_protection = false
 
   labels = merge(local.common_labels, {
     purpose = "archive"
