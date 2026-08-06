@@ -8,7 +8,6 @@ JSON schema definitions for BigQuery tables used by `bq-inserter`.
 |------|-------|-------------|
 | `activities_full.json` | `desirelines.activities` | All Strava activity fields |
 | `activities_minimal.json` | `desirelines.activities` | Core fields only (lighter) |
-| `deleted_activities.json` | `desirelines.deleted_activities` | Archived deleted activities |
 
 ## Usage
 
@@ -77,7 +76,7 @@ this is a human-operator step.
 ```bash
 export PROJECT=<gcp-project-id>
 export DATASET=<bq-dataset>
-export TABLE=activities                          # repeat for deleted_activities
+export TABLE=activities
 export SCHEMA=schemas/bigquery/${TABLE}.json     # or activities_full.json
 
 # 1. Create the new table with the corrected schema
