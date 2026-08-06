@@ -24,50 +24,63 @@ def service(mock_client):
 
 
 class TestBQUserDeletionService:
-    def test_archives_then_deletes_from_all_tables(self, service, mock_client):
-        """Archives activities for audit trail, then deletes from active tables."""
-        mock_client.execute_dml_query.side_effect = [5, 5, 2]
+    def test_deletes_from_every_table_holding_the_user(self, service, mock_client):
+        """activities, its staging table, and the CDC table."""
+        mock_client.execute_dml_query.side_effect = [5, 2, 5]
 
         result = service.run("12345", "corr-123", 1704067200)
 
-        # 3 DML calls: archive, delete activities, delete staging
         assert mock_client.execute_dml_query.call_count == 3
-        assert result.activities_archived == 5
         assert result.activities_deleted == 5
         assert result.staging_deleted == 2
+        assert result.live_deleted == 5
+
+    def test_purges_activities_live(self, service, mock_client):
+        """The CDC table is covered — it was the gap this closes.
+
+        activities_live is written by the Pub/Sub subscription and is the only
+        BigQuery activity table left after the cutover, so a deauthorization
+        that skipped it would leave the athlete's data behind.
+        """
+        mock_client.execute_dml_query.side_effect = [0, 0, 0]
+        service.run("12345", "corr-123", 1704067200)
+
+        queries = [c.args[0] for c in mock_client.execute_dml_query.call_args_list]
+        assert any("activities_live" in q for q in queries)
+
+    def test_retains_no_copy_of_the_deleted_data(self, service, mock_client):
+        """Deletion must not archive the rows into another table.
+
+        An earlier version copied every row into `deleted_activities` as an
+        "audit trail", which retained exactly the data the deletion was required
+        to remove. The record is the log line instead.
+        """
+        mock_client.execute_dml_query.side_effect = [1, 1, 1]
+        service.run("12345", "corr-123", 1704067200)
+
+        queries = [c.args[0] for c in mock_client.execute_dml_query.call_args_list]
+        assert not any("INSERT" in q.upper() for q in queries)
+        assert not any("deleted_activities" in q for q in queries)
 
     def test_handles_no_data_to_delete(self, service, mock_client):
         mock_client.execute_dml_query.side_effect = [0, 0, 0]
 
         result = service.run("99999", "corr-456", 1704067200)
 
-        assert result.activities_archived == 0
         assert result.activities_deleted == 0
         assert result.staging_deleted == 0
+        assert result.live_deleted == 0
 
     def test_uses_parameterized_queries(self, service, mock_client):
+        """The athlete id reaches BigQuery as a bound parameter, never inlined."""
         mock_client.execute_dml_query.side_effect = [0, 0, 0]
 
         service.run("12345", "corr-123", 1704067200)
 
-        # Each call gets a query and parameters
         for call in mock_client.execute_dml_query.call_args_list:
-            _query, params = call.args
-            assert params is not None
-            assert len(params) > 0
-
-        # Archive query (first call) includes event_time and correlation_id params
-        _, archive_params = mock_client.execute_dml_query.call_args_list[0].args
-        param_names = [p.name for p in archive_params]
-        assert "user_id" in param_names
-        assert "event_time" in param_names
-        assert "correlation_id" in param_names
-
-        # Delete queries (calls 2-3) only have user_id param
-        for call in mock_client.execute_dml_query.call_args_list[1:]:
-            _, params = call.args
-            param_names = [p.name for p in params]
-            assert param_names == ["user_id"]
+            query, params = call.args
+            assert [p.name for p in params] == ["user_id"]
+            assert "12345" not in query
 
     def test_raises_on_bq_failure(self, service, mock_client):
         mock_client.execute_dml_query.side_effect = BigQueryError("BQ error")

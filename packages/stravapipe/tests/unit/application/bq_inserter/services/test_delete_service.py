@@ -15,11 +15,10 @@ def _make_service(client=None):
 
 
 def test_delete_activity_success():
-    """Test successful activity deletion"""
+    """A single DELETE removes the activity."""
     service, client = _make_service()
 
-    # First DML call (archive) returns 1 row, second (delete) returns 1 row
-    client.execute_dml_query.side_effect = [1, 1]
+    client.execute_dml_query.return_value = 1
 
     result = service.run(
         activity_id=123456,
@@ -28,16 +27,18 @@ def test_delete_activity_success():
     )
 
     assert result.activity_id == 123456
-    assert result.rows_archived == 1
     assert result.rows_deleted == 1
-    assert client.execute_dml_query.call_count == 2
+    assert client.execute_dml_query.call_count == 1
 
 
 def test_delete_activity_not_found():
-    """Test deletion when activity doesn't exist"""
+    """A missing activity deletes nothing and is not an error.
+
+    Already deleted, or never inserted — either way the desired end state
+    holds, so the caller treats it as a skip rather than a failure.
+    """
     service, client = _make_service()
 
-    # Archive returns 0 rows — activity not found
     client.execute_dml_query.return_value = 0
 
     result = service.run(
@@ -47,35 +48,30 @@ def test_delete_activity_not_found():
     )
 
     assert result.activity_id == 999999
-    assert result.rows_archived == 0
     assert result.rows_deleted == 0
-    # Should only run archive query, not delete
-    assert client.execute_dml_query.call_count == 1
 
 
-def test_delete_activity_insert_error():
-    """Test deletion when archive insert fails"""
+def test_delete_activity_retains_no_copy():
+    """Deletion must not archive the row into another table.
+
+    This service used to INSERT the activity into `deleted_activities` first,
+    which retained the very data the deletion existed to remove.
+    """
     service, client = _make_service()
+    client.execute_dml_query.return_value = 1
 
-    client.execute_dml_query.side_effect = BigQueryError("BigQuery insert failed")
+    service.run(activity_id=123456, correlation_id="c", event_time=1696176000)
 
-    with pytest.raises(BigQueryError, match="BigQuery insert failed"):
-        service.run(
-            activity_id=123456,
-            correlation_id="test-789",
-            event_time=1696176000,
-        )
+    query = client.execute_dml_query.call_args.args[0]
+    assert "INSERT" not in query.upper()
+    assert "deleted_activities" not in query
 
 
 def test_delete_activity_delete_error():
-    """Test deletion when delete query fails after successful archive"""
+    """A failed delete propagates, so Pub/Sub redelivers."""
     service, client = _make_service()
 
-    # Archive succeeds (1 row), delete fails
-    client.execute_dml_query.side_effect = [
-        1,
-        BigQueryError("BigQuery delete failed"),
-    ]
+    client.execute_dml_query.side_effect = BigQueryError("BigQuery delete failed")
 
     with pytest.raises(BigQueryError, match="BigQuery delete failed"):
         service.run(
