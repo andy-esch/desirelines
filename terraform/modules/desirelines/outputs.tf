@@ -110,7 +110,6 @@ output "deployment_info" {
 output "pubsub_subscription_names" {
   description = "Names of Pub/Sub subscriptions for event processing"
   value = {
-    bq_inserter          = google_pubsub_subscription.bq_inserter.name
     postgres_writer      = google_pubsub_subscription.postgres_writer.name
     deletion_service     = google_pubsub_subscription.deletion_service.name
     bq_inserter_dlq      = google_pubsub_subscription.bq_inserter_dlq.name
