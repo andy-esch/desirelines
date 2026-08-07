@@ -259,7 +259,7 @@ async def _handle_delete(
             event_time=event.event_time,
         )
 
-    if result.rows_archived == 0:
+    if result.rows_deleted == 0:
         return WebhookResponse(
             status=ResponseStatus.SKIPPED,
             reason=SkipReason.ACTIVITY_NOT_FOUND,

@@ -203,9 +203,9 @@ class TestDeauthEndpoint:
         """Full deletion across all stores returns 200."""
         # Mock BQ deletion
         mock_services["bq_deletion_service"].run.return_value = BQDeletionResult(
-            activities_archived=3,
             activities_deleted=3,
             staging_deleted=1,
+            live_deleted=2,
         )
 
         # Mock UoW context manager
@@ -288,12 +288,8 @@ class TestIdempotency:
         """
         # First call: data exists; second call: nothing left.
         mock_services["bq_deletion_service"].run.side_effect = [
-            BQDeletionResult(
-                activities_archived=3, activities_deleted=3, staging_deleted=1
-            ),
-            BQDeletionResult(
-                activities_archived=0, activities_deleted=0, staging_deleted=0
-            ),
+            BQDeletionResult(activities_deleted=3, staging_deleted=1, live_deleted=2),
+            BQDeletionResult(activities_deleted=0, staging_deleted=0, live_deleted=0),
         ]
 
         mock_uow = MagicMock()

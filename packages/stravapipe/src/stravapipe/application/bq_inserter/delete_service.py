@@ -1,4 +1,8 @@
-"""Service for archiving deleted activities to BigQuery"""
+"""Remove a deleted activity from the legacy BigQuery `activities` table.
+
+Legacy path — `activities_live` needs no equivalent, since the CDC subscription
+applies the dispatcher's `_CHANGE_TYPE=DELETE` natively. Retires with the table.
+"""
 
 from dataclasses import dataclass
 import logging
@@ -14,15 +18,14 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class BQActivityDeletionResult:
-    """Result of archiving a single deleted activity to BigQuery."""
+    """Result of deleting a single activity from BigQuery."""
 
     activity_id: int
-    rows_archived: int
     rows_deleted: int
 
 
 class DeleteActivityService:
-    """Archive deleted activity from activities to deleted_activities table"""
+    """Delete a single activity from the legacy `activities` table."""
 
     def __init__(
         self,
@@ -67,9 +70,9 @@ class DeleteActivityService:
             event_time: Strava webhook event_time.
 
         Returns:
-            BQActivityDeletionResult with row counts. ``rows_archived == 0``
-            indicates the activity was not found (and ``rows_deleted`` will
-            also be 0 because the DELETE step is skipped).
+            BQActivityDeletionResult. ``rows_deleted == 0`` indicates the
+            activity was not in the table — already deleted, or never
+            inserted.
 
         Raises:
             BigQueryError: If archiving fails (will trigger retry via DLQ).
@@ -79,49 +82,6 @@ class DeleteActivityService:
             activity_id,
             extra={"correlation_id": correlation_id, "activity_id": activity_id},
         )
-
-        # Archive activity into deleted_activities
-        insert_query = f"""
-        INSERT INTO {self._table("deleted_activities")}
-        SELECT
-            *,
-            CURRENT_TIMESTAMP() AS deleted_at,
-            @event_time AS deletion_event_time,
-            @correlation_id AS deletion_correlation_id
-        FROM {self._table("activities")}
-        WHERE id = @activity_id
-        """
-
-        with record_span(
-            self._tracer,
-            "bigquery.archive_insert",
-            db_attributes(
-                "bigquery",
-                self._dataset_id,
-                "INSERT",
-                {"desirelines.activity_id": activity_id},
-            ),
-        ):
-            rows_archived = self._client.execute_dml_query(
-                insert_query,
-                [
-                    ScalarQueryParameter("activity_id", "INT64", activity_id),
-                    ScalarQueryParameter("event_time", "INT64", event_time),
-                    ScalarQueryParameter("correlation_id", "STRING", correlation_id),
-                ],
-            )
-
-        if rows_archived == 0:
-            logger.warning(
-                "Activity %s not found for deletion (may have been deleted already)",
-                activity_id,
-                extra={"correlation_id": correlation_id},
-            )
-            return BQActivityDeletionResult(
-                activity_id=activity_id,
-                rows_archived=0,
-                rows_deleted=0,
-            )
 
         # Delete from activities table
         delete_query = f"""
@@ -145,7 +105,7 @@ class DeleteActivityService:
             )
 
         logger.info(
-            "Successfully archived deleted activity %s",
+            "Deleted activity %s from BigQuery",
             activity_id,
             extra={
                 "correlation_id": correlation_id,
@@ -156,6 +116,5 @@ class DeleteActivityService:
 
         return BQActivityDeletionResult(
             activity_id=activity_id,
-            rows_archived=rows_archived,
             rows_deleted=rows_deleted,
         )

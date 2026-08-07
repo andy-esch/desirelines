@@ -46,3 +46,4 @@ class UserDeletionResponse(BaseModel):
     pg_deleted: int
     bq_activities_deleted: int
     bq_staging_deleted: int
+    bq_live_deleted: int

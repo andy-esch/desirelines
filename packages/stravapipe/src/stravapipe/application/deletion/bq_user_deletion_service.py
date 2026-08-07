@@ -1,19 +1,16 @@
-"""BigQuery user deletion service for Strava deauthorization.
+"""Delete an athlete's BigQuery data on Strava deauthorization.
 
-When a user disconnects the app from Strava, the Strava API Agreement
-(Section 5.4, https://www.strava.com/legal/api) requires that all user
-data is deleted within 48 hours.
+Required within 48 hours by the Strava API Agreement §5.4
+(https://www.strava.com/legal/api). Covers every table holding activity rows:
+`activities`, `activities_staging`, and `activities_live`.
 
-This service handles the BigQuery portion of that deletion:
-1. Archive activities → deleted_activities (audit trail with deletion metadata)
-2. Delete from activities (primary table)
-3. Delete from activities_staging (landing zone for new data)
+Nothing is archived. The deletion record is the log line below — athlete id,
+row counts, correlation id — which is what evidences a deletion without
+retaining what was deleted.
 
-The deleted_activities archive is intentionally retained. It serves as an
-audit trail proving deletion occurred, containing only the activity data
-that was present at deletion time plus deletion metadata (deleted_at,
-correlation_id). This mirrors the per-activity DeleteActivityService
-pattern used when individual activities are deleted via webhook.
+DML rather than CDC deletes for `activities_live`: a deauthorization removes
+every activity an athlete has, which as CDC messages would be one publish each
+and eventually consistent, against one statement that returns its row count.
 
 All operations are idempotent — safe to retry on partial failure via
 Pub/Sub dead-letter redelivery.
@@ -33,18 +30,18 @@ logger = logging.getLogger(__name__)
 class BQDeletionResult:
     """Result of BigQuery user data deletion."""
 
-    activities_archived: int
     activities_deleted: int
     staging_deleted: int
+    live_deleted: int
 
 
 class BQUserDeletionService:
     """Delete all BigQuery data for a user on deauthorization.
 
     Process:
-    1. Archive activities to deleted_activities table (audit trail)
-    2. Delete from activities table
-    3. Delete from activities_staging table
+    1. Delete from activities
+    2. Delete from activities_staging
+    3. Delete from activities_live
     """
 
     def __init__(self, client: BigQueryClientWrapper, *, dataset_id: str):
@@ -74,62 +71,33 @@ class BQUserDeletionService:
         """
         user_id_param = ScalarQueryParameter("user_id", "STRING", user_id)
 
-        # 1. Archive activities to deleted_activities
-        archive_query = f"""
-        INSERT INTO {self._table("deleted_activities")}
-        SELECT
-            *,
-            CURRENT_TIMESTAMP() AS deleted_at,
-            @event_time AS deletion_event_time,
-            @correlation_id AS deletion_correlation_id
-        FROM {self._table("activities")}
-        WHERE CAST(athlete.id AS STRING) = @user_id
-        """
-        activities_archived = self._client.execute_dml_query(
-            archive_query,
-            [
-                user_id_param,
-                ScalarQueryParameter("event_time", "INT64", event_time),
-                ScalarQueryParameter("correlation_id", "STRING", correlation_id),
-            ],
-        )
+        def purge(table: str) -> int:
+            """Delete the athlete's rows from one table."""
+            return self._client.execute_dml_query(
+                f"""
+                DELETE FROM {self._table(table)}
+                WHERE CAST(athlete.id AS STRING) = @user_id
+                """,
+                [user_id_param],
+            )
 
+        activities_deleted = purge("activities")
+        staging_deleted = purge("activities_staging")
+        live_deleted = purge("activities_live")
+
+        # The deletion record: who, when, how much — and none of what was
+        # deleted. Retained in Cloud Logging.
         logger.info(
-            "Archived %d activities for user %s",
-            activities_archived,
+            "Deleted BigQuery data for user %s: activities=%d staging=%d live=%d",
             user_id,
-            extra={"correlation_id": correlation_id},
+            activities_deleted,
+            staging_deleted,
+            live_deleted,
+            extra={"correlation_id": correlation_id, "event_time": event_time},
         )
 
-        # 2. Delete from activities
-        delete_activities = f"""
-        DELETE FROM {self._table("activities")}
-        WHERE CAST(athlete.id AS STRING) = @user_id
-        """
-        activities_deleted = self._client.execute_dml_query(
-            delete_activities, [user_id_param]
-        )
-
-        # 3. Delete from staging
-        delete_staging = f"""
-        DELETE FROM {self._table("activities_staging")}
-        WHERE CAST(athlete.id AS STRING) = @user_id
-        """
-        staging_deleted = self._client.execute_dml_query(
-            delete_staging, [user_id_param]
-        )
-
-        result = BQDeletionResult(
-            activities_archived=activities_archived,
+        return BQDeletionResult(
             activities_deleted=activities_deleted,
             staging_deleted=staging_deleted,
+            live_deleted=live_deleted,
         )
-
-        logger.info(
-            "BQ deletion complete for user %s: %s",
-            user_id,
-            result,
-            extra={"correlation_id": correlation_id},
-        )
-
-        return result

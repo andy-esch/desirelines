@@ -279,11 +279,10 @@ class TestDeleteEventHandling:
     """Tests for DELETE aspect_type handling."""
 
     def test_delete_event_success(self, client):
-        """DELETE event successfully archives and removes activity."""
+        """DELETE event removes the activity."""
         mock_service = client.app.state.delete_service
         mock_service.run.return_value = BQActivityDeletionResult(
             activity_id=12345678,
-            rows_archived=1,
             rows_deleted=1,
         )
 
@@ -312,7 +311,6 @@ class TestDeleteEventHandling:
         mock_service = client.app.state.delete_service
         mock_service.run.return_value = BQActivityDeletionResult(
             activity_id=12345678,
-            rows_archived=0,
             rows_deleted=0,
         )
 

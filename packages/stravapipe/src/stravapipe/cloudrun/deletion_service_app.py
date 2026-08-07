@@ -9,8 +9,8 @@ disconnects the app from Strava, this service deletes their data from all
 stores:
 
 - PostgreSQL: activities + routes (CASCADE)
-- BigQuery: archive to deleted_activities (audit trail), then delete from
-  activities and activities_staging
+- BigQuery: delete from activities, activities_staging and activities_live.
+  The deletion record is the log line, not a retained copy of the data.
 - Firestore: OAuth tokens, user profile, config, allowlist entry
 
 All deletions are idempotent. On partial failure, returns 500 to trigger
@@ -72,6 +72,7 @@ class DeletionResult:
     pg_deleted: int = 0
     bq_activities_deleted: int = 0
     bq_staging_deleted: int = 0
+    bq_live_deleted: int = 0
     firestore_tokens_deleted: bool = False
     firestore_user_docs_deleted: int = 0
     errors: list[str] = field(default_factory=list)
@@ -157,6 +158,7 @@ def _delete_all_stores(
         bq_result = deps.bq_service.run(user_id, correlation_id, event_time)
         result.bq_activities_deleted = bq_result.activities_deleted
         result.bq_staging_deleted = bq_result.staging_deleted
+        result.bq_live_deleted = bq_result.live_deleted
 
     def _do_firestore_tokens() -> None:
         deps.token_store.delete_tokens(user_id)
@@ -406,6 +408,7 @@ async def handle_deauth_event(request: Request) -> UserDeletionResponse:
                     "pg_deleted": result.pg_deleted,
                     "bq_activities_deleted": result.bq_activities_deleted,
                     "bq_staging_deleted": result.bq_staging_deleted,
+                    "bq_live_deleted": result.bq_live_deleted,
                     "firestore_docs_deleted": result.firestore_user_docs_deleted,
                 },
             )
@@ -417,6 +420,7 @@ async def handle_deauth_event(request: Request) -> UserDeletionResponse:
                 pg_deleted=result.pg_deleted,
                 bq_activities_deleted=result.bq_activities_deleted,
                 bq_staging_deleted=result.bq_staging_deleted,
+                bq_live_deleted=result.bq_live_deleted,
             )
 
     except HTTPException:
