@@ -6,8 +6,8 @@ store-relationship contract (PostgreSQL is source of truth, BigQuery is an
 archival mirror) see
 [PostgreSQL ↔ BigQuery Consistency](postgres-bigquery-consistency.md).
 
-**Status:** accepted; being proven via an isolated parallel prototype in
-production before any cutover.
+**Status:** accepted; the prototype runs in production alongside the existing
+path, writing real activity rows. Cutover is pending.
 
 ## Context — the current write path
 
@@ -15,8 +15,7 @@ Today an activity reaches BigQuery through application code:
 
 `activity_events` topic → push subscription → `bq-inserter` Cloud Run service →
 Storage Write API → `activities_staging` → `MERGE` into `activities`; deletes run
-a separate archive DML (`INSERT INTO deleted_activities SELECT … FROM activities`)
-plus a `DELETE`.
+a `DELETE` DML.
 
 This works but carries avoidable cost and risk:
 
@@ -35,14 +34,16 @@ This works but carries avoidable cost and risk:
 
 Write activities to BigQuery with a **Pub/Sub BigQuery subscription in CDC
 mode**, from a **schema-bound topic whose schema is the activity row itself**
-(the `bq_activities` proto). Pub/Sub writes rows directly to BigQuery; there is
+(the `bq_activity_rows` proto — a second profile generated from the same
+BigQuery table schema as `bq_activities`, which stays as it is because the
+Storage Write API and the Pub/Sub subscription want different encodings). Pub/Sub writes rows directly to BigQuery; there is
 **no subscriber service, no staging table, no MERGE, no DML**.
 
 Two tables:
 
 | table | subscription | write shape |
 |---|---|---|
-| `activities_live` | CDC BigQuery subscription, primary key `id` | `_CHANGE_TYPE = UPSERT` on create/update, `_CHANGE_TYPE = DELETE` on delete, ordered by `_CHANGE_SEQUENCE_NUMBER` = the webhook `event_time` |
+| `activities_live` | CDC BigQuery subscription, primary key `id` | `_CHANGE_TYPE = UPSERT` on create/update, `_CHANGE_TYPE = DELETE` on delete, ordered by `_CHANGE_SEQUENCE_NUMBER` — hex sections, the webhook `event_time` then a local tiebreak for events Strava stamped in the same second |
 | `activities_log` (added at cutover) | plain append BigQuery subscription, no key | every event, append-only; the "deleted set" is derivable as `log ANTI JOIN live` |
 
 Deletes are first-class (a `DELETE` change message). Out-of-order and redelivered
@@ -57,7 +58,7 @@ PostgreSQL, then cut over and retire the old path.
 ## Why this wins
 
 - **Deletes the writer.** No `bq-inserter` service, no Storage Write API code, no
-  staging, no MERGE, no `_MERGE_COLUMNS`, no `deleted_activities` archive DML.
+  staging, no MERGE, no `_MERGE_COLUMNS`, no delete DML.
 - **Atomic by construction.** Pub/Sub writes via the Storage Write API; the
   non-atomic archive-then-delete problem disappears rather than being worked
   around.
@@ -88,36 +89,64 @@ PostgreSQL, then cut over and retire the old path.
   reorders are idempotent via the sequence number. For `log`, duplicates are
   acceptable signal.
 - **The producer changes.** The dispatcher publishes a webhook *envelope* today;
-  the subscription needs a full activity *row* conforming to the `bq_activities`
-  schema, plus the CDC keys. That mapping (and generating the proto for Go) is
-  the main new code, added as a flagged best-effort second publish that can never
-  affect the primary path.
+  the subscription needs a full activity *row* conforming to the topic schema,
+  plus the CDC keys. That mapping is the main new code, added as a flagged
+  best-effort second publish that can never affect the primary path.
 - **Eventual consistency.** CDC apply is not instantaneous (seconds), which is
   fine for an archival store.
 - **Cutover retires** the old service and tables; history is seeded by having the
   backfill publish rows to the topic (which is also how BigQuery backfill gets
   re-enabled — the current table was never backfilled).
 
-## Open questions (resolved downstream, not here)
+## What the open questions resolved to
 
-- **Full nested schema mapping is the load-bearing risk.** Nested messages map to
-  `RECORD`, repeated to `REPEATED`, and our proto has no `oneof` (the one
-  unmappable construct) — but whether the deeply-nested activity (segment efforts,
-  laps, splits, best efforts, the `map` and `photos` records, the one `JSON`
-  column) maps cleanly end-to-end is only proven by a smoke test. *Resolved in the
-  infra task; if it can't map, the fallback is to simplify `live`'s schema (heavy
-  nested arrays are optional for archival analysis) or store them as `JSON`.*
-- **Partial / bare updates.** Title/type-only webhooks carry no full activity; a
-  CDC `UPSERT` replaces the whole row, so a partial would clobber columns. The
-  prototype skips them; the policy (skip-and-resync vs force-refetch) is decided
-  from parallel-run data.
-- **CDC key mechanism.** Whether `_CHANGE_TYPE` / `_CHANGE_SEQUENCE_NUMBER` are
-  message attributes or fields, and the sequence-number format — pinned by the
-  infra smoke test.
-- **Field completeness parity.** The row is only as complete as what the producer
-  has (same constraint as the current `bq-inserter`); detailed-only fields depend
-  on the enrichment fetch. Validate parity with today during the parallel run.
-- **JSON column** (`photos.urls`): emit `null`/omit, never `""`.
+Recorded here because several answers were counter-intuitive and two were
+originally guessed wrong.
+
+- **Nested schema mapping works.** Segment efforts, laps, splits, best efforts,
+  the `map` and `photos` records and the `JSON` column all map end-to-end,
+  verified by publishing a real Strava payload through a schema-bound topic into
+  a CDC subscription. No schema simplification was needed.
+- **TIMESTAMP travels as a string.** The Pub/Sub proto→BigQuery mapping accepts
+  a proto `string` for a `TIMESTAMP` column provided the value is a valid
+  BigQuery timestamp, which Strava's RFC 3339 already is. So the CDC profile
+  declares timestamps as `string` and the producer forwards them untouched —
+  unlike the Storage Write profile, which requires int64 micros.
+- **The CDC keys are message body fields**, not attributes.
+  `_CHANGE_SEQUENCE_NUMBER` is hex sections separated by `/`, compared as
+  unsigned numbers.
+- **`photos.urls` must be JSON *text*, not a nested object.** The original note
+  here said the opposite. Sending the object BigQuery rejects the whole message
+  with `JSON Object: 'urls' is incompatible with BigQuery field 'urls' of type
+  JSON`, which silently dropped every activity that had a photo until it was
+  found in the dead-letter queue. BigQuery parses the text back into an object
+  on arrival, so the stored shape is the same either way.
+- **Partial updates are re-fetched, not skipped.** A title-only webhook carries
+  no activity payload, and a CDC `UPSERT` replaces the whole row. The row
+  publisher re-fetches the activity rather than skipping, so metadata edits
+  reach the table. The fetch is deliberately inside the best-effort block and
+  bounded by its own short timeout, so it cannot enrich the primary envelope or
+  spend the webhook's response budget.
+- **The table can declare no REQUIRED column but the key.** Under
+  `use_topic_schema` Pub/Sub compares the two schemas statically, and every
+  proto2 field is `optional`, so a REQUIRED column at any depth is incompatible.
+  The key stays REQUIRED and the proto labels it `required` to match; everything
+  else is relaxed.
+
+## Known limits
+
+- **Freshness is bounded by Strava's webhook surface.** Strava sends activity
+  update events for title, type and privacy changes only. A photo, description
+  or gear change with no accompanying edit of those three produces no event, so
+  it does not reach `activities_live` until some later event for that activity.
+- **Schema changes need the topic schema replaced, not revised.** Pub/Sub
+  rejects an incompatible schema revision in either direction — adding a
+  required field and removing one alike — so the schema resource carries a
+  digest of its definition in its name and a changed definition becomes a new
+  schema at revision 1.
+- **Field completeness** is bounded by what the producer holds, the same
+  constraint the current `bq-inserter` has: detailed-only fields depend on the
+  enrichment fetch.
 
 ## Related
 
