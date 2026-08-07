@@ -56,13 +56,7 @@ class DeleteActivityService:
         correlation_id: str,
         event_time: int,
     ) -> BQActivityDeletionResult:
-        """Archive deleted activity from activities to deleted_activities table.
-
-        Process:
-        1. INSERT INTO deleted_activities SELECT * FROM activities WHERE id = X
-           (BigQuery handles data transfer directly)
-        2. DELETE FROM activities WHERE id = X
-        3. Log success
+        """Delete one activity from the `activities` table.
 
         Args:
             activity_id: Strava activity ID to delete.

@@ -8,7 +8,7 @@
 #
 # Everything here is additive: the existing activity_events topic, the
 # postgres-writer / bq-inserter subscriptions, and the activities /
-# activities_staging / deleted_activities tables are untouched. The only
+# activities_staging tables are untouched. The only
 # producer is the dispatcher's best-effort dual-publish, which is off unless
 # app_config.dispatcher_activity_row_publish_enabled says otherwise and which
 # cannot fail a webhook. A misbehaving prototype can only affect

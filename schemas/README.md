@@ -19,7 +19,7 @@ Data schemas and contracts for the desirelines monorepo.
   Strava fields to live ingestion, backfill, PostgreSQL, BigQuery, and required
   historical-data decisions.
 
-- **BigQuery**: JSON schemas defining the `activities` and `deleted_activities` tables. Source of truth for BQ table structure.
+- **BigQuery**: JSON schemas defining the `activities` table. Source of truth for BQ table structure.
 
 - **Database**: Flyway migrations for PostgreSQL (Neon-hosted). Shared by `postgres-writer` and `api-gateway`.
 
