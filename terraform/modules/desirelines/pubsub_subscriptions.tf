@@ -12,57 +12,15 @@
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
-# BQ Inserter Push Subscription
+# BQ Inserter Push Subscription — REMOVED (cutover step 1)
 # ------------------------------------------------------------------------------
-resource "google_pubsub_subscription" "bq_inserter" {
-  name  = "${var.project_name}-bq-inserter-${var.environment}"
-  topic = google_pubsub_topic.activity_events.name
-
-  # Push to Cloud Run service with CloudEvents format
-  push_config {
-    push_endpoint = "${google_cloud_run_v2_service.bq_inserter.uri}?__GCP_CloudEventsMode=CUSTOM_PUBSUB_${google_pubsub_topic.activity_events.id}"
-
-    oidc_token {
-      service_account_email = google_service_account.bq_inserter.email
-      audience              = google_cloud_run_v2_service.bq_inserter.uri
-    }
-
-    attributes = {
-      x-goog-version = "v1"
-    }
-  }
-
-  # Dead letter policy - failed messages go to DLQ after max attempts
-  dead_letter_policy {
-    dead_letter_topic     = google_pubsub_topic.dead_letter.id
-    max_delivery_attempts = 5
-  }
-
-  # Retry policy with exponential backoff
-  retry_policy {
-    minimum_backoff = "10s"
-    maximum_backoff = "600s"
-  }
-
-  # Cloud Run kills the request at 60s; this buffers the round-trip.
-  ack_deadline_seconds = 120
-
-  # Retain messages for 7 days (matches topic retention)
-  message_retention_duration = "604800s"
-
-  # Note: exactly-once delivery is not supported with push subscriptions
-  # Data consistency is achieved through idempotent handlers in the service
-
-  labels = merge(local.common_labels, {
-    service = "bq-inserter"
-    type    = "push-subscription"
-  })
-
-  depends_on = [
-    google_cloud_run_v2_service.bq_inserter,
-    google_project_service.required_apis
-  ]
-}
+# `activity_events` no longer feeds bq-inserter, so nothing writes to the
+# `activities` / `activities_staging` tables. Activity rows reach BigQuery
+# through the CDC subscription in bigquery_subscription.tf instead.
+#
+# The service, its DLQ wiring and the legacy tables are still here; they come
+# out in the following steps. Recreating this resource is the rollback.
+# ------------------------------------------------------------------------------
 
 # ------------------------------------------------------------------------------
 # PostgreSQL Writer Push Subscription

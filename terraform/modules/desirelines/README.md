@@ -43,8 +43,8 @@ module "desirelines" {
 | Name | Version |
 | ---- | ------- |
 | <a name="provider_external"></a> [external](#provider\_external) | 2.4.0 |
-| <a name="provider_google"></a> [google](#provider\_google) | 7.42.0 |
-| <a name="provider_google-beta"></a> [google-beta](#provider\_google-beta) | 7.42.0 |
+| <a name="provider_google"></a> [google](#provider\_google) | 7.43.0 |
+| <a name="provider_google-beta"></a> [google-beta](#provider\_google-beta) | 7.43.0 |
 | <a name="provider_terraform"></a> [terraform](#provider\_terraform) | n/a |
 
 ## Resources
@@ -150,7 +150,6 @@ module "desirelines" {
 | [google_pubsub_schema.activity_rows](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_schema) | resource |
 | [google_pubsub_subscription.activities_live_writer](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_subscription) | resource |
 | [google_pubsub_subscription.activity_rows_dlq_monitoring](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_subscription) | resource |
-| [google_pubsub_subscription.bq_inserter](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_subscription) | resource |
 | [google_pubsub_subscription.bq_inserter_dlq](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_subscription) | resource |
 | [google_pubsub_subscription.dead_letter_monitoring](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_subscription) | resource |
 | [google_pubsub_subscription.deletion_service](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_subscription) | resource |
