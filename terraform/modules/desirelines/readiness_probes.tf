@@ -254,9 +254,15 @@ resource "google_logging_metric" "python_readiness_failures" {
     value_type  = "INT64"
     unit        = "1"
     labels {
-      key         = "service"
-      value_type  = "STRING"
-      description = "Python service slug (${join(" | ", keys(local.python_readiness_targets))})"
+      key        = "service"
+      value_type = "STRING"
+      # Deliberately NOT interpolated from local.python_readiness_targets.
+      # metric_descriptor.labels is ForceNew, so listing the slugs here would
+      # make every change to the target map plan a full metric replacement —
+      # and that replacement cannot proceed while an alert policy references
+      # the metric (see the replace_triggered_by on python_readiness_failing).
+      # The live slugs are already visible in `filter` and `label_extractors`.
+      description = "Python service slug"
     }
   }
   label_extractors = {
@@ -320,5 +326,15 @@ resource "google_monitoring_alert_policy" "python_readiness_failing" {
 
   alert_strategy {
     auto_close = "3600s"
+  }
+
+  # Cloud Logging refuses to delete a metric that an alert policy still
+  # references, so replacing the metric deadlocks against this policy. Tying
+  # this policy's lifecycle to the metric makes Terraform tear the policy down
+  # first (dependents are destroyed before their dependencies) and recreate it
+  # afterwards, rather than trying to update it around a destroy that cannot
+  # succeed.
+  lifecycle {
+    replace_triggered_by = [google_logging_metric.python_readiness_failures]
   }
 }
