@@ -216,7 +216,6 @@ output "monitoring_dashboard_url" {
 output "alert_policy_ids" {
   description = "IDs of created alert policies"
   value = {
-    dlq_bq_inserter               = google_monitoring_alert_policy.dlq_bq_inserter.id
     dlq_postgres_writer           = google_monitoring_alert_policy.dlq_postgres_writer.id
     dlq_deletion_service          = google_monitoring_alert_policy.dlq_deletion_service.id
     service_5xx                   = google_monitoring_alert_policy.service_5xx_errors.id

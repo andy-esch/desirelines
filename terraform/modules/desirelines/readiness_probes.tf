@@ -168,7 +168,6 @@ locals {
   # TF resource references use underscores per Terraform identifier
   # conventions. Not a typo — the asymmetry is intentional.
   python_readiness_targets = {
-    bq-inserter      = google_cloud_run_v2_service.bq_inserter
     postgres-writer  = google_cloud_run_v2_service.postgres_writer
     deletion-service = google_cloud_run_v2_service.deletion_service
   }
@@ -281,7 +280,6 @@ resource "google_monitoring_alert_policy" "python_readiness_failing" {
       Likely causes (add a bullet here when adding a new service to
       local.python_readiness_targets):
       - postgres-writer: Neon down, pool exhausted
-      - bq-inserter: BigQuery permissions drift, dataset missing
       - deletion-service: BigQuery or Firestore credential expired
 
       **Action**:

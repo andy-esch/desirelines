@@ -83,58 +83,35 @@ resource "google_bigquery_dataset" "activities_dataset" {
   depends_on = [google_project_service.required_apis]
 }
 
-# BigQuery Table for Activities
-resource "google_bigquery_table" "activities" {
-  dataset_id          = google_bigquery_dataset.activities_dataset.dataset_id
-  table_id            = "activities"
-  friendly_name       = "Strava Activities"
-  description         = "Complete Strava activity data matching production schema"
-  deletion_protection = var.environment == "prod"
+# The legacy BigQuery write path is retired. `activities` and
+# `activities_staging` were written by bq-inserter via Storage Write API +
+# MERGE; that service no longer exists. Activity rows now reach BigQuery
+# through the CDC subscription in bigquery_subscription.tf (`activities_live`).
+#
+# Dropped from state rather than destroyed, so the historical rows survive for
+# as long as they are wanted and can be removed by hand with `bq rm` once they
+# are not. `destroy = false` also sidesteps the deletion_protection that
+# `activities` carries in prod, which would otherwise fail the apply.
+#
+# KEEP THESE BLOCKS until dev *and* prod have both applied a module version
+# containing them. Removing one early leaves the un-applied environment holding
+# a state entry with no config, which plans a real destroy.
+removed {
+  from = google_bigquery_table.activities
 
-  labels = local.common_labels
-
-  # Schema will be loaded from JSON file
-  schema = jsonencode(jsondecode(file("${path.module}/../../../schemas/bigquery/activities_full.json")).schema)
-
-  # Partitioning by date for better performance
-  time_partitioning {
-    type  = "DAY"
-    field = "start_date"
+  lifecycle {
+    destroy = false
   }
-
-  # Clustering for query optimization
-  clustering = ["sport_type", "start_date"]
 }
 
-# BigQuery Staging Table for Activities (used for upsert operations)
-resource "google_bigquery_table" "activities_staging" {
-  dataset_id          = google_bigquery_dataset.activities_dataset.dataset_id
-  table_id            = "activities_staging"
-  friendly_name       = "Strava Activities Staging"
-  description         = "Staging table for activities upsert operations - temporary data before merge to main table"
-  deletion_protection = false # Staging table should be easily recreatable
-  labels              = local.common_labels
+removed {
+  from = google_bigquery_table.activities_staging
 
-  # Same schema as main activities table
-  schema = jsonencode(jsondecode(file("${path.module}/../../../schemas/bigquery/activities_full.json")).schema)
-
-  # Same partitioning and clustering as main table for performance.
-  # Defense-in-depth: staging rows are deleted post-MERGE in
-  # _cleanup_staging; a 7-day partition expiration caps the blast radius
-  # if that DELETE ever silently fails (IAM regression, schema drift).
-  # Backfill MERGE+DELETE completes in minutes, so even years-old
-  # activities (partitioned by their own start_date) are gone long before
-  # the partition expires.
-  time_partitioning {
-    type          = "DAY"
-    field         = "start_date"
-    expiration_ms = 7 * 24 * 60 * 60 * 1000
+  lifecycle {
+    destroy = false
   }
-
-  clustering = ["sport_type", "start_date"]
 }
 
-# BigQuery Table for Deleted Activities (archive)
 # ==============================================================================
 # FIRESTORE DATABASE
 # ==============================================================================
@@ -175,7 +152,7 @@ resource "google_pubsub_topic" "activity_events" {
 
 # PubSub Topic for deauth events (user disconnects from Strava)
 # Separate from activity_events so deauth events route to the deletion service
-# instead of bq_inserter/postgres_writer which only handle activities.
+# instead of postgres_writer, which only handles activities.
 resource "google_pubsub_topic" "deauth_events" {
   name = "${var.project_name}_deauth_events"
 
@@ -238,12 +215,6 @@ resource "google_service_account" "dispatcher" {
   account_id   = "dispatcher"
   display_name = "Desirelines Dispatcher (${title(var.environment)})"
   description  = "Service account for dispatcher function in ${var.environment} environment"
-}
-
-resource "google_service_account" "bq_inserter" {
-  account_id   = "bq-inserter"
-  display_name = "Desirelines BQ Inserter (${title(var.environment)})"
-  description  = "Service account for BQ inserter function in ${var.environment} environment"
 }
 
 resource "google_service_account" "api_gateway" {
@@ -342,20 +313,6 @@ resource "google_bigquery_dataset_iam_member" "developer_owner" {
   member     = "user:${var.developer_email}"
 }
 
-# BQ Inserter needs dataEditor on the dataset for insert/update/delete operations
-resource "google_bigquery_dataset_iam_member" "bq_inserter_data_editor" {
-  dataset_id = google_bigquery_dataset.activities_dataset.dataset_id
-  role       = "roles/bigquery.dataEditor"
-  member     = "serviceAccount:${google_service_account.bq_inserter.email}"
-}
-
-# BQ Inserter needs jobUser to run queries (required for MERGE operations)
-resource "google_project_iam_member" "bq_inserter_bigquery_job_user" {
-  project = var.gcp_project_id
-  role    = "roles/bigquery.jobUser"
-  member  = "serviceAccount:${google_service_account.bq_inserter.email}"
-}
-
 # ==============================================================================
 # Developer Service Account Impersonation
 # ==============================================================================
@@ -366,13 +323,6 @@ resource "google_project_iam_member" "bq_inserter_bigquery_job_user" {
 resource "google_service_account_iam_member" "dispatcher_impersonation" {
   count              = var.developer_email != null ? 1 : 0
   service_account_id = google_service_account.dispatcher.name
-  role               = "roles/iam.serviceAccountTokenCreator"
-  member             = "user:${var.developer_email}"
-}
-
-resource "google_service_account_iam_member" "bq_inserter_impersonation" {
-  count              = var.developer_email != null ? 1 : 0
-  service_account_id = google_service_account.bq_inserter.name
   role               = "roles/iam.serviceAccountTokenCreator"
   member             = "user:${var.developer_email}"
 }
@@ -631,13 +581,6 @@ resource "google_project_iam_member" "dispatcher_monitoring" {
   member  = "serviceAccount:${google_service_account.dispatcher.email}"
 }
 
-# BQ Inserter needs monitoring.metricWriter for OTel metrics export
-resource "google_project_iam_member" "bq_inserter_monitoring" {
-  project = var.gcp_project_id
-  role    = "roles/monitoring.metricWriter"
-  member  = "serviceAccount:${google_service_account.bq_inserter.email}"
-}
-
 # PostgreSQL Writer needs monitoring.metricWriter for OTel metrics export
 resource "google_project_iam_member" "postgres_writer_monitoring" {
   project = var.gcp_project_id
@@ -664,13 +607,6 @@ resource "google_project_iam_member" "dispatcher_tracing" {
   project = var.gcp_project_id
   role    = "roles/cloudtrace.agent"
   member  = "serviceAccount:${google_service_account.dispatcher.email}"
-}
-
-# BQ Inserter needs cloudtrace.agent for OTel trace export
-resource "google_project_iam_member" "bq_inserter_tracing" {
-  project = var.gcp_project_id
-  role    = "roles/cloudtrace.agent"
-  member  = "serviceAccount:${google_service_account.bq_inserter.email}"
 }
 
 # PostgreSQL Writer needs cloudtrace.agent for OTel trace export

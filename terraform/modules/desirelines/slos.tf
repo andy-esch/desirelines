@@ -442,10 +442,10 @@ resource "google_monitoring_alert_policy" "slo_5_apigateway_latency_slow_burn" {
 # or DLQ'd (max retries exhausted). good + bad = total messages naturally;
 # the provider computes good / (good + bad) as the SLI.
 #
-# Why postgres-writer only, not bq-inserter: bq-inserter DLQ failures are
-# archive-only — user sees no impact when BQ is behind. postgres-writer DLQ
-# failures break the dashboard. Only the user-facing subscription rolls
-# into the SLO. bq-inserter has its own static-threshold alert.
+# Why postgres-writer only: its DLQ failures break the dashboard, so it is the
+# user-facing subscription and the only one that rolls into the SLO. The CDC
+# path to BigQuery is archive-only — the user sees no impact when BigQuery is
+# behind — and carries its own static-threshold alert instead.
 #
 # Why activity-events only, not deauth-events: deauth events are rare and
 # off-platform; failures don't tie to user-noticed product behavior. Separate

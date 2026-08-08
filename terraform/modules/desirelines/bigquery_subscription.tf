@@ -1,18 +1,15 @@
 # ==============================================================================
-# BigQuery-subscription CDC prototype (ADDITIVE — off by default)
+# BigQuery ingestion via Pub/Sub subscription (CDC)
 # ==============================================================================
 #
-# An isolated prototype of the target BigQuery write path: Pub/Sub writes
-# activity rows straight to BigQuery in CDC mode, with no writer service, no
-# staging table, and no MERGE. See docs/architecture/bigquery-write-architecture.md.
+# The BigQuery write path: Pub/Sub writes activity rows straight to BigQuery in
+# CDC mode, with no writer service, no staging table, and no MERGE. See
+# docs/architecture/bigquery-write-architecture.md.
 #
-# Everything here is additive: the existing activity_events topic, the
-# postgres-writer / bq-inserter subscriptions, and the activities /
-# activities_staging tables are untouched. The only
-# producer is the dispatcher's best-effort dual-publish, which is off unless
-# app_config.dispatcher_activity_row_publish_enabled says otherwise and which
-# cannot fail a webhook. A misbehaving prototype can only affect
-# activities_live, which nothing reads.
+# The only producer is the dispatcher's best-effort publish, gated on
+# app_config.dispatcher_activity_row_publish_enabled, which cannot fail a
+# webhook. A failure here can only affect activities_live; the user-facing
+# read path is PostgreSQL, fed independently via postgres-writer.
 #
 # ---- Mode: selected by app_config.dispatcher_activity_row_encoding ------------
 # One value drives three things that must agree: the dispatcher's
