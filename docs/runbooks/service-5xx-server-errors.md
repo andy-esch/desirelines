@@ -3,7 +3,7 @@
 **Symptom**: one of the non-SLO Cloud Run services is returning 5xx on >2% of
 its requests. Fires as CRITICAL to email + Slack.
 
-Monitored services: `desirelines-bq-inserter`, `desirelines-postgres-writer`,
+Monitored services: `desirelines-postgres-writer`,
 `desirelines-deletion-service`.
 
 apigateway and dispatcher 5xx are deliberately excluded here — they are covered
@@ -32,7 +32,7 @@ by the SLO 1 and SLO 4 burn-rate alerts.
   diagnose after.
 - Verify the dependency the service actually needs is healthy.
 
-**If still stuck**: for bq-inserter and postgres-writer, cross-reference the
-matching DLQ runbook (`dlq-bq-inserter.md` / `dlq-postgres-writer.md`) —
+**If still stuck**: for postgres-writer and deletion-service, cross-reference the
+matching DLQ runbook (`dlq-postgres-writer.md` / `dlq-deletion-service.md`) —
 failures here typically land in the DLQ, so the DLQ payloads give you the
 concrete failing message.

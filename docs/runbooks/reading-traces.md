@@ -34,7 +34,7 @@ Cloud Trace doesn't index by activity_id directly, but spans carry it as an attr
 
    ```
    resource.type="cloud_run_revision"
-   resource.labels.service_name=~"desirelines-(dispatcher|bq-inserter|postgres-writer)"
+   resource.labels.service_name=~"desirelines-(dispatcher|postgres-writer|deletion-service)"
    jsonPayload.activity_id="12345678"
    ```
 
@@ -71,11 +71,6 @@ POST /webhook                                  (dispatcher, otelhttp)
 │    ├─ HTTP GET (otelhttp transport)
 │    └─ strava.refresh_token    (refresh-ahead near expiry; or reactively on 401)
 └─ pubsub.publish                              ~50ms
-     ├─ bq_inserter.webhook.process            (child via traceparent)
-     │    └─ bigquery.insert_rows
-     │         ├─ bigquery.write_to_staging
-     │         ├─ bigquery.merge_from_staging  ← usually the slow one
-     │         └─ bigquery.cleanup_staging
      └─ postgres_writer.webhook.process        (child via traceparent)
           └─ postgres.insert
                ├─ postgres.session.acquire
@@ -84,6 +79,12 @@ POST /webhook                                  (dispatcher, otelhttp)
                ├─ postgres.activities.insert_route
                └─ postgres.commit
 ```
+
+The dispatcher also publishes a CDC row to the `activity_rows` topic, which
+Pub/Sub writes straight into BigQuery. That branch has no subscriber code and so
+produces **no spans** — the trace simply ends at `pubsub.publish`. If you are
+chasing a missing BigQuery row, the trace will not help; check the
+activity-rows DLQ and the dispatcher's `bigquery/row_publish` counter instead.
 
 A typical end-to-end duration is **400-700ms warm, 2-6s on cold start** (Cloud Run cold start + connection-pool warm).
 
@@ -128,7 +129,7 @@ See [observability.md → Logs ↔ Trace correlation](../architecture/observabil
 
 ### "Same span name appears twice in one trace"
 
-The webhook flow has two parallel subscribers (bq-inserter, postgres-writer) on the same Pub/Sub event. Their root spans are now **service-prefixed** (`bq_inserter.webhook.process` and `postgres_writer.webhook.process`) so they don't collide visually. If you see two un-prefixed `webhook.process` spans, you're looking at an old trace from before that change shipped — confirm the deploy version against `provider.go` history.
+Root spans are **service-prefixed** (`postgres_writer.webhook.process`) so that parallel subscribers on the same Pub/Sub event don't collide visually. If you see an un-prefixed `webhook.process` span, you're looking at an old trace from before that change shipped — confirm the deploy version against `provider.go` history. Older traces may also show a second `bq_inserter.webhook.process` branch, from before the BigQuery write moved onto the CDC subscription.
 
 ## Pulling a trace by scenario
 
@@ -139,8 +140,8 @@ Useful when investigating "does this code path even work?":
 | Allowlisted user activity (warm) | Upload an activity from a known-allowlisted athlete; pull dispatcher logs |
 | Non-allowlisted (stray) | Filter logs `result=stray` on the `owner_check` counter; trace is short — ack 200, no Strava call |
 | Strava 404 (deleted before fetch) | Filter logs `"Activity not found in Strava"`; downstream publishes without `raw_activity` |
-| DELETE webhook | Filter `aspect_type=delete`; bq-inserter runs `bigquery.archive_insert` + `bigquery.activity_delete` |
-| UPDATE webhook | Filter `aspect_type=update`; bq-inserter currently ignores, postgres-writer runs `postgres.update_metadata` |
+| DELETE webhook | Filter `aspect_type=delete`; postgres-writer runs `postgres.activities.delete`. The BigQuery side is a `_CHANGE_TYPE=DELETE` CDC row with no span. |
+| UPDATE webhook | Filter `aspect_type=update`; postgres-writer runs `postgres.update_metadata` |
 | Athlete deauth | Filter `object_type=athlete`; runs `dispatcher.handleAthleteEvent` and the deletion-service subgraph |
 | Token refresh | `strava.refresh_token` inside `strava.fetch_activity`. Its `strava.refresh_reason` attribute says why: `proactive_expiry` (normal — refreshed ahead of expiry), `reactive_401` (Strava rejected a token we thought valid — revoked early), `empty_token` (no stored token, e.g. just after connect). Steady-state webhooks within the ~6h token window have **no** `strava.refresh_token` span at all. A `WARN "Refreshed Strava token has zero expiry"` log means refresh-ahead will fire every request — investigate the stored token's `expires_at`. |
 | Strava retried | `strava.retry` events on `strava.fetch_activity` (transient fetch failures) or `strava.refresh_token` (token-endpoint failures), with `attempt`/`backoff` and either `status_code` or a short `error`. `strava.attempts` + `strava.exhausted=true` on the parent span mean every retry was used up. |

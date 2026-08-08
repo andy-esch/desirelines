@@ -32,7 +32,6 @@ just start-backend
 | Service | Port | Description |
 |---------|------|-------------|
 | Dispatcher | 8081 | Webhook receiver |
-| BQ Inserter | 8083 | BigQuery sync (mocked locally) |
 | PostgreSQL Writer | 8086 | PostgreSQL sync |
 | PubSub Emulator | 8085 | Google PubSub emulator |
 | CloudEvent Adapter | 8087 | Converts PubSub → CloudEvents |
@@ -46,7 +45,7 @@ curl -X POST http://localhost:8081/webhook \
   -d '{"aspect_type":"create","object_id":12345,"object_type":"activity","owner_id":67890,"subscription_id":123456,"event_time":1704067200}'
 
 # Watch logs
-docker compose logs -f dispatcher bq-inserter postgres-writer
+docker compose logs -f dispatcher postgres-writer
 ```
 
 ### 2. Frontend + API Testing

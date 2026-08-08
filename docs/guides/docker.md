@@ -70,7 +70,7 @@ docker compose build dispatcher
 
 ### Profiles
 
-- `backend` - Pipeline services (dispatcher, bq-inserter, postgres-writer, PubSub emulator)
+- `backend` - Pipeline services (dispatcher, postgres-writer, PubSub emulator)
 - `frontend` - Web services (api-gateway, postgres, Firebase emulators)
 - `debug` - Debugging tools (PubSub UI)
 
@@ -79,7 +79,6 @@ docker compose build dispatcher
 | Port | Service |
 |------|---------|
 | 8081 | Dispatcher |
-| 8083 | BQ Inserter |
 | 8084 | API Gateway |
 | 8085 | PubSub Emulator |
 | 8086 | PostgreSQL Writer |

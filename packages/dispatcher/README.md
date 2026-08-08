@@ -9,7 +9,7 @@ Strava Webhook → Dispatcher (Cloud Run) → [enrich with Strava API] → PubSu
                                          ↘ [athlete deauth] → delete Firestore tokens + PubSub Deauth Topic → downstream services
 ```
 
-The dispatcher is the **only service** that calls the Strava API. Downstream consumers (bq-inserter, postgres-writer) receive enriched events with activity data inline and do not need Strava API credentials.
+The dispatcher is the **only service** that calls the Strava API. Downstream consumers (postgres-writer) receive enriched events with activity data inline and do not need Strava API credentials.
 
 **Package Structure (Hexagonal Architecture):**
 

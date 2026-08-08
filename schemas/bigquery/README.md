@@ -1,17 +1,21 @@
 # BigQuery Schemas
 
-JSON schema definitions for BigQuery tables used by `bq-inserter`.
+JSON schema definitions for BigQuery tables.
 
 ## Files
 
 | File | Table | Description |
 |------|-------|-------------|
-| `activities_full.json` | `desirelines.activities` | All Strava activity fields |
-| `activities_minimal.json` | `desirelines.activities` | Core fields only (lighter) |
+| `activities_live.json` | `desirelines.activities_live` | The live table, written by the Pub/Sub CDC subscription |
+| `activities_full.json` | `desirelines.activities` | All Strava activity fields. Source of truth for the generated protos; the table itself is frozen legacy history |
+| `activities_minimal.json` | `desirelines.activities` | Core fields only (lighter). Used only by `schema_to_bq.py --minimal` |
 
 ## Usage
 
-These schemas are used by the `bq-inserter` service to define BigQuery table structure.
+`activities_full.json` is the source of truth from which `generate_proto.py`
+derives the protobuf profiles — including the CDC topic schema that Pub/Sub
+validates published rows against. It is also the schema the backfill job's
+staging + MERGE path writes.
 
 To output schema in BigQuery CLI format:
 
@@ -69,9 +73,16 @@ source of truth.
 
 ## Changing REQUIRED → NULLABLE on a deployed table
 
-After merging the JSON change, run this against the live dataset.
-`bq-inserter` has `bigquery.dataEditor` only (no DDL by design), so
-this is a human-operator step.
+After merging the JSON change, run this against the live dataset. Nothing in the
+pipeline holds DDL rights by design, so this is a human-operator step.
+
+**Pausing writes is different now.** This procedure was written when a Cloud Run
+service wrote the table and could be scaled to zero. `activities_live` is written
+by a Pub/Sub BigQuery subscription, which has no instance count — to stop writes
+you have to detach the subscription (the topic retains messages for its retention
+window) and recreate it afterwards, which for a Terraform-managed subscription
+means a module change and a deploy. Weigh that against simply letting writes
+dead-letter during a short swap and replaying them.
 
 ```bash
 export PROJECT=<gcp-project-id>
@@ -93,13 +104,11 @@ bq query --use_legacy_sql=false --format=csv \
      (SELECT COUNT(*) FROM \`${PROJECT}.${DATASET}.${TABLE}\`)     AS old_rows,
      (SELECT COUNT(*) FROM \`${PROJECT}.${DATASET}.${TABLE}_new\`) AS new_rows"
 
-# 4. Atomic swap. Briefly scale bq-inserter to 0 first; Pub/Sub queues
-#    messages during the short window.
-gcloud run services update desirelines-bq-inserter --min-instances=0 --max-instances=0
+# 4. Atomic swap. Stop writes first if the table is one the CDC subscription
+#    writes (see the note above on detaching the subscription).
 bq rm -f -t "${PROJECT}:${DATASET}.${TABLE}"
 bq cp -f "${PROJECT}:${DATASET}.${TABLE}_new" "${PROJECT}:${DATASET}.${TABLE}"
 bq rm -f -t "${PROJECT}:${DATASET}.${TABLE}_new"
-gcloud run services update desirelines-bq-inserter --min-instances=<prod> --max-instances=<prod>
 ```
 
 If anything looks wrong before the rm/cp swap, the `_new` table holds

@@ -9,7 +9,6 @@ look**, **Likely causes** (ranked), **Quick mitigations**, **If still stuck**.
 
 ## Critical
 
-- [DLQ: BQ Inserter has messages](dlq-bq-inserter.md)
 - [DLQ: PostgreSQL Writer has messages](dlq-postgres-writer.md)
 - [DLQ: Deletion Service has messages](dlq-deletion-service.md)
 - [DLQ: Activity Rows (BigQuery CDC) has messages](dlq-activity-rows.md)

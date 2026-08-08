@@ -348,7 +348,7 @@ For rapid iteration:
 pants test packages/stravapipe/tests/unit/config/test_common.py
 
 # Only lint specific files
-pants lint packages/stravapipe/src/stravapipe/config/bq_inserter.py
+pants lint packages/stravapipe/src/stravapipe/config/postgres_writer.py
 ```
 
 ## Branch Protection Rules

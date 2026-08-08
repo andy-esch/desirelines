@@ -20,9 +20,10 @@ mechanics that create the divergence window see
 
 ## Why the two stores diverge
 
-`activity_events` fans out to **two independent Pub/Sub push subscriptions** —
-one for `postgres-writer`, one for `bq-inserter` — each with its **own** dead
-letter queue and 5-attempt retry policy
+The dispatcher publishes to **two independent topics** — `activity_events`,
+push-delivered to `postgres-writer`, and `activity_rows`, consumed by a BigQuery
+CDC subscription with no service — each with its **own** dead letter queue and
+retry policy
 (`terraform/modules/desirelines/pubsub_subscriptions.tf`). The two writes are not
 transactional with each other, so a single event can:
 
@@ -31,11 +32,13 @@ transactional with each other, so a single event can:
   rejection. The store whose subscription dead-lettered is now missing that
   event; the other store has it.
 
-Independently of live delivery, **BigQuery is currently in a degraded /
-transitional mode**: its backfill is disabled, so BigQuery holds only the events
-delivered since its table was created and has **not** been backfilled with the
-older history that PostgreSQL carries. Until BigQuery backfill is re-enabled,
-BigQuery is expected to lag PostgreSQL by that historical gap.
+Independently of live delivery, **BigQuery holds no history**. The live table
+`activities_live` was never seeded — it starts from the CDC cutover, so it
+carries only events delivered since then. The older `activities` table is frozen
+at the rows the retired writer left in it and receives nothing further. Neither
+is backfilled: the backfill job still writes the frozen `activities` table, and
+nothing publishes historical rows to the CDC topic. BigQuery is therefore
+expected to lag PostgreSQL by essentially all of history until that changes.
 
 ## Blast radius
 
@@ -56,12 +59,12 @@ DLQ alert should know the **other** store is now ahead — the DLQ runbooks
 cross-link here for that reason.
 
 **A cheap divergence detector is deliberately deferred.** A scheduled row-count
-or `id` set-difference between `desirelines.activities` (PostgreSQL) and the
-BigQuery `activities` table would, run today, simply re-report the **known**
-un-backfilled historical gap rather than any live-delivery drift — so it would
+or `id` set-difference between `desirelines.activities` (PostgreSQL) and
+BigQuery `activities_live` would, run today, simply re-report the **known**
+un-seeded historical gap rather than any live-delivery drift — so it would
 be noise, not signal, and it would wake the (compute-metered) database on a
-schedule for no actionable result. **Trigger to build it:** once BigQuery
-backfill is re-enabled and BigQuery has been caught up to PostgreSQL, add a
+schedule for no actionable result. **Trigger to build it:** once history is
+seeded into `activities_live` and BigQuery has been caught up to PostgreSQL, add a
 periodic count/`id`-diff compare that alerts when the delta exceeds a small
 threshold. Before that, the gap is expected and this document is the record of
 why.
@@ -76,10 +79,10 @@ automating. Until then, the blanket backfill job is the reconciliation path.
 
 ## Related
 
-- [BigQuery Write Architecture](bigquery-write-architecture.md) — the planned move
-  of the BigQuery write onto a Pub/Sub BigQuery subscription (CDC), which also
-  reshapes how the archival mirror is populated and re-seeded.
+- [BigQuery Write Architecture](bigquery-write-architecture.md) — the move of the
+  BigQuery write onto a Pub/Sub BigQuery subscription (CDC), now shipped, and
+  what it means for how the archival mirror is populated and re-seeded.
 - [Pub/Sub Subscription Design](pubsub-subscription-design.md) — the fan-out and
   DLQ mechanics.
 - DLQ runbooks: [`dlq-postgres-writer.md`](../runbooks/dlq-postgres-writer.md),
-  [`dlq-bq-inserter.md`](../runbooks/dlq-bq-inserter.md).
+  [`dlq-activity-rows.md`](../runbooks/dlq-activity-rows.md).

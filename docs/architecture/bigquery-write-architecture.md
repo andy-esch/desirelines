@@ -6,29 +6,33 @@ store-relationship contract (PostgreSQL is source of truth, BigQuery is an
 archival mirror) see
 [PostgreSQL ↔ BigQuery Consistency](postgres-bigquery-consistency.md).
 
-**Status:** accepted; the prototype runs in production alongside the existing
-path, writing real activity rows. Cutover is pending.
+**Status:** accepted and implemented. The CDC subscription is the only path by
+which live activity rows reach BigQuery in dev and prod; the `bq-inserter`
+service, its subscription, service account and DLQ wiring are deleted. The
+legacy `activities` and `activities_staging` tables still exist, holding their
+history, but are no longer written by the live path and are no longer managed by
+Terraform — see "What actually shipped" below.
 
-## Context — the current write path
+## Context — the write path this replaced
 
-Today an activity reaches BigQuery through application code:
+An activity used to reach BigQuery through application code:
 
 `activity_events` topic → push subscription → `bq-inserter` Cloud Run service →
-Storage Write API → `activities_staging` → `MERGE` into `activities`; deletes run
+Storage Write API → `activities_staging` → `MERGE` into `activities`; deletes ran
 a `DELETE` DML.
 
-This works but carries avoidable cost and risk:
+That worked but carried avoidable cost and risk:
 
 - A whole Cloud Run service + Storage Write API plumbing (`AppendRowsStream`,
-  descriptor flattening) exists only to write rows.
-- The MERGE column list is hand-maintained and has drifted from the schema
+  descriptor flattening) existed only to write rows.
+- The MERGE column list was hand-maintained and had drifted from the schema
   before.
-- The delete path's archive + delete are two operations with no shared
+- The delete path's archive + delete were two operations with no shared
   transaction — not atomic.
-- Out-of-order/redelivered events are resolved with a `ROW_NUMBER` tiebreak in
+- Out-of-order/redelivered events were resolved with a `ROW_NUMBER` tiebreak in
   the MERGE rather than a first-class ordering key.
-- BigQuery is archival — no product read path depends on it — so this is all
-  background work whose failures are invisible until inspected.
+- BigQuery is archival — no product read path depends on it — so this was all
+  background work whose failures were invisible until inspected.
 
 ## Decision
 
@@ -44,7 +48,7 @@ Two tables:
 | table | subscription | write shape |
 |---|---|---|
 | `activities_live` | CDC BigQuery subscription, primary key `id` | `_CHANGE_TYPE = UPSERT` on create/update, `_CHANGE_TYPE = DELETE` on delete, ordered by `_CHANGE_SEQUENCE_NUMBER` — hex sections, the webhook `event_time` then a local tiebreak for events Strava stamped in the same second |
-| `activities_log` (added at cutover) | plain append BigQuery subscription, no key | every event, append-only; the "deleted set" is derivable as `log ANTI JOIN live` |
+| `activities_log` (**not built** — see below) | plain append BigQuery subscription, no key | every event, append-only; the "deleted set" would be derivable as `log ANTI JOIN live` |
 
 Deletes are first-class (a `DELETE` change message). Out-of-order and redelivered
 events resolve to the newest by `_CHANGE_SEQUENCE_NUMBER`, so **no
@@ -94,9 +98,41 @@ PostgreSQL, then cut over and retire the old path.
   best-effort second publish that can never affect the primary path.
 - **Eventual consistency.** CDC apply is not instantaneous (seconds), which is
   fine for an archival store.
-- **Cutover retires** the old service and tables; history is seeded by having the
-  backfill publish rows to the topic (which is also how BigQuery backfill gets
-  re-enabled — the current table was never backfilled).
+- **Cutover retires** the old service. It did not seed history — see below.
+
+## What actually shipped
+
+The decision above landed, with three deliberate deviations worth recording so
+the gap between this document and the code is intentional rather than rot.
+
+**`activities_log` was not built.** No product read path touches BigQuery at all,
+so an append-only table with no reader was speculative. The one thing it would
+have bought — the `log ANTI JOIN live` deleted-set query — is something nobody
+runs. It stays in the design above because it remains the right shape if a
+consumer ever appears. Note the cost of waiting: topic retention is 7 days, so
+events not captured into a log now are not recoverable into one later.
+
+**History was not seeded.** `activities_live` starts from the cutover, not from
+the beginning of time; the legacy `activities` table is frozen at the rows it
+had. The plan was to seed by having the backfill publish rows to the topic, but
+the Strava-activity-to-CDC-row mapping exists only in Go (in the dispatcher),
+and the backfill job is Python — so doing it would mean a second implementation
+of that mapping and a standing drift risk. That decision is parked pending a
+separate question about whether the Python services move to Go, which would make
+the mapping available for free.
+
+**The writer is not fully deleted.** "Deletes the writer" above is true of the
+live path only. `ActivitiesWriter`, `_MERGE_COLUMNS` and the Storage Write API
+staging code survive because the **backfill job** still uses them to write the
+legacy `activities` table. So backfill currently MERGEs into a table nothing
+reads — harmless, but the reason that code is still here.
+
+**The legacy tables were orphaned, not dropped.** `activities` and
+`activities_staging` still exist in both projects with their data, but are no
+longer Terraform-managed (dropped from state with `removed { … destroy = false }`
+so their history survived). They come out by hand with `bq rm` when the history
+is no longer wanted. Do not re-add them as Terraform resources — a create would
+be planned against tables that already exist and fail.
 
 ## What the open questions resolved to
 
@@ -144,8 +180,8 @@ originally guessed wrong.
   required field and removing one alike — so the schema resource carries a
   digest of its definition in its name and a changed definition becomes a new
   schema at revision 1.
-- **Field completeness** is bounded by what the producer holds, the same
-  constraint the current `bq-inserter` has: detailed-only fields depend on the
+- **Field completeness** is bounded by what the producer holds — the same
+  constraint the retired `bq-inserter` had: detailed-only fields depend on the
   enrichment fetch.
 
 ## Related
