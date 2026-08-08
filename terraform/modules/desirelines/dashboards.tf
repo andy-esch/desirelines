@@ -184,43 +184,8 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # BQ Inserter DLQ - Row 8, Left
+        # Postgres Writer DLQ - Row 8, Left
         {
-          yPos   = 8
-          width  = 6
-          height = 4
-          widget = {
-            title = "BQ Inserter DLQ Messages"
-            xyChart = {
-              dataSets = [{
-                timeSeriesQuery = {
-                  timeSeriesFilter = {
-                    filter = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"${google_pubsub_subscription.bq_inserter_dlq.name}\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
-                    aggregation = {
-                      alignmentPeriod    = "60s"
-                      perSeriesAligner   = "ALIGN_MEAN"
-                      crossSeriesReducer = "REDUCE_SUM"
-                    }
-                  }
-                }
-                plotType   = "LINE"
-                targetAxis = "Y1"
-              }]
-              timeshiftDuration = "0s"
-              yAxis = {
-                label = "Messages"
-                scale = "LINEAR"
-              }
-              thresholds = [{
-                value = 1
-              }]
-            }
-          }
-        },
-
-        # Postgres Writer DLQ - Row 8, Right
-        {
-          xPos   = 6
           yPos   = 8
           width  = 6
           height = 4
@@ -263,7 +228,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           widget = {
             title = "⚡ Cloud Run Performance"
             text = {
-              content = "Monitor execution counts, error rates, and performance across all services:\n- **dispatcher** (webhook entry point)\n- **api_gateway** (web UI backend)\n- **bq_inserter** (BigQuery writer)\n- **postgres_writer** (PostgreSQL sync)"
+              content = "Monitor execution counts, error rates, and performance across all services:\n- **dispatcher** (webhook entry point)\n- **api_gateway** (web UI backend)\n- **postgres_writer** (PostgreSQL sync)"
               format  = "MARKDOWN"
               style   = {}
             }

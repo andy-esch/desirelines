@@ -6,16 +6,6 @@ output "bigquery_dataset_id" {
   value       = google_bigquery_dataset.activities_dataset.dataset_id
 }
 
-output "bigquery_table_id" {
-  description = "ID of the activities BigQuery table"
-  value       = google_bigquery_table.activities.table_id
-}
-
-output "bigquery_table_full_id" {
-  description = "Full ID of the activities BigQuery table (project:dataset.table)"
-  value       = "${var.gcp_project_id}:${google_bigquery_dataset.activities_dataset.dataset_id}.${google_bigquery_table.activities.table_id}"
-}
-
 # Firestore outputs
 output "firestore_database_name" {
   description = "Name of the Firestore database"
@@ -44,7 +34,7 @@ output "resource_names" {
   description = "Map of all resource names for easy reference"
   value = {
     dataset_name = google_bigquery_dataset.activities_dataset.dataset_id
-    table_name   = google_bigquery_table.activities.table_id
+    table_name   = google_bigquery_table.activities_live.table_id
     topic_name   = google_pubsub_topic.activity_events.name
   }
 }
@@ -64,7 +54,6 @@ output "service_accounts" {
   description = "Service account emails for each service"
   value = {
     dispatcher_email      = google_service_account.dispatcher.email
-    bq_inserter_email     = google_service_account.bq_inserter.email
     api_gateway_email     = google_service_account.api_gateway.email
     postgres_writer_email = google_service_account.postgres_writer.email
   }
@@ -76,7 +65,6 @@ output "cloud_run_urls" {
   value = {
     dispatcher_url      = google_cloud_run_v2_service.dispatcher.uri
     api_gateway_url     = google_cloud_run_v2_service.api_gateway.uri
-    bq_inserter_url     = google_cloud_run_v2_service.bq_inserter.uri
     postgres_writer_url = google_cloud_run_v2_service.postgres_writer.uri
   }
 }
@@ -86,7 +74,6 @@ output "service_names" {
   value = {
     dispatcher      = google_cloud_run_v2_service.dispatcher.name
     api_gateway     = google_cloud_run_v2_service.api_gateway.name
-    bq_inserter     = google_cloud_run_v2_service.bq_inserter.name
     postgres_writer = google_cloud_run_v2_service.postgres_writer.name
     backfill        = google_cloud_run_v2_job.backfill.name
   }
@@ -112,7 +99,6 @@ output "pubsub_subscription_names" {
   value = {
     postgres_writer      = google_pubsub_subscription.postgres_writer.name
     deletion_service     = google_pubsub_subscription.deletion_service.name
-    bq_inserter_dlq      = google_pubsub_subscription.bq_inserter_dlq.name
     postgres_writer_dlq  = google_pubsub_subscription.postgres_writer_dlq.name
     deletion_service_dlq = google_pubsub_subscription.deletion_service_dlq.name
   }

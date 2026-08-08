@@ -389,112 +389,6 @@ resource "google_cloud_run_v2_service_iam_member" "api_gateway_public_access" {
 }
 
 # ==============================================================================
-# BQ Inserter - Cloud Run Service (Python/FastAPI)
-# ==============================================================================
-# Replaces the Cloud Functions v2 deployment for bq_inserter
-# Uses FastAPI + Uvicorn for better performance and CloudEvent support
-
-resource "google_cloud_run_v2_service" "bq_inserter" {
-  name     = "${var.project_name}-bq-inserter"
-  location = var.gcp_region
-  ingress  = "INGRESS_TRAFFIC_INTERNAL_ONLY" # Only Eventarc can call this
-
-  labels = local.common_labels
-
-  template {
-    service_account = google_service_account.bq_inserter.email
-
-    scaling {
-      max_instance_count = 1
-      min_instance_count = 0
-    }
-
-    containers {
-      image = local.image_ref.stravapipe
-
-      command = ["uvicorn"]
-      args    = ["stravapipe.cloudrun.bq_inserter_app:app", "--host", "0.0.0.0", "--port", "8080"]
-
-      resources {
-        limits = {
-          cpu    = "1"
-          memory = "256Mi"
-        }
-        cpu_idle          = true
-        startup_cpu_boost = true
-      }
-
-      env {
-        name  = "GCP_PROJECT_ID"
-        value = var.gcp_project_id
-      }
-
-      env {
-        name  = "GCP_BIGQUERY_DATASET"
-        value = google_bigquery_dataset.activities_dataset.dataset_id
-      }
-
-      env {
-        name  = "GCP_BIGQUERY_TABLE"
-        value = google_bigquery_table.activities.table_id
-      }
-
-      env {
-        name  = "ENVIRONMENT"
-        value = var.environment
-      }
-
-      env {
-        name  = "LOG_LEVEL"
-        value = var.app_config.log_level
-      }
-
-      env {
-        name  = "ENABLE_CLOUD_LOGGING"
-        value = "true"
-      }
-
-      env {
-        name  = "ENABLE_OTEL_METRICS"
-        value = "true"
-      }
-
-      env {
-        name  = "ENABLE_OTEL_TRACING"
-        value = "true"
-      }
-
-      # Python/Uvicorn cold start is import-heavy (uvicorn -> app ->
-      # sqlalchemy + otel instrumentation + google-cloud + grpc) and the
-      # port isn't bound until that finishes — /health (process-alive only)
-      # can't answer before then. Observed time-to-listen varies widely on
-      # cold starts (~12s typical, occasionally >55s), so the budget must
-      # absorb the tail or Cloud Run kills the instance and the hourly
-      # /ready probe 503s. Budget ~= initial_delay + failure_threshold x
-      # period = 10 + 24x5 = 130s. timeout_seconds is set explicitly:
-      # the default is 1s, which a slow cold /health can exceed, wasting an
-      # attempt.
-      startup_probe {
-        http_get {
-          path = "/health"
-        }
-        initial_delay_seconds = 10
-        period_seconds        = 5
-        failure_threshold     = 24
-        timeout_seconds       = 3
-      }
-    }
-
-    timeout = "60s"
-  }
-
-  traffic {
-    type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
-    percent = 100
-  }
-}
-
-# ==============================================================================
 # PostgreSQL Writer - Cloud Run Service (Python/FastAPI)
 # ==============================================================================
 # Replaces the Cloud Functions v2 deployment for postgres_writer
@@ -792,7 +686,7 @@ resource "google_cloud_run_v2_service" "deletion_service" {
         value = var.app_config.log_level
       }
 
-      # Match bq-inserter/postgres-writer: without this, setup_logging falls back
+      # Match postgres-writer: without this, setup_logging falls back
       # to unstructured basicConfig, so this service's deletion audit trail loses
       # severity mapping and queryable jsonPayload fields in Cloud Logging.
       env {
@@ -866,16 +760,6 @@ resource "google_cloud_run_v2_service" "deletion_service" {
 # These service accounts need permission to invoke their respective Cloud Run services.
 # These are internal-only services, so we grant run.invoker to the specific
 # service accounts (not allUsers).
-
-# Allow BQ Inserter's service account to invoke the Cloud Run service
-# (used by Pub/Sub push subscription OIDC authentication)
-resource "google_cloud_run_v2_service_iam_member" "bq_inserter_eventarc_invoker" {
-  project  = var.gcp_project_id
-  location = var.gcp_region
-  name     = google_cloud_run_v2_service.bq_inserter.name
-  role     = "roles/run.invoker"
-  member   = "serviceAccount:${google_service_account.bq_inserter.email}"
-}
 
 # Allow Deletion Service's service account to invoke the Cloud Run service
 # (used by Pub/Sub push subscription OIDC authentication)

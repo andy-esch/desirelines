@@ -28,57 +28,7 @@
 locals {
   apigateway_request_count      = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_v2_service.api_gateway.name}\" AND metric.type=\"run.googleapis.com/request_count\""
   dispatcher_request_count      = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_v2_service.dispatcher.name}\" AND metric.type=\"run.googleapis.com/request_count\""
-  python_services_request_count = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=monitoring.regex.full_match(\"desirelines-(bq-inserter|postgres-writer|deletion-service)\") AND metric.type=\"run.googleapis.com/request_count\""
-}
-
-# CRITICAL: DLQ Messages Detected (BQ Inserter)
-resource "google_monitoring_alert_policy" "dlq_bq_inserter" {
-  display_name = "🚨 DLQ: BQ Inserter Has Messages"
-  combiner     = "OR"
-
-  documentation {
-    content = <<-EOT
-      **Runbook**: docs/runbooks/dlq-bq-inserter.md
-
-      **CRITICAL**: The BQ Inserter Dead Letter Queue has messages.
-
-      This indicates that activities are failing to be inserted into BigQuery.
-
-      **Store divergence**: while this DLQ has traffic, BigQuery is falling
-      behind PostgreSQL (events committed to PG never reached BQ). PostgreSQL is
-      the source of truth and stays correct; BigQuery is an archival mirror that
-      may now lag. See docs/architecture/postgres-bigquery-consistency.md.
-
-      **Action Required**:
-      1. Check DLQ messages in PubSub console
-      2. Review BQ Inserter function logs for errors
-      3. Check BigQuery table schema for issues
-
-      Dashboard: ${google_monitoring_dashboard.desirelines_observability.id}
-    EOT
-  }
-
-  conditions {
-    display_name = "BQ Inserter DLQ has messages"
-
-    condition_threshold {
-      filter          = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"${google_pubsub_subscription.bq_inserter_dlq.name}\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
-      duration        = "60s"
-      comparison      = "COMPARISON_GT"
-      threshold_value = 0
-
-      aggregations {
-        alignment_period   = "60s"
-        per_series_aligner = "ALIGN_MEAN"
-      }
-    }
-  }
-
-  notification_channels = local.notification_channels
-
-  alert_strategy {
-    auto_close = "1800s" # Auto-resolve after 30 minutes of no messages
-  }
+  python_services_request_count = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=monitoring.regex.full_match(\"desirelines-(postgres-writer|deletion-service)\") AND metric.type=\"run.googleapis.com/request_count\""
 }
 
 # CRITICAL: DLQ Messages Detected (Deletion Service)
@@ -87,11 +37,10 @@ resource "google_monitoring_alert_policy" "dlq_bq_inserter" {
 # compliance-sensitive DLQ in the system, yet it was the only one without a
 # depth alert — the `old_messages` alert covers the delivery sub during retries
 # but auto-closes once the message moves to the DLQ, leaving no active page.
-# NOTE: dlq_bq_inserter / dlq_postgres_writer / dlq_deletion_service are now
-# identical but for the subscription + prose; a for_each over the three services
-# is the natural next refactor (see 2026-07-17-terraform-ci M1 tightening), left
-# out here to keep the change purely additive (no state migration of the two
-# existing production alerts).
+# NOTE: dlq_postgres_writer / dlq_deletion_service are identical but for the
+# subscription + prose; a for_each over the two services is the natural next
+# refactor, left out here to avoid a state migration of the existing production
+# alerts.
 resource "google_monitoring_alert_policy" "dlq_deletion_service" {
   display_name = "🚨 DLQ: Deletion Service Has Messages"
   combiner     = "OR"
@@ -418,7 +367,7 @@ resource "google_monitoring_alert_policy" "dispatcher_bad_request_surge" {
 
 # CRITICAL: 5xx Server Errors on non-SLO Cloud Run services
 #
-# Scope: bq-inserter, postgres-writer, deletion-service. The apigateway
+# Scope: postgres-writer, deletion-service. The apigateway
 # and dispatcher 5xx cases are covered by SLO 4 (apigateway availability)
 # and SLO 1 (dispatcher availability) burn-rate alert pairs in slos.tf,
 # so they're excluded here to avoid double-paging.
@@ -454,7 +403,6 @@ resource "google_monitoring_alert_policy" "service_5xx_errors" {
       5xx at >2% of its request volume.
 
       **Monitored Services**:
-      - desirelines-bq-inserter (BigQuery writer)
       - desirelines-postgres-writer (PostgreSQL writer)
       - desirelines-deletion-service (deletion handler)
 
@@ -465,8 +413,8 @@ resource "google_monitoring_alert_policy" "service_5xx_errors" {
       1. Identify the failing service from the alert's `service_name` label
       2. Review service logs for stack traces and error details
       3. Check for recent deployments or configuration changes
-      4. For bq_inserter / postgres_writer: cross-reference with the
-         corresponding DLQ alert (failures here typically end up in DLQ)
+      4. For postgres_writer: cross-reference with the corresponding DLQ
+         alert (failures here typically end up in DLQ)
       5. Verify dependencies (BigQuery, PostgreSQL, Firestore) are healthy
 
       Dashboard: ${google_monitoring_dashboard.desirelines_observability.id}
@@ -569,7 +517,7 @@ resource "google_monitoring_alert_policy" "old_messages" {
       # code, but it acks on a successful BigQuery write like any other — so a
       # stalled write surfaces here as ageing messages, ahead of the DLQ alert
       # that only fires once delivery attempts are exhausted.
-      filter          = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=monitoring.regex.full_match(\"desirelines-(bq-inserter|postgres-writer|deletion-service|activities-live-writer)-[a-z]+\") AND metric.type=\"pubsub.googleapis.com/subscription/oldest_unacked_message_age\""
+      filter          = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=monitoring.regex.full_match(\"desirelines-(postgres-writer|deletion-service|activities-live-writer)-[a-z]+\") AND metric.type=\"pubsub.googleapis.com/subscription/oldest_unacked_message_age\""
       duration        = "300s" # 5 minutes
       comparison      = "COMPARISON_GT"
       threshold_value = 300 # 5 minutes in seconds

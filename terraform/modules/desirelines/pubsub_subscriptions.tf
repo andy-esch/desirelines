@@ -12,17 +12,6 @@
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
-# BQ Inserter Push Subscription — REMOVED (cutover step 1)
-# ------------------------------------------------------------------------------
-# `activity_events` no longer feeds bq-inserter, so nothing writes to the
-# `activities` / `activities_staging` tables. Activity rows reach BigQuery
-# through the CDC subscription in bigquery_subscription.tf instead.
-#
-# The service, its DLQ wiring and the legacy tables are still here; they come
-# out in the following steps. Recreating this resource is the rollback.
-# ------------------------------------------------------------------------------
-
-# ------------------------------------------------------------------------------
 # PostgreSQL Writer Push Subscription
 # ------------------------------------------------------------------------------
 resource "google_pubsub_subscription" "postgres_writer" {
@@ -131,35 +120,15 @@ resource "google_pubsub_subscription" "deletion_service" {
 # The push subscriptions use OIDC tokens signed by the service accounts.
 # The service accounts need permission to invoke their respective Cloud Run services.
 
-# Note: These IAM bindings already exist in cloud_run.tf:
-# - google_cloud_run_v2_service_iam_member.bq_inserter_eventarc_invoker
+# Note: this IAM binding already exists in cloud_run.tf:
 # - google_cloud_run_v2_service_iam_member.postgres_writer_eventarc_invoker
-# They grant run.invoker to the service accounts, which is what we need.
+# It grants run.invoker to the service account, which is what we need.
 
 # ==============================================================================
 # Dead Letter Queue Monitoring Subscriptions
 # ==============================================================================
 # These pull subscriptions allow monitoring and debugging of failed messages.
 # Messages that fail delivery after max_delivery_attempts end up in the DLQ topic.
-
-resource "google_pubsub_subscription" "bq_inserter_dlq" {
-  name  = "${var.project_name}-bq-inserter-dlq-${var.environment}"
-  topic = google_pubsub_topic.dead_letter.name
-
-  # Long retention for debugging failed messages
-  message_retention_duration = "1209600s" # 14 days
-  ack_deadline_seconds       = 600
-
-  # No push config - this is a pull subscription for manual inspection
-
-  labels = merge(local.common_labels, {
-    purpose = "dead-letter-queue"
-    service = "bq-inserter"
-    type    = "dlq-monitoring"
-  })
-
-  depends_on = [google_project_service.required_apis]
-}
 
 resource "google_pubsub_subscription" "postgres_writer_dlq" {
   name  = "${var.project_name}-postgres-writer-dlq-${var.environment}"
