@@ -1,6 +1,6 @@
 """BigQuery adapters for reading and writing Strava activities."""
 
-from google.cloud.bigquery import ArrayQueryParameter, ScalarQueryParameter
+from google.cloud.bigquery import ArrayQueryParameter
 from opentelemetry.metrics import Histogram
 from opentelemetry.trace import Tracer
 
@@ -10,13 +10,19 @@ from stravapipe.domain import (
     DetailedStravaActivity,
     SummaryStravaActivity,
 )
-from stravapipe.ports.out.write import WriteActivities
 from stravapipe.shared.metrics import record_duration
 from stravapipe.shared.tracing import db_attributes, record_span
 
 
-class ActivitiesWriter(WriteActivities):
-    """Write Strava Activities to BigQuery via staging table + MERGE."""
+class ActivitiesWriter:
+    """Write Strava Activities to BigQuery via staging table + MERGE.
+
+    Batch-only, and the backfill job is the sole caller. Live activity
+    writes do not pass through here — they reach BigQuery directly via the
+    Pub/Sub CDC subscription (terraform bigquery_subscription.tf), which
+    writes `activities_live` rather than the `activities` table this
+    MERGE targets.
+    """
 
     # Application-level sanity ceiling. The real Storage Write API cap is
     # 10 MB per AppendRowsRequest (bytes-based), enforced at the gRPC
@@ -127,18 +133,6 @@ class ActivitiesWriter(WriteActivities):
         # the MERGE step independently of write_to_staging.
         self._histogram = histogram
 
-    def write_activity(self, activity: DetailedStravaActivity) -> MergeResult:
-        """Two-step upsert: stage then merge.
-
-        Returns:
-            MergeResult with rows_affected, execution_time_ms, job_id, query_preview
-        """
-        # Step 1: Insert to staging table (fast streaming insert)
-        self._write_to_staging(activity)
-
-        # Step 2: MERGE from staging to main table
-        return self._merge_from_staging(activity.id)
-
     def close(self) -> None:
         """Release adapter-owned resources.
 
@@ -193,37 +187,18 @@ class ActivitiesWriter(WriteActivities):
         activity_ids = [activity.id for activity in activities]
         return self._merge_batch_from_staging(activity_ids)
 
-    def _write_to_staging(self, activity: DetailedStravaActivity) -> None:
-        """Write activity to staging via the BigQuery Storage Write API.
-
-        Committed-mode rows are immediately consistent — they're not held
-        in the legacy streaming buffer — so the post-MERGE DELETE in
-        ``_cleanup_staging`` runs without retries.
-        """
-        with (
-            record_span(
-                self._tracer,
-                "bigquery.write_to_staging",
-                db_attributes(
-                    "bigquery",
-                    self._dataset_name,
-                    "INSERT",
-                    {"desirelines.activity_id": activity.id},
-                ),
-            ),
-            record_duration(self._histogram, {"operation": "write_to_staging"}),
-        ):
-            self._storage_writer.write_activity(activity)
-
     def _write_batch_to_staging(
         self, activities: list[DetailedStravaActivity | SummaryStravaActivity]
     ) -> None:
         """Insert multiple activities to staging via the Storage Write API.
 
-        Delegates to ``BigQueryStorageWriter`` (same wrapper the
-        single-activity path uses). Accepts both DetailedActivity and
-        SummaryActivity — the wrapper picks the right dump method per
-        instance.
+        Delegates to ``BigQueryStorageWriter``. Accepts both
+        DetailedActivity and SummaryActivity — the wrapper picks the right
+        dump method per instance.
+
+        Committed-mode rows are immediately consistent — they're not held
+        in the legacy streaming buffer — so the post-MERGE DELETE in
+        ``_cleanup_staging`` runs without retries.
         """
         with (
             record_span(
@@ -239,32 +214,6 @@ class ActivitiesWriter(WriteActivities):
             record_duration(self._histogram, {"operation": "write_batch_to_staging"}),
         ):
             self._storage_writer.write_activities_batch(activities)
-
-    def _merge_from_staging(self, activity_id: int) -> MergeResult:
-        """Execute MERGE operation from staging to main table for specific activity.
-
-        Sub-spans (``bigquery.merge_from_staging`` and ``bigquery.cleanup_staging``)
-        let traces show MERGE-vs-DELETE latency separately — the CDC migration
-        decision depends on this split.
-        """
-        merge_query, query_params = self._build_merge_query(activity_id)
-        with (
-            record_span(
-                self._tracer,
-                "bigquery.merge_from_staging",
-                db_attributes(
-                    "bigquery",
-                    self._dataset_name,
-                    "MERGE",
-                    {"desirelines.activity_id": activity_id},
-                ),
-            ),
-            record_duration(self._histogram, {"operation": "merge_from_staging"}),
-        ):
-            result = self._client.execute_merge_query(merge_query, query_params)
-        # Clean up staging table after successful merge
-        self._cleanup_staging([activity_id])
-        return result
 
     def _merge_batch_from_staging(self, activity_ids: list[int]) -> MergeResult:
         """Execute MERGE operation for multiple activities at once"""
@@ -311,20 +260,6 @@ class ActivitiesWriter(WriteActivities):
             ),
         ):
             self._client.execute_dml_query(delete_query, query_params)
-
-    def _build_merge_query(
-        self, activity_id: int
-    ) -> tuple[str, list[ScalarQueryParameter]]:
-        """Build MERGE query for single activity upsert operation.
-
-        Uses parameterized queries to prevent SQL injection.
-
-        Returns:
-            Tuple of (query_string, query_parameters)
-        """
-        where_clause = "id = @activity_id"
-        query_params = [ScalarQueryParameter("activity_id", "INT64", activity_id)]
-        return self._build_merge_query_base(where_clause), query_params
 
     def _build_batch_merge_query(
         self, activity_ids: list[int]

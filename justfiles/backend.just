@@ -285,7 +285,7 @@ proto-gen-backend: generate-bq-proto
 sync-schemas: proto-gen-backend sync-sport-config
     @echo "✅ All schemas synced"
 
-# Validate the bq-inserter's proto schema against a real BQ table.
+# Validate the backfill writer's proto schema against a real BQ table.
 # Catches descriptor-shape issues (proto3_optional, unresolved nested
 # type names, name/type drift) that the BQ Storage Write API only
 # surfaces server-side after a deploy. Requires ADC.

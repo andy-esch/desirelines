@@ -25,7 +25,7 @@ restart-backend:
     docker compose --profile backend down
     docker compose --profile backend up --build --detach
 
-# View logs (service: dispatcher, bq-inserter, etc. Default: all)
+# View logs (service: dispatcher, postgres-writer, etc. Default: all)
 logs service='':
     docker compose --profile backend logs -f {{ service }}
 

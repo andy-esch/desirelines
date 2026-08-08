@@ -20,13 +20,10 @@ def make_write_activities(
     tracer: Tracer | None = None,
     histogram: Histogram | None = None,
 ) -> ActivitiesWriter:
-    """Create an ``ActivitiesWriter`` (implements the ``WriteActivities`` port).
+    """Create an ``ActivitiesWriter`` for the backfill job.
 
-    Returns the concrete type rather than the port so callers can use
-    the writer's lifecycle methods (``close()``, ``write_activities_batch()``)
-    that aren't on the port surface. Callers that only need the port's
-    ``write_activity()`` can still bind the result to a ``WriteActivities``
-    variable.
+    Batch-only: ``write_activities_batch()`` plus ``close()``. Live writes
+    reach BigQuery through the Pub/Sub CDC subscription, not this writer.
 
     Pass ``tracer`` from the Cloud Run service so write/merge/cleanup steps
     emit sub-spans. Pass ``histogram`` so the same steps record duration on

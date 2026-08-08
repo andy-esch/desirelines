@@ -32,16 +32,6 @@ curl -X PUT "http://pubsub-emulator:8085/v1/projects/$PROJECT_ID/topics/$TOPIC_N
 # PubSub emulator messages with Eventarc-style CloudEvent headers (ce-type,
 # ce-id, ce-source, ce-time) before forwarding to the target services.
 
-echo "📫 Creating subscription for BQ inserter (via CloudEvent adapter)"
-curl -X PUT "http://pubsub-emulator:8085/v1/projects/$PROJECT_ID/subscriptions/desirelines_bq_inserter_subscription" \
-  -H "Content-Type: application/json" \
-  -d '{
-        "topic": "projects/'"$PROJECT_ID"'/topics/'"$TOPIC_NAME"'",
-        "pushConfig": {
-            "pushEndpoint": "http://cloudevent-adapter:8080/bq-inserter"
-        }
-    }'
-
 echo "📫 Creating subscription for PostgreSQL writer (via CloudEvent adapter)"
 curl -X PUT "http://pubsub-emulator:8085/v1/projects/$PROJECT_ID/subscriptions/desirelines_postgres_writer_subscription" \
   -H "Content-Type: application/json" \
@@ -58,7 +48,6 @@ echo "📋 Summary:"
 echo "  Topic: $TOPIC_NAME"
 echo "  Topic Path: projects/$PROJECT_ID/topics/$TOPIC_NAME"
 echo "  Subscriptions (via CloudEvent adapter):"
-echo "    - desirelines_bq_inserter_subscription → cloudevent-adapter → bq-inserter"
 echo "    - desirelines_postgres_writer_subscription → cloudevent-adapter → postgres-writer"
 echo ""
 echo "🔧 The CloudEvent adapter wraps PubSub messages with Eventarc-style headers"
