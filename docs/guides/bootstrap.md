@@ -44,7 +44,7 @@ The script will:
 
 - **BigQuery datasets**: Raw activities (analytics/archival)
 - **PubSub topics**: Activity processing pipeline with dead letter queues
-- **Cloud Run services**: dispatcher, api-gateway, bq-inserter, postgres-writer
+- **Cloud Run services**: dispatcher, api-gateway, postgres-writer, deletion-service
 - **Firestore database**: User configuration storage (goals, annotations)
 - **Firebase Hosting**: Web frontend hosting with custom domain (prod)
 - **Secret Manager**: Secret containers (values synced from Infisical)
@@ -54,7 +54,7 @@ The script will:
 ### Service Accounts
 
 - **terraform-desirelines**: For infrastructure management
-- **Dedicated service account per Cloud Run service** (dispatcher, bq-inserter, api-gateway, postgres-writer)
+- **Dedicated service account per Cloud Run service** (dispatcher, api-gateway, postgres-writer, deletion-service)
 - **infisical-sync**: For Infisical to sync secrets to GCP
 
 ## Updating the Environment

@@ -291,7 +291,7 @@ async def handle_pubsub(request: Request) -> WebhookResponse:
         ),
         webhook_counter=webhook_counter,
         tracer=tracer,
-        # Service-prefixed so this doesn't collide with the bq-inserter's
+        # Service-prefixed so this doesn't collide with another service's
         # span on the same Pub/Sub event in Cloud Trace's compact view.
         span_name="postgres_writer.webhook.process",
     )

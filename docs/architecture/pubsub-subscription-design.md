@@ -12,8 +12,10 @@ Strava Webhook → Dispatcher (Cloud Run)
                     ├── Activity events (create/update/delete)
                     │   → [enrich via Strava API]
                     │   → activity_events topic
-                    │       ├── Push → bq-inserter (Cloud Run) → BigQuery
-                    │       └── Push → postgres-writer (Cloud Run) → PostgreSQL
+                    │   │   └── Push → postgres-writer (Cloud Run) → PostgreSQL
+                    │   → activity_rows topic (protobuf CDC row)
+                    │       └── BigQuery subscription → activities_live
+                    │           (no service — Pub/Sub writes the row itself)
                     │
                     └── Deauth events (user disconnects app)
                         → [delete tokens from Firestore]
@@ -26,7 +28,7 @@ Strava Webhook → Dispatcher (Cloud Run)
 
 ### Why two topics?
 
-- **Clean separation** — `activity_events` stays activity-only; bq-inserter/postgres-writer don't receive events they can't process
+- **Clean separation** — `activity_events` stays activity-only; postgres-writer doesn't receive events it can't process
 - **Independent retry/SLA** — deauth events have a 48-hour compliance deadline ([Strava API Agreement Section 5.4](https://www.strava.com/legal/api)); activity events are best-effort
 - **Independent scaling** — deauth events are rare; activity events are frequent
 
@@ -49,14 +51,14 @@ Services parse CloudEvents via `stravapipe.cloudrun.pubsub.parse_pubsub_cloudeve
 We create Pub/Sub push subscriptions directly (not via Eventarc `event_trigger` blocks):
 
 ```hcl
-resource "google_pubsub_subscription" "bq_inserter" {
-  name  = "desirelines-bq-inserter-${var.environment}"
+resource "google_pubsub_subscription" "postgres_writer" {
+  name  = "desirelines-postgres-writer-${var.environment}"
   topic = google_pubsub_topic.activity_events.name
 
   push_config {
-    push_endpoint = "${google_cloud_run_v2_service.bq_inserter.uri}?__GCP_CloudEventsMode=..."
+    push_endpoint = "${google_cloud_run_v2_service.postgres_writer.uri}?__GCP_CloudEventsMode=..."
     oidc_token {
-      service_account_email = google_service_account.bq_inserter.email
+      service_account_email = google_service_account.postgres_writer.email
     }
   }
 
@@ -87,8 +89,8 @@ Manual subscriptions provide:
 
 | Subscription | Topic | Target | Purpose |
 |-------------|-------|--------|---------|
-| `bq-inserter` | `activity_events` | bq-inserter service | Sync activities to BigQuery |
 | `postgres-writer` | `activity_events` | postgres-writer service | Sync activities to PostgreSQL |
+| `activities-live-writer` | `activity_rows` | BigQuery `activities_live` | CDC upsert/delete, no subscriber code |
 | `deletion-service` | `deauth_events` | deletion-service | Delete user data on deauth |
 | `*-dlq` | `dead_letter` | Pull (manual inspection) | Debug failed messages |
 

@@ -40,7 +40,6 @@ app = FastAPI(
 
 # Service name to internal Docker hostname mapping
 SERVICE_ENDPOINTS = {
-    "bq-inserter": "http://bq-inserter:8080",
     "postgres-writer": "http://postgres-writer:8080",
 }
 

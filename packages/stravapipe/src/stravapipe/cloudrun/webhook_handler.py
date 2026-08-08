@@ -63,7 +63,7 @@ async def handle_webhook_cloudevent(
         webhook_counter: Optional OTel counter for webhook events
         tracer: Optional OTel tracer for distributed tracing
         span_name: Name for the root processing span. Callers should pass a
-            service-prefixed name (e.g. ``"bq_inserter.webhook.process"``) so
+            service-prefixed name (e.g. ``"postgres_writer.webhook.process"``) so
             traces from different services don't collide visually in Cloud
             Trace's compact view. The OTel ``service.name`` resource attribute
             already disambiguates them in detail views, but Cloud Trace's

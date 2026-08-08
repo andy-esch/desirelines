@@ -16,7 +16,6 @@ All run on Cloud Run. Console → Cloud Run → the service name.
 |---|---|
 | `desirelines-apigateway` | Go HTTP API. Serves `/v1/*` to the frontend. |
 | `desirelines-dispatcher` | Go webhook receiver. Takes Strava `POST /webhook`, publishes to Pub/Sub. |
-| `desirelines-bq-inserter` | Python. Consumes activity events, writes BigQuery. |
 | `desirelines-postgres-writer` | Python. Consumes activity events, writes Postgres. |
 | `desirelines-deletion-service` | Python. Handles activity/user deletion. |
 

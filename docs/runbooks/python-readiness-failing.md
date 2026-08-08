@@ -22,8 +22,7 @@ alert's `service` label names which service.
 **Likely causes** (ranked, by service):
 
 1. **postgres-writer** — Neon down, or pool exhausted.
-2. **bq-inserter** — BigQuery permissions drift, or the dataset is missing.
-3. **deletion-service** — BigQuery or Firestore credentials expired.
+2. **deletion-service** — BigQuery or Firestore credentials expired.
 
 **Quick mitigations**:
 

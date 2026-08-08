@@ -10,7 +10,7 @@ Every service in the project (Go and Python) is instrumented with OpenTelemetry 
 - **Metrics** → Cloud Monitoring (custom metrics under `desirelines.io/`)
 - **Logs** → Cloud Logging (structured JSON, automatically linked to traces)
 
-A single Strava webhook produces one trace that spans the dispatcher (Go) → Pub/Sub → bq-inserter (Python) → postgres-writer (Python). Logs from any of those services that fire while a span is active appear under "Show logs" on that trace in Cloud Trace.
+A single Strava webhook produces one trace that spans the dispatcher (Go) → Pub/Sub → postgres-writer (Python). Logs from either service that fire while a span is active appear under "Show logs" on that trace in Cloud Trace. The dispatcher also publishes a BigQuery CDC row to a second topic, but that path has no subscriber code, so it contributes no spans — see below.
 
 ## Cross-language trace topology
 
@@ -29,35 +29,37 @@ A single Strava webhook produces one trace that spans the dispatcher (Go) → Pu
                                   │      get_tokens     │
                                   │  - pubsub.publish   │ ← injects traceparent
                                   └──────────┬──────────┘
-                                             │ Pub/Sub message
-                                             │ attributes: { traceparent, ... }
-                                             ▼
+                                             │
                           ┌──────────────────┴──────────────────┐
+                          │ activity_events                     │ activity_rows
+                          │ attrs: { traceparent, ... }         │ (protobuf CDC row)
                           ▼                                     ▼
               ┌───────────────────────┐           ┌───────────────────────┐
-              │ desirelines-          │           │ desirelines-          │
-              │   bq-inserter (Py)    │           │   postgres-writer (Py)│
+              │ desirelines-          │           │ BigQuery subscription │
+              │   postgres-writer (Py)│           │   (no service)        │
               │                       │           │                       │
-              │  bq_inserter.         │           │  postgres_writer.     │
-              │    webhook.process    │           │    webhook.process    │
-              │  └─ bigquery.         │           │  └─ postgres.insert   │
-              │       insert_rows     │           │     ├─ postgres.      │
-              │     ├─ bigquery.      │           │     │   session.      │
-              │     │   write_to_     │           │     │   acquire       │
-              │     │   staging       │           │     ├─ postgres.      │
-              │     ├─ bigquery.      │           │     │   activities.   │
-              │     │   merge_from_   │           │     │   insert        │
-              │     │   staging       │           │     ├─ postgres.      │
-              │     └─ bigquery.      │           │     │   polyline.     │
-              │         cleanup_      │           │     │   decode        │
-              │         staging       │           │     ├─ postgres.      │
-              │                       │           │     │   activities.   │
-              │                       │           │     │   insert_route  │
-              │                       │           │     └─ postgres.commit│
+              │  postgres_writer.     │           │  Pub/Sub writes the   │
+              │    webhook.process    │           │  row straight into    │
+              │  └─ postgres.insert   │           │  `activities_live` in │
+              │     ├─ postgres.      │           │  CDC mode.            │
+              │     │   session.      │           │                       │
+              │     │   acquire       │           │  No subscriber code,  │
+              │     ├─ postgres.      │           │  so no spans: the     │
+              │     │   activities.   │           │  trace ends at the    │
+              │     │   insert        │           │  dispatcher's         │
+              │     ├─ postgres.      │           │  pubsub.publish.      │
+              │     │   polyline.     │           │                       │
+              │     │   decode        │           │  Failures surface on  │
+              │     ├─ postgres.      │           │  the activity-rows    │
+              │     │   activities.   │           │  DLQ and its alert,   │
+              │     │   insert_route  │           │  not in Cloud Trace.  │
+              │     └─ postgres.commit│           │                       │
               └───────────────────────┘           └───────────────────────┘
 ```
 
-The same `trace_id` flows end-to-end. The bq-inserter and postgres-writer roots (`bq_inserter.webhook.process` and `postgres_writer.webhook.process`) appear as children of the dispatcher's `pubsub.publish` span.
+The same `trace_id` flows end-to-end down the left-hand branch: the postgres-writer root (`postgres_writer.webhook.process`) appears as a child of the dispatcher's `pubsub.publish` span.
+
+The right-hand branch is deliberately dark to tracing. Pub/Sub's BigQuery subscription is managed infrastructure with no application code, so there is nothing to instrument and no span to correlate. Observability for that path is the DLQ depth alert plus the dispatcher-side `bigquery/row_publish` counter, which is what tells you whether a row ever left the dispatcher.
 
 The Python consumers are also FastAPI- and SQLAlchemy-instrumented: each inbound CloudEvent POST gets an HTTP **server span** (routing + body-parse time), and every SQL statement gets its own span nested under the handler's `postgres.*` spans. One deliberate gap: the server span continues the *HTTP delivery's* trace context, not the dispatcher's — the cross-service `traceparent` rides in the Pub/Sub message body, which a header-based server span can't see. So the FastAPI server span sits in a separate short trace from `webhook.process`; unifying them is a known follow-up.
 
@@ -123,7 +125,7 @@ See [`packages/shared/otel/provider.go`](../../packages/shared/otel/provider.go)
 **Regression guards.** Both halves of the propagation chain are covered at PR time:
 
 - *Inject side (Go):* the custom [`lintpub`](../../packages/shared/otel/lintpub/) analyzer (wired into `just go-lint` and the `go-quality` CI matrix) flags any new `*pubsub.Publisher.Publish(...)` call site that isn't paired with a `propagator.Inject(...)` in the same function — catches "new publish path forgot to inject."
-- *Extract side (Python):* `tests/unit/cloudrun/test_trace_propagation.py` drives both extract paths — the shared `handle_webhook_cloudevent()` helper (bq-inserter, postgres-writer) and `deletion_service_app`'s own path — through a real handler with an in-memory span exporter, asserting the processing span adopts the inbound `traceparent` trace-id. `tests/unit/shared/test_tracing.py` covers the `extract_context_from_attributes()` round-trip at the unit level.
+- *Extract side (Python):* `tests/unit/cloudrun/test_trace_propagation.py` drives both extract paths — the shared `handle_webhook_cloudevent()` helper (postgres-writer) and `deletion_service_app`'s own path — through a real handler with an in-memory span exporter, asserting the processing span adopts the inbound `traceparent` trace-id. `tests/unit/shared/test_tracing.py` covers the `extract_context_from_attributes()` round-trip at the unit level.
 
 ## Trust boundaries: dispatcher vs. apigateway
 
@@ -231,13 +233,13 @@ See examples:
 - `BackfillService(..., tracer=...)` in [`application/backfill/service.py`](../../packages/stravapipe/src/stravapipe/application/backfill/service.py)
 - The `Handler` struct in [`dispatcher/adapters/http/handler.go`](../../packages/dispatcher/adapters/http/handler.go)
 
-Cloud Run lifespans (`bq_inserter_app.py`, `postgres_writer_app.py`) and the
+Cloud Run lifespans (`postgres_writer_app.py`, `deletion_service_app.py`) and the
 backfill job initialize the tracer **before** constructing adapters that need it.
 
 ## Span naming conventions
 
 - **Lowercase, dotted** — `bigquery.merge_from_staging`, not `BigQueryMergeFromStaging`.
-- **Service-prefix** when the same logical operation can run in multiple services — `bq_inserter.webhook.process` vs. `postgres_writer.webhook.process`. Cloud Trace's compact view shows only the span name; the OTel `service.name` resource attribute disambiguates in detail view but not in the timeline.
+- **Service-prefix** when the same logical operation can run in multiple services — e.g. `postgres_writer.webhook.process`, so a second webhook consumer added later doesn't collide with it. Cloud Trace's compact view shows only the span name; the OTel `service.name` resource attribute disambiguates in detail view but not in the timeline.
 - **Operation-scoped, not infrastructure-scoped** — `postgres.activities.insert` says what; `query_database` doesn't.
 
 ## Span attributes
@@ -271,7 +273,7 @@ resolution for custom metrics).
 
 | Metric | Service | Labels (operation=) | Notes |
 |---|---|---|---|
-| `bigquery/operation.duration` | bq-inserter | `insert_rows`, `merge_from_staging`, `merge_batch_from_staging`, `dml` | Outer + sub-operation timings; MERGE step is the dominant ingest cost (~73% of `insert_rows`) |
+| `bigquery/operation.duration` | backfill, deletion-service | `write_batch_to_staging`, `merge_batch_from_staging`, `bigquery_merge`, `bigquery_dml` | Backfill's staging+MERGE path, plus the deletion service's purge DML. Live ingest no longer emits this — the CDC subscription writes `activities_live` with no application code in the path. |
 | `postgres/operation.duration` | postgres-writer | `insert`, `activities_insert`, `update_metadata`, `delete` | `activities_insert` surfaces Neon cold-compute (warm ~180ms, cold ~1s+) |
 | `postgres/query.duration` | apigateway | `year_metadata`, `get_by_id`, `list`, `list_routes`, `multi_sport_metrics_by_date_range`, `multi_sport_daily_summary_by_date_range` | One label per repository read method; matches span names |
 | `auth/verify_id_token.duration` | apigateway | (none) | Firebase ID-token verification. Histogram name matches the `auth.verify_id_token` span 1:1 (convention from histogram-label alignment cleanup). |
@@ -279,14 +281,14 @@ resolution for custom metrics).
 | `pubsub/publish.duration` | dispatcher | (per topic) | Publish latency |
 | `firestore/operation.duration` | dispatcher | (per op) | Firestore read/write latency |
 | `http/request.duration` | apigateway, dispatcher | `http.method`, `http.status_code`, `http.route` (chi route pattern, e.g. `/activities/{id}`) | Emitted by `gcplog.HTTPRequestLoggerWithMetrics` (`packages/shared/gcplog/middleware.go`) — **not** otelhttp, whose built-in HTTP server metrics are deliberately left unregistered ([`provider.go`](../../packages/shared/otel/provider.go)). **Excludes** probe paths `/health`+`/ready` (`!isProbePath`). Anchors apigateway availability/latency — see [SLO 4](../slo.md#slo-4--apigateway-availability). |
-| `http.server.duration` | bq-inserter, postgres-writer, deletion-service | OTel `http.*` attrs | Auto-emitted by FastAPI instrumentation (ms; **not** `desirelines.io/`-namespaced). The OTel-standard ingress histogram — distinct from the Go `http/request.duration` above; union both for a cross-pipeline view rather than renaming either. |
+| `http.server.duration` | postgres-writer, deletion-service | OTel `http.*` attrs | Auto-emitted by FastAPI instrumentation (ms; **not** `desirelines.io/`-namespaced). The OTel-standard ingress histogram — distinct from the Go `http/request.duration` above; union both for a cross-pipeline view rather than renaming either. |
 | `webhook/end_to_end.duration` | postgres-writer | `aspect_type=create\|update\|delete` | End-to-end webhook freshness from dispatcher receive to postgres row visible/updated/removed. Anchors [SLO 3](../slo.md#slo-3--webhook-ingest-latency-data-freshness). Emitted only on success paths (new insert, metadata updated, row deleted) so skips and DLQ don't pollute the latency distribution. |
 
 ### Counters
 
 | Metric | Service | Labels | Notes |
 |---|---|---|---|
-| `webhook/events` | dispatcher, bq-inserter, postgres-writer | `aspect_type`, `object_type` | Webhook events processed |
+| `webhook/events` | dispatcher, postgres-writer | `aspect_type`, `object_type` | Webhook events processed |
 | `webhook/owner_check` | dispatcher | `result=allowed\|stray\|orphan\|error` | Allowlist outcomes |
 | `ratelimit/rejected` | apigateway, dispatcher | `reason=over_limit\|map_full`, `limiter=default\|auth\|tile\|dispatcher` | Requests rejected (429) by the per-IP rate limiter. `over_limit` = the IP's token bucket is empty; `map_full` = the per-IP client map is at `MaxClients`. Rejections short-circuit before `HTTPRequestLoggerWithMetrics`, so this counter (not the request-duration histogram) is the app-level signal for rate-limiting. |
 

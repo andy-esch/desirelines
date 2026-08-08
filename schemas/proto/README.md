@@ -93,7 +93,7 @@ Defines the canonical Strava webhook event structure shared between Go and Pytho
 - `ActivityUpdates` - Fields that can change on UPDATE (title, type, private)
 - `WebhookVerificationRequest/Response` - Subscription verification
 
-**Flow:** Strava webhook → dispatcher (Go) enriches with activity data → publishes `EnrichedEvent` to PubSub → bq-inserter and postgres-writer (Python) consume
+**Flow:** Strava webhook → dispatcher (Go) enriches with activity data → publishes `EnrichedEvent` to PubSub → postgres-writer (Python) consumes. The dispatcher separately publishes a `bq_activity_rows` protobuf row to the `activity_rows` topic, which Pub/Sub writes into BigQuery with no consumer code.
 
 **Adapter locations:**
 

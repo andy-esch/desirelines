@@ -26,5 +26,5 @@ minutes, indicating a processing backlog. Fires as HIGH to email + Slack.
   drains it.
 
 **If still stuck**: a backlog that never drains usually means messages are
-failing rather than queueing — follow `dlq-bq-inserter.md` or
-`dlq-postgres-writer.md` for the failing consumer.
+failing rather than queueing — follow `dlq-postgres-writer.md`,
+`dlq-deletion-service.md` or `dlq-activity-rows.md` for the failing consumer.

@@ -2,7 +2,7 @@
 # Alert Policies (non-SLO, non-uptime, non-readiness)
 # ============================================================================
 # Static-threshold alert policies in three categories:
-#   - Pipeline health: DLQ messages (BQ inserter, Postgres writer),
+#   - Pipeline health: DLQ messages (Postgres writer, deletion service),
 #     PubSub backlog age, non-SLO Cloud Run 5xx ratio.
 #   - Security: per-response-code anomaly signals (401/403, 404, 429
 #     on apigateway; 400 on dispatcher). Each maps a single response_code

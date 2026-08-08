@@ -50,7 +50,7 @@ The hourly `/ready` probe is a **canary**, not an SLO — it exists
 for static-threshold alerting on prolonged outages but doesn't
 define any SLO target.
 
-The bq-inserter is downstream of the ingest path but **explicitly
+The BigQuery CDC path is downstream of the ingest path but **explicitly
 excluded** from these SLOs. It's archive-only (user sees no impact
 when it fails); its DLQ has its own static-threshold alert. Only
 postgres-writer is on the user-noticed critical path.
@@ -77,7 +77,7 @@ postgres-writer is on the user-noticed critical path.
 | **Window** | Rolling 30 days |
 | **Error budget** | ~1.5-6 lost events/month |
 | **Metric source** | Pub/Sub subscription metrics — `(received_message_count - undelivered to DLQ) / received_message_count` for the postgres-writer subscription on `activity-events` |
-| **Why postgres-writer only, not bq-inserter** | bq-inserter DLQ failures are archive-only — user sees no impact when BQ is behind. postgres-writer DLQ failures break the dashboard. Asymmetric importance → only the user-facing one rolls into the SLO. bq-inserter has its own static-threshold alert. |
+| **Why postgres-writer only, not the BigQuery path** | BigQuery CDC failures are archive-only — user sees no impact when BQ is behind. postgres-writer DLQ failures break the dashboard. Asymmetric importance → only the user-facing one rolls into the SLO. The activity-rows DLQ has its own static-threshold alert. |
 | **Why activity-events only, not deauth-events** | Deauth events are rare and an off-platform concern; the failure mode is "tokens not deleted on time" which is operationally important but not tied to user-noticed product behavior. Separate alert exists. |
 | **Rationale** | Captures the "did my upload appear in the dashboard?" question. Distinct from SLO 1: dispatcher could be 100% available while postgres-writer DLQ rises (e.g. broken DB connection). |
 
@@ -166,10 +166,11 @@ Resolved 2026-05-10:
    custom metric for SLO 3" subsection.
 
 3. **Availability SLO scope**: **apigateway + dispatcher** (both
-   public entry points). bq-inserter and postgres-writer are
-   downstream — postgres-writer is critical to user experience and
-   is captured via SLOs 2 and 3; bq-inserter is archive-only and
-   has its own static-threshold alert, not promoted to SLO status.
+   public entry points). postgres-writer and the BigQuery CDC path
+   are downstream — postgres-writer is critical to user experience
+   and is captured via SLOs 2 and 3; the BigQuery path is
+   archive-only, has no service to measure availability on, and
+   carries its own static-threshold DLQ alert instead.
 
 4. **Error budget policy**: **Medium** — when budget is exhausted
    on a given SLO, the next sprint's first work item is reliability

@@ -7,9 +7,9 @@ single trace_id spans the pipeline (see EXAMPLE_TRACEPARENT in conftest).
 There are two distinct extract paths in the codebase, and each gets its
 own test here:
 
-  1. handle_webhook_cloudevent — the shared helper used by both
-     bq_inserter_app and postgres_writer_app. Testing it once covers
-     both; testing the two apps separately would just re-run this code.
+  1. handle_webhook_cloudevent — the shared helper used by the
+     webhook-driven apps (postgres_writer_app today). Testing it once
+     covers them; testing each app separately would re-run this code.
   2. deletion_service_app — has its own parse+extract path (it does NOT
      use handle_webhook_cloudevent), so it can regress independently and
      needs its own test.
@@ -53,8 +53,7 @@ def _processing_span(exporter, name):
 
 def test_handle_webhook_cloudevent_continues_inbound_trace():
     """handle_webhook_cloudevent must parent its `webhook.process` span
-    under the inbound `traceparent` — the shared path for bq_inserter and
-    postgres_writer."""
+    under the inbound `traceparent` — the shared webhook path."""
     tracer, exporter = make_in_memory_tracer()
 
     test_app = FastAPI()

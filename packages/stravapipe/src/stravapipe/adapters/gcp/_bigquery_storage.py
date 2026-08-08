@@ -464,9 +464,11 @@ class BigQueryStorageWriter:
         """Write a single activity to the destination table.
 
         Raises on any underlying gRPC or schema error. Caller wraps in a
-        try/except per its own retry/error policy — for the bq-inserter
-        path, the existing ``handle_webhook_cloudevent`` translates
-        exceptions to 5xx so Pub/Sub redelivers.
+        try/except per its own retry/error policy.
+
+        No production caller today — ``ActivitiesWriter`` stages in batches
+        via ``write_activities_batch``. Kept because it exercises the same
+        serialize/append machinery that batch writes depend on.
         """
         self._send_serialized([self._serialize(self._dump_for_bq(activity))])
 

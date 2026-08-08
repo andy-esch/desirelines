@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1
 # check=skip=FromPlatformFlagConstDisallowed
 # Stravapipe Mono-Image — Cloud Run Services & Jobs (Python 3.14, distroless).
-# One image for all entrypoints: bq-inserter, postgres-writer,
-# deletion-service, backfill. Cloud Run overrides command/args per
-# service/job at deploy time.
+# One image for all entrypoints: postgres-writer, deletion-service,
+# backfill. Cloud Run overrides command/args per service/job at deploy
+# time.
 #
 # Distroless: no shell, no package manager, no OS utilities — minimal
 # attack surface. CPython 3.14 itself is installed by uv into
@@ -150,5 +150,5 @@ EXPOSE 8080
 # silently downgrade us to running as root.
 USER 65532:65532
 
-# Default: bq-inserter (Cloud Run overrides this per service/job).
-CMD ["uvicorn", "stravapipe.cloudrun.bq_inserter_app:app", "--host", "0.0.0.0", "--port", "8080"]
+# Default: postgres-writer (Cloud Run overrides this per service/job).
+CMD ["uvicorn", "stravapipe.cloudrun.postgres_writer_app:app", "--host", "0.0.0.0", "--port", "8080"]

@@ -62,7 +62,7 @@ packages/
 ├── web/           # React frontend
 ├── apigateway/    # Go REST API
 ├── dispatcher/    # Go webhook receiver
-├── stravapipe/    # Python event processors (bq-inserter, postgres-writer, deletion-service)
+├── stravapipe/    # Python event processors (postgres-writer, deletion-service, backfill)
 └── shared/        # Go shared library (logging, OTel, rate limiting)
 
 schemas/
@@ -75,7 +75,7 @@ See [**packages/README.md**](./packages/README.md) for detailed descriptions and
 
 **Data Flow**:
 
-- Activities: Strava webhook → dispatcher → Pub/Sub → bq-inserter + postgres-writer → BigQuery/PostgreSQL → apigateway → web
+- Activities: Strava webhook → dispatcher → Pub/Sub → postgres-writer → PostgreSQL → apigateway → web (a parallel CDC subscription mirrors rows into BigQuery with no service)
 - Deauth: Strava webhook → dispatcher → Pub/Sub → deletion-service → deletes from PostgreSQL, BigQuery, Firestore
 
 ## Documentation

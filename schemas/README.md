@@ -7,7 +7,7 @@ Data schemas and contracts for the desirelines monorepo.
 | Directory | Purpose | Used By |
 |-----------|---------|---------|
 | [`activities/`](activities/) | Persisted-field compatibility contract | `stravapipe`, schema contributors |
-| [`bigquery/`](bigquery/) | BigQuery table schemas | `bq-inserter` (stravapipe) |
+| [`bigquery/`](bigquery/) | BigQuery table schemas | CDC topic schema, backfill writer (stravapipe) |
 | [`database/`](database/) | PostgreSQL migrations (Flyway) | `postgres-writer` (stravapipe), `api-gateway` |
 | [`proto/`](proto/) | Protocol Buffer contracts | `api-gateway`, `dispatcher`, `stravapipe`, `web` |
 | [`sports/`](sports/) | Sport type configuration | `api-gateway`, `web` frontend |

@@ -7,7 +7,7 @@
 | [**web**](web/) | TypeScript | Vite + React | Frontend — goal visualization, Strava OAuth, multi-sport dashboards |
 | [**apigateway**](apigateway/) | Go | Cloud Run | REST API — serves activity data from PostgreSQL to the frontend |
 | [**dispatcher**](dispatcher/) | Go | Cloud Run | Webhook receiver — enriches Strava events via API, publishes to Pub/Sub |
-| [**stravapipe**](stravapipe/) | Python | Cloud Run (×3) + Job | Event processors — bq-inserter, postgres-writer, deletion-service, backfill |
+| [**stravapipe**](stravapipe/) | Python | Cloud Run (×2) + Job | Event processors — postgres-writer, deletion-service, backfill |
 | [**shared**](shared/) | Go | Library | Shared utilities — structured logging, OTel, rate limiting, Firestore token store |
 
 ## Data Flow
@@ -22,11 +22,11 @@ graph LR
 
     subgraph "Pub/Sub"
         ActivityTopic[activity_events]
+        RowTopic[activity_rows]
         DeauthTopic[deauth_events]
     end
 
     subgraph "stravapipe"
-        BQInserter[bq-inserter]
         PGWriter[postgres-writer]
         DeletionSvc[deletion-service]
     end
@@ -45,14 +45,14 @@ graph LR
     Strava -- webhook --> Dispatcher
     Dispatcher -- enrich via API --> Strava
     Dispatcher -- activity events --> ActivityTopic
+    Dispatcher -- CDC rows --> RowTopic
     Dispatcher -- deauth events --> DeauthTopic
-    ActivityTopic --> BQInserter
     ActivityTopic --> PGWriter
+    RowTopic -- BigQuery subscription, no service --> BQ
     DeauthTopic --> DeletionSvc
-    BQInserter --> BQ
     PGWriter --> PG
     DeletionSvc -- delete --> PG
-    DeletionSvc -- archive + delete --> BQ
+    DeletionSvc -- delete --> BQ
     DeletionSvc -- delete --> FS
     PG --> API
     API --> Web
@@ -76,7 +76,6 @@ Go webhook receiver — the only service that calls the Strava API. Enriches act
 
 Python mono-image with multiple Cloud Run entrypoints:
 
-- **bq-inserter** — syncs activities to BigQuery (create, update, delete with archive)
 - **postgres-writer** — syncs activities to PostgreSQL via SQLAlchemy
 - **deletion-service** — deletes all user data on Strava deauthorization ([API Agreement §5.4](https://www.strava.com/legal/api))
 - **backfill** — batch job for historical activity import

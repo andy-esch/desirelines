@@ -26,39 +26,6 @@ services:
         condition: service_completed_successfully
     # No healthcheck - distroless has no wget/curl. Cloud Run uses native HTTP probes.
 
-  bq-inserter:
-    profiles: ["backend"] # Backend pipeline only
-    build:
-      context: ./packages/stravapipe
-      dockerfile: Dockerfile
-    command: ["uvicorn", "stravapipe.cloudrun.bq_inserter_app:app", "--host", "0.0.0.0", "--port", "8080"]
-    ports:
-      - "8083:8080"
-    environment:
-      - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
-      - GCP_PROJECT_ID=local-dev
-      - GCP_BIGQUERY_DATASET=local_dev_dataset
-      - LOG_LEVEL=INFO
-      - ENABLE_CLOUD_LOGGING=true
-    env_file:
-      - .env.local
-    volumes:
-      - ./strava-auth-local.json:/etc/secrets/strava_auth.json:ro
-    depends_on:
-      pubsub-bootstrap:
-        condition: service_completed_successfully
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')",
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
   postgres-writer:
     profiles: ["backend"] # Backend pipeline only
     build:
