@@ -98,7 +98,7 @@ jobs:
   # Builds all Cloud Run services in parallel via matrix:
   # - dispatcher (Go) - Webhook receiver
   # - apigateway (Go) - API for web frontend
-  # - stravapipe (Python) - Mono-image for bq-inserter, postgres-writer, backfill
+  # - stravapipe (Python) - Mono-image for postgres-writer, deletion-service, backfill
   build-images:
     name: Build ${{ matrix.image }}
     runs-on: ubuntu-latest

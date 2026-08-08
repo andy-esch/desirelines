@@ -83,34 +83,13 @@ resource "google_bigquery_dataset" "activities_dataset" {
   depends_on = [google_project_service.required_apis]
 }
 
-# The legacy BigQuery write path is retired. `activities` and
-# `activities_staging` were written by bq-inserter via Storage Write API +
-# MERGE; that service no longer exists. Activity rows now reach BigQuery
-# through the CDC subscription in bigquery_subscription.tf (`activities_live`).
-#
-# Dropped from state rather than destroyed, so the historical rows survive for
-# as long as they are wanted and can be removed by hand with `bq rm` once they
-# are not. `destroy = false` also sidesteps the deletion_protection that
-# `activities` carries in prod, which would otherwise fail the apply.
-#
-# KEEP THESE BLOCKS until dev *and* prod have both applied a module version
-# containing them. Removing one early leaves the un-applied environment holding
-# a state entry with no config, which plans a real destroy.
-removed {
-  from = google_bigquery_table.activities
-
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = google_bigquery_table.activities_staging
-
-  lifecycle {
-    destroy = false
-  }
-}
+# NOTE: the `activities` and `activities_staging` BigQuery tables still exist in
+# both projects but are deliberately NOT managed here — they hold history from
+# the retired writer path and are dropped by hand (`bq rm`) when no longer
+# wanted. Do not re-add them as resources: Terraform would plan a create against
+# tables that already exist and fail. Activity rows now reach BigQuery through
+# the CDC subscription in bigquery_subscription.tf, which writes
+# `activities_live`.
 
 # ==============================================================================
 # FIRESTORE DATABASE
