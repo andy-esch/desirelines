@@ -139,6 +139,6 @@ output "firebase_web_app_config" {
 }
 
 output "activity_rows_topic" {
-  description = "Pub/Sub topic carrying activity ROW messages for the BigQuery CDC subscription prototype"
+  description = "Pub/Sub topic carrying activity ROW messages for the BigQuery CDC subscription"
   value       = google_pubsub_topic.activity_rows.name
 }

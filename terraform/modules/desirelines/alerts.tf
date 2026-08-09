@@ -1142,9 +1142,10 @@ resource "google_monitoring_alert_policy" "dlq_activity_rows" {
         --format="value(message.attributes.CloudPubSubDeadLetterSourceDeliveryErrorMessage)"
       ```
 
-      **Blast radius is bounded**: this path is best-effort and additive.
-      PostgreSQL and the existing BigQuery tables are unaffected — only
-      `activities_live` falls behind, and no product surface reads it.
+      **Blast radius is bounded**: BigQuery is an archival mirror and the
+      publish is best-effort — it cannot fail a webhook. PostgreSQL, which
+      serves every product read, is unaffected; only `activities_live` falls
+      behind.
 
       Dashboard: ${google_monitoring_dashboard.desirelines_observability.id}
     EOT
@@ -1182,12 +1183,14 @@ resource "google_monitoring_alert_policy" "dlq_activity_rows" {
 # next webhook recovers from. Mirrors webhook_owner_check_error rather than the
 # single-event orphan template.
 resource "google_monitoring_alert_policy" "activity_row_publish_errors" {
-  # Gated on the feature flag as well as the metric-alerts switch. This counter
-  # only exists in a project once the dispatcher has published a row there, so
-  # creating the alert where the feature is off fails the apply with a 404 on
-  # the metric type. Enabling the feature in a new environment therefore takes
-  # two applies: one to start publishing, one to add the alert.
-  count = var.enable_application_metric_alerts && var.app_config.dispatcher_activity_row_publish_enabled ? 1 : 0
+  # Gated on its own switch, not on whether the dispatcher publishes. The
+  # counter this watches only exists in a project once a row has been published
+  # THERE, so creating the policy before that fails the apply with a 404 on the
+  # metric type. Enabling publishing in a new environment therefore takes two
+  # applies: one to start publishing, one to add the alert — and in an
+  # environment that receives no webhooks the counter never appears at all, so
+  # the alert can never be created regardless. See the variable's description.
+  count = var.enable_application_metric_alerts && var.enable_activity_row_publish_alert ? 1 : 0
 
   display_name = "⚠️ Activity-row publish failing"
   combiner     = "OR"

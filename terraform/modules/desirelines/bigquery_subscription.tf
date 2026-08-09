@@ -11,6 +11,10 @@
 # webhook. A failure here can only affect activities_live; the user-facing
 # read path is PostgreSQL, fed independently via postgres-writer.
 #
+# The publish-failure ALERT is gated separately, on
+# var.enable_activity_row_publish_alert — see that variable for why the two
+# cannot share a switch.
+#
 # ---- Mode: selected by app_config.dispatcher_activity_row_encoding ------------
 # One value drives three things that must agree: the dispatcher's
 # ACTIVITY_ROW_ENCODING, whether this topic carries a protobuf schema, and
@@ -109,8 +113,9 @@ resource "google_pubsub_topic" "activity_rows" {
 }
 
 # ---- Dedicated dead-letter topic + inspection subscription --------------------
-# Isolated from the shared prod dead_letter topic so prototype failures stay
-# self-contained. Schema-incompatible / malformed rows land here.
+# Isolated from the shared dead_letter topic so a BigQuery rejection stays
+# attributable to this path instead of cross-firing the other services' DLQ
+# alerts. Schema-incompatible / malformed rows land here.
 resource "google_pubsub_topic" "activity_rows_dead_letter" {
   name   = "${var.project_name}-activity-rows-dlq-${var.environment}"
   labels = local.common_labels
@@ -197,12 +202,24 @@ resource "terraform_data" "activities_live_schema" {
   input = filesha256("${path.module}/../../../schemas/bigquery/activities_live.json")
 }
 
+# deletion_protection is deliberately false in every environment, including prod.
+#
+# This table was created as a throwaway prototype target and kept that setting
+# when it became the live BigQuery table. It is defensible but no longer
+# obviously right: it now holds the only live BigQuery activity data. Two things
+# argue for leaving it off — nothing reads BigQuery, so losing the table costs
+# analysis history rather than product behaviour; and a column retype requires
+# recreating the table (BigQuery cannot change a column's type in place), which
+# protection turns into a two-apply flag dance. See schemas/bigquery/README.md.
+#
+# Revisit if a read path ever trusts BigQuery, at which point the recreate story
+# needs solving anyway.
 resource "google_bigquery_table" "activities_live" {
   dataset_id          = google_bigquery_dataset.activities_dataset.dataset_id
   table_id            = "activities_live"
   friendly_name       = "Strava Activities (live, CDC)"
-  description         = "Current activity state maintained by a Pub/Sub CDC subscription (UPSERT/DELETE). Prototype; nothing reads it yet."
-  deletion_protection = false # prototype table — iterate freely
+  description         = "Current activity state maintained by a Pub/Sub CDC subscription (UPSERT/DELETE). The live BigQuery activity table; archival, not a product read path."
+  deletion_protection = false
 
   labels = local.common_labels
 
@@ -271,7 +288,7 @@ resource "google_pubsub_subscription" "activities_live_writer" {
 }
 
 # ---- IAM (least privilege) ----------------------------------------------------
-# The dispatcher publishes activity rows here when its dual-publish flag is on.
+# The dispatcher publishes activity rows here when its publish flag is on.
 # Granted unconditionally: the grant alone changes no behavior (the flag gates
 # whether anything is published), and having it in place keeps flipping the flag
 # a config-only change.

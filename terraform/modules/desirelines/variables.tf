@@ -80,6 +80,12 @@ variable "enable_application_metric_alerts" {
   default     = false
 }
 
+variable "enable_activity_row_publish_alert" {
+  description = "Gate for the activity-row publish-failure alert specifically. Separate from the dispatcher's publish behaviour on purpose: the alert watches workload.googleapis.com/desirelines.io/bigquery/row_publish, a counter that only exists in a project once the dispatcher has published a row THERE, so creating the policy where no row has ever been published fails the apply with a 404 on the metric type. dev receives no Strava webhooks, so it can never publish and the counter can never come into existence — meaning the alert can never be created there, and this must stay false in dev regardless of whether publishing is enabled."
+  type        = bool
+  default     = false
+}
+
 variable "enable_backfill_bigquery_writes" {
   description = "Whether the Cloud Run backfill job writes summary activities to BigQuery in addition to PostgreSQL. Disabled by default while the BigQuery backfill contract is redesigned holistically; PostgreSQL remains the product source of truth."
   type        = bool
@@ -181,8 +187,11 @@ variable "app_config" {
     # staleness bug, settable via GitOps with no code change.
     dispatcher_allowlist_cache_ttl = optional(string, "5m")
     dispatcher_token_cache_ttl     = optional(string, "5m")
-    # Best-effort dual-publish of activity rows to the BigQuery CDC topic.
-    # Default off: additive, and its destination table has no readers yet.
+    # Best-effort publish of activity rows to the BigQuery CDC topic. This is
+    # now the ONLY path by which activity rows reach BigQuery — it is no longer
+    # a dual-publish alongside a writer service. Still default off so a new
+    # environment does not publish before its topic and subscription exist;
+    # turning it on is a one-value change. The publish cannot fail a webhook.
     dispatcher_activity_row_publish_enabled = optional(bool, false)
     # Wire format for activity rows: "json" or "proto". Drives the dispatcher's
     # ACTIVITY_ROW_ENCODING, whether the topic carries a protobuf schema, and

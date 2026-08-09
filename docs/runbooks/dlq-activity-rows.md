@@ -3,9 +3,9 @@
 **Symptom**: BigQuery rejected one or more activity rows and they exhausted
 delivery to the `activities_live` CDC subscription. Fires as CRITICAL.
 
-**Blast radius is bounded**: this path is best-effort and additive. PostgreSQL
-and the existing BigQuery tables are unaffected — only `activities_live` falls
-behind, and no product surface reads it.
+**Blast radius is bounded**: BigQuery is an archival mirror, and the
+publish is best-effort — it cannot fail a webhook. PostgreSQL, which serves
+every product read, is unaffected; only `activities_live` falls behind.
 
 **First place to look**: each dead-lettered message carries a
 `CloudPubSubDeadLetterSourceDeliveryErrorMessage` attribute stating exactly why
