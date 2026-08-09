@@ -49,10 +49,11 @@ type Config struct {
 	WriteTimeout           time.Duration
 	ReadHeaderTimeout      time.Duration
 	MaxRequestBodySize     int64
-	// ActivityRowPublishEnabled turns on the best-effort second publish of each
+	// ActivityRowPublishEnabled turns on the best-effort publish of each
 	// activity as a BigQuery CDC row, alongside the primary webhook publish.
-	// Default off: the feature is additive and its destination table has no
-	// readers, so it ships dark and is switched on per environment.
+	// This is the only path by which activity rows reach BigQuery. Default off
+	// so a new environment does not publish before its topic exists; switched
+	// on per environment.
 	// GCPPubSubActivityRowsTopicID is required only when this is true.
 	ActivityRowPublishEnabled    bool
 	GCPPubSubActivityRowsTopicID string
