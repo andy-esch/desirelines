@@ -63,7 +63,7 @@ resource "google_pubsub_subscription" "postgres_writer" {
   }
 
   dead_letter_policy {
-    dead_letter_topic     = google_pubsub_topic.dead_letter.id
+    dead_letter_topic     = google_pubsub_topic.postgres_writer_dead_letter.id
     max_delivery_attempts = 5
   }
 
@@ -92,7 +92,17 @@ Manual subscriptions provide:
 | `postgres-writer` | `activity_events` | postgres-writer service | Sync activities to PostgreSQL |
 | `activities-live-writer` | `activity_rows` | BigQuery `activities_live` | CDC upsert/delete, no subscriber code |
 | `deletion-service` | `deauth_events` | deletion-service | Delete user data on deauth |
-| `*-dlq` | `dead_letter` | Pull (manual inspection) | Debug failed messages |
+| `*-dlq-monitoring` | that consumer's own `*-dlq` topic | Pull (manual inspection) | Debug failed messages |
+
+### Dead-letter queues: one per subscription
+
+Each subscription dead-letters to **its own** topic, inspected by its own
+`*-dlq-monitoring` pull subscription. A dead-letter topic fans out to every
+subscription attached to it, so a shared topic would deliver every service's
+failures to every service's inspection subscription — and make the per-service
+depth alerts in `alerts.tf` fire on any one service's failure. Attribution
+follows the consumer that failed, not the topic it read from, so a topic that
+gains a second consumer needs a second DLQ rather than sharing the first's.
 
 ## Local Development
 

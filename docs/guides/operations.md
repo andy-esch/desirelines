@@ -34,8 +34,9 @@ means the process is fine and a dependency is not.
 
 ## Pub/Sub
 
-Topics and subscriptions per service, each with a dead-letter queue. Console →
-Pub/Sub → Topics / Subscriptions.
+Topics and subscriptions per service, each dead-lettering to its own
+`*-dlq` topic with a matching `*-dlq-monitoring` pull subscription for
+inspection. Console → Pub/Sub → Topics / Subscriptions.
 
 The DLQs are the ones that page — see the DLQ runbooks. There is currently **no
 automated redrive path**; draining a DLQ is a manual pull-and-republish.

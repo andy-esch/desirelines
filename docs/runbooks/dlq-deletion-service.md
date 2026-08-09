@@ -10,9 +10,22 @@ user's data. A message here means that deletion did **not** complete.
 
 **First place to look**:
 
-- Console → Pub/Sub → Subscriptions → the deletion-service dead-letter
-  subscription → **View messages** (pull without acking to inspect payloads).
-  The payload names the athlete whose deletion failed.
+- Each dead-lettered message carries a
+  `CloudPubSubDeadLetterSourceDeliveryErrorMessage` attribute naming why
+  delivery failed, and the payload names the athlete whose deletion failed:
+
+  ```bash
+  gcloud pubsub subscriptions pull desirelines-deletion-service-dlq-monitoring-<env> \
+    --project=<project> --limit=5 \
+    --format="value(message.attributes.CloudPubSubDeadLetterSourceDeliveryErrorMessage,message.data)"
+  ```
+
+  Pulling without `--auto-ack` leaves the messages in place. Acking is what
+  silences the alert, so inspect before you drain — and this is the
+  compliance-sensitive DLQ, so record what you found.
+
+- Or Console → Pub/Sub → Subscriptions →
+  `desirelines-deletion-service-dlq-monitoring-<env>` → **View messages**.
 - Cloud Logging filter:
 
   ```

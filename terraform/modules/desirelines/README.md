@@ -8,7 +8,7 @@ Main Terraform module for the Desirelines project. Provisions all GCP resources 
 |------|-----------|
 | `cloud_run.tf` | Cloud Run services (dispatcher, api-gateway, postgres-writer, deletion-service), service accounts, IAM |
 | `pubsub_subscriptions.tf` | Push subscriptions (activity + deauth), dead letter queues |
-| `main.tf` | Pub/Sub topics (activity_events, deauth_events, dead_letter), BigQuery dataset/tables, Firestore database, Cloud Storage, GCP APIs |
+| `main.tf` | Pub/Sub topics (activity_events, deauth_events, per-service dead-letter topics), BigQuery dataset/tables, Firestore database, Cloud Storage, GCP APIs |
 | `firebase_hosting.tf` | Firebase Hosting site, custom domain, web app config |
 | `image_validation.tf` | Pre-apply check that every image reference a plan intends to deploy exists in Artifact Registry |
 | `monitoring.tf` | Monitoring alerts and notification channels |
