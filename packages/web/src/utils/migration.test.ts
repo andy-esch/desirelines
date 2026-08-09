@@ -209,7 +209,7 @@ describe("migration output survives write-side validation", () => {
     // Pipe a converted payload through the real UserConfigService → mock DB
     // with the production schema guard active. If the migration ever produces
     // something invalid, the write will throw and this test fails — exactly
-    // the production behaviour we're protecting against.
+    // the production behavior we're protecting against.
     const databaseService = new MockDatabaseService();
     const authService = new MockAuthService({
       uid: USER_ID,

@@ -222,7 +222,7 @@ resource "terraform_data" "activities_live_schema" {
 # when it became the live BigQuery table. It is defensible but no longer
 # obviously right: it now holds the only live BigQuery activity data. Two things
 # argue for leaving it off — nothing reads BigQuery, so losing the table costs
-# analysis history rather than product behaviour; and a column retype requires
+# analysis history rather than product behavior; and a column retype requires
 # recreating the table (BigQuery cannot change a column's type in place), which
 # protection turns into a two-apply flag dance. See schemas/bigquery/README.md.
 #

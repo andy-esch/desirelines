@@ -218,7 +218,7 @@ func TestUpsert_NormalizesWorkoutType(t *testing.T) {
 
 // A primary photo with no usable urls has its record dropped. The column is
 // NULLABLE on activities_live, so this is a conservative choice rather than a
-// constraint — these cases pin the behaviour, not a requirement.
+// constraint — these cases pin the behavior, not a requirement.
 func TestUpsert_PhotoPrimaryURLs(t *testing.T) {
 	tests := []struct {
 		name        string

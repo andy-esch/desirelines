@@ -5,7 +5,7 @@ auto-instrumentation entry points wired into each Cloud Run app's
 lifespan. Both are gated on `ENABLE_OTEL_TRACING` and must fail closed
 to a no-op, mirroring `setup_tracing`'s degradation contract.
 
-The two "it actually works" tests pin the behaviour the task exists to
+The two "it actually works" tests pin the behavior the task exists to
 deliver: a FastAPI **server span** that parents the handler's manual
 `record_span`, and a **per-statement DB span** from the SQLAlchemy
 engine.
@@ -39,7 +39,7 @@ def _in_memory_provider() -> tuple[TracerProvider, InMemorySpanExporter]:
 
 
 class TestInstrumentFastAPIApp:
-    """Gating + fail-closed behaviour of instrument_fastapi_app."""
+    """Gating + fail-closed behavior of instrument_fastapi_app."""
 
     def test_noop_when_tracing_disabled(self, monkeypatch):
         monkeypatch.delenv("ENABLE_OTEL_TRACING", raising=False)
