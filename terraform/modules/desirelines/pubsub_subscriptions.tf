@@ -34,7 +34,7 @@ resource "google_pubsub_subscription" "postgres_writer" {
 
   # Dead letter policy - failed messages go to DLQ after max attempts
   dead_letter_policy {
-    dead_letter_topic     = google_pubsub_topic.dead_letter.id
+    dead_letter_topic     = google_pubsub_topic.postgres_writer_dead_letter.id
     max_delivery_attempts = 5
   }
 
@@ -58,8 +58,12 @@ resource "google_pubsub_subscription" "postgres_writer" {
     type    = "push-subscription"
   })
 
+  # The publisher grant must exist before this subscription starts dead-lettering:
+  # without it Pub/Sub cannot write to the DLQ topic and forwarding fails silently,
+  # retrying forever instead of dead-lettering after max_delivery_attempts.
   depends_on = [
     google_cloud_run_v2_service.postgres_writer,
+    google_pubsub_topic_iam_member.dead_letter_publisher,
     google_project_service.required_apis
   ]
 }
@@ -87,7 +91,7 @@ resource "google_pubsub_subscription" "deletion_service" {
 
   # Dead letter policy - failed messages go to DLQ after max attempts
   dead_letter_policy {
-    dead_letter_topic     = google_pubsub_topic.dead_letter.id
+    dead_letter_topic     = google_pubsub_topic.deletion_service_dead_letter.id
     max_delivery_attempts = 5
   }
 
@@ -108,8 +112,11 @@ resource "google_pubsub_subscription" "deletion_service" {
     type    = "push-subscription"
   })
 
+  # See the note on postgres_writer: the publisher grant must precede
+  # dead-lettering or forwarding fails silently.
   depends_on = [
     google_cloud_run_v2_service.deletion_service,
+    google_pubsub_topic_iam_member.dead_letter_publisher,
     google_project_service.required_apis
   ]
 }
@@ -130,9 +137,9 @@ resource "google_pubsub_subscription" "deletion_service" {
 # These pull subscriptions allow monitoring and debugging of failed messages.
 # Messages that fail delivery after max_delivery_attempts end up in the DLQ topic.
 
-resource "google_pubsub_subscription" "postgres_writer_dlq" {
-  name  = "${var.project_name}-postgres-writer-dlq-${var.environment}"
-  topic = google_pubsub_topic.dead_letter.name
+resource "google_pubsub_subscription" "postgres_writer_dlq_monitoring" {
+  name  = "${var.project_name}-postgres-writer-dlq-monitoring-${var.environment}"
+  topic = google_pubsub_topic.postgres_writer_dead_letter.name
 
   # Long retention for debugging failed messages
   message_retention_duration = "1209600s" # 14 days
@@ -149,9 +156,9 @@ resource "google_pubsub_subscription" "postgres_writer_dlq" {
   depends_on = [google_project_service.required_apis]
 }
 
-resource "google_pubsub_subscription" "deletion_service_dlq" {
-  name  = "${var.project_name}-deletion-service-dlq-${var.environment}"
-  topic = google_pubsub_topic.dead_letter.name
+resource "google_pubsub_subscription" "deletion_service_dlq_monitoring" {
+  name  = "${var.project_name}-deletion-service-dlq-monitoring-${var.environment}"
+  topic = google_pubsub_topic.deletion_service_dead_letter.name
 
   # Long retention for debugging failed deletions
   message_retention_duration = "1209600s" # 14 days

@@ -143,31 +143,51 @@ resource "google_pubsub_topic" "deauth_events" {
   depends_on = [google_project_service.required_apis]
 }
 
-# Dead letter topic for failed messages
-resource "google_pubsub_topic" "dead_letter" {
-  name = "${var.project_name}_dead_letter"
+# Dead-letter topics — ONE PER SUBSCRIPTION, not per topic and not shared.
+#
+# A dead-letter topic fans out to every subscription attached to it, so sharing
+# one means each service's DLQ inspection subscription receives every other
+# service's failures, and the per-service depth alerts in alerts.tf all fire on
+# any one service's failure. That misattribution is worst exactly where it
+# matters most: the deletion-service DLQ is the compliance-sensitive one.
+#
+# Per SUBSCRIPTION is the rule to extend, even though today it happens to look
+# like per topic — each application topic currently has exactly one subscriber.
+# The moment a topic gains a second consumer it needs its own DLQ too, because
+# attribution follows the consumer that failed, not the topic it read from.
+#
+# Retention is long on purpose. Clearing a DLQ is how its CRITICAL alert is
+# silenced, and the only record of WHY a message failed is the
+# CloudPubSubDeadLetterSourceDeliveryErrorMessage attribute on the message
+# itself, so short retention means silencing the alert destroys the diagnosis.
+#
+# Naming matches the activity-rows DLQ in bigquery_subscription.tf: the topic
+# takes `-dlq-`, its inspection subscription `-dlq-monitoring-`, so the two are
+# distinguishable in gcloud output and runbooks.
+resource "google_pubsub_topic" "postgres_writer_dead_letter" {
+  name = "${var.project_name}-postgres-writer-dlq-${var.environment}"
 
   labels = local.common_labels
 
-  # Longer retention for debugging
   message_retention_duration = "1209600s" # 14 days
 }
 
-# Dead letter topic subscription for monitoring failed messages
-resource "google_pubsub_subscription" "dead_letter_monitoring" {
-  name  = "${var.project_name}_dead_letter_monitoring"
-  topic = google_pubsub_topic.dead_letter.name
+resource "google_pubsub_topic" "deletion_service_dead_letter" {
+  name = "${var.project_name}-deletion-service-dlq-${var.environment}"
 
   labels = local.common_labels
 
-  # Longer retention for debugging failed messages
   message_retention_duration = "1209600s" # 14 days
-  ack_deadline_seconds       = 600
 }
 
-# Grant PubSub service account permission to publish to dead letter topic
+# Grant PubSub service account permission to publish to the dead letter topics
 resource "google_pubsub_topic_iam_member" "dead_letter_publisher" {
-  topic  = google_pubsub_topic.dead_letter.name
+  for_each = toset([
+    google_pubsub_topic.postgres_writer_dead_letter.name,
+    google_pubsub_topic.deletion_service_dead_letter.name,
+  ])
+
+  topic  = each.value
   role   = "roles/pubsub.publisher"
   member = "serviceAccount:service-${var.gcp_project_number}@gcp-sa-pubsub.iam.gserviceaccount.com"
 }
