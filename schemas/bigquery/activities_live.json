@@ -224,7 +224,7 @@
       "mode": "NULLABLE",
       "name": "workout_type",
       "type": "STRING",
-      "description": "Type of workout"
+      "description": "Strava's run/ride workout type. Strava returns an integer but this column is STRING, so producers coerce it before writing \u2014 compare against the coerced string, not an integer literal."
     },
     {
       "mode": "NULLABLE",

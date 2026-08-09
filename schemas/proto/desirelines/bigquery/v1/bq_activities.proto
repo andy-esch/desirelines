@@ -297,7 +297,7 @@ message Activity {
   optional bool private = 29;
   // Whether activity was flagged
   optional bool flagged = 30;
-  // Type of workout
+  // Strava's run/ride workout type. Strava returns an integer but this column is STRING, so producers coerce it before writing — compare against the coerced string, not an integer literal.
   optional string workout_type = 31;
   // Upload ID as string
   optional string upload_id_str = 32;
