@@ -87,8 +87,8 @@ dead-letter during a short swap and replaying them.
 ```bash
 export PROJECT=<gcp-project-id>
 export DATASET=<bq-dataset>
-export TABLE=activities
-export SCHEMA=schemas/bigquery/${TABLE}.json     # or activities_full.json
+export TABLE=activities_live
+export SCHEMA=schemas/bigquery/activities_live.json
 
 # 1. Create the new table with the corrected schema
 bq mk --table --schema "$SCHEMA" "${PROJECT}:${DATASET}.${TABLE}_new"

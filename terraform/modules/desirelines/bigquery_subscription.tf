@@ -142,6 +142,16 @@ resource "google_pubsub_subscription" "activity_rows_dlq_monitoring" {
   message_retention_duration = "1209600s" # 14 days — longer, for debugging
   ack_deadline_seconds       = 600
 
+  # Never expire. Pub/Sub's default is a 31-day inactivity TTL that DELETES the
+  # subscription: the DLQ inspection subscriptions go unpolled for months in a
+  # healthy system, and a single-user project can genuinely go 31 days without a
+  # Strava activity. An expired subscription is silent — the topic keeps
+  # accepting publishes with nothing to deliver to, messages age out of retention,
+  # and processing stalls until an apply recreates it.
+  expiration_policy {
+    ttl = "" # empty string = never
+  }
+
   depends_on = [google_project_service.required_apis]
 }
 
@@ -216,14 +226,21 @@ resource "terraform_data" "activities_live_schema" {
 # recreating the table (BigQuery cannot change a column's type in place), which
 # protection turns into a two-apply flag dance. See schemas/bigquery/README.md.
 #
-# Revisit if a read path ever trusts BigQuery, at which point the recreate story
-# needs solving anyway.
+# Protected in prod anyway, matching how the retired `activities` table was
+# treated: this now holds the only live BigQuery activity data, and the history
+# it accumulates is not reconstructible — no code path can replay activities into
+# BigQuery, so a destroy is permanent. Left unprotected in dev, which is where
+# any recreate should be rehearsed.
+#
+# The cost is real: retyping a column in prod means flipping this to false in one
+# apply before the recreate in the next. Accept that trade when it comes up
+# rather than leaving the data unprotected against it.
 resource "google_bigquery_table" "activities_live" {
   dataset_id          = google_bigquery_dataset.activities_dataset.dataset_id
   table_id            = "activities_live"
   friendly_name       = "Strava Activities (live, CDC)"
   description         = "Current activity state maintained by a Pub/Sub CDC subscription (UPSERT/DELETE). The live BigQuery activity table; archival, not a product read path."
-  deletion_protection = false
+  deletion_protection = var.environment == "prod"
 
   labels = local.common_labels
 
@@ -287,6 +304,16 @@ resource "google_pubsub_subscription" "activities_live_writer" {
   }
 
   message_retention_duration = "604800s" # 7 days
+
+  # Never expire. Pub/Sub's default is a 31-day inactivity TTL that DELETES the
+  # subscription: the DLQ inspection subscriptions go unpolled for months in a
+  # healthy system, and a single-user project can genuinely go 31 days without a
+  # Strava activity. An expired subscription is silent — the topic keeps
+  # accepting publishes with nothing to deliver to, messages age out of retention,
+  # and processing stalls until an apply recreates it.
+  expiration_policy {
+    ttl = "" # empty string = never
+  }
 
   depends_on = [google_project_service.required_apis]
 }
