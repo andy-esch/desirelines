@@ -8,7 +8,7 @@ Main Terraform module for the Desirelines project. Provisions all GCP resources 
 |------|-----------|
 | `cloud_run.tf` | Cloud Run services (dispatcher, api-gateway, postgres-writer, deletion-service), service accounts, IAM |
 | `pubsub_subscriptions.tf` | Push subscriptions (activity + deauth), dead letter queues |
-| `main.tf` | Pub/Sub topics (activity_events, deauth_events, dead_letter), BigQuery dataset/tables, Firestore database, Cloud Storage, GCP APIs |
+| `main.tf` | Pub/Sub topics (activity_events, deauth_events, per-service dead-letter topics), BigQuery dataset/tables, Firestore database, Cloud Storage, GCP APIs |
 | `firebase_hosting.tf` | Firebase Hosting site, custom domain, web app config |
 | `image_validation.tf` | Pre-apply check that every image reference a plan intends to deploy exists in Artifact Registry |
 | `monitoring.tf` | Monitoring alerts and notification channels |
@@ -141,18 +141,18 @@ module "desirelines" {
 | [google_pubsub_schema.activity_rows](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_schema) | resource |
 | [google_pubsub_subscription.activities_live_writer](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_subscription) | resource |
 | [google_pubsub_subscription.activity_rows_dlq_monitoring](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_subscription) | resource |
-| [google_pubsub_subscription.dead_letter_monitoring](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_subscription) | resource |
 | [google_pubsub_subscription.deletion_service](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_subscription) | resource |
-| [google_pubsub_subscription.deletion_service_dlq](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_subscription) | resource |
+| [google_pubsub_subscription.deletion_service_dlq_monitoring](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_subscription) | resource |
 | [google_pubsub_subscription.postgres_writer](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_subscription) | resource |
-| [google_pubsub_subscription.postgres_writer_dlq](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_subscription) | resource |
+| [google_pubsub_subscription.postgres_writer_dlq_monitoring](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_subscription) | resource |
 | [google_pubsub_subscription_iam_member.activities_live_writer_dlq_subscriber](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_subscription_iam_member) | resource |
 | [google_pubsub_subscription_iam_member.dlq_subscriber](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_subscription_iam_member) | resource |
 | [google_pubsub_topic.activity_events](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_topic) | resource |
 | [google_pubsub_topic.activity_rows](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_topic) | resource |
 | [google_pubsub_topic.activity_rows_dead_letter](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_topic) | resource |
-| [google_pubsub_topic.dead_letter](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_topic) | resource |
 | [google_pubsub_topic.deauth_events](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_topic) | resource |
+| [google_pubsub_topic.deletion_service_dead_letter](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_topic) | resource |
+| [google_pubsub_topic.postgres_writer_dead_letter](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_topic) | resource |
 | [google_pubsub_topic_iam_member.activity_rows_dlq_publisher](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_topic_iam_member) | resource |
 | [google_pubsub_topic_iam_member.dead_letter_publisher](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_topic_iam_member) | resource |
 | [google_pubsub_topic_iam_member.dispatcher_activity_rows_publisher](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_topic_iam_member) | resource |
@@ -239,7 +239,7 @@ module "desirelines" {
 | <a name="output_firestore_database_location"></a> [firestore\_database\_location](#output\_firestore\_database\_location) | Location of the Firestore database |
 | <a name="output_firestore_database_name"></a> [firestore\_database\_name](#output\_firestore\_database\_name) | Name of the Firestore database |
 | <a name="output_monitoring_dashboard_url"></a> [monitoring\_dashboard\_url](#output\_monitoring\_dashboard\_url) | URL to the GCP Monitoring Dashboard |
-| <a name="output_pubsub_dead_letter_topic_name"></a> [pubsub\_dead\_letter\_topic\_name](#output\_pubsub\_dead\_letter\_topic\_name) | Name of the dead letter PubSub topic |
+| <a name="output_pubsub_dead_letter_topic_names"></a> [pubsub\_dead\_letter\_topic\_names](#output\_pubsub\_dead\_letter\_topic\_names) | Per-service dead letter PubSub topic names |
 | <a name="output_pubsub_subscription_names"></a> [pubsub\_subscription\_names](#output\_pubsub\_subscription\_names) | Names of Pub/Sub subscriptions for event processing |
 | <a name="output_pubsub_topic_name"></a> [pubsub\_topic\_name](#output\_pubsub\_topic\_name) | Name of the main PubSub topic for activity events |
 | <a name="output_resource_names"></a> [resource\_names](#output\_resource\_names) | Map of all resource names for easy reference |

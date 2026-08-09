@@ -141,6 +141,8 @@ resource "google_pubsub_subscription" "activity_rows_dlq_monitoring" {
   labels                     = local.common_labels
   message_retention_duration = "1209600s" # 14 days — longer, for debugging
   ack_deadline_seconds       = 600
+
+  depends_on = [google_project_service.required_apis]
 }
 
 # ---- BigQuery destination table (CDC requires a primary key) ------------------

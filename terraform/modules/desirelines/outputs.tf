@@ -24,9 +24,13 @@ output "pubsub_topic_name" {
 }
 
 
-output "pubsub_dead_letter_topic_name" {
-  description = "Name of the dead letter PubSub topic"
-  value       = google_pubsub_topic.dead_letter.name
+output "pubsub_dead_letter_topic_names" {
+  description = "Per-service dead letter PubSub topic names"
+  value = {
+    postgres_writer  = google_pubsub_topic.postgres_writer_dead_letter.name
+    deletion_service = google_pubsub_topic.deletion_service_dead_letter.name
+    activity_rows    = google_pubsub_topic.activity_rows_dead_letter.name
+  }
 }
 
 # Resource naming outputs (useful for application configuration)
@@ -99,8 +103,8 @@ output "pubsub_subscription_names" {
   value = {
     postgres_writer      = google_pubsub_subscription.postgres_writer.name
     deletion_service     = google_pubsub_subscription.deletion_service.name
-    postgres_writer_dlq  = google_pubsub_subscription.postgres_writer_dlq.name
-    deletion_service_dlq = google_pubsub_subscription.deletion_service_dlq.name
+    postgres_writer_dlq  = google_pubsub_subscription.postgres_writer_dlq_monitoring.name
+    deletion_service_dlq = google_pubsub_subscription.deletion_service_dlq_monitoring.name
   }
 }
 

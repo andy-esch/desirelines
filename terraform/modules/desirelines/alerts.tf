@@ -68,7 +68,7 @@ resource "google_monitoring_alert_policy" "dlq_deletion_service" {
     display_name = "Deletion Service DLQ has messages"
 
     condition_threshold {
-      filter          = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"${google_pubsub_subscription.deletion_service_dlq.name}\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
+      filter          = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"${google_pubsub_subscription.deletion_service_dlq_monitoring.name}\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
       duration        = "60s"
       comparison      = "COMPARISON_GT"
       threshold_value = 0
@@ -119,7 +119,7 @@ resource "google_monitoring_alert_policy" "dlq_postgres_writer" {
     display_name = "PostgreSQL Writer DLQ has messages"
 
     condition_threshold {
-      filter          = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"${google_pubsub_subscription.postgres_writer_dlq.name}\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
+      filter          = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"${google_pubsub_subscription.postgres_writer_dlq_monitoring.name}\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
       duration        = "60s"
       comparison      = "COMPARISON_GT"
       threshold_value = 0
