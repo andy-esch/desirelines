@@ -187,11 +187,16 @@ variable "app_config" {
     # staleness bug, settable via GitOps with no code change.
     dispatcher_allowlist_cache_ttl = optional(string, "5m")
     dispatcher_token_cache_ttl     = optional(string, "5m")
-    # Best-effort publish of activity rows to the BigQuery CDC topic. This is
-    # now the ONLY path by which activity rows reach BigQuery — it is no longer
-    # a dual-publish alongside a writer service. Still default off so a new
-    # environment does not publish before its topic and subscription exist;
-    # turning it on is a one-value change. The publish cannot fail a webhook.
+    # Best-effort publish of activity rows to the BigQuery CDC topic — the only
+    # path by which activity rows reach BigQuery — and the kill switch for it:
+    # set false to stop publishing in place during an incident (GitOps apply, no
+    # code change). Safe to stop, because nothing reads BigQuery; the cost is a
+    # stale activities_live. Named as the mitigation in
+    # docs/runbooks/activity-row-publish-failing.md and dlq-activity-rows.md.
+    #
+    # Default off so a new environment does not publish before its topic and
+    # subscription exist — which means an environment that never sets it true
+    # publishes nothing, silently. The publish cannot fail a webhook.
     dispatcher_activity_row_publish_enabled = optional(bool, false)
     # Wire format for activity rows: "json" or "proto". Drives the dispatcher's
     # ACTIVITY_ROW_ENCODING, whether the topic carries a protobuf schema, and

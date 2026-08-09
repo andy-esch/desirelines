@@ -50,10 +50,14 @@ type Config struct {
 	ReadHeaderTimeout      time.Duration
 	MaxRequestBodySize     int64
 	// ActivityRowPublishEnabled turns on the best-effort publish of each
-	// activity as a BigQuery CDC row, alongside the primary webhook publish.
-	// This is the only path by which activity rows reach BigQuery. Default off
-	// so a new environment does not publish before its topic exists; switched
-	// on per environment.
+	// activity as a BigQuery CDC row, alongside the primary webhook publish —
+	// the only path by which activity rows reach BigQuery — and the kill switch
+	// for it: false stops publishing by config alone, which the activity-row
+	// publish and DLQ runbooks name as their mitigation. Safe to stop, because
+	// nothing reads BigQuery.
+	//
+	// Default off so a new environment does not publish before its topic
+	// exists.
 	// GCPPubSubActivityRowsTopicID is required only when this is true.
 	ActivityRowPublishEnabled    bool
 	GCPPubSubActivityRowsTopicID string

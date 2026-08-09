@@ -7,13 +7,15 @@
 # docs/architecture/bigquery-write-architecture.md.
 #
 # The only producer is the dispatcher's best-effort publish, gated on
-# app_config.dispatcher_activity_row_publish_enabled, which cannot fail a
-# webhook. A failure here can only affect activities_live; the user-facing
-# read path is PostgreSQL, fed independently via postgres-writer.
+# app_config.dispatcher_activity_row_publish_enabled — which doubles as the kill
+# switch for this path — and it cannot fail a webhook. A failure here can only
+# affect activities_live; the user-facing read path is PostgreSQL, fed
+# independently via postgres-writer.
 #
-# The publish-failure ALERT is gated separately, on
-# var.enable_activity_row_publish_alert — see that variable for why the two
-# cannot share a switch.
+# The publish-failure ALERT has its own gate, var.enable_activity_row_publish_alert.
+# Keep them separate: the alert binds to a metric descriptor that only exists in
+# a project once a row has been published there, so an environment can publish
+# without being able to carry the alert.
 #
 # ---- Mode: selected by app_config.dispatcher_activity_row_encoding ------------
 # One value drives three things that must agree: the dispatcher's
