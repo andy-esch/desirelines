@@ -240,8 +240,24 @@ jobs:
 
       - name: Check for module changes
         id: changes
+        # `schemas/` is here on purpose, not by accident of over-matching. The
+        # desirelines module reads two generated files from OUTSIDE its own tree
+        # (see bigquery_subscription.tf):
+        #   - schemas/proto/desirelines/bigquery/cdc/v1/bq_activity_rows.proto
+        #     — the Pub/Sub topic schema definition, and the input to the
+        #     filesha256 digest carried in the schema resource's NAME
+        #   - schemas/bigquery/activities_live.json — the activities_live table
+        #     schema
+        # A change to either alters what the module deploys. Matching only
+        # `terraform/modules/` cuts no tag for such a change, so the environments
+        # stay pinned to the previous tag and the change never ships — then rides
+        # along silently with whatever unrelated module edit next cuts a tag.
+        #
+        # Over-matching (a sport_types.json edit tagging a no-op module version)
+        # is cheap; under-matching strands a schema change indefinitely. Err
+        # toward tagging.
         run: |
-          if git diff --name-only HEAD~1 HEAD | grep -q '^terraform/modules/'; then
+          if git diff --name-only HEAD~1 HEAD | grep -qE '^(terraform/modules/|schemas/)'; then
             echo "changed=true" >> $GITHUB_OUTPUT
           else
             echo "changed=false" >> $GITHUB_OUTPUT
