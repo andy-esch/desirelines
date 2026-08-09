@@ -61,6 +61,16 @@ resource "google_pubsub_subscription" "postgres_writer" {
   # The publisher grant must exist before this subscription starts dead-lettering:
   # without it Pub/Sub cannot write to the DLQ topic and forwarding fails silently,
   # retrying forever instead of dead-lettering after max_delivery_attempts.
+  # Never expire. Pub/Sub's default is a 31-day inactivity TTL that DELETES the
+  # subscription: the DLQ inspection subscriptions go unpolled for months in a
+  # healthy system, and a single-user project can genuinely go 31 days without a
+  # Strava activity. An expired subscription is silent — the topic keeps
+  # accepting publishes with nothing to deliver to, messages age out of retention,
+  # and processing stalls until an apply recreates it.
+  expiration_policy {
+    ttl = "" # empty string = never
+  }
+
   depends_on = [
     google_cloud_run_v2_service.postgres_writer,
     google_pubsub_topic_iam_member.dead_letter_publisher,
@@ -114,6 +124,16 @@ resource "google_pubsub_subscription" "deletion_service" {
 
   # See the note on postgres_writer: the publisher grant must precede
   # dead-lettering or forwarding fails silently.
+  # Never expire. Pub/Sub's default is a 31-day inactivity TTL that DELETES the
+  # subscription: the DLQ inspection subscriptions go unpolled for months in a
+  # healthy system, and a single-user project can genuinely go 31 days without a
+  # Strava activity. An expired subscription is silent — the topic keeps
+  # accepting publishes with nothing to deliver to, messages age out of retention,
+  # and processing stalls until an apply recreates it.
+  expiration_policy {
+    ttl = "" # empty string = never
+  }
+
   depends_on = [
     google_cloud_run_v2_service.deletion_service,
     google_pubsub_topic_iam_member.dead_letter_publisher,
@@ -153,6 +173,16 @@ resource "google_pubsub_subscription" "postgres_writer_dlq_monitoring" {
     type    = "dlq-monitoring"
   })
 
+  # Never expire. Pub/Sub's default is a 31-day inactivity TTL that DELETES the
+  # subscription: the DLQ inspection subscriptions go unpolled for months in a
+  # healthy system, and a single-user project can genuinely go 31 days without a
+  # Strava activity. An expired subscription is silent — the topic keeps
+  # accepting publishes with nothing to deliver to, messages age out of retention,
+  # and processing stalls until an apply recreates it.
+  expiration_policy {
+    ttl = "" # empty string = never
+  }
+
   depends_on = [google_project_service.required_apis]
 }
 
@@ -169,6 +199,16 @@ resource "google_pubsub_subscription" "deletion_service_dlq_monitoring" {
     service = "deletion-service"
     type    = "dlq-monitoring"
   })
+
+  # Never expire. Pub/Sub's default is a 31-day inactivity TTL that DELETES the
+  # subscription: the DLQ inspection subscriptions go unpolled for months in a
+  # healthy system, and a single-user project can genuinely go 31 days without a
+  # Strava activity. An expired subscription is silent — the topic keeps
+  # accepting publishes with nothing to deliver to, messages age out of retention,
+  # and processing stalls until an apply recreates it.
+  expiration_policy {
+    ttl = "" # empty string = never
+  }
 
   depends_on = [google_project_service.required_apis]
 }

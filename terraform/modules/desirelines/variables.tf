@@ -81,7 +81,7 @@ variable "enable_application_metric_alerts" {
 }
 
 variable "enable_activity_row_publish_alert" {
-  description = "Gate for the activity-row publish-failure alert specifically. Separate from the dispatcher's publish behaviour on purpose: the alert watches workload.googleapis.com/desirelines.io/bigquery/row_publish, a counter that only exists in a project once the dispatcher has published a row THERE, so creating the policy where no row has ever been published fails the apply with a 404 on the metric type. dev receives no Strava webhooks, so it can never publish and the counter can never come into existence — meaning the alert can never be created there, and this must stay false in dev regardless of whether publishing is enabled."
+  description = "Gate for the activity-row publish-failure alert specifically. Separate from the dispatcher's publish behavior on purpose: the alert watches workload.googleapis.com/desirelines.io/bigquery/row_publish, a counter that only exists in a project once the dispatcher has published a row THERE, so creating the policy where no row has ever been published fails the apply with a 404 on the metric type. dev receives no Strava webhooks, so it can never publish and the counter can never come into existence — meaning the alert can never be created there, and this must stay false in dev regardless of whether publishing is enabled."
   type        = bool
   default     = false
 }

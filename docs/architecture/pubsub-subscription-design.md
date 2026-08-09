@@ -74,7 +74,23 @@ resource "google_pubsub_subscription" "postgres_writer" {
 }
 ```
 
-All subscriptions follow the same pattern: OIDC authentication, dead-letter after 5 attempts, exponential backoff, 600s ack deadline.
+All subscriptions follow the same pattern: OIDC authentication, dead-letter
+after 5 attempts, exponential backoff, 600s ack deadline, and **never expire**.
+
+That last one is not a default. Pub/Sub applies a 31-day inactivity TTL that
+*deletes* the subscription, so every subscription in the module sets:
+
+```hcl
+expiration_policy {
+  ttl = "" # empty string = never
+}
+```
+
+Two ways that bites without it: the DLQ inspection subscriptions go unpolled for
+months in a healthy system, and a single-user project can go 31 days without a
+Strava activity. An expired subscription is silent — the topic keeps accepting
+publishes with nothing to deliver to, messages age out of retention, and
+processing stalls until an apply recreates it.
 
 ### Why Manual Subscriptions (Not Eventarc)?
 

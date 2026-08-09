@@ -185,7 +185,7 @@ class SportConfig:
                 seen_strava_types[strava_type] = name
         # Per-process dedup for the "Unknown Strava sport_type detected"
         # WARNING. Cloud Run recycles restore the alert's signal naturally —
-        # one fresh sighting per restart is the desired behaviour.
+        # one fresh sighting per restart is the desired behavior.
         self._unknown_seen: set[str] = set()
 
     def categorize_activity(self, sport_type: str) -> str:
