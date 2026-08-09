@@ -84,6 +84,14 @@ window) and recreate it afterwards, which for a Terraform-managed subscription
 means a module change and a deploy. Weigh that against simply letting writes
 dead-letter during a short swap and replaying them.
 
+**On `deletion_protection`.** `activities_live` carries it in prod. That flag is a
+Terraform-side guard only — it does **not** stop the `bq rm` below, so this
+procedure works as written. It does two other things worth knowing: a
+Terraform-driven removal of the table fails until the flag is flipped to `false`
+in a *preceding* apply, and recreating the table out-of-band leaves Terraform
+managing an object it did not create — re-run a plan afterwards and confirm it
+reports no changes before walking away.
+
 ```bash
 export PROJECT=<gcp-project-id>
 export DATASET=<bq-dataset>
