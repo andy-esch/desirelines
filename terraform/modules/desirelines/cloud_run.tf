@@ -137,10 +137,11 @@ resource "google_cloud_run_v2_service" "dispatcher" {
         value = var.app_config.dispatcher_token_cache_ttl
       }
 
-      # Best-effort second publish of each activity as a BigQuery CDC row, on
-      # top of the primary activity_events publish. Default off; the topic is
-      # always wired so enabling it is a one-value change. See
-      # bigquery_subscription.tf for what consumes the topic.
+      # Best-effort publish of each activity as a BigQuery CDC row, alongside
+      # the primary activity_events publish. Also the kill switch for that path:
+      # set false to stop publishing in place during an incident (GitOps apply,
+      # no code change). The topic is always wired, so toggling costs one value.
+      # See bigquery_subscription.tf for what consumes the topic.
       env {
         name  = "ACTIVITY_ROW_PUBLISH_ENABLED"
         value = tostring(var.app_config.dispatcher_activity_row_publish_enabled)
