@@ -104,7 +104,7 @@ type ActivityRow struct {
 	Private *bool `protobuf:"varint,29,opt,name=private" json:"private,omitempty"`
 	// Whether activity was flagged
 	Flagged *bool `protobuf:"varint,30,opt,name=flagged" json:"flagged,omitempty"`
-	// Type of workout
+	// Strava's run/ride workout type. Strava returns an integer but this column is STRING, so producers coerce it before writing — compare against the coerced string, not an integer literal.
 	WorkoutType *string `protobuf:"bytes,31,opt,name=workout_type,json=workoutType" json:"workout_type,omitempty"`
 	// Upload ID as string
 	UploadIdStr *string `protobuf:"bytes,32,opt,name=upload_id_str,json=uploadIdStr" json:"upload_id_str,omitempty"`
