@@ -27,7 +27,7 @@
  */
 
 import getClient from "./client";
-import { is404Error, throwApiError } from "./errors";
+import { throwApiError } from "./errors";
 import {
   validateApiResponse,
   SportMetricsResponseSchema,
@@ -35,7 +35,6 @@ import {
   SportConfigResponseSchema,
   AllSportsDailySummaryResponseSchema,
   AllSportsMetricsResponseSchema,
-  ActivityResponseSchema,
   ActivityListResponseSchema,
   AggregateActivitiesResponseSchema,
 } from "./contracts";
@@ -287,24 +286,6 @@ export const fetchMultiSportMetrics = async (
     );
   } catch (err: unknown) {
     throwApiError(err, "fetchMultiSportMetrics");
-  }
-};
-
-/**
- * Fetch a single activity by ID
- */
-export const fetchActivity = async (id: number, signal?: AbortSignal): Promise<Activity | null> => {
-  const url = `activities/${id}`;
-
-  try {
-    const { data: raw } = await getClient().get<Activity>(url, signal ? { signal } : {});
-    return validateApiResponse<Activity>(ActivityResponseSchema, raw, "fetchActivity");
-  } catch (err: unknown) {
-    // 404 means activity not found - return null, not an error
-    if (is404Error(err)) {
-      return null;
-    }
-    throwApiError(err, "fetchActivity");
   }
 };
 

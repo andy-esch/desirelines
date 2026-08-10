@@ -10,7 +10,6 @@ import type { AuthService, User } from "./AuthService";
 export class MockAuthService implements AuthService {
   private currentUser: User | null = null;
   private listeners: Set<(user: User | null) => void> = new Set();
-  private authReady = true;
 
   constructor(initialUser: User | null = null) {
     this.currentUser = initialUser;
@@ -63,11 +62,11 @@ export class MockAuthService implements AuthService {
     return Promise.resolve(`mock-token-${this.currentUser.uid}`);
   }
 
-  async waitForAuthReady(): Promise<void> {
-    // Can be configured to delay for testing loading states
-    if (!this.authReady) {
-      await new Promise((resolve) => setTimeout(resolve, 10));
-    }
+  waitForAuthReady(): Promise<void> {
+    // The mock is ready as soon as it is constructed; there is nothing to wait
+    // for. This used to branch on an `authReady` flag whose only writer was a
+    // test helper nobody called, so the delay path was unreachable.
+    return Promise.resolve();
   }
 
   private notifyListeners(): void {
@@ -84,13 +83,6 @@ export class MockAuthService implements AuthService {
   setCurrentUser(user: User | null): void {
     this.currentUser = user;
     this.notifyListeners();
-  }
-
-  /**
-   * Set whether auth is ready (for testing loading states)
-   */
-  setAuthReady(ready: boolean): void {
-    this.authReady = ready;
   }
 
   /**
