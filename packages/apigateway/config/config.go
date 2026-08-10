@@ -16,8 +16,26 @@ const (
 	DefaultWriteTimeout = 30 * time.Second
 	// DefaultReadHeaderTimeout is the default read header timeout for HTTP requests.
 	DefaultReadHeaderTimeout = 10 * time.Second
-	// DefaultShutdownTimeout is the default shutdown timeout for the server.
-	DefaultShutdownTimeout = 30 * time.Second
+	// DefaultShutdownTimeout is the total budget for graceful shutdown. The
+	// HTTP drain and the telemetry flush run one after the other and share it —
+	// see Config.ShutdownBudgets.
+	//
+	// It has to fit inside Cloud Run's termination grace period (10s; the
+	// deployment does not override it). A budget larger than the grace period
+	// is not really a budget: the container is SIGKILLed at 10s either way, so
+	// an oversized value only changes *where* the work gets cut off. It used to
+	// be cut off mid telemetry-flush, which lost the spans and metrics for the
+	// shutdown itself — exactly the window you want instrumented. 8s leaves
+	// ~2s of margin for the rest of process teardown.
+	DefaultShutdownTimeout = 8 * time.Second
+
+	// shutdownDrainNumerator and shutdownDrainDenominator split the total
+	// shutdown budget between the HTTP drain and the telemetry flush.
+	// In-flight requests are user-visible and telemetry is not, so the drain
+	// takes the larger share, while the flush keeps enough to push one final
+	// batch instead of being cut off entirely.
+	shutdownDrainNumerator   = 5
+	shutdownDrainDenominator = 8
 	// DefaultReadinessTimeout is the default timeout for the /api/ready DB
 	// probe. Must accommodate Neon cold-start latency since the hourly Cloud
 	// Scheduler probe almost always wakes a suspended compute.
@@ -90,7 +108,9 @@ type Config struct {
 	WriteTimeout time.Duration
 	// ReadHeaderTimeout is the HTTP server read header timeout.
 	ReadHeaderTimeout time.Duration
-	// ShutdownTimeout is the maximum time for graceful shutdown.
+	// ShutdownTimeout is the total budget for graceful shutdown, shared by the
+	// HTTP drain and the telemetry flush. Read it through ShutdownBudgets
+	// rather than using it directly for either phase.
 	ShutdownTimeout time.Duration
 	// ReadinessTimeout is the timeout applied to the /api/ready DB probe.
 	ReadinessTimeout time.Duration
@@ -229,6 +249,19 @@ func GetEnvOrDefault(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+// ShutdownBudgets splits ShutdownTimeout across the two phases of graceful
+// shutdown, which run sequentially: draining in-flight HTTP requests, then
+// flushing buffered spans and metrics to Cloud Trace/Monitoring.
+//
+// Use this instead of handing ShutdownTimeout to both phases. Doing that gave
+// each phase the full budget, so together they could run for twice it — past
+// Cloud Run's 10s grace period, at which point SIGKILL cut the flush off and
+// the shutdown's own telemetry was lost.
+func (c *Config) ShutdownBudgets() (drain, flush time.Duration) {
+	drain = c.ShutdownTimeout * shutdownDrainNumerator / shutdownDrainDenominator
+	return drain, c.ShutdownTimeout - drain
 }
 
 // LogAttrs returns slog-friendly attributes for boot-time logging.

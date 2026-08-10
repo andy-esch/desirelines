@@ -76,7 +76,7 @@ func TestConfig_LogAttrs_OmitsSecrets(t *testing.T) {
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,
 		ReadHeaderTimeout: 10 * time.Second,
-		ShutdownTimeout:   30 * time.Second,
+		ShutdownTimeout:   8 * time.Second,
 		ReadinessTimeout:  10 * time.Second,
 	}
 
@@ -116,4 +116,50 @@ func TestConfig_LogAttrs_OmitsSecrets(t *testing.T) {
 			t.Errorf("LogAttrs leaked canary %q: %s", canary, rendered)
 		}
 	}
+}
+
+// The two shutdown phases run one after the other, so the invariant that
+// matters is that their sum never exceeds the configured total — that sum is
+// what has to fit inside Cloud Run's termination grace period.
+func TestConfig_ShutdownBudgets(t *testing.T) {
+	t.Run("splits the default budget with the drain taking the larger share", func(t *testing.T) {
+		c := &Config{ShutdownTimeout: DefaultShutdownTimeout}
+		drain, flush := c.ShutdownBudgets()
+
+		if drain+flush != DefaultShutdownTimeout {
+			t.Errorf("drain+flush = %v, want exactly %v", drain+flush, DefaultShutdownTimeout)
+		}
+		if drain <= flush {
+			t.Errorf("drain = %v, flush = %v; drain should get the larger share", drain, flush)
+		}
+		if flush <= 0 {
+			t.Errorf("flush = %v; the telemetry flush must get a non-zero budget", flush)
+		}
+	})
+
+	t.Run("default total fits inside Cloud Run's 10s termination grace", func(t *testing.T) {
+		// The regression this guards: both phases previously used the full
+		// 30s ShutdownTimeout, so shutdown could run 60s against a 10s grace
+		// and the flush was always SIGKILLed.
+		const cloudRunGracePeriod = 10 * time.Second
+		if DefaultShutdownTimeout >= cloudRunGracePeriod {
+			t.Errorf("DefaultShutdownTimeout = %v, must be under the %v grace period",
+				DefaultShutdownTimeout, cloudRunGracePeriod)
+		}
+	})
+
+	t.Run("sum is preserved for arbitrary totals", func(t *testing.T) {
+		for _, total := range []time.Duration{
+			0, time.Second, 3 * time.Second, 8 * time.Second, 30 * time.Second,
+		} {
+			c := &Config{ShutdownTimeout: total}
+			drain, flush := c.ShutdownBudgets()
+			if drain+flush != total {
+				t.Errorf("total %v: drain+flush = %v, want %v", total, drain+flush, total)
+			}
+			if drain < 0 || flush < 0 {
+				t.Errorf("total %v: negative budget drain=%v flush=%v", total, drain, flush)
+			}
+		}
+	})
 }

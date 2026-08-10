@@ -77,6 +77,11 @@ func run(log *slog.Logger) error {
 	// touch this struct.
 	log.Info("apigateway boot config", cfg.LogAttrs()...)
 
+	// Split the single shutdown budget across the two sequential phases, so the
+	// drain and the flush together stay inside Cloud Run's termination grace
+	// period instead of each claiming the whole timeout.
+	drainBudget, flushBudget := cfg.ShutdownBudgets()
+
 	ctx := context.Background()
 
 	// Initialize OTel metrics + tracing (warn and continue with no-ops on failure)
@@ -89,9 +94,14 @@ func run(log *slog.Logger) error {
 			// Bound the flush: otelShutdown joins the span/metric exporter
 			// flushes, which block on Cloud Trace/Monitoring. Without a deadline
 			// a slow/unreachable backend during deploy blocks until Cloud Run
-			// SIGKILLs the container — and this error log never runs. Use the
-			// same budget as the HTTP server shutdown below.
-			shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+			// SIGKILLs the container — and this error log never runs.
+			//
+			// This runs after the HTTP drain below (deferred, so it fires as run
+			// returns), which is why it gets the remainder of the budget rather
+			// than a copy of the whole thing. Giving both phases the full
+			// ShutdownTimeout is what let them overrun the grace period and lose
+			// the shutdown's own telemetry.
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), flushBudget)
 			defer cancel()
 			if shutdownErr := otelShutdown(shutdownCtx); shutdownErr != nil {
 				log.Error("OTel shutdown error", "error", shutdownErr)
@@ -179,7 +189,7 @@ func run(log *slog.Logger) error {
 		log.Info("Shutting down server...")
 	}
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), drainBudget)
 	defer cancel()
 
 	if shutdownErr := srv.Shutdown(shutdownCtx); shutdownErr != nil {
