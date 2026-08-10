@@ -46,13 +46,22 @@ fi
 # Secrets are managed in Infisical and synced to GCP Secret Manager
 SECRET_NAME="INFISICAL_POSTGRES_CONN_FLYWAY"
 echo -e "${YELLOW}📥 Fetching connection string from Secret Manager (${SECRET_NAME})...${NC}"
-CONNECTION_STRING=$(gcloud secrets versions access latest \
+# gcloud's stderr is deliberately NOT suppressed: it names the actual cause
+# (no such secret, no permission, wrong project, expired credentials), and
+# hiding it turned every one of those into the same generic "failed to fetch"
+# below. Let it print, and let the non-zero exit be the signal.
+if ! CONNECTION_STRING=$(gcloud secrets versions access latest \
   --secret="${SECRET_NAME}" \
-  --project="${PROJECT_ID}" 2>/dev/null || true)
-
-if [[ -z "$CONNECTION_STRING" ]]; then
+  --project="${PROJECT_ID}"); then
   echo -e "${RED}❌ Failed to fetch connection string from Secret Manager${NC}"
-  echo -e "${YELLOW}Make sure you have access to secret: ${SECRET_NAME}${NC}"
+  echo -e "${YELLOW}See the gcloud error above. Secret: ${SECRET_NAME}, project: ${PROJECT_ID}${NC}"
+  exit 1
+fi
+
+# Separate check: the fetch can succeed and still hand back nothing if the
+# secret version exists but is empty.
+if [[ -z "$CONNECTION_STRING" ]]; then
+  echo -e "${RED}❌ Secret ${SECRET_NAME} is present but empty${NC}"
   exit 1
 fi
 
@@ -119,11 +128,28 @@ else
   echo -e "${GREEN}🚀 Running migrations against ${ENVIRONMENT} database...${NC}"
 fi
 
-# Run Flyway with JDBC URL and separate credentials
+# Run Flyway with JDBC URL and separate credentials.
+#
+# Credentials go through --env-file rather than -e: values passed with -e land
+# in the docker CLI's own argv, where any other user on the host can read them
+# out of `ps` for the life of the command. Per docs/guides/secure-scripting.md
+# ("No Secrets in Args"). The file is created 0600 before anything is written to
+# it, and removed on exit including on failure or Ctrl-C.
+FLYWAY_ENV_FILE=$(mktemp)
+chmod 600 "${FLYWAY_ENV_FILE}"
+trap 'rm -f "${FLYWAY_ENV_FILE}"' EXIT
+
+# docker --env-file takes each line literally to end-of-line: no quoting, no
+# escaping, no variable expansion. So the values are written bare — quoting them
+# would make the quotes part of the password.
+cat >"${FLYWAY_ENV_FILE}" <<EOF
+FLYWAY_URL=${JDBC_URL}
+FLYWAY_USER=${DB_USER}
+FLYWAY_PASSWORD=${DB_PASSWORD}
+EOF
+
 docker run --rm \
-  -e FLYWAY_URL="${JDBC_URL}" \
-  -e FLYWAY_USER="${DB_USER}" \
-  -e FLYWAY_PASSWORD="${DB_PASSWORD}" \
+  --env-file "${FLYWAY_ENV_FILE}" \
   desirelines-flyway "${FLYWAY_COMMAND}"
 
 echo ""
