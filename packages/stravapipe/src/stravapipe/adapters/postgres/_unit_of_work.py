@@ -77,6 +77,14 @@ def create_session_factory(
     if pool_config is None:
         pool_config = PoolConfig.from_env()
 
+    # Server-side timeouts, sent as libpq startup options so every connection
+    # carries them without a per-checkout round trip. Heads-up if the connection
+    # target ever changes: a pooler in front of Postgres has to pass these
+    # through. Neon's pooled endpoint accepts both today; setting either knob to
+    # 0 drops it, which is the escape hatch if that stops being true.
+    options = pool_config.server_settings_options()
+    connect_args = {"options": options} if options else {}
+
     if pool_config.uses_external_pooler(database_url):
         # External pooler (Neon, PgBouncer, etc.) - no client-side pooling
         logger.info(
@@ -86,6 +94,7 @@ def create_session_factory(
         engine = create_engine(
             database_url,
             poolclass=NullPool,
+            connect_args=connect_args,
         )
     else:
         # Internal pooling - use QueuePool with conservative settings
@@ -104,6 +113,7 @@ def create_session_factory(
             max_overflow=pool_config.max_overflow,
             pool_recycle=pool_config.pool_recycle,
             pool_pre_ping=pool_config.pool_pre_ping,
+            connect_args=connect_args,
         )
 
     return engine, sessionmaker(bind=engine, expire_on_commit=False)
