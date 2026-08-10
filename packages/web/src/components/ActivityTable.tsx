@@ -6,6 +6,7 @@ import {
   formatElevation,
   formatImpactPct,
   getDistanceLabel,
+  splitSexagesimal,
   type DistanceUnit,
   type ElevationUnit,
 } from "../utils/units";
@@ -71,8 +72,7 @@ function formatPaceOrSpeed(
   if (sport === "running") {
     // Pace: min/<unit>
     const paceMinutes = timeSeconds / 60 / distanceInUnits;
-    const paceMin = Math.floor(paceMinutes);
-    const paceSec = Math.round((paceMinutes - paceMin) * 60);
+    const { whole: paceMin, rem: paceSec } = splitSexagesimal(paceMinutes);
     return `${paceMin}:${paceSec.toString().padStart(2, "0")}/${getDistanceLabel(distanceUnit)}`;
   } else if (sport === "cycling") {
     // Speed in <unit>/hour

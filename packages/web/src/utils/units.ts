@@ -175,12 +175,25 @@ export function getMetricUnitLabel(unit: MetricUnit): string {
 export type MetricType = "distance" | "time" | "sessions";
 
 /**
+ * Split a fractional quantity into a whole part and a remainder in 60ths,
+ * carrying a remainder that rounds up to 60 back into the whole part.
+ *
+ * Rounding the remainder on its own is what produces "1 hr 60 min" and
+ * "7:60/mi": `Math.round(0.999 * 60)` is 60, which is not a valid minute or
+ * second value. The returned pair always satisfies `0 <= rem < 60`.
+ */
+export function splitSexagesimal(value: number): { whole: number; rem: number } {
+  const whole = Math.floor(value);
+  const rem = Math.round((value - whole) * 60);
+  return rem === 60 ? { whole: whole + 1, rem: 0 } : { whole, rem };
+}
+
+/**
  * Format hours as a human-friendly duration string.
  * Examples: "1 hr 13 min", "45 min", "2 hr"
  */
 export function formatHoursMinutes(hours: number): string {
-  const h = Math.floor(hours);
-  const m = Math.round((hours - h) * 60);
+  const { whole: h, rem: m } = splitSexagesimal(hours);
   if (h === 0) return `${m} min`;
   if (m === 0) return `${h} hr`;
   return `${h} hr ${m} min`;

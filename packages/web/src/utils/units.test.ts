@@ -10,9 +10,64 @@ import {
   METERS_TO_KM,
   MILES_TO_METERS,
   KM_TO_METERS,
+  formatHoursMinutes,
+  splitSexagesimal,
 } from "./units";
 
 describe("units", () => {
+  describe("splitSexagesimal", () => {
+    it("splits a plain fractional value", () => {
+      expect(splitSexagesimal(1.5)).toEqual({ whole: 1, rem: 30 });
+    });
+
+    it("carries a remainder that rounds to 60 into the whole part", () => {
+      // 0.999 * 60 rounds to 60, which is not a valid minute/second value.
+      // Without the carry this returns { whole: 1, rem: 60 }.
+      expect(splitSexagesimal(1.999)).toEqual({ whole: 2, rem: 0 });
+    });
+
+    it("keeps a remainder that rounds to 59 as-is", () => {
+      expect(splitSexagesimal(1.99)).toEqual({ whole: 1, rem: 59 });
+    });
+
+    it("handles exact whole values", () => {
+      expect(splitSexagesimal(3)).toEqual({ whole: 3, rem: 0 });
+    });
+
+    it("never returns a remainder outside [0, 60)", () => {
+      for (let i = 0; i <= 1000; i++) {
+        const { rem } = splitSexagesimal(i / 1000);
+        expect(rem).toBeGreaterThanOrEqual(0);
+        expect(rem).toBeLessThan(60);
+      }
+    });
+  });
+
+  describe("formatHoursMinutes", () => {
+    it("formats hours and minutes", () => {
+      expect(formatHoursMinutes(1.25)).toBe("1 hr 15 min");
+    });
+
+    it("formats minutes only below an hour", () => {
+      expect(formatHoursMinutes(0.75)).toBe("45 min");
+    });
+
+    it("formats whole hours without a minutes part", () => {
+      expect(formatHoursMinutes(2)).toBe("2 hr");
+    });
+
+    it("rolls up to the next whole hour instead of rendering :60", () => {
+      // Regression: Math.round(0.999 * 60) === 60 previously produced
+      // "1 hr 60 min".
+      expect(formatHoursMinutes(1.999)).toBe("2 hr");
+    });
+
+    it("rolls up from under an hour to exactly one hour", () => {
+      // Previously "0 hr 60 min" collapsed to "60 min" via the h === 0 branch.
+      expect(formatHoursMinutes(0.999)).toBe("1 hr");
+    });
+  });
+
   describe("conversion constants", () => {
     it("should have consistent mile conversion constants", () => {
       // 1 mile = 1609.344 meters
