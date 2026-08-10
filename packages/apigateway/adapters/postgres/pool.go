@@ -30,6 +30,10 @@ import (
 //   - DB_POOL_HEALTH_CHECK_MINUTES: Health check interval (default: 1)
 //   - DB_SLOW_QUERY_THRESHOLD_MS: Slow-query WARN log threshold in ms
 //     (default: 500). Set to 0 to disable per-query slow logging entirely.
+//   - DB_STATEMENT_TIMEOUT_MS: Server-side per-statement cap (default: 30000).
+//     Set to 0 to leave the server default (no cap) in place.
+//   - DB_IDLE_IN_TXN_TIMEOUT_MS: Server-side cap on a session sitting idle
+//     inside an open transaction (default: 60000). Set to 0 to disable.
 //
 // Note: MinConns must be <= MaxConns. pgxpool handles violations gracefully
 // (caps at MaxConns) but we validate early for clearer error messages.
@@ -40,6 +44,22 @@ const (
 	defaultMaxConnIdleTime      = 5 * time.Minute  // Release idle connections quickly
 	defaultHealthCheckPeriod    = 1 * time.Minute
 	defaultSlowQueryThresholdMs = 500 // Matches existing P99 OTel histogram alert threshold
+
+	// defaultStatementTimeoutMs bounds a single statement server-side. Without
+	// it a stuck query holds the request (and its pooled connection) for as
+	// long as the client waits, so the per-request timeout budget leaks at the
+	// database boundary. 30s sits below Cloud Run's 60s request cap so Postgres
+	// gives up first and the handler gets a real error to log, rather than the
+	// platform killing the request with no attribution.
+	defaultStatementTimeoutMs = 30_000
+
+	// defaultIdleInTxnTimeoutMs bounds a session parked inside an open
+	// transaction. statement_timeout does not cover this: a transaction that
+	// BEGINs and then stalls between statements runs no statement at all while
+	// still pinning a connection and holding its locks. Set above
+	// statement_timeout so a slow-but-progressing transaction isn't killed by
+	// the wrong limit.
+	defaultIdleInTxnTimeoutMs = 60_000
 )
 
 // Sentinel errors for connection string and pool configuration validation.
@@ -102,6 +122,24 @@ func NewPool(ctx context.Context, connString string, logger *slog.Logger, tracer
 		return nil, fmt.Errorf("%w: min=%d, max=%d", ErrInvalidPoolConfig, config.MinConns, config.MaxConns)
 	}
 
+	// Server-side timeouts, sent as startup parameters so every connection the
+	// pool opens carries them without a per-checkout round trip.
+	//
+	// Heads-up if the connection target ever changes: these ride the startup
+	// packet, and a connection pooler in front of Postgres has to be willing to
+	// pass them through. Neon's pooled endpoint accepts both today. If a future
+	// pooler rejects an unknown startup parameter the failure shows up on first
+	// query rather than at pool construction (pgxpool connects lazily), so the
+	// knobs below accept 0 to drop the parameter entirely as an escape hatch.
+	statementTimeoutMs := getInt32Env("DB_STATEMENT_TIMEOUT_MS", defaultStatementTimeoutMs)
+	if statementTimeoutMs > 0 {
+		config.ConnConfig.RuntimeParams["statement_timeout"] = strconv.Itoa(int(statementTimeoutMs))
+	}
+	idleInTxnTimeoutMs := getInt32Env("DB_IDLE_IN_TXN_TIMEOUT_MS", defaultIdleInTxnTimeoutMs)
+	if idleInTxnTimeoutMs > 0 {
+		config.ConnConfig.RuntimeParams["idle_in_transaction_session_timeout"] = strconv.Itoa(int(idleInTxnTimeoutMs))
+	}
+
 	// pgx tracer combines slow-query logging (gated by DB_SLOW_QUERY_THRESHOLD_MS;
 	// 0 disables the WARN logs) with `postgres.session.acquire` OTel span
 	// emission (always on when tracer != nil). The tracer object implements
@@ -120,6 +158,8 @@ func NewPool(ctx context.Context, connString string, logger *slog.Logger, tracer
 		"max_conns", config.MaxConns,
 		"min_conns", config.MinConns,
 		"slow_query_threshold_ms", slowMs,
+		"statement_timeout_ms", statementTimeoutMs,
+		"idle_in_txn_timeout_ms", idleInTxnTimeoutMs,
 	)
 
 	pool, err := pgxpool.NewWithConfig(ctx, config)

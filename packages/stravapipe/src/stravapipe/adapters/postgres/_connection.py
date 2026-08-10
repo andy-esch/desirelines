@@ -78,6 +78,17 @@ class PoolConfig(NamedTuple):
     max_overflow: int = 3
     pool_recycle: int = 1800  # 30 minutes
     pool_pre_ping: bool = True
+    # Server-side per-statement cap. Without it a stuck query holds its
+    # connection for as long as the client waits, so the request timeout budget
+    # leaks at the database boundary. 30s sits below Cloud Run's 60s request cap
+    # so Postgres gives up first and the caller gets a real error to log.
+    statement_timeout_ms: int = 30_000
+    # Bounds a session parked inside an open transaction. statement_timeout does
+    # not cover this: a transaction that BEGINs then stalls between statements
+    # runs no statement while still pinning a connection and holding its locks.
+    # Above statement_timeout so a slow-but-progressing transaction isn't killed
+    # by the wrong limit. Either may be set to 0 to disable.
+    idle_in_transaction_timeout_ms: int = 60_000
 
     @classmethod
     def from_env(cls) -> "PoolConfig":
@@ -95,7 +106,29 @@ class PoolConfig(NamedTuple):
             pool_recycle=int(os.environ.get("POSTGRES_POOL_RECYCLE", "1800")),
             pool_pre_ping=os.environ.get("POSTGRES_POOL_PRE_PING", "true").lower()
             == "true",
+            statement_timeout_ms=int(
+                os.environ.get("POSTGRES_STATEMENT_TIMEOUT_MS", "30000")
+            ),
+            idle_in_transaction_timeout_ms=int(
+                os.environ.get("POSTGRES_IDLE_IN_TXN_TIMEOUT_MS", "60000")
+            ),
         )
+
+    def server_settings_options(self) -> str:
+        """Render the server-side timeouts as a libpq ``options`` string.
+
+        Returns an empty string when both timeouts are disabled (0), so callers
+        can skip passing ``options`` entirely rather than sending an empty one.
+        """
+        settings: list[str] = []
+        if self.statement_timeout_ms > 0:
+            settings.append(f"-c statement_timeout={self.statement_timeout_ms}")
+        if self.idle_in_transaction_timeout_ms > 0:
+            settings.append(
+                "-c idle_in_transaction_session_timeout="
+                f"{self.idle_in_transaction_timeout_ms}"
+            )
+        return " ".join(settings)
 
     def uses_external_pooler(self, database_url: str) -> bool:
         """Determine if external pooler is in use.
