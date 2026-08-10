@@ -425,7 +425,7 @@ jobs:
             --network host \
             -v ${{ github.workspace }}/schemas/database/migrations:/flyway/sql \
             -v ${{ github.workspace }}/schemas/database/callbacks:/flyway/callbacks \
-            flyway/flyway \
+            flyway/flyway:13.2.0-alpine \
             -url="jdbc:postgresql://localhost:5432/desirelines_test" \
             -user="desirelines" \
             -password="test_password" \

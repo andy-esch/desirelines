@@ -1,4 +1,9 @@
-FROM flyway/flyway:latest
+# Pinned, and matched to the image the deploy repo runs against dev/prod
+# (.github/actions/flyway-migrate). Keep this tag, the CI migration step in
+# .github/workflows/ci.yml, and the deploy repo's action on the same version —
+# a migration that passes locally must be run by the same Flyway that runs it
+# in production.
+FROM flyway/flyway:13.2.0-alpine
 
 # Copy migrations, callbacks, and configuration
 COPY migrations /flyway/sql
