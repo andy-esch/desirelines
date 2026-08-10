@@ -185,7 +185,6 @@ def _populate_message(
     msg: Any,
     raw: dict[str, Any],
     *,
-    timestamp_paths: frozenset[str] = _TIMESTAMP_PATHS,
     path: str = "",
 ) -> None:
     """Recursively populate a proto message from a JSON-shaped dict.
@@ -214,23 +213,13 @@ def _populate_message(
             if field.type == FieldDescriptor.TYPE_MESSAGE:
                 for item in value:
                     sub = getattr(msg, field.name).add()
-                    _populate_message(
-                        sub,
-                        item,
-                        timestamp_paths=timestamp_paths,
-                        path=field_path,
-                    )
+                    _populate_message(sub, item, path=field_path)
             else:
                 target = getattr(msg, field.name)
                 target.extend(_coerce_to_proto_type(v, field.type) for v in value)
         elif field.type == FieldDescriptor.TYPE_MESSAGE:
-            _populate_message(
-                getattr(msg, field.name),
-                value,
-                timestamp_paths=timestamp_paths,
-                path=field_path,
-            )
-        elif field_path in timestamp_paths:
+            _populate_message(getattr(msg, field.name), value, path=field_path)
+        elif field_path in _TIMESTAMP_PATHS:
             setattr(msg, field.name, _iso_to_micros(value))
         else:
             setattr(msg, field.name, _coerce_to_proto_type(value, field.type))

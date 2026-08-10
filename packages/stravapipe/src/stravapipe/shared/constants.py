@@ -30,15 +30,6 @@ class SkipReason(StrEnum):
     RESURRECTION_BLOCKED = "resurrection_blocked"
 
 
-class CloudEventField(StrEnum):
-    """Field names in CloudEvent Pub/Sub message structure."""
-
-    MESSAGE = "message"
-    DATA = "data"
-    MESSAGE_ID = "messageId"
-    PUBLISH_TIME = "publishTime"
-
-
 class WebhookField(StrEnum):
     """Field names in Strava webhook payloads."""
 

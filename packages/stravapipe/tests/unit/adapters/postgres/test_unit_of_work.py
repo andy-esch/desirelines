@@ -91,7 +91,12 @@ def test_commit_uses_normal_tracing_path():
 
     uow.commit()
 
-    tracer.start_as_current_span.assert_called_once_with("postgres.commit")
+    # `context=None` is passed explicitly rather than omitted; it is what
+    # start_as_current_span already defaults to, so the two are equivalent
+    # against the real API — only the mock sees the difference.
+    tracer.start_as_current_span.assert_called_once_with(
+        "postgres.commit", context=None
+    )
     span_context.__enter__.assert_called_once_with()
     span_context.__exit__.assert_called_once_with(None, None, None)
     session.commit.assert_called_once_with()

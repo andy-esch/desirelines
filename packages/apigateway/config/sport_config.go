@@ -252,14 +252,6 @@ func (c *SportConfig) GetCategory(category string) (SportCategory, bool) {
 	return cat, ok
 }
 
-// ValidateSport ensures that an input sport is a sport that
-//
-//	can be served
-func (c *SportConfig) ValidateSport(sport string) bool {
-	_, ok := c.data.SportCategories[sport]
-	return ok
-}
-
 // GetStravaTypes returns the Strava sport_type values that map to a category.
 // For example, "cycling" returns ["Ride", "VirtualRide"].
 // Returns nil if the category doesn't exist.

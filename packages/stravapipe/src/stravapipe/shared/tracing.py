@@ -290,12 +290,10 @@ def record_span(
         yield
         return
 
-    kwargs: dict[str, Any] = {}
-    if parent_context is not None:
-        kwargs["context"] = parent_context
-
     try:
-        span_context = tracer.start_as_current_span(name, **kwargs)
+        # `context=None` is what start_as_current_span already defaults to, so
+        # passing it directly is equivalent to omitting it — no kwargs dict needed.
+        span_context = tracer.start_as_current_span(name, context=parent_context)
         span = span_context.__enter__()
     except Exception as error:
         _report_span_failure(name, "setup", error)

@@ -45,12 +45,6 @@ const (
 	MaxDateLength = 10
 )
 
-// Year validates that the year string is a 4-digit number within valid bounds.
-func Year(s string) bool {
-	_, ok := ParseYear(s)
-	return ok
-}
-
 // ParseYear parses and validates a year string in one step.
 // Returns the parsed year and true if valid, or 0 and false otherwise.
 func ParseYear(s string) (int, bool) {
