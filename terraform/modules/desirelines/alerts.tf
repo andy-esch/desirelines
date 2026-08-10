@@ -247,8 +247,10 @@ resource "google_monitoring_alert_policy" "apigateway_not_found_surge" {
       threshold_value = 0.0833 # ≈ 5/min under ALIGN_RATE per-second
 
       aggregations {
-        alignment_period   = "60s"
-        per_series_aligner = "ALIGN_RATE"
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_RATE"
+        cross_series_reducer = "REDUCE_SUM"
+        group_by_fields      = ["resource.label.service_name"]
       }
     }
   }
@@ -299,8 +301,10 @@ resource "google_monitoring_alert_policy" "apigateway_rate_limited_surge" {
       threshold_value = 0.0833 # ≈ 5/min under ALIGN_RATE per-second
 
       aggregations {
-        alignment_period   = "60s"
-        per_series_aligner = "ALIGN_RATE"
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_RATE"
+        cross_series_reducer = "REDUCE_SUM"
+        group_by_fields      = ["resource.label.service_name"]
       }
     }
   }
@@ -352,8 +356,10 @@ resource "google_monitoring_alert_policy" "dispatcher_bad_request_surge" {
       threshold_value = 0.0833 # ≈ 5/min under ALIGN_RATE per-second
 
       aggregations {
-        alignment_period   = "60s"
-        per_series_aligner = "ALIGN_RATE"
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_RATE"
+        cross_series_reducer = "REDUCE_SUM"
+        group_by_fields      = ["resource.label.service_name"]
       }
     }
   }
