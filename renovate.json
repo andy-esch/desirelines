@@ -60,6 +60,11 @@
       "matchDepNames": ["python"],
       "allowedVersions": "3.14.x",
       "groupName": "python version"
+    },
+    {
+      "description": "Keep every Flyway pin in one PR. The schemas/database/Dockerfile tag and the `docker run` tag in ci.yml's migration step must move together, and both must stay in step with the deploy repo's flyway-migrate action — a migration verified in CI by one Flyway version but applied to prod by another is the drift the pin exists to prevent. Must stay after the group-by-manager rule to win under last-rule-wins.",
+      "matchDepNames": ["flyway/flyway"],
+      "groupName": "flyway"
     }
   ],
   "customManagers": [
@@ -79,6 +84,14 @@
       "matchStrings": ["uv python install (?<currentValue>\\d+\\.\\d+\\.\\d+)"],
       "depNameTemplate": "python",
       "datasourceTemplate": "python-version"
+    },
+    {
+      "customType": "regex",
+      "description": "Track the Flyway image the CI migration step runs via `docker run flyway/flyway:X` — a raw shell command the github-actions manager does not parse, so without this the tag would silently rot at whatever was pinned. The schemas/database/Dockerfile FROM is covered by the dockerfile manager; the `flyway` packageRule above keeps both in one PR.",
+      "managerFilePatterns": [".github/workflows/ci.yml"],
+      "matchStrings": ["flyway/flyway:(?<currentValue>[^\\s\\\\]+)"],
+      "depNameTemplate": "flyway/flyway",
+      "datasourceTemplate": "docker"
     }
   ]
 }

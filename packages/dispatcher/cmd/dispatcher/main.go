@@ -46,7 +46,15 @@ const (
 	// shutdownTimeout is the maximum time allowed for graceful shutdown.
 	shutdownTimeout = 10 * time.Second
 
-	// closeTimeout is the maximum time allowed for closing resources.
+	// closeTimeout is the maximum time allowed for closing resources. It is a
+	// budget for the whole Close sequence, not per resource: one context is
+	// shared across every publisher Close, and Publisher.Close bounds its
+	// in-flight drain on it. So a publisher that burns the full budget draining
+	// leaves none for the ones after it, which then tear down without draining.
+	// That is deliberate — Cloud Run's termination grace period is a total
+	// budget too, and per-resource timeouts would multiply past it. It does mean
+	// close order is a priority order: the activity publisher goes first because
+	// it carries webhook events, and losing one of those costs an ingest.
 	closeTimeout = 5 * time.Second
 )
 
