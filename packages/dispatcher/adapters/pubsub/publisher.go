@@ -243,13 +243,20 @@ func (p *Publisher) publishBytes(ctx context.Context, data []byte, correlationID
 	return id, nil
 }
 
-// Close releases resources held by the PubSub client. It blocks until all
-// in-flight Publish calls return so the underlying gRPC client is not torn
-// down mid-publish (which would drop messages on SIGTERM-driven shutdown).
+// Close releases resources held by the PubSub client. It waits for in-flight
+// Publish calls to return so the underlying gRPC client is not torn down
+// mid-publish (which would drop messages on SIGTERM-driven shutdown).
 // After Close returns, subsequent Publish calls will return ErrPublisherClosed.
-// The context parameter is accepted for interface compatibility but is not used,
-// as the underlying PubSub client.Close() does not support context cancellation.
-func (p *Publisher) Close(_ context.Context) error {
+//
+// ctx bounds the drain, not the client teardown: the PubSub client's own
+// Close() takes no context, but the drain can block indefinitely behind a slow
+// publish, and shutdown runs against Cloud Run's finite termination grace
+// period. If ctx expires first, Close stops waiting and tears the client down
+// anyway — an in-flight message may be dropped, but the alternative is being
+// SIGKILLed mid-drain, which drops it too and leaks the connection. That case
+// returns an error so the caller can log the truncated drain rather than
+// recording a clean shutdown.
+func (p *Publisher) Close(ctx context.Context) error {
 	p.mu.Lock()
 	if p.closed {
 		p.mu.Unlock()
@@ -261,17 +268,29 @@ func (p *Publisher) Close(_ context.Context) error {
 	// Wait for in-flight Publish calls to finish before closing the
 	// underlying gRPC client. Subsequent Publish calls observe closed=true
 	// under the read lock and return ErrPublisherClosed without incrementing
-	// the WaitGroup, so this drain terminates.
-	p.inflight.Wait()
+	// the WaitGroup, so this drain terminates on its own; ctx only caps how
+	// long we are willing to wait for it.
+	drained := make(chan struct{})
+	go func() {
+		p.inflight.Wait()
+		close(drained)
+	}()
+
+	var drainErr error
+	select {
+	case <-drained:
+	case <-ctx.Done():
+		drainErr = fmt.Errorf("publisher drain did not finish before shutdown deadline: %w", ctx.Err())
+	}
 
 	if p.client == nil {
-		return nil
+		return drainErr
 	}
 
 	err := p.client.Close()
 	p.client = nil
 	if err != nil {
-		return fmt.Errorf("close pubsub client: %w", err)
+		return errors.Join(drainErr, fmt.Errorf("close pubsub client: %w", err))
 	}
-	return nil
+	return drainErr
 }
