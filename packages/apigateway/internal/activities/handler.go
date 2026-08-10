@@ -71,6 +71,10 @@ type Handler struct {
 
 // NewHandler creates a new activities handler with default timeout.
 func NewHandler(repo repository.ActivityRepository, sportConfig *config.SportConfig, logger *slog.Logger) *Handler {
+	if defaultLocationErr != nil {
+		logger.Error("Timezone database unavailable — all timezone handling degrades to UTC, so date-range boundaries will be wrong for non-UTC users",
+			"error", defaultLocationErr, "zone", "America/New_York")
+	}
 	return &Handler{
 		repo:        repo,
 		sportConfig: sportConfig,
@@ -129,13 +133,25 @@ func (h *Handler) HandleMetadata(w http.ResponseWriter, r *http.Request) {
 	h.respondProtobuf(w, r, metadata)
 }
 
+// defaultLocationErr records why defaultLocation fell back to UTC, if it did.
+// It is reported from NewHandler rather than from the initializer below, which
+// runs before main has configured a logger.
+//
+// It exists because the failure is otherwise invisible: every timezone quietly
+// resolving to UTC produces well-formed responses that are simply wrong at the
+// day boundary, with nothing in the logs to point at. Watch this if the runtime
+// base image ever changes — it is the only signal that the image stopped
+// shipping tzdata.
+var defaultLocationErr error
+
 // defaultLocation is the fallback timezone when no tz param is provided.
 // Matches the current single-user deployment (US Eastern).
 var defaultLocation = func() *time.Location {
 	loc, err := time.LoadLocation("America/New_York")
 	if err != nil {
-		// This should only happen if the timezone database is missing.
+		// Only reachable if the runtime image ships no timezone database.
 		// Fall back to UTC to avoid nil pointer panics later.
+		defaultLocationErr = err
 		return time.UTC
 	}
 	return loc
