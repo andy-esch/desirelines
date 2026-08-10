@@ -38,6 +38,17 @@ from stravapipe.shared.tracing import record_span
 
 logger = logging.getLogger(__name__)
 
+# Everything after the "<outcome> for athlete %s: " lead-in is identical between
+# the success and failure summary logs, as is the 12-value argument list. Only
+# the log level and that lead-in differ, so the tail lives here and the two call
+# sites supply the prefix.
+_BACKFILL_SUMMARY_TAIL = (
+    "%d activities across %d %s "
+    "(source errors: %d; processing errors: %d; "
+    "PG: %d inserted, %d updated, %d skipped; "
+    "BQ: %d inserted; errors: %d) in %.1fs"
+)
+
 BATCH_SIZE = 100
 BQ_MAX_BATCH_SIZE = 10_000
 
@@ -476,6 +487,23 @@ class BackfillService:
         year_count = len(sorted_years)
         year_label = "year" if year_count == 1 else "years"
 
+        # Every value below is final by this point, and neither branch mutates
+        # `result` (both hand the progress reporter a deepcopy or a string).
+        summary_args = (
+            athlete_id,
+            result.total_activities,
+            year_count,
+            year_label,
+            result.total_source_errors,
+            result.total_processing_errors,
+            result.total_pg_inserted,
+            result.total_pg_updated,
+            result.total_pg_skipped,
+            result.total_bq_inserted,
+            result.total_errors,
+            result.duration_seconds,
+        )
+
         if result.success:
             self._report_progress(
                 "completed",
@@ -489,22 +517,8 @@ class BackfillService:
             log_best_effort(
                 partial(
                     logger.info,
-                    "Backfill completed for athlete %s: %d activities across %d %s "
-                    "(source errors: %d; processing errors: %d; "
-                    "PG: %d inserted, %d updated, %d skipped; "
-                    "BQ: %d inserted; errors: %d) in %.1fs",
-                    athlete_id,
-                    result.total_activities,
-                    year_count,
-                    year_label,
-                    result.total_source_errors,
-                    result.total_processing_errors,
-                    result.total_pg_inserted,
-                    result.total_pg_updated,
-                    result.total_pg_skipped,
-                    result.total_bq_inserted,
-                    result.total_errors,
-                    result.duration_seconds,
+                    "Backfill completed for athlete %s: " + _BACKFILL_SUMMARY_TAIL,
+                    *summary_args,
                 )
             )
         else:
@@ -522,22 +536,9 @@ class BackfillService:
             log_best_effort(
                 partial(
                     logger.warning,
-                    "Backfill completed with errors for athlete %s: %d activities "
-                    "across %d %s (source errors: %d; processing errors: %d; "
-                    "PG: %d inserted, %d updated, %d skipped; "
-                    "BQ: %d inserted; errors: %d) in %.1fs",
-                    athlete_id,
-                    result.total_activities,
-                    year_count,
-                    year_label,
-                    result.total_source_errors,
-                    result.total_processing_errors,
-                    result.total_pg_inserted,
-                    result.total_pg_updated,
-                    result.total_pg_skipped,
-                    result.total_bq_inserted,
-                    result.total_errors,
-                    result.duration_seconds,
+                    "Backfill completed with errors for athlete %s: "
+                    + _BACKFILL_SUMMARY_TAIL,
+                    *summary_args,
                 )
             )
 
