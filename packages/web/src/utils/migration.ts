@@ -70,14 +70,16 @@ export function markGoalUnitMigrated(userId: string, year: number, sport: string
  * The caller decides which kind based on the sport's primary metric.
  */
 function convertGoalsToCanonical(goals: GoalsForYear, kind: "distance" | "time"): GoalsForYear {
-  const factor = kind === "distance" ? MILES_TO_METERS : 0;
   return {
     ...goals,
     goals: goals.goals.map((goal) => ({
       ...goal,
+      // `factor` used to be hoisted as `kind === "distance" ? MILES_TO_METERS : 0`,
+      // but the 0 arm was unreachable: it was only ever read inside this same
+      // distance branch.
       value:
         kind === "distance"
-          ? Math.round(goal.value * factor)
+          ? Math.round(goal.value * MILES_TO_METERS)
           : Math.round(hoursToMinutes(goal.value)),
     })),
     storageVersion: GOAL_STORAGE_VERSION,

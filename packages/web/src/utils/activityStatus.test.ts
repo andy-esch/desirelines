@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { findLastActivityDate, isActivityDataStale, daysSinceLastActivity } from "./activityStatus";
+import { findLastActivityDate, isActivityDataStale } from "./activityStatus";
 import type { DistanceEntry } from "../types/activity";
 
 describe("findLastActivityDate", () => {
@@ -195,84 +195,5 @@ describe("isActivityDataStale", () => {
     ];
 
     expect(isActivityDataStale(data)).toBe(false);
-  });
-});
-
-describe("daysSinceLastActivity", () => {
-  beforeEach(() => {
-    // Mock current date to October 22, 2025
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2025-10-22T12:00:00Z"));
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it("returns null for empty data", () => {
-    expect(daysSinceLastActivity([])).toBeNull();
-  });
-
-  it("returns null when no activities found", () => {
-    const data: DistanceEntry[] = [
-      { x: "2025-10-01", y: 100 },
-      { x: "2025-10-02", y: 100 },
-    ];
-
-    expect(daysSinceLastActivity(data)).toBeNull();
-  });
-
-  it("calculates days since recent activity", () => {
-    const data: DistanceEntry[] = [
-      { x: "2025-10-01", y: 0 },
-      { x: "2025-10-20", y: 100 }, // 2 days ago
-    ];
-
-    expect(daysSinceLastActivity(data)).toBe(2);
-  });
-
-  it("returns 0 for activity today", () => {
-    const data: DistanceEntry[] = [
-      { x: "2025-10-01", y: 0 },
-      { x: "2025-10-22", y: 100 }, // Today
-    ];
-
-    expect(daysSinceLastActivity(data)).toBe(0);
-  });
-
-  it("calculates days for old activity", () => {
-    const data: DistanceEntry[] = [
-      { x: "2025-01-01", y: 0 },
-      { x: "2025-01-15", y: 100 }, // 280 days ago
-    ];
-
-    const days = daysSinceLastActivity(data);
-    expect(days).toBeGreaterThan(250); // Approximate check
-  });
-
-  it("ignores extended data at end", () => {
-    const data: DistanceEntry[] = [
-      { x: "2025-10-01", y: 0 },
-      { x: "2025-10-15", y: 100 }, // 7 days ago - last activity
-      { x: "2025-10-16", y: 100 }, // Extended
-      { x: "2025-10-22", y: 100 }, // Extended (today)
-    ];
-
-    expect(daysSinceLastActivity(data)).toBe(7);
-  });
-
-  it("handles single entry", () => {
-    const data: DistanceEntry[] = [{ x: "2025-10-01", y: 100 }];
-
-    expect(daysSinceLastActivity(data)).toBeNull();
-  });
-
-  it("returns 1 for activity yesterday", () => {
-    const data: DistanceEntry[] = [
-      { x: "2025-10-01", y: 0 },
-      { x: "2025-10-21", y: 100 }, // Yesterday
-    ];
-
-    expect(daysSinceLastActivity(data)).toBe(1);
   });
 });

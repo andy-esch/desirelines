@@ -81,21 +81,3 @@ export function isActivityDataStale(
 
   return daysSinceActivity > staleThresholdDays;
 }
-
-/**
- * Gets the number of days since the last activity
- *
- * @param distanceData - Array of distance entries
- * @returns Number of days since last activity, or null if no activities found
- *
- * @example
- * const data = [{ x: "2025-10-15", y: 1000 }, { x: "2025-10-16", y: 1010 }];
- * const days = daysSinceLastActivity(data);
- * // Returns: number of days between Oct 16 and today
- */
-export function daysSinceLastActivity(distanceData: DistanceEntry[]): number | null {
-  const lastActivityDate = findLastActivityDate(distanceData);
-  if (!lastActivityDate) return null;
-
-  return daysBetween(lastActivityDate, new Date());
-}

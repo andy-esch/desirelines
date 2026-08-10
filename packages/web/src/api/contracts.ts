@@ -138,8 +138,6 @@ const ActivitySchema = z
   })
   .passthrough();
 
-export const ActivityResponseSchema = ActivitySchema;
-
 const ActivityBucketSchema = z
   .object({
     month: z.string(),

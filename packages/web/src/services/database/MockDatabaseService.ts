@@ -89,28 +89,4 @@ export class MockDatabaseService implements DatabaseService {
     this.data.set(path, data);
     this.notifyListeners(path);
   }
-
-  /**
-   * Get all stored data (for test assertions)
-   */
-  getAllData(): Map<string, unknown> {
-    return new Map(this.data);
-  }
-
-  /**
-   * Clear all mock data
-   */
-  clearMockData(): void {
-    const paths = Array.from(this.data.keys());
-    this.data.clear();
-    // Notify all listeners that data is gone
-    paths.forEach((path) => this.notifyListeners(path));
-  }
-
-  /**
-   * Check if a path has any data
-   */
-  hasData(path: string): boolean {
-    return this.data.has(path);
-  }
 }
