@@ -32,12 +32,6 @@
 //	    fmt.Println(category.PrimaryMetric) // "distance"
 //	}
 //
-// Validate user input:
-//
-//	if !sportConfig.ValidateSport(userInput) {
-//	    http.Error(w, "invalid sport", http.StatusBadRequest)
-//	}
-//
 // # Configuration Schema
 //
 // The JSON configuration has this structure:

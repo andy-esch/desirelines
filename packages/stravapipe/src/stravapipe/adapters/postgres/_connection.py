@@ -239,8 +239,9 @@ def _validate_connection_string(conn_str: str) -> None:
             "Example: postgresql://user:pass@host/db?sslmode=require&application_name=my-service"
         )
 
-    app_name = params["application_name"][0] if params["application_name"] else ""
-    _validate_application_name(app_name)
+    # parse_qs never yields an empty value list for a key it reports, and the
+    # missing-key case raised above, so indexing [0] is safe here.
+    _validate_application_name(params["application_name"][0])
 
 
 # Valid characters for application_name: alphanumeric, hyphen, underscore

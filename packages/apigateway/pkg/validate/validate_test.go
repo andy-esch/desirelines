@@ -37,9 +37,9 @@ func TestYear(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := Year(tt.input)
+			_, got := ParseYear(tt.input)
 			if got != tt.want {
-				t.Errorf("Year(%q) = %v, want %v", tt.input, got, tt.want)
+				t.Errorf("ParseYear(%q) ok = %v, want %v", tt.input, got, tt.want)
 			}
 		})
 	}
@@ -235,7 +235,7 @@ func TestDateRangeYearOverlap(t *testing.T) {
 // Benchmark tests for performance-sensitive validation
 func BenchmarkYear(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		Year("2025")
+		ParseYear("2025")
 	}
 }
 

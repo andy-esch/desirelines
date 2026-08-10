@@ -127,30 +127,29 @@ def _install_handlers() -> None:
     enable_cloud_logging = os.environ.get("ENABLE_CLOUD_LOGGING", "").lower() == "true"
     log_level = _parse_log_level()
 
+    def install_stdlib_handler() -> None:
+        # force=True so this overrides any default handler installed by an
+        # earlier logging call (e.g. _parse_log_level's invalid-value warning,
+        # or the implicit logger setup from importing google libraries before
+        # the try block ran).
+        logging.basicConfig(
+            level=log_level,
+            format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+            force=True,
+        )
+
     if enable_cloud_logging:
         try:
             # google-cloud-logging ships untyped; ignore the two calls below.
             client = google.cloud.logging.Client()  # type: ignore[no-untyped-call]
             client.setup_logging(log_level=log_level)  # type: ignore[no-untyped-call]
         except Exception as e:
-            # force=True so this overrides any default handler installed by an
-            # earlier logging call (e.g. _parse_log_level's invalid-value
-            # warning, or the implicit logger setup from importing google
-            # libraries before the try block ran).
-            logging.basicConfig(
-                level=log_level,
-                format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-                force=True,
-            )
+            install_stdlib_handler()
             logging.warning(
                 "Cloud Logging unavailable, using standard logging: %s", str(e)
             )
     else:
-        logging.basicConfig(
-            level=log_level,
-            format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-            force=True,
-        )
+        install_stdlib_handler()
 
     # Auto-inject correlation_id and trace context into every log record.
     # Must run after Cloud Logging or basicConfig has installed handlers.

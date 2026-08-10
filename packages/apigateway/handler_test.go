@@ -1220,50 +1220,6 @@ func TestHandlerActivitySummaryErrors(t *testing.T) {
 // Validation Package Tests
 // =============================================================================
 
-func TestValidateYear(t *testing.T) {
-	t.Run("valid year", func(t *testing.T) {
-		if !validate.Year("2024") {
-			t.Error("expected 2024 to be valid")
-		}
-	})
-
-	t.Run("year at min boundary", func(t *testing.T) {
-		if !validate.Year("2000") {
-			t.Error("expected 2000 to be valid")
-		}
-	})
-
-	t.Run("year at max boundary", func(t *testing.T) {
-		if !validate.Year("2050") {
-			t.Error("expected 2050 to be valid")
-		}
-	})
-
-	t.Run("year below min", func(t *testing.T) {
-		if validate.Year("1999") {
-			t.Error("expected 1999 to be invalid")
-		}
-	})
-
-	t.Run("year above max", func(t *testing.T) {
-		if validate.Year("2051") {
-			t.Error("expected 2051 to be invalid")
-		}
-	})
-
-	t.Run("non-numeric year", func(t *testing.T) {
-		if validate.Year("abcd") {
-			t.Error("expected abcd to be invalid")
-		}
-	})
-
-	t.Run("short year", func(t *testing.T) {
-		if validate.Year("24") {
-			t.Error("expected 24 to be invalid")
-		}
-	})
-}
-
 func TestValidateDate(t *testing.T) {
 	t.Run("valid date", func(t *testing.T) {
 		if !validate.Date("2025-12-28") {

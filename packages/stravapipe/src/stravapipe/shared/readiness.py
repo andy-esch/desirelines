@@ -161,14 +161,16 @@ async def run_checks(
     effective_backoff = (
         retry_backoff if retry_backoff is not None else DEFAULT_READINESS_RETRY_BACKOFF
     )
-    names = list(probes.keys())
+    names = list(probes)
     results = await asyncio.gather(
         *(
-            _run_with_timeout(name, probes[name], effective_timeout, effective_backoff)
-            for name in names
+            _run_with_timeout(name, probe, effective_timeout, effective_backoff)
+            for name, probe in probes.items()
         ),
         return_exceptions=False,
     )
+    # `names` and the gather order both come from the same dict iteration order,
+    # which Python guarantees is insertion order and stable across both reads.
     return dict(zip(names, results, strict=True))
 
 

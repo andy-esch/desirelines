@@ -17,29 +17,6 @@ import (
 // skating, climbing, wheelchair, other
 const expectedSportCount = 17
 
-func TestValidateSport(t *testing.T) {
-	config, err := LoadSportConfig("sport_types.json")
-	if err != nil {
-		t.Fatalf("Failed to load config: %v", err)
-	}
-
-	if !config.ValidateSport("cycling") {
-		t.Error("Expected cycling to be valid")
-	}
-
-	if !config.ValidateSport("running") {
-		t.Error("Expected running to be valid")
-	}
-
-	if !config.ValidateSport("yoga") {
-		t.Error("Expected yoga to be valid")
-	}
-
-	if config.ValidateSport("underwater_basket_weaving") {
-		t.Error("Expected underwater_basket_weaving to be invalid (not configured)")
-	}
-}
-
 func TestGetCategory(t *testing.T) {
 	config, err := LoadSportConfig("sport_types.json")
 	if err != nil {

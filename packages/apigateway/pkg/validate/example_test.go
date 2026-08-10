@@ -6,11 +6,15 @@ import (
 	"github.com/andy-esch/desirelines/packages/apigateway/pkg/validate"
 )
 
-func ExampleYear() {
-	fmt.Println(validate.Year("2024")) // valid year
-	fmt.Println(validate.Year("1999")) // before MinValidYear
-	fmt.Println(validate.Year("2051")) // after MaxValidYear
-	fmt.Println(validate.Year("24"))   // not 4 digits
+func ExampleParseYear() {
+	_, ok := validate.ParseYear("2024")
+	fmt.Println(ok) // valid year
+	_, ok = validate.ParseYear("1999")
+	fmt.Println(ok) // before MinValidYear
+	_, ok = validate.ParseYear("2051")
+	fmt.Println(ok) // after MaxValidYear
+	_, ok = validate.ParseYear("24")
+	fmt.Println(ok) // not 4 digits
 	// Output:
 	// true
 	// false
@@ -83,7 +87,7 @@ func Example_handlerValidation() {
 	sportParam := "cycling"
 
 	// Validate all inputs before processing
-	if !validate.Year(yearParam) {
+	if _, ok := validate.ParseYear(yearParam); !ok {
 		fmt.Println("invalid year")
 		return
 	}
