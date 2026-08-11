@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useSearch, useNavigate } from "@tanstack/react-router";
 import { PageLayout } from "../components/layout/PageLayout";
 import ChartContainer from "../components/charts/ChartContainer";
@@ -143,20 +143,27 @@ export default function ChartsPage() {
   // Values are already in display units (unit lives in the axis label). Show up to
   // one decimal so a continuous metric's fractional ticks (0.5 hr, 2.5 mi) read
   // correctly; counts are integer ticks and format as whole numbers anyway.
-  const formatAxisValue = (v: number): string =>
-    v.toLocaleString(undefined, { maximumFractionDigits: 1 });
+  // Memoised because it is passed down as a prop: a fresh closure each render
+  // defeats any memoisation on the chart child.
+  const formatAxisValue = useCallback(
+    (v: number): string => v.toLocaleString(undefined, { maximumFractionDigits: 1 }),
+    []
+  );
 
   // Tooltip carries the unit, since it has no axis-label context.
-  const formatTooltipValue = (v: number): string => {
-    switch (metric) {
-      case "distanceMeters":
-        return `${v.toLocaleString(undefined, { maximumFractionDigits: 1 })} ${getDistanceLabel(userSettings.distanceUnit)}`;
-      case "movingTimeSeconds":
-        return formatHoursMinutes(v);
-      case "count":
-        return v === 1 ? "1 activity" : `${v} activities`;
-    }
-  };
+  const formatTooltipValue = useCallback(
+    (v: number): string => {
+      switch (metric) {
+        case "distanceMeters":
+          return `${v.toLocaleString(undefined, { maximumFractionDigits: 1 })} ${getDistanceLabel(userSettings.distanceUnit)}`;
+        case "movingTimeSeconds":
+          return formatHoursMinutes(v);
+        case "count":
+          return v === 1 ? "1 activity" : `${v} activities`;
+      }
+    },
+    [metric, userSettings.distanceUnit]
+  );
 
   const metricLabel: string = {
     distanceMeters: `Distance (${getDistanceLabel(userSettings.distanceUnit)})`,

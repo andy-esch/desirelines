@@ -121,12 +121,18 @@ export interface ChartData {
  */
 export function monthsInRange(from: string | undefined, to: string | undefined): string[] {
   if (!from || !to) return [];
-  const [fy, fm] = from.slice(0, 7).split("-").map(Number);
-  const [ty, tm] = to.slice(0, 7).split("-").map(Number);
+  // Sliced rather than destructured off split(): under noUncheckedIndexedAccess
+  // the array elements are `string | undefined`, which is what forced the
+  // non-null assertions this replaces. "YYYY-MM" has fixed offsets, so slicing
+  // is both safer and more direct.
+  const fy = Number(from.slice(0, 4));
+  const fm = Number(from.slice(5, 7));
+  const ty = Number(to.slice(0, 4));
+  const tm = Number(to.slice(5, 7));
   const out: string[] = [];
-  let y = fy!;
-  let m = fm!;
-  while (y < ty! || (y === ty! && m <= tm!)) {
+  let y = fy;
+  let m = fm;
+  while (y < ty || (y === ty && m <= tm)) {
     out.push(`${y}-${String(m).padStart(2, "0")}`);
     m += 1;
     if (m > 12) {
