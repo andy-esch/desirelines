@@ -22,9 +22,13 @@ function sportColor(sport: string): string {
 
 /** "2026-05" → "May" (or "May '26" when the range spans multiple years). */
 function formatMonthLabel(month: string, showYear: boolean): string {
-  const [year, m] = month.split("-");
-  const name = new Date(Number(year), Number(m) - 1, 1).toLocaleString("en-US", { month: "short" });
-  return showYear ? `${name} '${year!.slice(2)}` : name;
+  // Fixed offsets into "YYYY-MM" rather than destructuring split(), whose
+  // elements type as possibly-undefined and previously needed a `!`.
+  const year = month.slice(0, 4);
+  const name = new Date(Number(year), Number(month.slice(5, 7)) - 1, 1).toLocaleString("en-US", {
+    month: "short",
+  });
+  return showYear ? `${name} '${year.slice(2)}` : name;
 }
 
 interface ActivityVolumeChartProps {
@@ -147,6 +151,18 @@ interface TooltipPayloadEntry {
  * is correct in both light and dark themes — plain body-text on a fixed surface
  * inverted in light mode, which is what read as black-on-dark.
  */
+let _seriesIndexFor: ChartData["series"] | null = null;
+let _seriesIndexCache = new Map<string, ChartData["series"][number]>();
+
+/** Cached `key -> series` lookup, rebuilt only when the series array changes. */
+function seriesIndex(series: ChartData["series"]) {
+  if (_seriesIndexFor !== series) {
+    _seriesIndexFor = series;
+    _seriesIndexCache = new Map(series.map((s) => [s.key, s]));
+  }
+  return _seriesIndexCache;
+}
+
 function VolumeTooltip({
   active,
   label,
@@ -164,10 +180,18 @@ function VolumeTooltip({
 }) {
   if (!active || !payload || payload.length === 0 || typeof label !== "string") return null;
 
-  const byKey = new Map(series.map((s) => [s.key, s]));
+  // `series` is stable across a hover gesture but this component re-renders on
+  // every frame of it, so the lookup map is built once per series list rather
+  // than once per frame.
+  const byKey = seriesIndex(series);
+  // flatMap rather than map+filter so `meta` narrows to non-null for the
+  // consumers below; a boolean .filter() does not narrow, which is what forced
+  // the `r.meta!` assertions at each use site.
   const rows = payload
-    .map((p) => ({ meta: byKey.get(p.dataKey), value: p.value }))
-    .filter((r) => r.meta && r.value > 0)
+    .flatMap((p) => {
+      const meta = byKey.get(p.dataKey);
+      return meta && p.value > 0 ? [{ meta, value: p.value }] : [];
+    })
     .reverse(); // top-of-stack first, matching visual order
   if (rows.length === 0) return null;
 
@@ -200,7 +224,7 @@ function VolumeTooltip({
       <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
         {rows.map((r) => (
           <div
-            key={r.meta!.key}
+            key={r.meta.key}
             style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "11px" }}
           >
             <span
@@ -209,7 +233,7 @@ function VolumeTooltip({
                 width: "8px",
                 height: "8px",
                 borderRadius: "2px",
-                backgroundColor: sportColor(r.meta!.sport),
+                backgroundColor: sportColor(r.meta.sport),
                 // Same outline as the bars and legend. This one earns its keep on the
                 // near-white light tooltip, where an 8px neon square is ~1.3:1; in dark
                 // it's a faint hairline against the tooltip fill rather than invisible,
@@ -219,7 +243,7 @@ function VolumeTooltip({
               }}
             />
             <span style={{ color: "var(--color-chart-tooltip-label)" }}>
-              {getSportDisplayName(r.meta!.sport, sportConfig)}
+              {getSportDisplayName(r.meta.sport, sportConfig)}
             </span>
             <span
               style={{
