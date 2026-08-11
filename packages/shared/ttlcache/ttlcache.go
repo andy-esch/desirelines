@@ -63,6 +63,10 @@ type Cache[K comparable, V any] struct {
 	ttl     time.Duration
 	max     int
 	now     func() time.Time
+	// gen advances on every Invalidate. A read-through caller samples it before
+	// consulting the source and hands it back to PutIfUnchanged, which refuses
+	// the write if anything was invalidated in between — see PutIfUnchanged.
+	gen uint64
 }
 
 // New creates a Cache. It cannot fail: a non-positive TTL yields a disabled
@@ -135,6 +139,47 @@ func (c *Cache[K, V]) Invalidate(key K) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	delete(c.entries, key)
+	c.gen++
+}
+
+// Generation samples the invalidation counter. Pair it with PutIfUnchanged to
+// make a read-through safe under concurrency; on its own it means nothing.
+func (c *Cache[K, V]) Generation() uint64 {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.gen
+}
+
+// PutIfUnchanged stores value under key only if no Invalidate has run since
+// gen was sampled. Reports whether the write happened.
+//
+// This closes the read-through-then-Put race. A caller that misses, fetches
+// from the source, and then Puts can otherwise install a value that a writer
+// invalidated while the fetch was in flight — and that stale value then serves
+// for a full TTL. Sampling the generation before the fetch and passing it here
+// turns that interleaving into a skipped write and a miss on the next read.
+//
+// The counter is cache-wide rather than per-key, which is deliberate: it makes
+// the check allocation-free and unbounded-growth-free, at the cost of an
+// unrelated key's invalidation occasionally suppressing a cache fill. That
+// error direction is the safe one — a redundant miss, never a stale hit — and
+// at this system's key cardinality the false-suppression rate is negligible.
+func (c *Cache[K, V]) PutIfUnchanged(key K, value V, gen uint64) bool {
+	if !c.enabled() {
+		return false
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.gen != gen {
+		return false
+	}
+	if _, exists := c.entries[key]; !exists && len(c.entries) >= c.max {
+		c.evictLocked()
+	}
+	c.entries[key] = entry[V]{value: value, expiresAt: c.now().Add(c.ttl)}
+	return true
 }
 
 // Len reports the number of entries held, including expired-but-not-yet-purged

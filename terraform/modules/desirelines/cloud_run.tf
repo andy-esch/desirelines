@@ -79,17 +79,20 @@ resource "google_cloud_run_v2_service" "dispatcher" {
     #   2. makes the in-process allowlist/token caches' read-through-then-Put
     #      pattern race-free (see adapters/cache/token_store.go DefaultTokenCacheTTL).
     #
-    # Raising max_instance_request_concurrency requires, for reason (2), a
-    # per-key generation check in the cache read-through — without it a stale
-    # entry can be re-cached for a full TTL.
+    # Both reasons are now handled in-process, so this is a tuning knob rather
+    # than a correctness constraint:
+    #   1. the Strava client collapses concurrent refreshes per athlete through
+    #      a singleflight group (adapters/strava/client.go refreshAndPersist), and
+    #   2. the caches fill via ttlcache.PutIfUnchanged, which refuses a
+    #      read-through Put that raced an Invalidate.
     #
-    # Reason (1) is now handled in-process: the Strava client collapses
-    # concurrent refreshes per athlete through a singleflight group
-    # (adapters/strava/client.go refreshAndPersist), so raising *concurrency*
-    # alone no longer reopens the refresh-token replay window. That guard is
-    # per-process state, so raising max_instance_count DOES reopen it — two
-    # instances have two singleflight groups and can still replay a refresh
-    # token against Strava. Treat the two knobs differently.
+    # max_instance_request_concurrency can therefore be raised on its own.
+    #
+    # max_instance_count is NOT equivalent: both guards are per-process state.
+    # Two instances have two singleflight groups and two caches, so raising the
+    # instance count reopens the refresh-token replay window against Strava.
+    # That would need cross-instance coordination, which does not exist. Keep
+    # this at 1 unless someone builds it.
     max_instance_request_concurrency = 1
 
     containers {

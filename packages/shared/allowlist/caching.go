@@ -102,6 +102,11 @@ func (c *CachingChecker) IsAllowed(ctx context.Context, athleteID string) (bool,
 		return true, nil
 	}
 
+	// Sampled before the fetch — see PutIfUnchanged. A deauth invalidates this
+	// entry out of band; without the guard a straggler read-through could
+	// reinstall allowed=true for a full TTL after the revoke.
+	gen := c.cache.Generation()
+
 	allowed, err := c.inner.IsAllowed(ctx, athleteID)
 	stampCacheHit(span, false)
 	if err != nil {
@@ -110,7 +115,7 @@ func (c *CachingChecker) IsAllowed(ctx context.Context, athleteID string) (bool,
 	}
 
 	if allowed {
-		c.cache.Put(athleteID, true)
+		c.cache.PutIfUnchanged(athleteID, true, gen)
 	}
 	return allowed, nil
 }

@@ -207,3 +207,56 @@ func TestConcurrentAccessIsRaceFree(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+// TestPutIfUnchanged_RefusesFillInvalidatedMidFetch pins the read-through race
+// the generation guard exists to close: a caller misses, goes to the source,
+// and a writer invalidates while that fetch is in flight. Installing the
+// now-stale value would serve it for a full TTL. The guard must turn that into
+// a skipped write.
+func TestPutIfUnchanged_RefusesFillInvalidatedMidFetch(t *testing.T) {
+	c := ttlcache.New[string, int](ttlcache.Config{TTL: time.Minute})
+
+	gen := c.Generation() // caller samples before its (simulated) fetch
+	c.Invalidate("k")     // a writer lands mid-fetch
+
+	if c.PutIfUnchanged("k", 1, gen) {
+		t.Error("PutIfUnchanged wrote a value invalidated mid-fetch; the entry would serve stale for a full TTL")
+	}
+	if _, ok := c.Get("k"); ok {
+		t.Error("cache holds an entry it should have refused")
+	}
+}
+
+// The guard must not block the ordinary path, or every read-through becomes a
+// permanent miss.
+func TestPutIfUnchanged_AllowsUncontendedFill(t *testing.T) {
+	c := ttlcache.New[string, int](ttlcache.Config{TTL: time.Minute})
+
+	gen := c.Generation()
+	if !c.PutIfUnchanged("k", 1, gen) {
+		t.Fatal("PutIfUnchanged refused an uncontended fill")
+	}
+	got, ok := c.Get("k")
+	if !ok || got != 1 {
+		t.Errorf("Get = (%v, %v), want (1, true)", got, ok)
+	}
+}
+
+// Invalidating an unrelated key also bumps the counter, so a fill can be
+// suppressed by someone else's write. Documented as the deliberate cost of a
+// cache-wide counter: the error direction is a redundant miss, never a stale
+// hit.
+func TestPutIfUnchanged_UnrelatedInvalidateSuppressesFill(t *testing.T) {
+	c := ttlcache.New[string, int](ttlcache.Config{TTL: time.Minute})
+
+	gen := c.Generation()
+	c.Invalidate("other")
+
+	if c.PutIfUnchanged("k", 1, gen) {
+		t.Error("expected the cache-wide counter to suppress this fill")
+	}
+	// And the next attempt, sampling a fresh generation, succeeds.
+	if !c.PutIfUnchanged("k", 1, c.Generation()) {
+		t.Error("a fresh generation must allow the fill")
+	}
+}
