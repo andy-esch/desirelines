@@ -37,12 +37,11 @@ const DefaultTokenCacheMaxEntries = 10_000
 // how long such a write can be shadowed.
 //
 // NOTE (concurrency): the read-through-then-Put is race-free ONLY because the
-// dispatcher runs one request at a time — max_instance_count = 1 AND
-// max_instance_request_concurrency = 1 in terraform/.../cloud_run.tf. With
-// concurrent requests, a read-through Put can land after a concurrent mutation's
-// invalidate and re-cache a stale value for a full TTL. Raising either knob
-// REQUIRES a per-key generation check in the read-through first. Documented at both
-// ends; see cloud_run.tf.
+// The read-through is safe under concurrency: GetTokens samples the cache
+// generation before consulting Firestore and fills via PutIfUnchanged, so a Put
+// that would land after a concurrent mutation's Invalidate is refused rather
+// than re-caching a stale value for a full TTL. This used to be the reason
+// max_instance_request_concurrency was pinned to 1; it no longer is.
 type TokenStore struct {
 	inner ports.TokenStore
 	cache *ttlcache.Cache[int64, stravatoken.Data]
@@ -95,6 +94,12 @@ func (s *TokenStore) GetTokens(ctx context.Context, athleteID int64) (*stravatok
 		return &out, nil
 	}
 
+	// Sampled before the fetch: if a writer invalidates while we are in
+	// Firestore, PutIfUnchanged refuses the fill rather than installing the
+	// value we read a moment too early. Without this the read-through is only
+	// race-free at request concurrency 1.
+	gen := s.cache.Generation()
+
 	tokens, err := s.inner.GetTokens(ctx, athleteID)
 	stampCache(span, "strava_tokens", false)
 	if err != nil {
@@ -102,7 +107,7 @@ func (s *TokenStore) GetTokens(ctx context.Context, athleteID int64) (*stravatok
 		return nil, err
 	}
 	if tokens != nil {
-		s.cache.Put(athleteID, *tokens) // copy into the cache
+		s.cache.PutIfUnchanged(athleteID, *tokens, gen) // copy into the cache
 	}
 	return tokens, nil
 }
