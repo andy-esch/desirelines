@@ -82,8 +82,10 @@ export default function ActivityVolumeChart({
               value: metricLabel,
               angle: -90,
               position: "insideLeft",
+              // `fill` sits beside `style`, not inside it — the convention the
+              // two presenters already use. Keep the three in step.
+              fill: CHART_CONFIG.tick.fill,
               style: {
-                fill: CHART_CONFIG.tick.fill,
                 fontFamily: CHART_CONFIG.tick.fontFamily,
                 fontSize: 12,
                 textAnchor: "middle",
