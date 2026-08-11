@@ -295,6 +295,17 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 
 	secretProvider := envadapter.NewDefaultSecretCache(log)
 
+	// Application credentials are loaded once, at boot, and deliberately do NOT
+	// hot-reload the way the webhook secrets above do: a rotation takes effect on
+	// the next container, not mid-process. They change approximately never, and
+	// the read-only mount they come from has no rotation signal worth polling
+	// for. Decided 2026-08-11; don't wire these into SecretCache "for
+	// consistency" — the two have different lifecycles on purpose.
+	//
+	// Per-user Strava tokens are a different thing again: they rotate on every
+	// refresh and live in Firestore behind ports.TokenStore, which has the write
+	// path, per-key invalidation, and optimistic concurrency that SecretCache
+	// lacks.
 	stravaClientID, err := secrets.LoadFromMount(config.SecretPathStravaClientID, "STRAVA_CLIENT_ID")
 	if err != nil {
 		return nil, fmt.Errorf("strava client_id: %w", err)

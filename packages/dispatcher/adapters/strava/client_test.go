@@ -1659,3 +1659,74 @@ func TestFetchActivity_429StampsSpanAttribute(t *testing.T) {
 		t.Errorf("strava.retry_after_ms = %d, want > 0", got)
 	}
 }
+
+// flakyWriteTokenStore fails the first N write attempts with a generic
+// (non-sentinel) error, then succeeds — the transient-Firestore-fault shape.
+type flakyWriteTokenStore struct {
+	tokens     *stravatoken.Data
+	failWrites int32
+	writeCount atomic.Int32
+}
+
+func (s *flakyWriteTokenStore) GetTokens(_ context.Context, _ int64) (*stravatoken.Data, error) {
+	return s.tokens, nil
+}
+
+func (s *flakyWriteTokenStore) WriteTokensIfUnmodified(_ context.Context, _ int64, _ *stravatoken.Data, _ time.Time) error {
+	if s.writeCount.Add(1) <= s.failWrites {
+		return errors.New("firestore unavailable")
+	}
+	return nil
+}
+
+func (s *flakyWriteTokenStore) DeleteTokens(_ context.Context, _ int64) error { return nil }
+
+// TestFetchActivity_WriteBackRetriedAfterTransientFault pins the retry added for
+// audit 2026-07-22-dispatcher M1. A refresh that succeeds upstream but whose
+// persist hits one transient Firestore fault must still land the tokens, because
+// the alternative is discarding a refresh token Strava may have just rotated —
+// which bricks the grant. Before the retry, this scenario returned an error and
+// dropped the new tokens on the floor.
+func TestFetchActivity_WriteBackRetriedAfterTransientFault(t *testing.T) {
+	var activityServed atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case testTokenPath:
+			w.WriteHeader(http.StatusOK)
+			if err := json.NewEncoder(w).Encode(map[string]any{
+				"access_token":  "new-access-token",
+				"refresh_token": "new-refresh-token",
+				"expires_at":    futureExpiry(),
+			}); err != nil {
+				t.Errorf("failed to encode token response: %v", err)
+			}
+		case testActivityPath:
+			// 401 on the first call forces the reactive refresh; the retried
+			// call after a successful refresh succeeds.
+			if !activityServed.Swap(true) {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			if err := json.NewEncoder(w).Encode(map[string]any{"id": 12345, "name": "Ride"}); err != nil {
+				t.Errorf("failed to encode activity response: %v", err)
+			}
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	store := &flakyWriteTokenStore{
+		tokens:     &stravatoken.Data{AccessToken: "old-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
+		failWrites: 1,
+	}
+	client := newTestClient(server, store)
+
+	if _, err := client.FetchActivity(context.Background(), testOwnerID, 12345); err != nil {
+		t.Fatalf("expected the retried write-back to succeed, got %v", err)
+	}
+	if got := store.writeCount.Load(); got != 2 {
+		t.Errorf("write attempts = %d, want 2 (one transient failure then a success)", got)
+	}
+}

@@ -515,7 +515,7 @@ func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *s
 			}
 
 			// Optimistic write: only succeeds if no concurrent refresh happened.
-			writeErr := c.tokenStore.WriteTokensIfUnmodified(ctx, ownerID, newTokens, versionBefore)
+			writeErr := c.persistRefreshedTokens(ctx, ownerID, newTokens, versionBefore)
 			if writeErr != nil {
 				if errors.Is(writeErr, ports.ErrTokenConflict) {
 					// Another goroutine won the race. Re-read their tokens.
@@ -542,10 +542,21 @@ func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *s
 					err = writeErr
 					return nil, err
 				}
-				// Generic/transient Firestore fault on write-back (the known
+				// Generic/transient Firestore fault on write-back, still failing
+				// after the bounded retry in persistRefreshedTokens (the known
 				// ErrTokenConflict / ErrTokenNotFound sentinels were handled
 				// above). Tag as token-store-unavailable so the breaker treats
 				// it as Firestore's health, not Strava's.
+				//
+				// This is the expensive failure: Strava minted new tokens and we
+				// could not store them, so if Strava rotated the refresh token
+				// the stored one is now dead and the grant needs re-linking. Mark
+				// it distinctly — without this it is indistinguishable in Cloud
+				// Trace from a benign transient read fault, which is why the
+				// original audit could not tell how often it fires.
+				trace.SpanFromContext(ctx).SetAttributes(attribute.Bool("strava.token_writeback_lost", true))
+				c.logger.Error("Refreshed Strava tokens could not be persisted; the grant may need re-linking",
+					"correlation_id", cid, "owner_id", ownerID, "error", writeErr)
 				err = fmt.Errorf("%w: write-back tokens for athlete %d: %w", errTokenStoreUnavailable, ownerID, writeErr)
 				return nil, err
 			}
@@ -610,6 +621,58 @@ func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *s
 	}
 	err = fmt.Errorf("token refresh failed after %d attempts: %w", tokenRetryAttempts, lastErr)
 	return nil, err
+}
+
+// persistRefreshedTokens writes freshly-minted tokens with a bounded retry.
+//
+// The refresh call itself was already retried; without this the *persist* step
+// had none, which inverts the retry budget against the cost of failure. Losing
+// the outbound call is recoverable — the next webhook redelivery just refreshes
+// again. Losing the write-back is not: Strava may have rotated the refresh
+// token, so the one still in Firestore is dead and the athlete has to re-link.
+//
+// Retrying is safe under both failure modes. If the first write never landed,
+// the retry re-writes against the unchanged versionBefore and succeeds. If it
+// did land but the response was lost (ambiguous commit), the retry sees
+// last_refreshed already moved, returns ErrTokenConflict, and the caller's
+// existing conflict path re-reads what is in fact our own write.
+//
+// ErrTokenConflict and ErrTokenNotFound are terminal by design: both mean the
+// world changed underneath us, and repeating the write cannot fix either.
+func (c *Client) persistRefreshedTokens(
+	ctx context.Context,
+	ownerID int64,
+	newTokens *stravatoken.Data,
+	versionBefore time.Time,
+) error {
+	var writeErr error
+	for attempt := range tokenRetryAttempts {
+		writeErr = c.tokenStore.WriteTokensIfUnmodified(ctx, ownerID, newTokens, versionBefore)
+		if writeErr == nil {
+			return nil
+		}
+		if errors.Is(writeErr, ports.ErrTokenConflict) || errors.Is(writeErr, ports.ErrTokenNotFound) {
+			// %w, not a bare return: the caller branches on both sentinels with
+			// errors.Is, so the chain has to survive the wrap.
+			return fmt.Errorf("write tokens: %w", writeErr)
+		}
+		if attempt < tokenRetryAttempts-1 {
+			backoff := min(tokenRetryBackoff*time.Duration(1<<attempt), maxRetryBackoff)
+			c.logger.Warn("Token write-back retry",
+				"correlation_id", gcplog.CorrelationIDFromContext(ctx),
+				"owner_id", ownerID,
+				"attempt", attempt+1,
+				"backoff", backoff,
+				"error", writeErr,
+			)
+			select {
+			case <-ctx.Done():
+				return fmt.Errorf("token write-back interrupted: %w (cause: %w)", ctx.Err(), writeErr)
+			case <-time.After(backoff):
+			}
+		}
+	}
+	return fmt.Errorf("write tokens after %d attempts: %w", tokenRetryAttempts, writeErr)
 }
 
 // doRefreshToken performs a single token refresh request and returns the new tokens.
