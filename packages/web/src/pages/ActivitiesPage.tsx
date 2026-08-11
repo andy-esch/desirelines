@@ -26,6 +26,9 @@ import { normalizeSports } from "../utils/sportConfig";
 
 // List opens on the last 4 weeks. Single source so the URL fallback and the pill's
 // "is a filter active?" logic can't drift apart.
+// Deliberately different from ChartsPage's "ytd". This is a recent-activity
+// list, where the useful default is the last few weeks rather than the year so
+// far. The divergence is intentional — don't "fix" it by aligning.
 const DEFAULT_RANGE: TimeRange = "4w";
 
 const ActivitiesPage = () => {

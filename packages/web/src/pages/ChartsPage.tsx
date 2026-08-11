@@ -43,6 +43,9 @@ import { normalizeSports } from "../utils/sportConfig";
 
 // Charts opens on year-to-date (more history than the table's 4w). Single source so the
 // URL fallback and the "is a filter active?" pill logic can't drift apart.
+// Deliberately different from ActivitiesPage's "4w". This view buckets by month,
+// so a four-week default would render roughly one bar; year-to-date is the scale
+// the chart is for. The divergence is intentional — don't "fix" it by aligning.
 const DEFAULT_RANGE: TimeRange = "ytd";
 
 // MetricSelector labels via getMetricDisplayLabel, which only maps the API metric

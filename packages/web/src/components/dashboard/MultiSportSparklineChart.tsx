@@ -108,10 +108,14 @@ function UnifiedSparklineTooltip({
 
   return (
     <div
-      className="rounded shadow-sm p-2"
+      className="rounded p-2"
       style={{
         background: "var(--color-chart-tooltip-bg)",
         border: "1px solid var(--color-chart-tooltip-border)",
+        // --color-surface-shadow rather than Tailwind's shadow-sm: the token is
+        // theme-aware (0.4 alpha in dark, 0.15 in light), which a fixed utility
+        // class is not, and the rest of this tooltip is already tokenized.
+        boxShadow: "0 1px 3px var(--color-surface-shadow)",
         fontSize: "0.75rem",
         minWidth: 110,
         backdropFilter: "blur(4px)",
