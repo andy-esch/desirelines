@@ -84,6 +84,13 @@ func (s *TokenStore) GetTokens(ctx context.Context, athleteID int64) (_ *stravat
 		err = fmt.Errorf("decode tokens for athlete %d: %w", athleteID, decodeErr)
 		return nil, err
 	}
+	// DataTo zero-fills anything absent, so a document missing a credential
+	// decodes "successfully" into an unusable value. Reject it here rather than
+	// letting it surface later as an opaque Strava auth failure.
+	if validateErr := tokens.Validate(); validateErr != nil {
+		err = fmt.Errorf("tokens for athlete %d: %w", athleteID, validateErr)
+		return nil, err
+	}
 
 	return &tokens, nil
 }
