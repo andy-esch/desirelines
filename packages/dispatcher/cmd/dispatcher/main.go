@@ -228,6 +228,7 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 	pubsubHist := newHistogram(meter, log, "desirelines.io/pubsub/publish.duration", "PubSub publish duration")
 	webhookCounter := newCounter(meter, log, "desirelines.io/webhook/events", "Webhook events processed")
 	ownerCheckCounter := newCounter(meter, log, "desirelines.io/webhook/owner_check", "Webhook owner allowlist check outcomes (allowed/stray/orphan/error)")
+	deauthCleanupCounter := newCounter(meter, log, "desirelines.io/webhook/deauth_cleanup", "Deauth token-deletion outcomes (deleted/delete_failed)")
 	rowPublishCounter := newCounter(meter, log, "desirelines.io/bigquery/row_publish", "BigQuery activity-row publish outcomes (published/skipped/error)")
 	httpHist := newHistogram(meter, log, "desirelines.io/http/request.duration", "HTTP request duration")
 
@@ -334,15 +335,16 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 	}, log)
 
 	handler := httpadapter.NewHandler(publisher, deauthPublisher, secretProvider, stravaClient, tokenStore, allowChecker, log, &httpadapter.HandlerConfig{
-		MaxRequestBodySize: cfg.MaxRequestBodySize,
-		RateLimiter:        rateLimiter,
-		WebhookCounter:     webhookCounter,
-		OwnerCheckCounter:  ownerCheckCounter,
-		HTTPHistogram:      httpHist,
-		RowPublisher:       rowPublisherPort,
-		RowPublishCounter:  rowPublishCounter,
-		RowEncoding:        bqrow.Encoding(cfg.ActivityRowEncoding),
-		Tracer:             tracer,
+		MaxRequestBodySize:   cfg.MaxRequestBodySize,
+		RateLimiter:          rateLimiter,
+		WebhookCounter:       webhookCounter,
+		OwnerCheckCounter:    ownerCheckCounter,
+		DeauthCleanupCounter: deauthCleanupCounter,
+		HTTPHistogram:        httpHist,
+		RowPublisher:         rowPublisherPort,
+		RowPublishCounter:    rowPublishCounter,
+		RowEncoding:          bqrow.Encoding(cfg.ActivityRowEncoding),
+		Tracer:               tracer,
 	})
 
 	return &Dependencies{

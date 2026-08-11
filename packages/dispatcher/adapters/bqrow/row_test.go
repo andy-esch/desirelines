@@ -216,41 +216,47 @@ func TestUpsert_NormalizesWorkoutType(t *testing.T) {
 	}
 }
 
-// A primary photo with no usable urls has its record dropped. The column is
-// NULLABLE on activities_live, so this is a conservative choice rather than a
-// constraint — these cases pin the behavior, not a requirement.
+// A primary photo with no usable urls keeps its record and omits `urls`.
+// The column is NULLABLE on activities_live, so preserving the record costs
+// nothing and retains id/media_type/source/unique_id, which the previous
+// drop-the-whole-record behavior discarded (audit 2026-08-05-dispatcher L1).
+// "already-null primary" is the one case that still yields no record — there
+// was nothing to preserve.
 func TestUpsert_PhotoPrimaryURLs(t *testing.T) {
 	tests := []struct {
 		name        string
 		raw         string
-		wantPrimary bool
+		wantPrimary bool // is photos.primary still a record?
+		wantURLs    bool // does that record carry a urls value?
 	}{
 		{
 			name:        "urls object becomes JSON text",
 			raw:         `{"id": 1, "photos": {"count": 1, "primary": {"unique_id": "u", "urls": {"100": "https://example.test/a.jpg"}}}}`,
 			wantPrimary: true,
+			wantURLs:    true,
 		},
 		{
-			name:        "empty string drops the primary photo",
+			name:        "empty string keeps the record and omits urls",
 			raw:         `{"id": 1, "photos": {"count": 0, "primary": {"unique_id": "u", "urls": ""}}}`,
-			wantPrimary: false,
+			wantPrimary: true,
 		},
 		{
-			name:        "empty object drops the primary photo",
+			name:        "empty object keeps the record and omits urls",
 			raw:         `{"id": 1, "photos": {"count": 0, "primary": {"unique_id": "u", "urls": {}}}}`,
-			wantPrimary: false,
+			wantPrimary: true,
 		},
 		{
-			name:        "null urls drops the primary photo",
+			name:        "null urls keeps the record and omits urls",
 			raw:         `{"id": 1, "photos": {"count": 0, "primary": {"unique_id": "u", "urls": null}}}`,
-			wantPrimary: false,
+			wantPrimary: true,
 		},
 		{
-			name:        "missing urls drops the primary photo",
+			name:        "missing urls keeps the record and omits urls",
 			raw:         `{"id": 1, "photos": {"count": 0, "primary": {"unique_id": "u"}}}`,
-			wantPrimary: false,
+			wantPrimary: true,
 		},
 		{
+			// Nothing to preserve — this is the one case that still yields no record.
 			name:        "already-null primary is left alone",
 			raw:         `{"id": 1, "photos": {"count": 0, "primary": null}}`,
 			wantPrimary: false,
@@ -269,17 +275,32 @@ func TestUpsert_PhotoPrimaryURLs(t *testing.T) {
 				t.Fatalf("photos.primary = %#v, want present=%v", photos["primary"], tt.wantPrimary)
 			}
 			if !tt.wantPrimary {
-				// The key must survive as an explicit null, never as "".
 				if got, present := photos["primary"]; present && got != nil {
 					t.Errorf("photos.primary = %#v, want null", got)
 				}
 				return
 			}
-			encoded, isString := primary["urls"].(string)
-			if !isString {
-				t.Fatalf("photos.primary.urls = %#v, want JSON text (a string), not a nested object", primary["urls"])
+
+			// Whatever else happens, the sibling metadata must survive — losing
+			// it is exactly what the old drop-the-record behavior cost.
+			if primary["unique_id"] != "u" {
+				t.Errorf("photos.primary.unique_id = %#v, want it preserved", primary["unique_id"])
 			}
-			// The text must still parse back to what Strava sent.
+
+			urls, hasURLs := primary["urls"]
+			if hasURLs != tt.wantURLs {
+				t.Fatalf("photos.primary.urls present=%v (%#v), want present=%v", hasURLs, urls, tt.wantURLs)
+			}
+			if !tt.wantURLs {
+				// Omitted, never "" — the subscription accepts null/absent for a
+				// JSON column but rejects an empty string.
+				return
+			}
+
+			encoded, isString := urls.(string)
+			if !isString {
+				t.Fatalf("photos.primary.urls = %#v, want JSON text (a string), not a nested object", urls)
+			}
 			var decoded map[string]string
 			if err := json.Unmarshal([]byte(encoded), &decoded); err != nil {
 				t.Fatalf("photos.primary.urls is not valid JSON text: %v (%q)", err, encoded)
