@@ -24,6 +24,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/sync/singleflight"
 )
 
 // Sentinel errors for Strava API failures.
@@ -154,6 +155,9 @@ type Client struct {
 	histogram    metric.Float64Histogram
 	tracer       trace.Tracer
 	breaker      *gobreaker.CircuitBreaker[[]byte]
+	// refreshGroup collapses concurrent token refreshes for the same athlete
+	// onto a single outbound /oauth/token call. See refreshAndPersist.
+	refreshGroup singleflight.Group
 }
 
 // Compile-time check that Client implements StravaClient.
@@ -490,7 +494,52 @@ func (c *Client) doFetchActivity(ctx context.Context, activityID int64, accessTo
 //
 // Returns error if either the refresh or the write-back fails — callers must not
 // proceed with stale tokens if write-back fails.
-func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *stravatoken.Data, reason string) (_ *stravatoken.Data, err error) {
+// refreshAndPersist serializes refreshes per athlete, then delegates to
+// refreshAndPersistOnce.
+//
+// The optimistic write-back guards the *write*; it does nothing about the
+// *call*. Two webhooks for one athlete can both read the same stored tokens,
+// both decide to refresh, and both POST the same refresh_token to Strava before
+// either write-back runs. Strava rotates refresh tokens, and replaying a
+// just-consumed one is the canonical OAuth rotation hazard (RFC 6819 §5.2.2.3):
+// at best the loser's result is discarded by the write conflict, at worst the
+// provider treats the replay as theft and revokes the grant.
+//
+// singleflight closes that window by collapsing concurrent callers onto one
+// call and sharing its result. In-process state is sufficient for the same
+// reason the token cache is: the dispatcher runs single-instance. Raising
+// max_instance_count would reopen this across instances — see the checklist in
+// cloud_run.tf.
+//
+// Caveat worth knowing: sharers inherit the winner's outcome, including a
+// cancellation. A caller whose own context is still live can therefore see the
+// winner's context error. That is preferable to the replay it prevents, and the
+// next webhook redelivery retries.
+func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *stravatoken.Data, reason string) (*stravatoken.Data, error) {
+	v, err, shared := c.refreshGroup.Do(strconv.FormatInt(ownerID, 10), func() (any, error) {
+		return c.refreshAndPersistOnce(ctx, ownerID, tokens, reason)
+	})
+	if shared {
+		// Mirrors strava.token_conflict: makes a collapsed refresh filterable in
+		// Cloud Trace, so the rate of real concurrency is observable rather than
+		// assumed. Set for every participant, winner included — the attribute
+		// means "this refresh was shared", not "this caller lost".
+		trace.SpanFromContext(ctx).SetAttributes(attribute.Bool("strava.refresh_singleflight_shared", true))
+	}
+	if err != nil {
+		// singleflight hands back the inner error verbatim; %w keeps the chain so
+		// callers can still errors.Is on ErrTokenNotFound, errRefreshTokenRejected
+		// and friends, which they branch on.
+		return nil, fmt.Errorf("refresh tokens for athlete %d: %w", ownerID, err)
+	}
+	refreshed, ok := v.(*stravatoken.Data)
+	if !ok {
+		return nil, fmt.Errorf("refresh for athlete %d returned %T, want *stravatoken.Data", ownerID, v)
+	}
+	return refreshed, nil
+}
+
+func (c *Client) refreshAndPersistOnce(ctx context.Context, ownerID int64, tokens *stravatoken.Data, reason string) (_ *stravatoken.Data, err error) {
 	ctx, spanDone := otel.StartSpan(ctx, c.tracer, "strava.refresh_token",
 		attribute.Int64("strava.owner_id", ownerID),
 		attribute.String("strava.refresh_reason", reason),

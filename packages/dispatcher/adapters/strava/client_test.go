@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -1728,5 +1729,73 @@ func TestFetchActivity_WriteBackRetriedAfterTransientFault(t *testing.T) {
 	}
 	if got := store.writeCount.Load(); got != 2 {
 		t.Errorf("write attempts = %d, want 2 (one transient failure then a success)", got)
+	}
+}
+
+// TestRefreshAndPersist_ConcurrentRefreshesCollapseToOneCall pins the
+// singleflight serialization added for audit 2026-07-29-dispatcher M1.
+//
+// The optimistic write-back guards the write, not the call: without this, two
+// webhooks for one athlete could both POST the same refresh_token to Strava
+// before either write landed. Strava rotates refresh tokens, so replaying a
+// just-consumed one risks the provider treating it as theft and revoking the
+// grant. The guarantee under test is therefore about the *outbound call count*,
+// not about which caller wins.
+func TestRefreshAndPersist_ConcurrentRefreshesCollapseToOneCall(t *testing.T) {
+	var tokenCalls atomic.Int32
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != testTokenPath {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		tokenCalls.Add(1)
+		// Hold the first call open long enough that a second caller is
+		// guaranteed to arrive while it is in flight — otherwise the two could
+		// serialize naturally and the test would pass without singleflight.
+		<-release
+		w.WriteHeader(http.StatusOK)
+		if err := json.NewEncoder(w).Encode(map[string]any{
+			"access_token":  "new-access-token",
+			"refresh_token": "new-refresh-token",
+			"expires_at":    futureExpiry(),
+		}); err != nil {
+			t.Errorf("failed to encode token response: %v", err)
+		}
+	}))
+	defer server.Close()
+
+	store := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.Data{
+			testOwnerID: {AccessToken: "old-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
+		},
+	}
+	client := newTestClient(server, store)
+	tokens := &stravatoken.Data{AccessToken: "old-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()}
+
+	const callers = 2
+	var wg sync.WaitGroup
+	errs := make([]error, callers)
+	for i := range callers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, errs[i] = client.refreshAndPersist(context.Background(), testOwnerID, tokens, refreshReasonReactive401)
+		}()
+	}
+
+	// Give both goroutines time to reach the singleflight gate before the
+	// server responds.
+	time.Sleep(100 * time.Millisecond)
+	close(release)
+	wg.Wait()
+
+	for i, err := range errs {
+		if err != nil {
+			t.Errorf("caller %d: unexpected error: %v", i, err)
+		}
+	}
+	if got := tokenCalls.Load(); got != 1 {
+		t.Errorf("outbound /oauth/token calls = %d, want 1 — concurrent refreshes must collapse", got)
 	}
 }
