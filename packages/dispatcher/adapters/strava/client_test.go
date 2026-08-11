@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -1657,5 +1658,144 @@ func TestFetchActivity_429StampsSpanAttribute(t *testing.T) {
 	}
 	if got := spanAttrInt(span, "strava.retry_after_ms"); got <= 0 {
 		t.Errorf("strava.retry_after_ms = %d, want > 0", got)
+	}
+}
+
+// flakyWriteTokenStore fails the first N write attempts with a generic
+// (non-sentinel) error, then succeeds — the transient-Firestore-fault shape.
+type flakyWriteTokenStore struct {
+	tokens     *stravatoken.Data
+	failWrites int32
+	writeCount atomic.Int32
+}
+
+func (s *flakyWriteTokenStore) GetTokens(_ context.Context, _ int64) (*stravatoken.Data, error) {
+	return s.tokens, nil
+}
+
+func (s *flakyWriteTokenStore) WriteTokensIfUnmodified(_ context.Context, _ int64, _ *stravatoken.Data, _ time.Time) error {
+	if s.writeCount.Add(1) <= s.failWrites {
+		return errors.New("firestore unavailable")
+	}
+	return nil
+}
+
+func (s *flakyWriteTokenStore) DeleteTokens(_ context.Context, _ int64) error { return nil }
+
+// TestFetchActivity_WriteBackRetriedAfterTransientFault pins the retry added for
+// audit 2026-07-22-dispatcher M1. A refresh that succeeds upstream but whose
+// persist hits one transient Firestore fault must still land the tokens, because
+// the alternative is discarding a refresh token Strava may have just rotated —
+// which bricks the grant. Before the retry, this scenario returned an error and
+// dropped the new tokens on the floor.
+func TestFetchActivity_WriteBackRetriedAfterTransientFault(t *testing.T) {
+	var activityServed atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case testTokenPath:
+			w.WriteHeader(http.StatusOK)
+			if err := json.NewEncoder(w).Encode(map[string]any{
+				"access_token":  "new-access-token",
+				"refresh_token": "new-refresh-token",
+				"expires_at":    futureExpiry(),
+			}); err != nil {
+				t.Errorf("failed to encode token response: %v", err)
+			}
+		case testActivityPath:
+			// 401 on the first call forces the reactive refresh; the retried
+			// call after a successful refresh succeeds.
+			if !activityServed.Swap(true) {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			if err := json.NewEncoder(w).Encode(map[string]any{"id": 12345, "name": "Ride"}); err != nil {
+				t.Errorf("failed to encode activity response: %v", err)
+			}
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	store := &flakyWriteTokenStore{
+		tokens:     &stravatoken.Data{AccessToken: "old-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
+		failWrites: 1,
+	}
+	client := newTestClient(server, store)
+
+	if _, err := client.FetchActivity(context.Background(), testOwnerID, 12345); err != nil {
+		t.Fatalf("expected the retried write-back to succeed, got %v", err)
+	}
+	if got := store.writeCount.Load(); got != 2 {
+		t.Errorf("write attempts = %d, want 2 (one transient failure then a success)", got)
+	}
+}
+
+// TestRefreshAndPersist_ConcurrentRefreshesCollapseToOneCall pins the
+// singleflight serialization added for audit 2026-07-29-dispatcher M1.
+//
+// The optimistic write-back guards the write, not the call: without this, two
+// webhooks for one athlete could both POST the same refresh_token to Strava
+// before either write landed. Strava rotates refresh tokens, so replaying a
+// just-consumed one risks the provider treating it as theft and revoking the
+// grant. The guarantee under test is therefore about the *outbound call count*,
+// not about which caller wins.
+func TestRefreshAndPersist_ConcurrentRefreshesCollapseToOneCall(t *testing.T) {
+	var tokenCalls atomic.Int32
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != testTokenPath {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		tokenCalls.Add(1)
+		// Hold the first call open long enough that a second caller is
+		// guaranteed to arrive while it is in flight — otherwise the two could
+		// serialize naturally and the test would pass without singleflight.
+		<-release
+		w.WriteHeader(http.StatusOK)
+		if err := json.NewEncoder(w).Encode(map[string]any{
+			"access_token":  "new-access-token",
+			"refresh_token": "new-refresh-token",
+			"expires_at":    futureExpiry(),
+		}); err != nil {
+			t.Errorf("failed to encode token response: %v", err)
+		}
+	}))
+	defer server.Close()
+
+	store := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.Data{
+			testOwnerID: {AccessToken: "old-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
+		},
+	}
+	client := newTestClient(server, store)
+	tokens := &stravatoken.Data{AccessToken: "old-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()}
+
+	const callers = 2
+	var wg sync.WaitGroup
+	errs := make([]error, callers)
+	for i := range callers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, errs[i] = client.refreshAndPersist(context.Background(), testOwnerID, tokens, refreshReasonReactive401)
+		}()
+	}
+
+	// Give both goroutines time to reach the singleflight gate before the
+	// server responds.
+	time.Sleep(100 * time.Millisecond)
+	close(release)
+	wg.Wait()
+
+	for i, err := range errs {
+		if err != nil {
+			t.Errorf("caller %d: unexpected error: %v", i, err)
+		}
+	}
+	if got := tokenCalls.Load(); got != 1 {
+		t.Errorf("outbound /oauth/token calls = %d, want 1 — concurrent refreshes must collapse", got)
 	}
 }

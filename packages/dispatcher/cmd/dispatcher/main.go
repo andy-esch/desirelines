@@ -228,6 +228,7 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 	pubsubHist := newHistogram(meter, log, "desirelines.io/pubsub/publish.duration", "PubSub publish duration")
 	webhookCounter := newCounter(meter, log, "desirelines.io/webhook/events", "Webhook events processed")
 	ownerCheckCounter := newCounter(meter, log, "desirelines.io/webhook/owner_check", "Webhook owner allowlist check outcomes (allowed/stray/orphan/error)")
+	deauthCleanupCounter := newCounter(meter, log, "desirelines.io/webhook/deauth_cleanup", "Deauth token-deletion outcomes (deleted/delete_failed)")
 	rowPublishCounter := newCounter(meter, log, "desirelines.io/bigquery/row_publish", "BigQuery activity-row publish outcomes (published/skipped/error)")
 	httpHist := newHistogram(meter, log, "desirelines.io/http/request.duration", "HTTP request duration")
 
@@ -295,6 +296,17 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 
 	secretProvider := envadapter.NewDefaultSecretCache(log)
 
+	// Application credentials are loaded once, at boot, and deliberately do NOT
+	// hot-reload the way the webhook secrets above do: a rotation takes effect on
+	// the next container, not mid-process. They change approximately never, and
+	// the read-only mount they come from has no rotation signal worth polling
+	// for. Decided 2026-08-11; don't wire these into SecretCache "for
+	// consistency" — the two have different lifecycles on purpose.
+	//
+	// Per-user Strava tokens are a different thing again: they rotate on every
+	// refresh and live in Firestore behind ports.TokenStore, which has the write
+	// path, per-key invalidation, and optimistic concurrency that SecretCache
+	// lacks.
 	stravaClientID, err := secrets.LoadFromMount(config.SecretPathStravaClientID, "STRAVA_CLIENT_ID")
 	if err != nil {
 		return nil, fmt.Errorf("strava client_id: %w", err)
@@ -323,15 +335,16 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 	}, log)
 
 	handler := httpadapter.NewHandler(publisher, deauthPublisher, secretProvider, stravaClient, tokenStore, allowChecker, log, &httpadapter.HandlerConfig{
-		MaxRequestBodySize: cfg.MaxRequestBodySize,
-		RateLimiter:        rateLimiter,
-		WebhookCounter:     webhookCounter,
-		OwnerCheckCounter:  ownerCheckCounter,
-		HTTPHistogram:      httpHist,
-		RowPublisher:       rowPublisherPort,
-		RowPublishCounter:  rowPublishCounter,
-		RowEncoding:        bqrow.Encoding(cfg.ActivityRowEncoding),
-		Tracer:             tracer,
+		MaxRequestBodySize:   cfg.MaxRequestBodySize,
+		RateLimiter:          rateLimiter,
+		WebhookCounter:       webhookCounter,
+		OwnerCheckCounter:    ownerCheckCounter,
+		DeauthCleanupCounter: deauthCleanupCounter,
+		HTTPHistogram:        httpHist,
+		RowPublisher:         rowPublisherPort,
+		RowPublishCounter:    rowPublishCounter,
+		RowEncoding:          bqrow.Encoding(cfg.ActivityRowEncoding),
+		Tracer:               tracer,
 	})
 
 	return &Dependencies{

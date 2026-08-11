@@ -106,11 +106,13 @@ func normalize(row map[string]any) {
 	// succeed. BigQuery parses the text back into a JSON object on arrival, so
 	// the stored shape is the same either way; only the wire form differs.
 	//
-	// A primary photo with no usable urls has its whole record dropped. Note
-	// this is conservative, not required: `photos.primary.urls` is NULLABLE on
-	// activities_live, so the row would be accepted with the record present and
-	// urls null, preserving id/media_type/source/unique_id. Dropping loses those
-	// four fields for a shape Strava rarely sends.
+	// A primary photo with no usable urls keeps its record and simply omits
+	// `urls`. `photos.primary.urls` is NULLABLE on activities_live (and the
+	// CDC proto has it `optional`), so the row is accepted either way — and
+	// omitting just the one bad field preserves id/media_type/source/unique_id,
+	// which dropping the record threw away. Omitted rather than "": the
+	// subscription accepts null/absent for a JSON column but not an empty
+	// string (see bigquery_subscription.tf).
 	photos, ok := row["photos"].(map[string]any)
 	if !ok {
 		return
@@ -121,7 +123,7 @@ func normalize(row map[string]any) {
 	}
 	encoded, ok := encodePhotoURLs(primary["urls"])
 	if !ok {
-		photos["primary"] = nil
+		delete(primary, "urls")
 		return
 	}
 	primary["urls"] = encoded

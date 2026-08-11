@@ -74,12 +74,22 @@ resource "google_cloud_run_v2_service" "dispatcher" {
       min_instance_count = 0
     }
 
-    # Serialize webhook processing. Two independent reasons now depend on this:
+    # Serialize webhook processing. Two independent reasons depend on this:
     #   1. avoids token-refresh races (the original reason), and
     #   2. makes the in-process allowlist/token caches' read-through-then-Put
     #      pattern race-free (see adapters/cache/token_store.go DefaultTokenCacheTTL).
-    # Raising this (or max_instance_count) requires a per-key generation check in
-    # the cache read-through first, or a stale entry can be re-cached for a full TTL.
+    #
+    # Raising max_instance_request_concurrency requires, for reason (2), a
+    # per-key generation check in the cache read-through — without it a stale
+    # entry can be re-cached for a full TTL.
+    #
+    # Reason (1) is now handled in-process: the Strava client collapses
+    # concurrent refreshes per athlete through a singleflight group
+    # (adapters/strava/client.go refreshAndPersist), so raising *concurrency*
+    # alone no longer reopens the refresh-token replay window. That guard is
+    # per-process state, so raising max_instance_count DOES reopen it — two
+    # instances have two singleflight groups and can still replay a refresh
+    # token against Strava. Treat the two knobs differently.
     max_instance_request_concurrency = 1
 
     containers {

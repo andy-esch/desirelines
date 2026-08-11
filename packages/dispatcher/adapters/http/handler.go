@@ -152,23 +152,24 @@ const DefaultRowRefetchTimeout = 1 * time.Second
 
 // Handler orchestrates the webhook processing.
 type Handler struct {
-	secretProvider     ports.SecretProvider
-	publisher          ports.Publisher
-	deauthPublisher    ports.Publisher
-	rowPublisher       ports.RawPublisher
-	stravaClient       ports.StravaClient
-	tokenStore         ports.TokenStore
-	allowlist          allowlist.Checker
-	logger             *slog.Logger
-	rateLimiter        *ratelimit.Limiter
-	maxRequestBodySize int64
-	webhookCounter     metric.Int64Counter
-	ownerCheckCounter  metric.Int64Counter
-	rowPublishCounter  metric.Int64Counter
-	rowEncoding        bqrow.Encoding
-	rowRefetchTimeout  time.Duration
-	httpHistogram      metric.Float64Histogram
-	tracer             trace.Tracer
+	secretProvider       ports.SecretProvider
+	publisher            ports.Publisher
+	deauthPublisher      ports.Publisher
+	rowPublisher         ports.RawPublisher
+	stravaClient         ports.StravaClient
+	tokenStore           ports.TokenStore
+	allowlist            allowlist.Checker
+	logger               *slog.Logger
+	rateLimiter          *ratelimit.Limiter
+	maxRequestBodySize   int64
+	webhookCounter       metric.Int64Counter
+	ownerCheckCounter    metric.Int64Counter
+	deauthCleanupCounter metric.Int64Counter
+	rowPublishCounter    metric.Int64Counter
+	rowEncoding          bqrow.Encoding
+	rowRefetchTimeout    time.Duration
+	httpHistogram        metric.Float64Histogram
+	tracer               trace.Tracer
 }
 
 // HandlerConfig holds configuration for the HTTP handler.
@@ -177,7 +178,10 @@ type HandlerConfig struct {
 	RateLimiter        *ratelimit.Limiter
 	WebhookCounter     metric.Int64Counter
 	OwnerCheckCounter  metric.Int64Counter
-	HTTPHistogram      metric.Float64Histogram
+	// DeauthCleanupCounter records whether a deauthorized athlete's tokens were
+	// actually deleted. Optional; nil disables the metric.
+	DeauthCleanupCounter metric.Int64Counter
+	HTTPHistogram        metric.Float64Histogram
 	// RowPublisher enables the best-effort second publish of each activity as
 	// a BigQuery CDC row. Nil — the default — disables it entirely; that is
 	// what the feature flag being off looks like from in here.
@@ -224,23 +228,24 @@ func NewHandler(publisher, deauthPublisher ports.Publisher, secretProvider ports
 		tracer = otel.Tracer(tracerScope)
 	}
 	return &Handler{
-		secretProvider:     secretProvider,
-		publisher:          publisher,
-		deauthPublisher:    deauthPublisher,
-		rowPublisher:       cfg.RowPublisher,
-		stravaClient:       stravaClient,
-		tokenStore:         tokenStore,
-		allowlist:          allowChecker,
-		logger:             logger,
-		rateLimiter:        cfg.RateLimiter,
-		maxRequestBodySize: maxBodySize,
-		webhookCounter:     cfg.WebhookCounter,
-		ownerCheckCounter:  cfg.OwnerCheckCounter,
-		rowPublishCounter:  cfg.RowPublishCounter,
-		rowEncoding:        rowEncoding,
-		rowRefetchTimeout:  rowRefetchTimeout,
-		httpHistogram:      cfg.HTTPHistogram,
-		tracer:             tracer,
+		secretProvider:       secretProvider,
+		publisher:            publisher,
+		deauthPublisher:      deauthPublisher,
+		rowPublisher:         cfg.RowPublisher,
+		stravaClient:         stravaClient,
+		tokenStore:           tokenStore,
+		allowlist:            allowChecker,
+		logger:               logger,
+		rateLimiter:          cfg.RateLimiter,
+		maxRequestBodySize:   maxBodySize,
+		webhookCounter:       cfg.WebhookCounter,
+		ownerCheckCounter:    cfg.OwnerCheckCounter,
+		deauthCleanupCounter: cfg.DeauthCleanupCounter,
+		rowPublishCounter:    cfg.RowPublishCounter,
+		rowEncoding:          rowEncoding,
+		rowRefetchTimeout:    rowRefetchTimeout,
+		httpHistogram:        cfg.HTTPHistogram,
+		tracer:               tracer,
 	}
 }
 
@@ -514,6 +519,20 @@ func (h *Handler) recordOwnerCheck(ctx context.Context, webhook *generated.Webho
 			attribute.String("aspect_type", webhookproto.AspectTypeToString(webhook.AspectType)),
 		),
 	)
+}
+
+// recordDeauthCleanup increments the deauth token-deletion counter labeled by
+// outcome (deleted / delete_failed). No-op when no counter is configured.
+//
+// The failure case is a privacy signal, not just an error: a deauthorized
+// athlete whose tokens survive is data we were asked to stop holding. It used
+// to be visible only as a Warn string, so "how often does cleanup fail?" could
+// only be answered by log-mining — which is why there was no alert on it.
+func (h *Handler) recordDeauthCleanup(ctx context.Context, outcome string) {
+	if h.deauthCleanupCounter == nil {
+		return
+	}
+	h.deauthCleanupCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("outcome", outcome)))
 }
 
 // routeWebhookEvent dispatches by object_type. Athlete events go to the deauth
@@ -915,11 +934,14 @@ func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter,
 
 	// Best-effort token deletion — the downstream deletion job will clean up on failure.
 	if deleteErr := h.tokenStore.DeleteTokens(ctx, webhook.OwnerId); deleteErr != nil {
+		h.recordDeauthCleanup(ctx, "delete_failed")
 		h.logger.Warn("Failed to delete tokens during deauth (will be cleaned up by deletion job)",
 			"correlation_id", correlationID,
 			"owner_id", webhook.OwnerId,
 			"error", deleteErr,
 		)
+	} else {
+		h.recordDeauthCleanup(ctx, "deleted")
 	}
 
 	// Drop any cached allowlist decision for this owner. The deletion service
