@@ -51,8 +51,31 @@ paths:
     get:
       tags: [Auth]
       summary: Initiate Strava OAuth flow
-      description: Redirects user to Strava's authorization page with a signed state token
+      description: |
+        Entry point for login. Redirects to /auth/strava/start on the canonical
+        callback origin so the browser-bound state cookie is always minted on
+        the host Strava returns to, even when a deployment exposes several
+        Firebase Hosting domains. Mints no state and sets no cookie itself.
       operationId: authInitiate
+      security: []
+      responses:
+        '302':
+          description: Redirect to the canonical state-minting endpoint
+          headers:
+            Location:
+              schema:
+                type: string
+              description: Absolute /auth/strava/start URL on the configured callback origin
+  /auth/strava/start:
+    get:
+      tags: [Auth]
+      summary: Mint OAuth state and redirect to Strava
+      description: |
+        Canonical state-minting endpoint. Generates the signed state token,
+        binds it to the browser via the __session cookie (the only cookie name
+        Firebase Hosting forwards through a Cloud Run rewrite), and redirects to
+        Strava's authorization page.
+      operationId: authInitiateStart
       security: []
       responses:
         '302':
@@ -62,6 +85,10 @@ paths:
               schema:
                 type: string
               description: Strava authorize URL with client_id, redirect_uri, scope, and state params
+            Set-Cookie:
+              schema:
+                type: string
+              description: HttpOnly, SameSite=Lax __session cookie carrying the state token
   /auth/callback:
     get:
       tags: [Auth]
