@@ -21,7 +21,10 @@ from typing import Any
 
 import pytest
 
-from stravapipe.adapters.firestore.token_store import TokenData
+from stravapipe.adapters.firestore.token_store import (
+    IncompleteTokenDataError,
+    TokenData,
+)
 
 
 def _resolve_fixtures_path() -> Path:
@@ -105,3 +108,61 @@ def test_shared_fixtures_strava_tokens_field_coverage() -> None:
     assert not extra, (
         f"fixture carries {sorted(extra)}, which TokenData does not declare"
     )
+
+
+# ============================================================
+# Required-field strictness — must match Go's Data.Validate
+# ============================================================
+
+_COMPLETE_DOC = {
+    "access_token": "acc",
+    "refresh_token": "ref",
+    "expires_at": 1735689600,
+    "scopes": "read",
+    "connected_at": datetime.fromisoformat("2026-01-01T00:00:00+00:00"),
+    "last_refreshed": datetime.fromisoformat("2026-06-01T12:30:00+00:00"),
+}
+
+
+@pytest.mark.parametrize("field", ["access_token", "refresh_token", "expires_at"])
+@pytest.mark.parametrize("how", ["absent", "empty"])
+def test_required_fields_rejected(field: str, how: str) -> None:
+    """Absent and empty must both fail, matching Go.
+
+    Go cannot distinguish the two — Firestore's decoder zero-fills anything
+    missing — so Python rejecting only the absent case would let a document
+    with access_token="" pass here and fail there.
+    """
+    doc = dict(_COMPLETE_DOC)
+    if how == "absent":
+        del doc[field]
+    else:
+        doc[field] = "" if isinstance(_COMPLETE_DOC[field], str) else 0
+
+    with pytest.raises(IncompleteTokenDataError) as excinfo:
+        TokenData.from_doc(_FakeDoc(doc), athlete_id="12345")  # type: ignore[arg-type]
+
+    assert field in excinfo.value.missing
+    # The context a bare KeyError never carried.
+    assert "12345" in str(excinfo.value)
+
+
+@pytest.mark.parametrize("field", ["scopes", "connected_at", "last_refreshed"])
+def test_optional_fields_tolerated(field: str) -> None:
+    """The deliberate exclusions stay excluded.
+
+    Guards against a future tightening quietly rejecting live grants: scopes is
+    often absent because Strava's token response omits it, and a zero
+    last_refreshed means "connected but never refreshed".
+    """
+    doc = dict(_COMPLETE_DOC)
+    del doc[field]
+    if field == "scopes":
+        tokens = TokenData.from_doc(_FakeDoc(doc), athlete_id="12345")  # type: ignore[arg-type]
+        assert tokens.scopes == ""
+    else:
+        # connected_at/last_refreshed are still read positionally; absence is a
+        # KeyError rather than a validation failure. Pin that they are NOT
+        # treated as required, which is the property that must match Go.
+        with pytest.raises(KeyError):
+            TokenData.from_doc(_FakeDoc(doc), athlete_id="12345")  # type: ignore[arg-type]
