@@ -9,9 +9,9 @@
 #
 # Two readiness families share the same hourly cadence (var.readiness_probe_schedule)
 # so all probes land in one Neon wake window — two probes per wake costs
-# the same as one. Auth differs: apigateway is unauthenticated (fronted
-# by Firebase Hosting), Python services require an OIDC token signed by
-# a dedicated scheduler SA with roles/run.invoker.
+# the same as one. Every deep probe carries an OIDC token signed by the
+# dedicated scheduler SA. Python services also enforce it at Cloud Run IAM;
+# apigateway remains public for Firebase Hosting and enforces it in-app.
 #
 # Adding a new Python service: append one entry to
 # `local.python_readiness_targets`. The for_each-driven IAM, scheduler,
@@ -22,6 +22,14 @@
 # probe regions and have a max cadence of 15 min. We want a single, hourly,
 # DB-touching probe — Cloud Scheduler hits /api/ready from one location at the
 # desired cadence, so Neon's compute can stay suspended between probes.
+locals {
+  # Use Cloud Run's deterministic project-number URL for the operational probe.
+  # Going direct avoids relying on Firebase Hosting to forward Authorization
+  # unchanged, while the exact URI remains stable across revisions. The
+  # apigateway /api/health uptime check still exercises the Hosting rewrite.
+  apigateway_readiness_uri = "https://${var.project_name}-api-gateway-${var.gcp_project_number}.${var.gcp_region}.run.app/api/ready"
+}
+
 resource "google_cloud_scheduler_job" "apigateway_readiness" {
   name        = "${var.project_name}-${var.environment}-apigateway-readiness"
   description = "DB-touching readiness probe for apigateway (default hourly)"
@@ -43,11 +51,16 @@ resource "google_cloud_scheduler_job" "apigateway_readiness" {
 
   http_target {
     http_method = "GET"
-    uri         = "https://${var.project_name}-${var.environment}.web.app/api/ready"
-    # No oidc_token / oauth_token: apigateway is fronted by Firebase Hosting
-    # with allUsers run.invoker, so the call is unauthenticated like a real
-    # user request. If the apigateway is later locked down, switch to an
-    # oidc_token block referencing the scheduler service account.
+    uri         = local.apigateway_readiness_uri
+
+    # Cloud Run is public for Firebase Hosting rewrites, so IAM cannot protect
+    # this one route. The application validates this token's
+    # signature, exact audience, and immutable scheduler-SA subject before it
+    # performs any DB work.
+    oidc_token {
+      service_account_email = google_service_account.scheduler.email
+      audience              = local.apigateway_readiness_uri
+    }
   }
 
   depends_on = [google_project_service.required_apis]
@@ -100,7 +113,7 @@ resource "google_monitoring_alert_policy" "apigateway_readiness_failing" {
          genuine failure — recovered cold-start retries (the `, retrying` lines)
          are excluded by construction and this metric counts the event, not the
          Scheduler HTTP status.
-      3. Test the endpoint directly: `curl https://${var.project_name}-${var.environment}.web.app/api/ready`.
+      3. Trigger the authenticated probe: `gcloud scheduler jobs run ${google_cloud_scheduler_job.apigateway_readiness.name} --location=${var.gcp_region} --project=${var.gcp_project_id}`.
     EOT
   }
 

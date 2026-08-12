@@ -203,6 +203,28 @@ func TestCORSMiddleware(t *testing.T) {
 	})
 }
 
+func TestSecurityHeaders(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	SecurityHeaders(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})).ServeHTTP(w, req)
+
+	wants := map[string]string{
+		"Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+		"Permissions-Policy":      "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+		"Referrer-Policy":         "no-referrer",
+		"X-Content-Type-Options":  "nosniff",
+		"X-Frame-Options":         "DENY",
+		"X-XSS-Protection":        "0",
+	}
+	for name, want := range wants {
+		if got := w.Header().Get(name); got != want {
+			t.Errorf("%s = %q, want %q", name, got, want)
+		}
+	}
+}
+
 // corsRequest builds a request with the test Origin header preset, matching the
 // allowed origin used throughout these tests.
 func corsRequest(method, path string) *http.Request {
@@ -308,8 +330,85 @@ func TestNewRouter_AuthBlocking(t *testing.T) {
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("status = %d, want %d", w.Code, http.StatusUnauthorized)
 	}
+	if got := w.Header().Get("Cache-Control"); got != "no-store" {
+		t.Errorf("Cache-Control = %q, want no-store on auth rejection", got)
+	}
 	if handlerCalled {
 		t.Error("handler should not be called when auth blocks")
+	}
+}
+
+func TestNewRouter_ReadinessAuthBlocking(t *testing.T) {
+	logger := slog.Default()
+	c, err := cors.NewHandler([]string{"https://example.com"}, logger, false)
+	if err != nil {
+		t.Fatalf("cors.NewHandler: %v", err)
+	}
+	userAuth := &mockAuthMiddleware{}
+	readinessAuth := &mockAuthMiddleware{blockAccess: true}
+	readyCalled := false
+	router := NewRouter(
+		RouterConfig{
+			CORSHandler:         c,
+			AuthMiddleware:      userAuth,
+			ReadinessMiddleware: readinessAuth,
+		},
+		PublicRoutes{
+			Health:      func(w http.ResponseWriter, r *http.Request) {},
+			Ready:       func(w http.ResponseWriter, r *http.Request) { readyCalled = true },
+			SportConfig: func(w http.ResponseWriter, r *http.Request) {},
+		},
+		noopAuthRoutes(),
+		logger,
+	)
+
+	req := corsRequest(http.MethodGet, "/ready")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusUnauthorized)
+	}
+	if got := w.Header().Get("Cache-Control"); got != "no-store" {
+		t.Errorf("Cache-Control = %q, want no-store", got)
+	}
+	if !readinessAuth.called || userAuth.called {
+		t.Errorf("readiness auth called=%v, user auth called=%v", readinessAuth.called, userAuth.called)
+	}
+	if readyCalled {
+		t.Error("readiness handler should not be called when OIDC auth blocks")
+	}
+}
+
+func TestNewRouter_OAuthResponsesAreNotCacheable(t *testing.T) {
+	logger := slog.Default()
+	c, err := cors.NewHandler([]string{"https://example.com"}, logger, false)
+	if err != nil {
+		t.Fatalf("cors.NewHandler: %v", err)
+	}
+	router := NewRouter(
+		RouterConfig{CORSHandler: c, AuthMiddleware: &mockAuthMiddleware{}},
+		PublicRoutes{
+			Health:            func(http.ResponseWriter, *http.Request) {},
+			Ready:             func(http.ResponseWriter, *http.Request) {},
+			SportConfig:       func(http.ResponseWriter, *http.Request) {},
+			AuthInitiate:      func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusFound) },
+			AuthInitiateStart: func(http.ResponseWriter, *http.Request) {},
+			AuthCallback:      func(http.ResponseWriter, *http.Request) {},
+		},
+		noopAuthRoutes(),
+		logger,
+	)
+
+	for _, requestPath := range []string{"/auth/strava", "/auth/strava/start", "/auth/callback"} {
+		t.Run(requestPath, func(t *testing.T) {
+			req := corsRequest(http.MethodGet, requestPath)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			if got := w.Header().Get("Cache-Control"); got != "no-store" {
+				t.Errorf("Cache-Control = %q, want no-store", got)
+			}
+		})
 	}
 }
 
@@ -433,11 +532,12 @@ func TestNewRouter_AuthRateLimiterScopedToAuth(t *testing.T) {
 			AuthRateLimiter: authLimiter,
 		},
 		PublicRoutes{
-			Health:       func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) },
-			Ready:        func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) },
-			SportConfig:  func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) },
-			AuthInitiate: func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) },
-			AuthCallback: func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) },
+			Health:            func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) },
+			Ready:             func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) },
+			SportConfig:       func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) },
+			AuthInitiate:      func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) },
+			AuthInitiateStart: func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) },
+			AuthCallback:      func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) },
 		},
 		noopAuthRoutes(),
 		slog.Default(),

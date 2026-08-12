@@ -60,6 +60,88 @@ func TestEnvironment_Predicates(t *testing.T) {
 	}
 }
 
+func TestLoadConfig_RequiresReadinessOIDCInDeployedEnvironments(t *testing.T) {
+	t.Setenv("GCP_PROJECT_ID", "test-project")
+	t.Setenv("FIRESTORE_DATABASE", "test-db")
+	t.Setenv("FRONTEND_URL", "https://app.example.com")
+	t.Setenv("AUTH_CALLBACK_URL", "https://app.example.com/api/auth/callback")
+	t.Setenv("ENVIRONMENT", "dev")
+	t.Setenv("READINESS_AUDIENCE", "")
+	t.Setenv("READINESS_CALLER_SUBJECT", "")
+
+	if _, err := LoadConfig(); err == nil || !strings.Contains(err.Error(), "READINESS_AUDIENCE") {
+		t.Fatalf("LoadConfig() error = %v, want missing READINESS_AUDIENCE", err)
+	}
+
+	t.Setenv("READINESS_AUDIENCE", "https://desirelines-dev.web.app/api/ready")
+	if _, err := LoadConfig(); err == nil || !strings.Contains(err.Error(), "READINESS_CALLER_SUBJECT") {
+		t.Fatalf("LoadConfig() error = %v, want missing READINESS_CALLER_SUBJECT", err)
+	}
+
+	t.Setenv("READINESS_CALLER_SUBJECT", "123456789012345678901")
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig() unexpected error: %v", err)
+	}
+	if cfg.ReadinessAudience != "https://desirelines-dev.web.app/api/ready" ||
+		cfg.ReadinessCallerSubject != "123456789012345678901" {
+		t.Errorf("readiness OIDC config not loaded: %+v", cfg)
+	}
+}
+
+func TestLoadConfig_RejectsInvalidReadinessOIDCConfig(t *testing.T) {
+	t.Setenv("GCP_PROJECT_ID", "test-project")
+	t.Setenv("FIRESTORE_DATABASE", "test-db")
+	t.Setenv("FRONTEND_URL", "https://app.example.com")
+	t.Setenv("AUTH_CALLBACK_URL", "https://app.example.com/api/auth/callback")
+	t.Setenv("ENVIRONMENT", "prod")
+	t.Setenv("READINESS_AUDIENCE", "http://insecure.example/ready")
+	t.Setenv("READINESS_CALLER_SUBJECT", "not-numeric")
+
+	if _, err := LoadConfig(); err == nil || !strings.Contains(err.Error(), "absolute HTTPS URL") {
+		t.Fatalf("LoadConfig() error = %v, want HTTPS audience rejection", err)
+	}
+
+	t.Setenv("READINESS_AUDIENCE", "https://app.example.com/api/ready")
+	if _, err := LoadConfig(); err == nil || !strings.Contains(err.Error(), "decimal digits") {
+		t.Fatalf("LoadConfig() error = %v, want numeric subject rejection", err)
+	}
+}
+
+func TestLoadConfig_AllowlistCacheTTL(t *testing.T) {
+	setMinimumLocalEnv(t)
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig default: %v", err)
+	}
+	if cfg.AllowlistCacheTTL != DefaultAllowlistCacheTTL {
+		t.Errorf("default cache TTL = %v, want %v", cfg.AllowlistCacheTTL, DefaultAllowlistCacheTTL)
+	}
+
+	t.Setenv("API_ALLOWLIST_CACHE_TTL", "0")
+	cfg, err = LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig disabled cache: %v", err)
+	}
+	if cfg.AllowlistCacheTTL != 0 {
+		t.Errorf("disabled cache TTL = %v, want 0", cfg.AllowlistCacheTTL)
+	}
+
+	t.Setenv("API_ALLOWLIST_CACHE_TTL", "-1s")
+	if _, err = LoadConfig(); err == nil || !strings.Contains(err.Error(), "must not be negative") {
+		t.Fatalf("LoadConfig negative TTL error = %v", err)
+	}
+}
+
+func setMinimumLocalEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("GCP_PROJECT_ID", "test-project")
+	t.Setenv("FRONTEND_URL", "http://localhost:5173")
+	t.Setenv("AUTH_CALLBACK_URL", "http://localhost:8084/api/auth/callback")
+	t.Setenv("ENVIRONMENT", "local")
+}
+
 func TestConfig_LogAttrs_OmitsSecrets(t *testing.T) {
 	// Construct a Config with values that look like secrets to verify
 	// none of them leak through LogAttrs. Real secrets are loaded via

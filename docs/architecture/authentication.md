@@ -25,14 +25,25 @@ User → "Connect with Strava" → API Gateway /auth/strava → Strava OAuth
 
 OAuth endpoints (`internal/auth/`):
 
-1. `GET /auth/strava` — generates CSRF state token, redirects to authorize URL from `StravaOAuthClient.AuthorizeURL()` (Strava in production, gateway's own callback in local dev)
-2. `GET /auth/callback` — validates state, exchanges code for tokens via `StravaOAuthClient.ExchangeCode()`, checks allowlist, creates Firebase custom token, redirects to frontend
+1. `GET /auth/strava` — redirects to `/auth/strava/start` on the configured
+   callback origin, canonicalizing Firebase Hosting aliases before any cookie is
+   minted.
+2. `GET /auth/strava/start` — generates a signed CSRF state token, binds it to
+   the browser in the Firebase Hosting-reserved `__session` cookie, and redirects
+   to `StravaOAuthClient.AuthorizeURL()` (Strava in production, gateway's own
+   callback in local dev).
+3. `GET /auth/callback` — validates state and the browser-bound cookie,
+   exchanges the code via `StravaOAuthClient.ExchangeCode()`, checks the
+   allowlist, creates a Firebase custom token, and redirects to the frontend.
 
 Auth middleware (`middleware/auth.go`):
 
-1. Validates JWT using Firebase Admin SDK
-2. Injects `token.UID` (Strava athlete ID) into request context
-3. Returns 401 for invalid/missing token
+1. Validates JWT using Firebase Admin SDK.
+2. Re-checks the athlete-ID allowlist, using a short positive-only cache to
+   coalesce map-tile bursts while bounding revocation staleness.
+3. Injects `token.UID` (Strava athlete ID) into request context.
+4. Returns 401 for invalid identity, 403 for removal, or 503 when authorization
+   cannot be checked.
 
 **Identity model**: Firebase UID = Strava athlete ID (as string) = PostgreSQL `user_id` column.
 
@@ -50,9 +61,10 @@ Auth middleware (`middleware/auth.go`):
 **Secure**:
 
 - Server-side JWT validation (Firebase Admin SDK)
-- CSRF protection via signed state token (HMAC-SHA256, 5 min expiry)
+- Login-CSRF protection via a signed state token (exact HS256, 5 min expiry)
+  bound to a Secure, HttpOnly, SameSite=Lax, host-only `__session` cookie
 - Custom token delivered via URL fragment (never sent to server in logs or Referer headers)
-- Firestore allowlist checked server-side during OAuth callback
+- Firestore allowlist checked during OAuth callback and protected API requests
 - `Cache-Control: private, no-store` on authenticated responses
 - Strava tokens stored server-side in Firestore (never exposed to frontend)
 

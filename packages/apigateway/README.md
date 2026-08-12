@@ -35,7 +35,7 @@ packages/apigateway/
 │   ├── activities/
 │   │   └── handler.go       # Activity endpoints (/activities/*)
 │   ├── auth/
-│   │   ├── handler.go       # Strava OAuth endpoints (/auth/strava, /auth/callback)
+│   │   ├── handler.go       # Strava OAuth endpoints (/auth/strava[/start], /auth/callback)
 │   │   ├── state.go         # CSRF state token (JWT) generation/validation
 │   │   ├── interfaces.go    # Port interfaces (StravaOAuthClient, TokenStore, etc.)
 │   │   └── types.go         # OAuth data types (token response, athlete profile)

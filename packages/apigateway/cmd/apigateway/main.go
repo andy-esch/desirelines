@@ -46,6 +46,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	otelmetric "go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
+	"google.golang.org/api/idtoken"
 )
 
 func main() {
@@ -167,6 +168,8 @@ func run(log *slog.Logger) error {
 		ReadTimeout:       cfg.ReadTimeout,
 		WriteTimeout:      cfg.WriteTimeout,
 		ReadHeaderTimeout: cfg.ReadHeaderTimeout,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    32 << 10,
 	}
 
 	// Error channel to capture server errors
@@ -203,6 +206,7 @@ func run(log *slog.Logger) error {
 type Dependencies struct {
 	repo             repository.ActivityRepository
 	authMiddleware   server.AuthMiddleware
+	readinessAuth    server.AuthMiddleware
 	corsHandler      *cors.Handler
 	sportConfig      *config.SportConfig
 	rateLimiter      *ratelimit.Limiter
@@ -283,6 +287,15 @@ func initDependencies(ctx context.Context, cfg *config.Config, log *slog.Logger,
 		return nil, fmt.Errorf("init CORS: %w", err)
 	}
 	deps.corsHandler = corsHandler
+
+	// The service is public for Firebase Hosting rewrites, but /ready performs
+	// a real Postgres probe and must not be an unauthenticated cost/DoS lever.
+	// Cloud Scheduler presents a Google-signed ID token; the middleware checks
+	// both its configured audience and the scheduler SA's immutable subject.
+	deps.readinessAuth, err = initReadinessAuth(ctx, cfg, log)
+	if err != nil {
+		return nil, err
+	}
 
 	// 4–7. Auth setup: Firebase (via emulator in local dev) + Strava (mock in local dev)
 	if cfg.Environment.IsLocal() && os.Getenv("FIREBASE_AUTH_EMULATOR_HOST") != "" {
@@ -383,6 +396,22 @@ func initDependencies(ctx context.Context, cfg *config.Config, log *slog.Logger,
 	return deps, nil
 }
 
+func initReadinessAuth(ctx context.Context, cfg *config.Config, log *slog.Logger) (server.AuthMiddleware, error) {
+	if cfg.Environment.IsLocal() {
+		return nil, nil
+	}
+	validator, err := idtoken.NewValidator(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("init readiness OIDC validator: %w", err)
+	}
+	return middleware.NewOIDCAuthMiddleware(
+		validator,
+		cfg.ReadinessAudience,
+		cfg.ReadinessCallerSubject,
+		log,
+	), nil
+}
+
 // buildRouter creates the HTTP router with all handlers wired up.
 func buildRouter(deps *Dependencies) http.Handler {
 	// Create feature handlers with their dependencies
@@ -401,6 +430,7 @@ func buildRouter(deps *Dependencies) http.Handler {
 	routerCfg := server.RouterConfig{
 		CORSHandler:           deps.corsHandler,
 		AuthMiddleware:        deps.authMiddleware,
+		ReadinessMiddleware:   deps.readinessAuth,
 		RateLimiter:           deps.rateLimiter,
 		AuthRateLimiter:       deps.authRateLimiter,
 		TileRateLimiter:       deps.tileRateLimiter,
@@ -409,24 +439,27 @@ func buildRouter(deps *Dependencies) http.Handler {
 	}
 
 	// Auth routes — authHandler may be nil if no auth is configured (no emulator, no env)
-	var authInitiate, authCallback http.HandlerFunc
+	var authInitiate, authInitiateStart, authCallback http.HandlerFunc
 	if deps.authHandler != nil {
 		authInitiate = deps.authHandler.HandleInitiate
+		authInitiateStart = deps.authHandler.HandleInitiateStart
 		authCallback = deps.authHandler.HandleCallback
 	} else {
 		noAuth := func(w http.ResponseWriter, _ *http.Request) {
 			http.Error(w, "OAuth not configured — set FIREBASE_AUTH_EMULATOR_HOST for local dev", http.StatusNotImplemented)
 		}
 		authInitiate = noAuth
+		authInitiateStart = noAuth
 		authCallback = noAuth
 	}
 
 	publicRoutes := server.PublicRoutes{
-		Health:       healthHandler.HandleLive,
-		Ready:        healthHandler.HandleReady,
-		SportConfig:  sportsHandler.HandleConfig,
-		AuthInitiate: authInitiate,
-		AuthCallback: authCallback,
+		Health:            healthHandler.HandleLive,
+		Ready:             healthHandler.HandleReady,
+		SportConfig:       sportsHandler.HandleConfig,
+		AuthInitiate:      authInitiate,
+		AuthInitiateStart: authInitiateStart,
+		AuthCallback:      authCallback,
 	}
 
 	authRoutes := server.AuthenticatedRoutes{
@@ -447,7 +480,7 @@ func buildRouter(deps *Dependencies) http.Handler {
 }
 
 // initAuthHandler creates the OAuth auth handler with all its dependencies.
-func initAuthHandler(cfg *config.Config, authClient auth.FirebaseAuthClient, firestoreClient *firestore.Client, log *slog.Logger, oauthHist otelmetric.Float64Histogram) (*auth.Handler, error) {
+func initAuthHandler(cfg *config.Config, authClient auth.FirebaseAuthClient, firestoreClient *firestore.Client, allowChecker allowlist.Checker, log *slog.Logger, oauthHist otelmetric.Float64Histogram) (*auth.Handler, error) {
 	// Load Strava OAuth credentials from Infisical mounts
 	stravaClientID, err := secrets.LoadFromMount(config.SecretPathStravaClientID, "STRAVA_CLIENT_ID")
 	if err != nil {
@@ -466,8 +499,6 @@ func initAuthHandler(cfg *config.Config, authClient auth.FirebaseAuthClient, fir
 
 	stravaOAuth := stravaadapter.NewOAuthClient(stravaClientID, stravaClientSecret, log, nil, oauthHist)
 	authStore := firestoreadapter.NewAuthStore(firestoreClient, log)
-	allowChecker := allowlist.NewFirestoreChecker(firestoreClient, log)
-
 	handler, err := auth.NewHandler(&auth.HandlerConfig{
 		Strava:       stravaOAuth,
 		Tokens:       authStore,
@@ -512,8 +543,6 @@ func initFirebaseAuth(ctx context.Context, cfg *config.Config, deps *Dependencie
 	}
 	log.Info("Firebase app initialized", "project_id", cfg.GCPProjectID)
 
-	deps.authMiddleware = middleware.NewAuthMiddleware(authClient, log, authHist, tracer)
-
 	firestoreClient, err := firestore.NewClientWithDatabase(ctx, cfg.GCPProjectID, cfg.FirestoreDatabase)
 	if err != nil {
 		return fmt.Errorf("failed to initialize Firestore client: %w", err)
@@ -521,7 +550,14 @@ func initFirebaseAuth(ctx context.Context, cfg *config.Config, deps *Dependencie
 	deps.firestoreClient = firestoreClient
 	log.Info("Firestore client initialized", "database", cfg.FirestoreDatabase)
 
-	authHandler, err := initAuthHandler(cfg, authClient, firestoreClient, log, oauthHist)
+	var allowChecker allowlist.Checker = allowlist.NewFirestoreChecker(firestoreClient, log)
+	if cfg.AllowlistCacheTTL > 0 {
+		allowChecker = allowlist.NewCachingChecker(allowChecker, cfg.AllowlistCacheTTL, 0)
+	}
+	log.Info("API allowlist cache configured", "ttl", cfg.AllowlistCacheTTL)
+	deps.authMiddleware = middleware.NewAuthMiddlewareWithAccessCheck(authClient, allowChecker, log, authHist, tracer)
+
+	authHandler, err := initAuthHandler(cfg, authClient, firestoreClient, allowChecker, log, oauthHist)
 	if err != nil {
 		return fmt.Errorf("failed to initialize auth handler: %w", err)
 	}
@@ -574,9 +610,6 @@ func initLocalDevAuth(ctx context.Context, cfg *config.Config, deps *Dependencie
 	}
 	log.Info("Firebase Auth emulator connected", "host", os.Getenv("FIREBASE_AUTH_EMULATOR_HOST"))
 
-	// Real auth middleware — verifies JWTs against the emulator
-	deps.authMiddleware = middleware.NewAuthMiddleware(authClient, log, authHist, tracer)
-
 	// Local dev signs the OAuth state JWT within this single process for one mock
 	// round-trip, so a provisioned secret isn't required here — fall back to an
 	// ephemeral random one (with a warning) rather than failing the boot. Prod and
@@ -610,6 +643,10 @@ func initLocalDevAuth(ctx context.Context, cfg *config.Config, deps *Dependencie
 	// Mock auth store + allowlist checker: always allows, discards token writes
 	mockStore := mockadapter.NewAuthStore(log)
 	mockAllowlist := mockadapter.NewAllowlistChecker(log)
+	// Exercise the same per-request authorization path locally. The mock checker
+	// always allows, but keeping it wired prevents local development from
+	// silently diverging from the production middleware chain.
+	deps.authMiddleware = middleware.NewAuthMiddlewareWithAccessCheck(authClient, mockAllowlist, log, authHist, tracer)
 
 	handler, err := auth.NewHandler(&auth.HandlerConfig{
 		Strava:      mockStrava,

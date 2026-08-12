@@ -2,9 +2,11 @@ package middleware
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"firebase.google.com/go/v4/auth"
 	"github.com/andy-esch/desirelines/packages/shared/apierrors"
@@ -21,6 +23,13 @@ type contextKey int
 const (
 	// userIDKey is the context key for the authenticated user's ID (Firebase UID).
 	userIDKey contextKey = iota
+	// Future context keys belong in this iota block. HTTP and timeout constants
+	// are declared separately below so adding a key cannot change their meaning.
+)
+
+const (
+	maxBearerTokenLength = 8 << 10
+	accessCheckTimeout   = 5 * time.Second
 )
 
 // WithUserID returns a copy of ctx with the given user ID set.
@@ -46,11 +55,20 @@ type TokenVerifier interface {
 	VerifyIDToken(ctx context.Context, idToken string) (*auth.Token, error)
 }
 
-// AuthMiddleware validates Firebase ID tokens and injects the user ID into
-// the request context. Access control is handled by the Firestore athlete ID
-// allowlist (checked during OAuth callback), not by this middleware.
+// AccessChecker verifies that an authenticated Firebase UID remains authorized
+// to use this environment. The Firestore athlete allowlist implements this
+// interface. Checking on every request makes allowlist removal/deauthorization
+// effective without waiting for an already-issued Firebase ID token to expire.
+// A composition-root cache may bound that change by a short positive TTL.
+type AccessChecker interface {
+	IsAllowed(ctx context.Context, userID string) (bool, error)
+}
+
+// AuthMiddleware validates Firebase ID tokens, optionally re-checks current
+// allowlist access, and injects the user ID into the request context.
 type AuthMiddleware struct {
 	verifier  TokenVerifier
+	access    AccessChecker
 	logger    *slog.Logger
 	histogram metric.Float64Histogram
 	tracer    otelTrace.Tracer
@@ -63,12 +81,25 @@ type AuthMiddleware struct {
 // Firebase token verification call. Pass nil to disable (span no-ops);
 // production callers thread providers.Tracer through from the OTel setup.
 func NewAuthMiddleware(verifier TokenVerifier, logger *slog.Logger, histogram metric.Float64Histogram, tracer otelTrace.Tracer) *AuthMiddleware {
+	return newAuthMiddleware(verifier, nil, logger, histogram, tracer)
+}
+
+// NewAuthMiddlewareWithAccessCheck creates authentication middleware that also
+// re-checks the user's current authorization after token verification. Production
+// and local composition roots should use this constructor; the shorter constructor
+// remains useful for focused verifier tests and examples.
+func NewAuthMiddlewareWithAccessCheck(verifier TokenVerifier, access AccessChecker, logger *slog.Logger, histogram metric.Float64Histogram, tracer otelTrace.Tracer) *AuthMiddleware {
+	return newAuthMiddleware(verifier, access, logger, histogram, tracer)
+}
+
+func newAuthMiddleware(verifier TokenVerifier, access AccessChecker, logger *slog.Logger, histogram metric.Float64Histogram, tracer otelTrace.Tracer) *AuthMiddleware {
 	if tracer == nil {
 		tracer = tracenoop.NewTracerProvider().Tracer("")
 	}
 	logger.Info("Auth middleware initialized successfully")
 	return &AuthMiddleware{
 		verifier:  verifier,
+		access:    access,
 		logger:    logger,
 		histogram: histogram,
 		tracer:    tracer,
@@ -97,12 +128,16 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		// empty/whitespace string to Firebase, which would 401 anyway after a
 		// network round-trip.
 		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || parts[0] != "Bearer" || strings.TrimSpace(parts[1]) == "" {
+		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || strings.TrimSpace(parts[1]) == "" {
 			m.rejectUnauthorized(w, r, "invalid_header_format")
 			return
 		}
 
 		idToken := parts[1]
+		if len(idToken) > maxBearerTokenLength {
+			m.rejectUnauthorized(w, r, "token_too_large")
+			return
+		}
 
 		// Verify the ID token with Firebase. Span captures user-perceived
 		// auth latency; histogram captures the time-series for alerting.
@@ -110,11 +145,34 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		ctx, spanDone := otel.StartSpan(r.Context(), m.tracer, "auth.verify_id_token")
 		done := otel.RecordDuration(ctx, m.histogram)
 		token, err := m.verifier.VerifyIDToken(ctx, idToken)
-		done(err)
-		spanDone(err)
-		if err != nil {
-			m.rejectUnauthorized(w, r, "token_verification_failed", "error", err)
+		verifyErr := err
+		if verifyErr == nil && (token == nil || token.UID == "") {
+			verifyErr = errors.New("verified token has no UID")
+		}
+		done(verifyErr)
+		spanDone(verifyErr)
+		if verifyErr != nil {
+			m.rejectUnauthorized(w, r, "token_verification_failed", "error", verifyErr)
 			return
+		}
+
+		if m.access != nil {
+			accessCtx, cancel := context.WithTimeout(r.Context(), accessCheckTimeout)
+			spanCtx, accessSpanDone := otel.StartSpan(accessCtx, m.tracer, "auth.check_access")
+			allowed, accessErr := m.access.IsAllowed(spanCtx, token.UID)
+			accessSpanDone(accessErr)
+			cancel()
+			if accessErr != nil {
+				m.logger.Error("Auth: Access check failed", "error", accessErr, "uid", token.UID)
+				apierrors.WriteCoded(w, r, m.logger, http.StatusServiceUnavailable,
+					"AUTHORIZATION_UNAVAILABLE", "Authorization temporarily unavailable", "access check failed")
+				return
+			}
+			if !allowed {
+				m.logger.Warn("Auth: User no longer authorized", "uid", token.UID)
+				apierrors.WriteError(w, r, apierrors.ErrForbidden, m.logger)
+				return
+			}
 		}
 
 		// Token verified — inject UID into context and proceed. We base
@@ -140,5 +198,6 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 // response. Callers must return immediately after invoking it.
 func (m *AuthMiddleware) rejectUnauthorized(w http.ResponseWriter, r *http.Request, reason string, attrs ...any) {
 	m.logger.Warn("Auth: Authentication failed", append([]any{"reason", reason}, attrs...)...)
+	w.Header().Set("WWW-Authenticate", "Bearer")
 	apierrors.WriteError(w, r, apierrors.ErrUnauthorized, m.logger)
 }

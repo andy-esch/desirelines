@@ -86,6 +86,38 @@ func TestStateMalformed(t *testing.T) {
 	}
 }
 
+func TestStateRejectsUnexpectedHMACAlgorithm(t *testing.T) {
+	secret := []byte("test-secret-key-32-bytes-long!!!")
+	claims := jwt.RegisteredClaims{
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute)),
+		IssuedAt:  jwt.NewNumericDate(time.Now()),
+		ID:        "nonce",
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS512, claims)
+	signed, err := token.SignedString(secret)
+	if err != nil {
+		t.Fatalf("failed to sign HS512 state: %v", err)
+	}
+
+	if validateErr := validateState(signed, secret); validateErr == nil {
+		t.Error("validateState() accepted HS512 even though the service only signs HS256")
+	}
+}
+
+func TestStateRequiresExpiryAndNonce(t *testing.T) {
+	secret := []byte("test-secret-key-32-bytes-long!!!")
+	claims := jwt.RegisteredClaims{IssuedAt: jwt.NewNumericDate(time.Now())}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	signed, err := token.SignedString(secret)
+	if err != nil {
+		t.Fatalf("failed to sign incomplete state: %v", err)
+	}
+
+	if validateErr := validateState(signed, secret); validateErr == nil {
+		t.Error("validateState() accepted state without expiry and nonce")
+	}
+}
+
 func TestStateUniqueNonces(t *testing.T) {
 	secret := []byte("test-secret-key-32-bytes-long!!!")
 

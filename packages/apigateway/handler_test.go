@@ -166,11 +166,12 @@ func newTestRouterWithDB(activityRepo repository.ActivityRepository, allowedOrig
 
 	noopHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
 	publicRoutes := server.PublicRoutes{
-		Health:       healthHandler.HandleLive,
-		Ready:        healthHandler.HandleReady,
-		SportConfig:  sportsHandler.HandleConfig,
-		AuthInitiate: noopHandler,
-		AuthCallback: noopHandler,
+		Health:            healthHandler.HandleLive,
+		Ready:             healthHandler.HandleReady,
+		SportConfig:       sportsHandler.HandleConfig,
+		AuthInitiate:      noopHandler,
+		AuthInitiateStart: noopHandler,
+		AuthCallback:      noopHandler,
 	}
 
 	authRoutes := server.AuthenticatedRoutes{
@@ -225,7 +226,7 @@ func TestTileRateLimitScopingAndCORS(t *testing.T) {
 		GetMapTile: ok, GetMapRegions: ok, GetMapDataset: ok,
 		ListActivities: ok, GetActivityByID: ok,
 	}
-	publicRoutes := server.PublicRoutes{Health: ok, Ready: ok, SportConfig: ok, AuthInitiate: ok, AuthCallback: ok}
+	publicRoutes := server.PublicRoutes{Health: ok, Ready: ok, SportConfig: ok, AuthInitiate: ok, AuthInitiateStart: ok, AuthCallback: ok}
 	router := server.NewRouter(routerCfg, publicRoutes, authRoutes, logger)
 
 	send := func(path string) *httptest.ResponseRecorder {

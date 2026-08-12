@@ -1,9 +1,11 @@
 // Package allowlist provides shared interfaces and Firestore-backed
 // implementations for athlete-allowlist enforcement across services.
 //
-// The apigateway uses Checker during the OAuth callback to gate token
-// storage. The dispatcher uses it to drop stray webhook events for athletes
-// who hold a Strava OAuth grant but are not allowlisted in this environment.
+// The apigateway uses Checker during the OAuth callback to gate token storage
+// and on every authenticated API request so removal takes effect within the
+// apigateway's configured short positive-cache TTL.
+// The dispatcher uses it to drop stray webhook events for athletes who hold a
+// Strava OAuth grant but are not allowlisted in this environment.
 package allowlist
 
 import (

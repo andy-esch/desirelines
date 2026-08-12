@@ -14,7 +14,7 @@ All run on Cloud Run. Console → Cloud Run → the service name.
 
 | Service | Does |
 |---|---|
-| `desirelines-apigateway` | Go HTTP API. Serves `/v1/*` to the frontend. |
+| `desirelines-api-gateway` | Go HTTP API. Serves `/v1/*` to the frontend. |
 | `desirelines-dispatcher` | Go webhook receiver. Takes Strava `POST /webhook`, publishes to Pub/Sub. |
 | `desirelines-postgres-writer` | Python. Consumes activity events, writes Postgres. |
 | `desirelines-deletion-service` | Python. Handles activity/user deletion. |
@@ -26,7 +26,11 @@ The frontend is Firebase Hosting; the API is reached through a Hosting rewrite
 
 - `https://<hosting-domain>/` — frontend
 - `https://<hosting-domain>/api/health` — liveness (process up)
-- `https://<hosting-domain>/api/ready` — readiness (dependencies reachable)
+- `https://desirelines-api-gateway-<project-number>.<region>.run.app/api/ready` — deep
+  readiness (dependencies reachable); operational only, authenticated by the
+  hourly Cloud Scheduler OIDC token. This direct probe deliberately bypasses
+  Hosting; the separate `/api/health` uptime check above still exercises the
+  Firebase Hosting rewrite.
 - `https://<hosting-domain>/api/v1/...` — application API
 
 Health vs readiness matters during triage: health passing while readiness fails

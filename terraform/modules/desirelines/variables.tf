@@ -182,6 +182,10 @@ variable "app_config" {
     log_level         = string
     frontend_url      = optional(string, "")
     auth_callback_url = optional(string, "")
+    # Positive-only API authorization cache. Short by design: this turns a map
+    # tile burst into one Firestore read while bounding allowlist revocation
+    # staleness. "0" disables it for incident diagnosis.
+    api_allowlist_cache_ttl = optional(string, "30s")
     # Dispatcher Firestore-lookup cache TTLs (Go duration strings, e.g. "5m").
     # "0" disables the respective cache — the incident kill switch for a suspected
     # staleness bug, settable via GitOps with no code change.

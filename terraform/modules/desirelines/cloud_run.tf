@@ -298,6 +298,27 @@ resource "google_cloud_run_v2_service" "api_gateway" {
         value = google_firestore_database.user_configs.name
       }
 
+      # Positive-only authorization cache for the per-request allowlist check.
+      # Keep this short: it coalesces map-tile bursts while bounding how long a
+      # removed athlete can continue using an already-issued Firebase ID token.
+      env {
+        name  = "API_ALLOWLIST_CACHE_TTL"
+        value = var.app_config.api_allowlist_cache_ttl
+      }
+
+      # /api/ready performs a real Postgres probe. The service must remain
+      # public for Firebase Hosting, so the application validates a Google-signed
+      # Cloud Scheduler OIDC token and pins its audience and immutable SA subject.
+      env {
+        name  = "READINESS_AUDIENCE"
+        value = local.apigateway_readiness_uri
+      }
+
+      env {
+        name  = "READINESS_CALLER_SUBJECT"
+        value = google_service_account.scheduler.unique_id
+      }
+
       # Startup probe hits /api/health (process-alive only, no DB ping). A deep
       # probe against /api/ready would wake Neon's compute on every cold start
       # for the full 5-min idle window — burns the free-tier CU-hour budget.
@@ -312,12 +333,6 @@ resource "google_cloud_run_v2_service" "api_gateway" {
         failure_threshold     = 3
       }
 
-      # Mount allowed emails as secret volume (PII - not exposed as env var)
-      volume_mounts {
-        name       = "infisical-allowed-emails"
-        mount_path = "/etc/secrets/INFISICAL_ALLOWED_EMAILS"
-      }
-
       # Mount PostgreSQL secrets as volume (read-only apigateway role)
       volume_mounts {
         name       = "infisical-postgres-conn-apigateway"
@@ -330,19 +345,6 @@ resource "google_cloud_run_v2_service" "api_gateway" {
         content {
           name       = lower(replace(volume_mounts.key, "_", "-"))
           mount_path = "/etc/secrets/${volume_mounts.key}"
-        }
-      }
-    }
-
-    volumes {
-      name = "infisical-allowed-emails"
-      secret {
-        secret       = google_secret_manager_secret.allowed_emails.secret_id
-        default_mode = 292 # 0444 in octal (read-only)
-        items {
-          version = "latest"
-          path    = "value"
-          mode    = 292 # 0444
         }
       }
     }
@@ -385,7 +387,6 @@ resource "google_cloud_run_v2_service" "api_gateway" {
   }
 
   depends_on = [
-    google_secret_manager_secret_iam_member.api_gateway_allowed_emails_access,
     google_secret_manager_secret_iam_member.api_gateway_postgres_access,
     google_secret_manager_secret_iam_member.api_gateway_strava_oauth_secrets,
     google_service_account_iam_member.api_gateway_token_creator,

@@ -26,12 +26,15 @@ type AuthMiddleware interface {
 
 // RouterConfig holds the dependencies needed to configure routes.
 type RouterConfig struct {
-	CORSHandler     *cors.Handler
-	AuthMiddleware  AuthMiddleware
-	RateLimiter     *ratelimit.Limiter
-	AuthRateLimiter *ratelimit.Limiter // applied only to /auth/*
-	TileRateLimiter *ratelimit.Limiter // applied only to the bursty MVT tile route
-	HTTPHistogram   metric.Float64Histogram
+	CORSHandler    *cors.Handler
+	AuthMiddleware AuthMiddleware
+	// ReadinessMiddleware protects the DB-touching /ready endpoint with
+	// service-to-service OIDC. It may be nil only in local development/tests.
+	ReadinessMiddleware AuthMiddleware
+	RateLimiter         *ratelimit.Limiter
+	AuthRateLimiter     *ratelimit.Limiter // applied only to /auth/*
+	TileRateLimiter     *ratelimit.Limiter // applied only to the bursty MVT tile route
+	HTTPHistogram       metric.Float64Histogram
 
 	// EnableSyntheticFaults gates the synthetic-fault routes in
 	// `internal/synthetic` — when true, `/v1/__synthetic_fault__` is
@@ -44,11 +47,12 @@ type RouterConfig struct {
 
 // PublicRoutes are registered without authentication.
 type PublicRoutes struct {
-	Health       http.HandlerFunc
-	Ready        http.HandlerFunc
-	SportConfig  http.HandlerFunc
-	AuthInitiate http.HandlerFunc // GET /auth/strava
-	AuthCallback http.HandlerFunc // GET /auth/callback
+	Health            http.HandlerFunc
+	Ready             http.HandlerFunc
+	SportConfig       http.HandlerFunc
+	AuthInitiate      http.HandlerFunc // GET /auth/strava (canonical-host redirect)
+	AuthInitiateStart http.HandlerFunc // GET /auth/strava/start (state minting)
+	AuthCallback      http.HandlerFunc // GET /auth/callback
 }
 
 // AuthenticatedRoutes are registered with authentication middleware.
@@ -113,7 +117,6 @@ func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, 
 	//
 	//  1. CloudRunRealIP must precede the limiter — the limiter keys per-IP
 	//     buckets off r.RemoteAddr and would otherwise bucket every request from
-	//     Cloud Run's front end together.
 	//  2. SecurityHeaders + CORS must precede the limiter, so a global 429 carries
 	//     Access-Control-Allow-Origin and a browser can actually read it (and the
 	//     Retry-After the limiter computes). Registered after, the response is
@@ -153,16 +156,26 @@ func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, 
 
 	// Root-level endpoints (health checks)
 	r.Get("/health", public.Health)
-	r.Get("/ready", public.Ready)
+	if cfg.ReadinessMiddleware != nil {
+		// Keep auth failures and dependency results out of intermediary/browser
+		// caches. NoCacheHeaders must wrap the OIDC check to cover its 401s.
+		r.With(NoCacheHeaders, cfg.ReadinessMiddleware.Middleware).Get("/ready", public.Ready)
+	} else {
+		r.Get("/ready", public.Ready)
+	}
 
 	// Auth routes get a stricter per-IP rate limiter on top of the global one.
 	// This is defense-in-depth on the most expensive-per-call endpoints in the
 	// API (Strava API + Firestore + Firebase custom-token mint).
 	r.Route("/auth", func(r chi.Router) {
+		// OAuth redirects carry state and, on completion, a custom token in the
+		// URL fragment. Prevent browsers/intermediaries caching any flow response.
+		r.Use(NoCacheHeaders)
 		if cfg.AuthRateLimiter != nil {
 			r.Use(cfg.AuthRateLimiter.Middleware)
 		}
 		r.Get("/strava", public.AuthInitiate)
+		r.Get("/strava/start", public.AuthInitiateStart)
 		r.Get("/callback", public.AuthCallback)
 	})
 
@@ -173,8 +186,10 @@ func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, 
 
 		// Authenticated route group
 		r.Group(func(r chi.Router) {
-			r.Use(cfg.AuthMiddleware.Middleware)
+			// no-store must wrap auth so 401/403/503 responses are not cacheable
+			// either; chi executes Use-registered middleware outermost-first.
 			r.Use(NoCacheHeaders)
+			r.Use(cfg.AuthMiddleware.Middleware)
 
 			// Multi-sport endpoints (PostgreSQL backed)
 			r.Get("/activities/{year}/metadata", auth.GetMetadata)

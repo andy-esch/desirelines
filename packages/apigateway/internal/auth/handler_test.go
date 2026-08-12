@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
 	"strings"
@@ -99,20 +100,32 @@ func newTestHandler(
 ) *Handler {
 	t.Helper()
 	h, err := NewHandler(&HandlerConfig{
-		Strava:      strava,
-		Tokens:      tokens,
-		Allowlist:   allow,
-		Firebase:    firebase,
-		StateSecret: []byte("test-secret-key-32-bytes-long!!!"),
-		FrontendURL: "https://app.example.com",
-		ClientID:    "test-client-id",
-		RedirectURI: "https://api.example.com/auth/callback",
-		Logger:      gcplog.NewNoOpLogger(),
+		Strava:       strava,
+		Tokens:       tokens,
+		Allowlist:    allow,
+		Firebase:     firebase,
+		StateSecret:  []byte("test-secret-key-32-bytes-long!!!"),
+		FrontendURL:  "https://app.example.com",
+		ClientID:     "test-client-id",
+		RedirectURI:  "https://api.example.com/auth/callback",
+		RequireHTTPS: true,
+		Logger:       gcplog.NewNoOpLogger(),
 	})
 	if err != nil {
 		t.Fatalf("newTestHandler: %v", err)
 	}
 	return h
+}
+
+func addStateCookie(req *http.Request, h *Handler, value string) {
+	req.AddCookie(&http.Cookie{
+		Name:     h.stateCookie,
+		Value:    value,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	})
 }
 
 // --- NewHandler validation tests ---
@@ -165,9 +178,16 @@ func TestNewHandler_URLValidation(t *testing.T) {
 	}
 }
 
+func TestNewHandler_RejectsShortStateSecret(t *testing.T) {
+	_, err := NewHandler(&HandlerConfig{StateSecret: []byte("too-short")})
+	if err == nil || !strings.Contains(err.Error(), "at least 32 bytes") {
+		t.Fatalf("NewHandler() error = %v, want minimum state-secret length rejection", err)
+	}
+}
+
 // --- HandleInitiate tests ---
 
-func TestHandleInitiate(t *testing.T) {
+func TestHandleInitiate_CanonicalizesHostingAlias(t *testing.T) {
 	h := newTestHandler(t,
 		&mockStravaOAuth{},
 		&mockTokenStore{},
@@ -175,10 +195,33 @@ func TestHandleInitiate(t *testing.T) {
 		&mockFirebase{},
 	)
 
-	req := httptest.NewRequest(http.MethodGet, "/auth/strava", nil)
+	req := httptest.NewRequest(http.MethodGet, "https://alias.example.com/api/auth/strava", nil)
+	w := httptest.NewRecorder()
+	h.HandleInitiate(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302", w.Code)
+	}
+	if got, want := w.Header().Get("Location"), "https://api.example.com/auth/strava/start"; got != want {
+		t.Errorf("Location = %q, want canonical callback-origin URL %q", got, want)
+	}
+	if got := w.Header().Values("Set-Cookie"); len(got) != 0 {
+		t.Errorf("alias redirect unexpectedly minted state cookie: %v", got)
+	}
+}
+
+func TestHandleInitiateStart(t *testing.T) {
+	h := newTestHandler(t,
+		&mockStravaOAuth{},
+		&mockTokenStore{},
+		&mockAllowlist{},
+		&mockFirebase{},
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/auth/strava/start", nil)
 	w := httptest.NewRecorder()
 
-	h.HandleInitiate(w, req)
+	h.HandleInitiateStart(w, req)
 
 	if w.Code != http.StatusFound {
 		t.Fatalf("expected status %d, got %d", http.StatusFound, w.Code)
@@ -214,11 +257,23 @@ func TestHandleInitiate(t *testing.T) {
 	if query.Get("state") == "" {
 		t.Error("expected non-empty state parameter")
 	}
+
+	cookies := w.Result().Cookies()
+	if len(cookies) != 1 {
+		t.Fatalf("expected one OAuth state cookie, got %d", len(cookies))
+	}
+	stateCookie := cookies[0]
+	if stateCookie.Name != stateCookieName || stateCookie.Value != query.Get(paramState) {
+		t.Errorf("state cookie = %q/%q, want %q/query state", stateCookie.Name, stateCookie.Value, stateCookieName)
+	}
+	if !stateCookie.HttpOnly || !stateCookie.Secure || stateCookie.SameSite != http.SameSiteLaxMode || stateCookie.Path != "/" {
+		t.Errorf("state cookie security attributes not hardened: %+v", stateCookie)
+	}
 }
 
-func TestHandleInitiate_MergesExistingQueryParams(t *testing.T) {
+func TestHandleInitiateStart_MergesExistingQueryParams(t *testing.T) {
 	// When AuthorizeURL() returns a URL with existing query params (like the mock
-	// adapter's "?code=mock-dev-code"), HandleInitiate must merge its own params
+	// adapter's "?code=mock-dev-code"), HandleInitiateStart must merge its params
 	// without dropping the existing ones.
 	callbackURL := "http://localhost:8084/auth/callback?code=mock-dev-code"
 	h := newTestHandler(t,
@@ -228,10 +283,10 @@ func TestHandleInitiate_MergesExistingQueryParams(t *testing.T) {
 		&mockFirebase{},
 	)
 
-	req := httptest.NewRequest(http.MethodGet, "/auth/strava", nil)
+	req := httptest.NewRequest(http.MethodGet, "/auth/strava/start", nil)
 	w := httptest.NewRecorder()
 
-	h.HandleInitiate(w, req)
+	h.HandleInitiateStart(w, req)
 
 	if w.Code != http.StatusFound {
 		t.Fatalf("expected status %d, got %d", http.StatusFound, w.Code)
@@ -274,6 +329,80 @@ func TestHandleInitiate_MergesExistingQueryParams(t *testing.T) {
 
 	if query.Get("state") == "" {
 		t.Error("expected non-empty state parameter")
+	}
+}
+
+// TestFirebaseHostingStateCookieRoundTrip models Hosting's documented cookie
+// transport: rewritten responses/requests retain only the reserved __session
+// cookie. The browser jar, rather than a test-authored AddCookie call, carries
+// the handler's Set-Cookie into the callback. This would fail with the former
+// __Host-desirelines_oauth_state name even though the direct handler tests pass.
+func TestFirebaseHostingStateCookieRoundTrip(t *testing.T) {
+	strava := &mockStravaOAuth{err: errors.New("expected exchange stop")}
+	h, err := NewHandler(&HandlerConfig{
+		Strava:      strava,
+		Tokens:      &mockTokenStore{},
+		Allowlist:   &mockAllowlist{},
+		Firebase:    &mockFirebase{},
+		StateSecret: []byte("test-secret-key-32-bytes-long!!!"),
+		FrontendURL: "http://frontend.example",
+		ClientID:    "test-client-id",
+		RedirectURI: "http://canonical.example/api/auth/callback",
+		Logger:      gcplog.NewNoOpLogger(),
+	})
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+
+	startURL, err := url.Parse("http://canonical.example/api/auth/strava/start")
+	if err != nil {
+		t.Fatalf("parse start URL: %v", err)
+	}
+	startReq := httptest.NewRequest(http.MethodGet, startURL.String(), nil)
+	startW := httptest.NewRecorder()
+	h.HandleInitiateStart(startW, startReq)
+
+	stravaRedirect, err := url.Parse(startW.Header().Get("Location"))
+	if err != nil {
+		t.Fatalf("parse Strava redirect: %v", err)
+	}
+	state := stravaRedirect.Query().Get(paramState)
+	if state == "" {
+		t.Fatal("state missing from Strava redirect")
+	}
+
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		t.Fatalf("cookiejar.New: %v", err)
+	}
+	var hostingForwarded []*http.Cookie
+	for _, cookie := range startW.Result().Cookies() {
+		if cookie.Name == "__session" {
+			hostingForwarded = append(hostingForwarded, cookie)
+		}
+	}
+	jar.SetCookies(startURL, hostingForwarded)
+
+	callbackURL, err := url.Parse("http://canonical.example/api/auth/callback?code=auth-code&state=" + url.QueryEscape(state))
+	if err != nil {
+		t.Fatalf("parse callback URL: %v", err)
+	}
+	callbackReq := httptest.NewRequest(http.MethodGet, callbackURL.String(), nil)
+	// Model Hosting's request-side filter as well: only __session reaches the
+	// rewritten Cloud Run request.
+	for _, cookie := range jar.Cookies(callbackURL) {
+		if cookie.Name == "__session" {
+			callbackReq.AddCookie(cookie)
+		}
+	}
+	callbackW := httptest.NewRecorder()
+	h.HandleCallback(callbackW, callbackReq)
+
+	if got := callbackW.Header().Get("Location"); !strings.Contains(got, "error=exchange_failed") {
+		t.Fatalf("callback Location = %q, want exchange_failed (state cookie survived Hosting)", got)
+	}
+	if strava.calledWith != "auth-code" {
+		t.Errorf("ExchangeCode called with %q, want auth-code", strava.calledWith)
 	}
 }
 
@@ -345,6 +474,8 @@ func TestHandleCallback(t *testing.T) {
 		firebase     *mockFirebase
 		wantStatus   int
 		wantLocation string // substring match
+		omitCookie   bool
+		cookieValue  string
 	}{
 		{
 			name:         "happy path (scope in JSON)",
@@ -414,13 +545,46 @@ func TestHandleCallback(t *testing.T) {
 		},
 		{
 			name:         "user denied access",
-			query:        "error=access_denied",
+			query:        "error=access_denied&state=" + validState,
 			strava:       &mockStravaOAuth{},
 			tokens:       &mockTokenStore{},
 			allowlist:    &mockAllowlist{},
 			firebase:     &mockFirebase{},
 			wantStatus:   http.StatusFound,
 			wantLocation: "/auth/error?error=access_denied",
+		},
+		{
+			name:         "valid signed state without browser cookie",
+			query:        "code=auth-code&state=" + validState,
+			strava:       &mockStravaOAuth{},
+			tokens:       &mockTokenStore{},
+			allowlist:    &mockAllowlist{},
+			firebase:     &mockFirebase{},
+			wantStatus:   http.StatusFound,
+			wantLocation: "/auth/error?error=invalid_state",
+			omitCookie:   true,
+		},
+		{
+			name:         "valid signed state with mismatched browser cookie",
+			query:        "code=auth-code&state=" + validState,
+			strava:       &mockStravaOAuth{},
+			tokens:       &mockTokenStore{},
+			allowlist:    &mockAllowlist{},
+			firebase:     &mockFirebase{},
+			wantStatus:   http.StatusFound,
+			wantLocation: "/auth/error?error=invalid_state",
+			cookieValue:  "attacker-state",
+		},
+		{
+			name:         "error callback without browser cookie",
+			query:        "error=access_denied&state=" + validState,
+			strava:       &mockStravaOAuth{},
+			tokens:       &mockTokenStore{},
+			allowlist:    &mockAllowlist{},
+			firebase:     &mockFirebase{},
+			wantStatus:   http.StatusFound,
+			wantLocation: "/auth/error?error=invalid_state",
+			omitCookie:   true,
 		},
 		{
 			name:         "invalid state",
@@ -519,6 +683,13 @@ func TestHandleCallback(t *testing.T) {
 			h := newTestHandler(t, tt.strava, tt.tokens, tt.allowlist, tt.firebase)
 
 			req := httptest.NewRequest(http.MethodGet, "/auth/callback?"+tt.query, nil)
+			if !tt.omitCookie {
+				cookieValue := tt.cookieValue
+				if cookieValue == "" {
+					cookieValue = req.URL.Query().Get(paramState)
+				}
+				addStateCookie(req, h, cookieValue)
+			}
 			w := httptest.NewRecorder()
 
 			h.HandleCallback(w, req)
@@ -581,6 +752,7 @@ func TestValidateScope_AcceptsBothCommaAndSpaceSeparated(t *testing.T) {
 			// path so the JSON value is the only signal exercised.
 			req := httptest.NewRequest(http.MethodGet,
 				"/auth/callback?code=auth-code&state="+validState, nil)
+			addStateCookie(req, h, validState)
 			w := httptest.NewRecorder()
 			h.HandleCallback(w, req)
 
@@ -630,6 +802,7 @@ func TestHandleCallback_HappyPathVerifiesArguments(t *testing.T) {
 	h := newTestHandler(t, stravaMock, tokensMock, allowlistMock, firebaseMock)
 
 	req := httptest.NewRequest(http.MethodGet, "/auth/callback?code=the-code&state="+validState, nil)
+	addStateCookie(req, h, validState)
 	w := httptest.NewRecorder()
 	h.HandleCallback(w, req)
 

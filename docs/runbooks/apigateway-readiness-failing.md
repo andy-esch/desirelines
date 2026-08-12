@@ -29,7 +29,10 @@ health) checks dependencies, so this usually means Postgres is unreachable.
 **Quick mitigations**:
 
 - Check Neon first — a suspended compute is the common case.
-- Test the endpoint directly: `curl https://<hosting-domain>/api/ready`.
+- Trigger the authenticated job with
+  `gcloud scheduler jobs run desirelines-<environment>-apigateway-readiness --location=<region> --project=<project-id>`,
+  then inspect the job result and API Gateway logs. A direct unauthenticated
+  `curl` should return `401` and deliberately does not test PostgreSQL.
 
 **If still stuck**: cross-check `python-readiness-failing.md`. Concurrent
 failures across apigateway and postgres-writer indicate a shared Neon outage

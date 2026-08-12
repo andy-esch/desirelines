@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
@@ -93,9 +94,10 @@ func TestExchangeCode_HappyPath(t *testing.T) {
 }
 
 func TestExchangeCode_ErrorStatus(t *testing.T) {
+	const secretCanary = "authorization-code-must-not-reach-logs"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
-		writeJSON(t, w, `{"message":"Bad Request"}`)
+		writeJSON(t, w, `{"message":"Bad Request","code":"`+secretCanary+`"}`)
 	}))
 	defer server.Close()
 
@@ -103,6 +105,9 @@ func TestExchangeCode_ErrorStatus(t *testing.T) {
 	_, err := client.ExchangeCode(context.Background(), "bad-code")
 	if err == nil {
 		t.Fatal("ExchangeCode() expected error for 400 status, got nil")
+	}
+	if strings.Contains(err.Error(), secretCanary) {
+		t.Errorf("ExchangeCode() leaked upstream OAuth response body: %v", err)
 	}
 }
 

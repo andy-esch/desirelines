@@ -5,9 +5,11 @@
 // The primary middleware is [AuthMiddleware], which validates Firebase ID tokens
 // and injects the authenticated user's ID into the request context.
 //
-// Create the middleware with [NewAuthMiddleware]:
+// Production creates the middleware with [NewAuthMiddlewareWithAccessCheck] so
+// removing an athlete from the Firestore allowlist takes effect no later than
+// the configured short positive-cache TTL:
 //
-//	auth := middleware.NewAuthMiddleware(authClient, logger)
+//	auth := middleware.NewAuthMiddlewareWithAccessCheck(authClient, allowlist, logger, histogram, tracer)
 //
 // Apply it to protected routes:
 //
@@ -32,7 +34,8 @@
 //
 //  1. Extract Bearer token from Authorization header
 //  2. Verify token with Firebase Admin SDK
-//  3. Inject UID into request context
+//  3. Re-check the athlete allowlist (when configured)
+//  4. Inject UID into request context
 //
 // # Failure Reason Codes
 //
@@ -40,6 +43,7 @@
 //
 //   - missing_header: No Authorization header present
 //   - invalid_header_format: Header not in "Bearer <token>" format
+//   - token_too_large: Bearer token exceeded the accepted size bound
 //   - token_verification_failed: Firebase rejected the token
 //
 // These codes enable log aggregation and alerting on authentication issues.

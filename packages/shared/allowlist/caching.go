@@ -10,8 +10,8 @@ import (
 )
 
 // DefaultCacheMaxEntries bounds the cache's memory. Keys are athlete IDs, so
-// cardinality is the user count — 1 today, and this survives four orders of
-// magnitude of growth before evicting. Sized as a ceiling against a key-explosion
+// cardinality is the user count, and 10,000 leaves ample room for a multi-user
+// deployment before evicting. Sized as a ceiling against a key-explosion
 // bug (an unexpected id shape), not as a tuning knob.
 const DefaultCacheMaxEntries = 10_000
 
@@ -22,13 +22,12 @@ const DefaultCacheMaxEntries = 10_000
 // where the Firestore round-trip is ~45ms of serial time before Strava can even
 // be called.
 //
-// NOT a blanket win. The apigateway deliberately does not use this: its only
-// IsAllowed call gates the OAuth callback, which runs once per sign-in. Caching
-// there would buy nothing measurable while widening the window in which a
-// just-revoked athlete could complete a sign-in. Cache where the read repeats,
-// not everywhere the interface appears.
+// NOT a blanket win. Callers choose a TTL based on their revocation contract:
+// the dispatcher uses a longer cache with explicit deauth invalidation, while
+// the apigateway uses a short cache because every authenticated request (and a
+// burst of map tiles) re-checks the same stable positive decision.
 //
-// Only positive AND negative decisions are cached; errors never are (see IsAllowed).
+// Only positive decisions are cached; negatives and errors never are (see IsAllowed).
 //
 // Errors from the inner Checker are returned VERBATIM, never wrapped. The Checker
 // contract makes callers branch on them (fail-closed → 500 → Strava retries), and

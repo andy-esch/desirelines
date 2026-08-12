@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"firebase.google.com/go/v4/auth"
@@ -18,6 +19,17 @@ type MockTokenVerifier struct {
 	VerifyErr error
 	Token     *auth.Token
 	Called    bool
+}
+
+type MockAccessChecker struct {
+	Allowed    bool
+	Err        error
+	CalledWith string
+}
+
+func (m *MockAccessChecker) IsAllowed(_ context.Context, userID string) (bool, error) {
+	m.CalledWith = userID
+	return m.Allowed, m.Err
 }
 
 func (m *MockTokenVerifier) VerifyIDToken(ctx context.Context, idToken string) (*auth.Token, error) {
@@ -124,6 +136,89 @@ func TestAuthMiddleware_BlankTokenNotSentToFirebase(t *testing.T) {
 	}
 	if verifier.Called {
 		t.Error("VerifyIDToken was called with a blank token — must be rejected before reaching Firebase")
+	}
+}
+
+func TestAuthMiddleware_RejectsOversizedTokenBeforeFirebase(t *testing.T) {
+	logger := gcplog.NewNoOpLogger()
+	verifier := &MockTokenVerifier{}
+	am := NewAuthMiddleware(verifier, logger, nil, nil)
+	handler := am.Middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer "+strings.Repeat("a", maxBearerTokenLength+1))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", w.Code)
+	}
+	if verifier.Called {
+		t.Error("VerifyIDToken was called with an oversized token")
+	}
+}
+
+func TestAuthMiddleware_AccessCheck(t *testing.T) {
+	logger := gcplog.NewNoOpLogger()
+	verifier := &MockTokenVerifier{Token: &auth.Token{UID: "12345"}}
+
+	tests := []struct {
+		name       string
+		checker    *MockAccessChecker
+		wantStatus int
+		wantNext   bool
+	}{
+		{"currently allowlisted", &MockAccessChecker{Allowed: true}, http.StatusOK, true},
+		{"removed from allowlist", &MockAccessChecker{Allowed: false}, http.StatusForbidden, false},
+		{"allowlist backend unavailable", &MockAccessChecker{Err: errors.New("firestore down")}, http.StatusServiceUnavailable, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nextCalled := false
+			am := NewAuthMiddlewareWithAccessCheck(verifier, tt.checker, logger, nil, nil)
+			handler := am.Middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				nextCalled = true
+				w.WriteHeader(http.StatusOK)
+			}))
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.Header.Set("Authorization", "Bearer valid-token")
+			w := httptest.NewRecorder()
+
+			handler.ServeHTTP(w, req)
+
+			if w.Code != tt.wantStatus {
+				t.Errorf("status = %d, want %d", w.Code, tt.wantStatus)
+			}
+			if nextCalled != tt.wantNext {
+				t.Errorf("nextCalled = %v, want %v", nextCalled, tt.wantNext)
+			}
+			if tt.checker.CalledWith != "12345" {
+				t.Errorf("access checker UID = %q, want 12345", tt.checker.CalledWith)
+			}
+		})
+	}
+}
+
+func TestAuthMiddleware_RejectsMalformedVerifiedToken(t *testing.T) {
+	logger := gcplog.NewNoOpLogger()
+	verifier := &MockTokenVerifier{}
+	am := NewAuthMiddleware(verifier, logger, nil, nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer valid-looking-token")
+	w := httptest.NewRecorder()
+
+	am.Middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})).ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", w.Code)
+	}
+	if got := w.Header().Get("WWW-Authenticate"); got != "Bearer" {
+		t.Errorf("WWW-Authenticate = %q, want Bearer", got)
 	}
 }
 

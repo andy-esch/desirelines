@@ -68,6 +68,32 @@ func TestNewHandler(t *testing.T) {
 	})
 }
 
+func TestNewHandler_RejectsMalformedOrUnsafeOrigins(t *testing.T) {
+	logger := slog.Default()
+	origins := []string{
+		"*",
+		"null",
+		"http://example.com",
+		"https://example.com/path",
+		"https://user@example.com",
+		"https://example.com?query=1",
+		"ftp://example.com",
+	}
+	for _, origin := range origins {
+		if h, err := NewHandler([]string{origin}, logger, false); err == nil || h != nil {
+			t.Errorf("NewHandler(%q) = (%+v, %v), want validation error", origin, h, err)
+		}
+	}
+}
+
+func TestNewHandler_AcceptsLoopbackHTTPDevelopmentOrigins(t *testing.T) {
+	logger := slog.Default()
+	origins := []string{"http://localhost:5173", "http://127.0.0.1:8080", "http://[::1]:3000"}
+	if _, err := NewHandler(origins, logger, true); err != nil {
+		t.Fatalf("NewHandler rejected loopback origins: %v", err)
+	}
+}
+
 func TestHandler_SetHeaders(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -276,18 +302,8 @@ func TestHandler_SecurityCases(t *testing.T) {
 
 	t.Run("wildcard not supported", func(t *testing.T) {
 		h, err := NewHandler([]string{"*"}, logger, false)
-		if err != nil {
-			t.Fatalf("NewHandler returned unexpected error: %v", err)
-		}
-
-		req := httptest.NewRequest(http.MethodGet, "/test", nil)
-		req.Header.Set("Origin", "https://example.com")
-		w := httptest.NewRecorder()
-
-		allowed := h.SetHeaders(w, req)
-		// Wildcard is stored as literal "*", not a pattern
-		if allowed {
-			t.Error("wildcard should not match arbitrary origins (we use explicit allowlist)")
+		if err == nil || h != nil {
+			t.Fatalf("NewHandler wildcard = (%+v, %v), want validation error", h, err)
 		}
 	})
 
