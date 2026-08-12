@@ -17,6 +17,7 @@ Document schema (shared with Go dispatcher and apigateway):
     last_refreshed: datetime
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 import logging
@@ -33,6 +34,29 @@ logger = logging.getLogger(__name__)
 USERS_COLLECTION = "users"
 PRIVATE_COLLECTION = "private"
 TOKENS_DOCUMENT = "strava_tokens"
+
+# Fields a caller cannot function without. Kept in step with Go's
+# stravatoken.Data.Validate — if one side changes, the shared fixture parity
+# tests are what should catch it.
+_REQUIRED_FIELDS = ("access_token", "refresh_token", "expires_at")
+
+
+class IncompleteTokenDataError(StravaPipeError):
+    """Raised when a strava_tokens document is missing a field callers need.
+
+    Mirrors Go's ``stravatoken.ErrIncompleteTokens`` so the same corrupt
+    document is rejected, and described the same way, on both language edges.
+    Replaces a bare ``KeyError`` whose message was just the field name, with no
+    athlete or document context.
+    """
+
+    def __init__(self, athlete_id: str | None, missing: Sequence[str]):
+        who = f" for athlete {athlete_id}" if athlete_id else ""
+        super().__init__(
+            f"incomplete strava_tokens document{who}: missing {sorted(missing)}"
+        )
+        self.athlete_id = athlete_id
+        self.missing = sorted(missing)
 
 
 class TokenNotFoundError(StravaPipeError):
@@ -58,11 +82,31 @@ class TokenData:
     last_refreshed: datetime
 
     @classmethod
-    def from_doc(cls, doc: DocumentSnapshot) -> "TokenData":
-        """Parse a Firestore document into TokenData."""
+    def from_doc(
+        cls, doc: DocumentSnapshot, *, athlete_id: str | None = None
+    ) -> "TokenData":
+        """Parse a Firestore document into TokenData.
+
+        Rejects a document missing any field needed to talk to Strava. The
+        required set and its emptiness semantics match Go's
+        ``stravatoken.Data.Validate``: absent *and* empty both fail, because
+        Firestore's Go decoder cannot tell them apart and a zero-filled
+        credential is unusable either way.
+
+        ``scopes``, ``connected_at`` and ``last_refreshed`` stay optional on
+        purpose — see that method's doc comment for why.
+
+        Raises:
+            IncompleteTokenDataError: If a required field is absent or empty.
+        """
         data = doc.to_dict()
         if data is None:
-            raise ValueError("Document has no data")
+            raise IncompleteTokenDataError(athlete_id, _REQUIRED_FIELDS)
+
+        missing = [f for f in _REQUIRED_FIELDS if not data.get(f)]
+        if missing:
+            raise IncompleteTokenDataError(athlete_id, missing)
+
         return cls(
             access_token=data["access_token"],
             refresh_token=data["refresh_token"],
@@ -96,12 +140,14 @@ class FirestoreTokenStore:
 
         Raises:
             TokenNotFoundError: If no tokens exist for this athlete.
+            IncompleteTokenDataError: If the document exists but is missing a
+                required field.
         """
         doc = self._tokens_ref(athlete_id).get()
         if not doc.exists:
             raise TokenNotFoundError(athlete_id)
 
-        tokens = TokenData.from_doc(doc)
+        tokens = TokenData.from_doc(doc, athlete_id=athlete_id)
         logger.info(
             "Loaded tokens for athlete %s from Firestore",
             athlete_id,

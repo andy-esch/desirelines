@@ -14,6 +14,7 @@ from stravapipe.adapters.firestore.token_store import (
     PRIVATE_COLLECTION,
     TOKENS_DOCUMENT,
     USERS_COLLECTION,
+    IncompleteTokenDataError,
 )
 
 
@@ -79,8 +80,12 @@ class TestTokenDataFromDoc:
         assert result.scopes == ""
 
     def test_raises_on_none_data(self):
+        # A document with no data is an incomplete document, so it raises the
+        # same typed error as one missing individual fields rather than a bare
+        # ValueError. Keeps every corrupt-document failure catchable as
+        # StravaPipeError, and matches Go's single ErrIncompleteTokens sentinel.
         doc = _make_doc_snapshot(None)
-        with pytest.raises(ValueError, match="no data"):
+        with pytest.raises(IncompleteTokenDataError, match="incomplete strava_tokens"):
             TokenData.from_doc(doc)
 
 

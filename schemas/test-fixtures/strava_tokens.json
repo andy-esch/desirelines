@@ -1,0 +1,77 @@
+[
+  {
+    "name": "all fields present",
+    "doc": {
+      "access_token": "acc-123",
+      "refresh_token": "ref-456",
+      "expires_at": 1735689600,
+      "scopes": "read,activity:read_all",
+      "connected_at": "2026-01-01T00:00:00Z",
+      "last_refreshed": "2026-06-01T12:30:00Z"
+    },
+    "expected": {
+      "access_token": "acc-123",
+      "refresh_token": "ref-456",
+      "expires_at": 1735689600,
+      "scopes": "read,activity:read_all",
+      "connected_at": "2026-01-01T00:00:00Z",
+      "last_refreshed": "2026-06-01T12:30:00Z"
+    }
+  },
+  {
+    "name": "empty scopes string",
+    "doc": {
+      "access_token": "acc-123",
+      "refresh_token": "ref-456",
+      "expires_at": 1735689600,
+      "scopes": "",
+      "connected_at": "2026-01-01T00:00:00Z",
+      "last_refreshed": "2026-06-01T12:30:00Z"
+    },
+    "expected": {
+      "access_token": "acc-123",
+      "refresh_token": "ref-456",
+      "expires_at": 1735689600,
+      "scopes": "",
+      "connected_at": "2026-01-01T00:00:00Z",
+      "last_refreshed": "2026-06-01T12:30:00Z"
+    }
+  },
+  {
+    "name": "scopes absent decodes to empty string on both sides",
+    "doc": {
+      "access_token": "acc-123",
+      "refresh_token": "ref-456",
+      "expires_at": 1735689600,
+      "connected_at": "2026-01-01T00:00:00Z",
+      "last_refreshed": "2026-06-01T12:30:00Z"
+    },
+    "expected": {
+      "access_token": "acc-123",
+      "refresh_token": "ref-456",
+      "expires_at": 1735689600,
+      "scopes": "",
+      "connected_at": "2026-01-01T00:00:00Z",
+      "last_refreshed": "2026-06-01T12:30:00Z"
+    }
+  },
+  {
+    "name": "zero last_refreshed (never refreshed since connect)",
+    "doc": {
+      "access_token": "acc-123",
+      "refresh_token": "ref-456",
+      "expires_at": 1735689600,
+      "scopes": "read",
+      "connected_at": "2026-01-01T00:00:00Z",
+      "last_refreshed": "0001-01-01T00:00:00Z"
+    },
+    "expected": {
+      "access_token": "acc-123",
+      "refresh_token": "ref-456",
+      "expires_at": 1735689600,
+      "scopes": "read",
+      "connected_at": "2026-01-01T00:00:00Z",
+      "last_refreshed": "0001-01-01T00:00:00Z"
+    }
+  }
+]
