@@ -273,12 +273,13 @@ func TestNewPropagator_InjectsW3CTraceparent(t *testing.T) {
 // error). A service that crashed here would defeat the whole "OTel
 // failure must not crash the service" guarantee in Setup's doc.
 func TestNoopProviders_ReturnsUsableNoopInstruments(t *testing.T) {
+	// NoopProviders returns the address of a composite literal, so it is never
+	// nil — checking for that here would only teach staticcheck to treat every
+	// field access below as a possible nil dereference (SA5011). Both field
+	// checks must be Fatal: the calls that follow dereference them.
 	p := NoopProviders()
-	if p == nil {
-		t.Fatal("NoopProviders() returned nil")
-	}
 	if p.Meter == nil {
-		t.Error("NoopProviders().Meter is nil")
+		t.Fatal("NoopProviders().Meter is nil")
 	}
 	if p.Tracer == nil {
 		t.Fatal("NoopProviders().Tracer is nil")
