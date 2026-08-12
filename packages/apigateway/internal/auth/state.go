@@ -41,14 +41,22 @@ func generateState(secret []byte) (string, error) {
 
 // validateState verifies the signature and expiry of a state JWT token.
 func validateState(tokenString string, secret []byte) error {
-	_, err := jwt.ParseWithClaims(tokenString, &jwt.RegisteredClaims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
+	claims := &jwt.RegisteredClaims{}
+	_, err := jwt.ParseWithClaims(tokenString, claims, func(_ *jwt.Token) (interface{}, error) {
 		return secret, nil
-	})
+	},
+		// Pin the one algorithm generateState uses. Accepting the whole HMAC
+		// family makes the verifier's contract broader than the signer and can
+		// hide an algorithm-confusion regression during future JWT changes.
+		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+		jwt.WithExpirationRequired(),
+		jwt.WithIssuedAt(),
+	)
 	if err != nil {
 		return fmt.Errorf("invalid state token: %w", err)
+	}
+	if claims.ID == "" {
+		return fmt.Errorf("invalid state token: missing nonce")
 	}
 	return nil
 }

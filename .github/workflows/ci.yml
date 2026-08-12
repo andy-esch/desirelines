@@ -25,7 +25,7 @@ env:
   # images in the service Dockerfiles. Note `[golangci-lint] version` is
   # coupled too — golangci-lint only supports Go versions <= the one it was
   # built with, so bumping this without bumping that panics the linter.
-  GO_VERSION: "1.26"
+  GO_VERSION: "1.26.5"
 
   # Test environment variables (needed for Python tests)
   GCP_PROJECT_ID: "test-project"

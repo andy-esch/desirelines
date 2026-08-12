@@ -2,10 +2,12 @@ package auth
 
 import (
 	"context"
+	"crypto/subtle"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -20,6 +22,12 @@ import (
 const defaultExternalTimeout = 10 * time.Second
 
 const (
+	minStateSecretBytes = 32
+	maxStateLength      = 2048
+	// Firebase Hosting forwards only its reserved __session cookie through a
+	// Cloud Run rewrite. The cookie remains host-only because Domain is omitted.
+	stateCookieName = "__session"
+
 	scopeActivityReadAll = "activity:read_all"
 	paramClientID        = "client_id"
 	paramRedirectURI     = "redirect_uri"
@@ -51,41 +59,64 @@ type HandlerConfig struct {
 
 // Handler holds dependencies for OAuth auth handlers.
 type Handler struct {
-	strava      StravaOAuthClient
-	tokens      TokenStore
-	allowlist   allowlist.Checker
-	firebase    FirebaseAuthClient
-	stateSecret []byte
-	frontendURL *url.URL
-	clientID    string
-	redirectURI string
-	logger      *slog.Logger
+	strava       StravaOAuthClient
+	tokens       TokenStore
+	allowlist    allowlist.Checker
+	firebase     FirebaseAuthClient
+	stateSecret  []byte
+	frontendURL  *url.URL
+	clientID     string
+	redirectURI  string
+	initiateURL  string
+	stateCookie  string
+	secureCookie bool
+	logger       *slog.Logger
 }
 
 // NewHandler creates a new OAuth auth handler.
 // Returns an error if FrontendURL or RedirectURI are not valid URLs.
 // When RequireHTTPS is true (any non-local environment), both must use HTTPS.
 func NewHandler(cfg *HandlerConfig) (*Handler, error) {
+	if len(cfg.StateSecret) < minStateSecretBytes {
+		return nil, fmt.Errorf("OAuth state secret must be at least %d bytes", minStateSecretBytes)
+	}
+
 	frontendURL, err := validateExternalURL("frontend URL", cfg.FrontendURL, cfg.RequireHTTPS, "would leak Firebase token")
 	if err != nil {
 		return nil, err
 	}
 
-	if _, err = validateExternalURL("redirect URI", cfg.RedirectURI, cfg.RequireHTTPS, "would leak authorization code"); err != nil {
+	redirectURL, err := validateExternalURL("redirect URI", cfg.RedirectURI, cfg.RequireHTTPS, "would leak authorization code")
+	if err != nil {
 		return nil, err
 	}
 
 	return &Handler{
-		strava:      cfg.Strava,
-		tokens:      cfg.Tokens,
-		allowlist:   cfg.Allowlist,
-		firebase:    cfg.Firebase,
-		stateSecret: cfg.StateSecret,
-		frontendURL: frontendURL,
-		clientID:    cfg.ClientID,
-		redirectURI: cfg.RedirectURI,
-		logger:      cfg.Logger,
+		strava:       cfg.Strava,
+		tokens:       cfg.Tokens,
+		allowlist:    cfg.Allowlist,
+		firebase:     cfg.Firebase,
+		stateSecret:  cfg.StateSecret,
+		frontendURL:  frontendURL,
+		clientID:     cfg.ClientID,
+		redirectURI:  cfg.RedirectURI,
+		initiateURL:  canonicalInitiateURL(redirectURL),
+		stateCookie:  stateCookieName,
+		secureCookie: cfg.RequireHTTPS,
+		logger:       cfg.Logger,
 	}, nil
+}
+
+// canonicalInitiateURL places the state-minting endpoint on the same origin as
+// the configured callback. This makes the host-only state cookie work when a
+// deployment exposes multiple Firebase Hosting domains: every login first
+// lands on one canonical host, and Strava returns to that same host.
+func canonicalInitiateURL(callback *url.URL) string {
+	u := *callback
+	u.Path = path.Join(path.Dir(u.Path), "strava", "start")
+	u.RawQuery = ""
+	u.Fragment = ""
+	return u.String()
 }
 
 // validateExternalURL parses raw and verifies it is an absolute URL (scheme
@@ -106,9 +137,18 @@ func validateExternalURL(label, raw string, requireHTTPS bool, leakReason string
 	return u, nil
 }
 
-// HandleInitiate handles GET /auth/strava.
-// Generates a signed state token and redirects the user to Strava's authorization page.
+// HandleInitiate handles GET /auth/strava by redirecting the browser to the
+// canonical state-minting endpoint on the configured callback origin. It must
+// not set the state cookie itself: Firebase Hosting strips every rewritten
+// Set-Cookie except __session, and a cookie minted on a non-canonical Hosting
+// alias would not be sent to the configured callback host.
 func (h *Handler) HandleInitiate(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, h.initiateURL, http.StatusFound)
+}
+
+// HandleInitiateStart handles GET /auth/strava/start on the canonical callback
+// origin. It generates the browser-bound state and then redirects to Strava.
+func (h *Handler) HandleInitiateStart(w http.ResponseWriter, r *http.Request) {
 	state, err := generateState(h.stateSecret)
 	if err != nil {
 		h.logger.Error("Failed to generate state token", "error", err)
@@ -138,25 +178,91 @@ func (h *Handler) HandleInitiate(w http.ResponseWriter, r *http.Request) {
 		existing[k] = v
 	}
 	u.RawQuery = existing.Encode()
+	h.setStateCookie(w, state)
 	http.Redirect(w, r, u.String(), http.StatusFound)
+}
+
+// setStateCookie binds the signed OAuth state to the browser that initiated the
+// flow. Firebase Hosting permits the reserved __session name through its Cloud
+// Run rewrite; Cache-Control: no-store on /auth/* prevents the cookie from
+// turning these responses into useful CDN cache entries. A signed state value
+// alone only proves that this service minted it: an
+// attacker can mint one in their own browser and replay it in a victim's
+// callback, causing login CSRF/session swapping. Requiring the same value in an
+// HttpOnly, SameSite cookie proves that the callback belongs to the initiating
+// browser as well.
+func (h *Handler) setStateCookie(w http.ResponseWriter, state string) {
+	// #nosec G124 -- Secure is true in every deployed environment and false only
+	// for loopback HTTP development; HttpOnly and SameSite remain enforced. The
+	// cookie is host-only because Domain is deliberately omitted.
+	http.SetCookie(w, &http.Cookie{
+		Name:     h.stateCookie,
+		Value:    state,
+		Path:     "/",
+		Expires:  time.Now().Add(stateExpiry),
+		MaxAge:   int(stateExpiry.Seconds()),
+		HttpOnly: true,
+		Secure:   h.secureCookie,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+// clearStateCookie makes the browser binding one-shot. Strava authorization
+// codes are one-shot too, but clearing here prevents a failed callback from
+// leaving a reusable state credential in the browser for the rest of its TTL.
+func (h *Handler) clearStateCookie(w http.ResponseWriter) {
+	// #nosec G124 -- Secure must match the environment-specific cookie being
+	// deleted; deployed environments always use the Secure __session cookie.
+	http.SetCookie(w, &http.Cookie{
+		Name:     h.stateCookie,
+		Value:    "",
+		Path:     "/",
+		Expires:  time.Unix(1, 0),
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   h.secureCookie,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+// validateAndConsumeState authenticates the callback against the browser that
+// initiated the flow and clears the one-shot binding on every path.
+func (h *Handler) validateAndConsumeState(w http.ResponseWriter, r *http.Request) bool {
+	state := r.URL.Query().Get(paramState)
+	stateCookie, cookieErr := r.Cookie(h.stateCookie)
+	h.clearStateCookie(w)
+	if cookieErr != nil || state == "" || len(state) > maxStateLength ||
+		len(stateCookie.Value) > maxStateLength ||
+		subtle.ConstantTimeCompare([]byte(state), []byte(stateCookie.Value)) != 1 {
+		h.logger.Warn("Missing or mismatched OAuth state cookie")
+		h.redirectError(w, r, "invalid_state")
+		return false
+	}
+	if err := validateState(state, h.stateSecret); err != nil {
+		h.logger.Warn("Invalid state token", "error", err)
+		h.redirectError(w, r, "invalid_state")
+		return false
+	}
+	return true
 }
 
 // HandleCallback handles GET /auth/callback.
 // Validates the OAuth callback, exchanges the code for tokens, checks the allowlist,
 // stores tokens and profile, creates a Firebase custom token, and redirects to the frontend.
 func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
-	// Check if Strava returned an error (e.g., user denied access)
-	if errParam := r.URL.Query().Get("error"); errParam != "" {
-		h.logger.Warn("Strava OAuth error", "error", errParam)
-		h.redirectError(w, r, "access_denied")
+	// Validate and consume the browser-bound state before handling either a
+	// success or error callback. Otherwise an attacker can forge an error
+	// callback to disrupt a victim's login, and a signed-but-unbound state still
+	// permits login CSRF/session swapping.
+	if !h.validateAndConsumeState(w, r) {
 		return
 	}
 
-	// Validate state token
-	state := r.URL.Query().Get(paramState)
-	if err := validateState(state, h.stateSecret); err != nil {
-		h.logger.Warn("Invalid state token", "error", err)
-		h.redirectError(w, r, "invalid_state")
+	// Check if Strava returned an error (e.g., user denied access) only after
+	// authenticating the callback above.
+	if errParam := r.URL.Query().Get("error"); errParam != "" {
+		h.logger.Warn("Strava OAuth error", "error", errParam)
+		h.redirectError(w, r, "access_denied")
 		return
 	}
 

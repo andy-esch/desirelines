@@ -121,12 +121,10 @@ func (c *OAuthClient) ExchangeCode(ctx context.Context, code string) (tokenResul
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		// Truncate error body to avoid leaking sensitive data in logs
-		snippet := string(body)
-		if len(snippet) > 200 {
-			snippet = snippet[:200] + "...(truncated)"
-		}
-		return nil, fmt.Errorf("strava token exchange returned %d: %s", resp.StatusCode, snippet)
+		// The caller logs this error. Never include the upstream body: OAuth
+		// providers may echo an authorization code or other sensitive context in
+		// an error response, and truncation does not make secret material safe.
+		return nil, fmt.Errorf("strava token exchange returned status %d", resp.StatusCode)
 	}
 
 	var tokenResp auth.StravaTokenResponse

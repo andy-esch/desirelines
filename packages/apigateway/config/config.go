@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -40,6 +41,11 @@ const (
 	// probe. Must accommodate Neon cold-start latency since the hourly Cloud
 	// Scheduler probe almost always wakes a suspended compute.
 	DefaultReadinessTimeout = 10 * time.Second
+	// DefaultAllowlistCacheTTL bounds the window in which an already-authorized
+	// API session can remain usable after out-of-process allowlist removal. The
+	// short positive-only cache avoids one Firestore read per map tile while
+	// keeping revocation bounded. Set API_ALLOWLIST_CACHE_TTL to 0 to disable.
+	DefaultAllowlistCacheTTL = 30 * time.Second
 )
 
 // Environment is the deployment environment. Use the IsLocal /
@@ -114,6 +120,15 @@ type Config struct {
 	ShutdownTimeout time.Duration
 	// ReadinessTimeout is the timeout applied to the /api/ready DB probe.
 	ReadinessTimeout time.Duration
+	// ReadinessAudience is the exact audience on the Cloud Scheduler OIDC token
+	// used to access the otherwise-private deep readiness probe.
+	ReadinessAudience string
+	// ReadinessCallerSubject is the scheduler service account's immutable numeric
+	// unique ID (the OIDC sub claim). It is intentionally not logged.
+	ReadinessCallerSubject string
+	// AllowlistCacheTTL controls the positive per-request authorization cache.
+	// Zero disables it; negative decisions and Firestore errors are never cached.
+	AllowlistCacheTTL time.Duration
 }
 
 // LoadConfig loads non-secret configuration from environment variables.
@@ -176,19 +191,79 @@ func LoadConfig() (*Config, error) {
 		return nil, err
 	}
 
+	allowlistCacheTTL, err := parseDurationEnvAllowZero("API_ALLOWLIST_CACHE_TTL", DefaultAllowlistCacheTTL)
+	if err != nil {
+		return nil, err
+	}
+
+	readinessAudience, readinessCallerSubject, err := loadReadinessOIDCConfig(environment)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Config{
-		GCPProjectID:      gcpProjectID,
-		FirestoreDatabase: firestoreDatabase,
-		FrontendURL:       frontendURL,
-		AuthCallbackURL:   authCallbackURL,
-		AllowedOrigins:    parseCommaSeparated(os.Getenv("ALLOWED_ORIGINS")),
-		Environment:       environment,
-		ReadTimeout:       readTimeout,
-		WriteTimeout:      writeTimeout,
-		ReadHeaderTimeout: readHeaderTimeout,
-		ShutdownTimeout:   shutdownTimeout,
-		ReadinessTimeout:  readinessTimeout,
+		GCPProjectID:           gcpProjectID,
+		FirestoreDatabase:      firestoreDatabase,
+		FrontendURL:            frontendURL,
+		AuthCallbackURL:        authCallbackURL,
+		AllowedOrigins:         parseCommaSeparated(os.Getenv("ALLOWED_ORIGINS")),
+		Environment:            environment,
+		ReadTimeout:            readTimeout,
+		WriteTimeout:           writeTimeout,
+		ReadHeaderTimeout:      readHeaderTimeout,
+		ShutdownTimeout:        shutdownTimeout,
+		ReadinessTimeout:       readinessTimeout,
+		ReadinessAudience:      readinessAudience,
+		ReadinessCallerSubject: readinessCallerSubject,
+		AllowlistCacheTTL:      allowlistCacheTTL,
 	}, nil
+}
+
+func parseDurationEnvAllowZero(key string, defaultValue time.Duration) (time.Duration, error) {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue, nil
+	}
+	duration, err := time.ParseDuration(value)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s: %w", key, err)
+	}
+	if duration < 0 {
+		return 0, fmt.Errorf("%s must not be negative", key)
+	}
+	return duration, nil
+}
+
+func loadReadinessOIDCConfig(environment Environment) (string, string, error) {
+	if environment.IsLocal() {
+		return "", "", nil
+	}
+	audience, err := getRequiredHTTPSURL("READINESS_AUDIENCE")
+	if err != nil {
+		return "", "", err
+	}
+	subject, err := getRequiredEnv("READINESS_CALLER_SUBJECT")
+	if err != nil {
+		return "", "", err
+	}
+	for _, r := range subject {
+		if r < '0' || r > '9' {
+			return "", "", fmt.Errorf("READINESS_CALLER_SUBJECT must contain only decimal digits")
+		}
+	}
+	return audience, subject, nil
+}
+
+func getRequiredHTTPSURL(key string) (string, error) {
+	raw, err := getRequiredEnv(key)
+	if err != nil {
+		return "", err
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.Fragment != "" {
+		return "", fmt.Errorf("%s must be an absolute HTTPS URL without credentials or fragment", key)
+	}
+	return raw, nil
 }
 
 // getRequiredEnv returns the value of an environment variable or an error if it's not set.
@@ -284,5 +359,7 @@ func (c *Config) LogAttrs() []any {
 		"read_header_timeout", c.ReadHeaderTimeout,
 		"shutdown_timeout", c.ShutdownTimeout,
 		"readiness_timeout", c.ReadinessTimeout,
+		"readiness_audience", c.ReadinessAudience,
+		"allowlist_cache_ttl", c.AllowlistCacheTTL,
 	}
 }

@@ -5,9 +5,10 @@
 // hit this path.
 //
 // HandleReady serves /api/ready: pings the database via the Pinger interface
-// and returns 503 if the DB is unreachable. Cloud Scheduler hits this path
-// hourly. Splitting it out keeps the high-frequency liveness path off Neon's
-// compute meter — see split-apigateway-health-and-readiness-endpoints.
+// and returns 503 if the DB is unreachable. An authenticated Cloud Scheduler
+// job hits this path hourly. Splitting it out keeps the high-frequency liveness
+// path off Neon's compute meter — see
+// split-apigateway-health-and-readiness-endpoints.
 package health
 
 import (

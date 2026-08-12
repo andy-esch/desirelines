@@ -3,7 +3,10 @@ package cors
 import (
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
+	"net/url"
+	"strings"
 )
 
 // Handler manages CORS configuration and header setting.
@@ -32,6 +35,9 @@ func NewHandler(allowedOrigins []string, logger *slog.Logger, strict bool) (*Han
 	// Pre-compute map for O(1) origin lookups
 	originMap := make(map[string]bool, len(allowedOrigins))
 	for _, origin := range allowedOrigins {
+		if err := validateOrigin(origin); err != nil {
+			return nil, fmt.Errorf("invalid CORS origin %q: %w", origin, err)
+		}
 		originMap[origin] = true
 	}
 
@@ -39,6 +45,34 @@ func NewHandler(allowedOrigins []string, logger *slog.Logger, strict bool) (*Han
 		allowedOrigins: originMap,
 		logger:         logger,
 	}, nil
+}
+
+// validateOrigin rejects entries that a browser can never send as a serialized
+// Origin or that would weaken the deployment accidentally. HTTPS is required
+// except for loopback development origins; paths, credentials, queries,
+// fragments, wildcard, and opaque/null origins are never valid allowlist keys.
+func validateOrigin(origin string) error {
+	if origin == "" || origin == "*" || origin == "null" {
+		return fmt.Errorf("must be an explicit HTTP(S) origin")
+	}
+	u, err := url.ParseRequestURI(origin)
+	if err != nil || u.Host == "" || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
+		return fmt.Errorf("must contain only scheme and host")
+	}
+	if u.Scheme == "https" {
+		return nil
+	}
+	if u.Scheme != "http" {
+		return fmt.Errorf("scheme must be HTTPS (or HTTP for loopback development)")
+	}
+	hostname := u.Hostname()
+	if strings.EqualFold(hostname, "localhost") {
+		return nil
+	}
+	if ip := net.ParseIP(hostname); ip != nil && ip.IsLoopback() {
+		return nil
+	}
+	return fmt.Errorf("plaintext HTTP is allowed only for loopback origins")
 }
 
 // SetHeaders sets appropriate CORS headers if the request origin is allowed.
