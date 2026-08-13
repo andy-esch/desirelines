@@ -82,9 +82,55 @@ type TokenInvalidator interface {
 	Invalidate(athleteID int64)
 }
 
+// GrantStatus is the outcome of confirming an athlete's Strava authorization.
+// It is deliberately tri-state: "could not confirm" (GrantUnknown) must never be
+// collapsed into "revoked", because acting on GrantRevoked deletes the athlete's
+// data. Only a positively confirmed revocation is GrantRevoked.
+type GrantStatus int
+
+const (
+	// GrantUnknown means the grant could not be confirmed either way — a transient
+	// failure, an ambiguous rejection (e.g. application-credential error), or no
+	// stored tokens to check. Callers must NOT delete on this.
+	GrantUnknown GrantStatus = iota
+	// GrantActive means the grant still works — the athlete has not deauthorized,
+	// so a "deauth" event is spurious or forged.
+	GrantActive
+	// GrantRevoked means the athlete's authorization is positively confirmed dead —
+	// a genuine deauthorization. Only this outcome authorizes cleanup.
+	GrantRevoked
+)
+
+func (s GrantStatus) String() string {
+	switch s {
+	case GrantActive:
+		return "active"
+	case GrantRevoked:
+		return "revoked"
+	default:
+		return "unknown"
+	}
+}
+
 // StravaClient defines the outbound port for fetching activity data from the Strava API.
 type StravaClient interface {
 	// FetchActivity retrieves the raw JSON for a Strava activity by ID,
 	// using tokens for the given owner (athlete).
 	FetchActivity(ctx context.Context, ownerID, activityID int64) ([]byte, error)
+	// VerifyGrant reports whether the athlete's Strava authorization is still
+	// active, positively revoked, or unconfirmable, by exercising their stored
+	// credentials against Strava. It lets the webhook handler confirm an unsigned,
+	// unauthenticated deauthorization event before acting on it.
+	//
+	// Implementations MUST return GrantRevoked only for a positively identified
+	// revocation, and MUST rule out a stale/rotated cached token (re-read the
+	// authoritative credentials and retry) and non-revocation rejections (e.g.
+	// bad application credentials) — both of which surface as a rejected refresh
+	// but are NOT the athlete revoking access.
+	//
+	//   - GrantActive                    the grant still works (spurious/forged event).
+	//   - GrantRevoked                   authorization is confirmed dead.
+	//   - GrantUnknown + ErrTokenNotFound no stored tokens to confirm against.
+	//   - GrantUnknown + other error      a transient/ambiguous failure.
+	VerifyGrant(ctx context.Context, ownerID int64) (GrantStatus, error)
 }

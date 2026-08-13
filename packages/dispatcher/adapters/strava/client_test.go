@@ -490,13 +490,19 @@ func TestFetchActivity_Repeated401StopsAfterOneRefresh(t *testing.T) {
 // the stored refresh token has been rejected and another attempt with the
 // same value would fail identically. Proactive refresh path (expired
 // access token) is the easiest way to drive the loop end-to-end.
-func TestFetchActivity_RefreshToken401_DoesNotRetry(t *testing.T) {
+func TestFetchActivity_RefreshTokenRejected_DoesNotRetry(t *testing.T) {
 	var tokenRefreshCount atomic.Int32
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == testTokenPath {
 			tokenRefreshCount.Add(1)
-			w.WriteHeader(http.StatusUnauthorized)
+			// A genuine refresh-token rejection carries Strava's structured body
+			// naming the RefreshToken — the signal that classifies it as rejected
+			// rather than a transient/ambiguous 4xx (see isRefreshTokenInvalid).
+			w.WriteHeader(http.StatusBadRequest)
+			if _, err := w.Write([]byte(`{"message":"Bad Request","errors":[{"resource":"RefreshToken","field":"refresh_token","code":"invalid"}]}`)); err != nil {
+				t.Errorf("write response: %v", err)
+			}
 			return
 		}
 		t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
@@ -520,7 +526,7 @@ func TestFetchActivity_RefreshToken401_DoesNotRetry(t *testing.T) {
 	}
 
 	if tokenRefreshCount.Load() != 1 {
-		t.Errorf("expected 1 token refresh call, got %d (must short-circuit on 401 from /oauth/token)", tokenRefreshCount.Load())
+		t.Errorf("expected 1 token refresh call, got %d (must short-circuit on a confirmed refresh-token rejection)", tokenRefreshCount.Load())
 	}
 
 	// strava.refresh_rejected pins the short-circuit branch as filterable
@@ -528,6 +534,46 @@ func TestFetchActivity_RefreshToken401_DoesNotRetry(t *testing.T) {
 	span := spanByName(t, sr, "strava.refresh_token")
 	if !spanAttrBool(span, "strava.refresh_rejected") {
 		t.Error("strava.refresh_rejected attribute not set on short-circuit branch")
+	}
+}
+
+// TestFetchActivity_AmbiguousTokenRejectionRetries locks in the deliberate
+// classification change behind the forged-deauth fix: a bare 4xx from
+// /oauth/token with no structured refresh-token marker is NOT proof the refresh
+// token is dead, so the refresh path treats it as transient and retries rather
+// than short-circuiting. This is the FetchActivity-side guard against anyone
+// re-broadening errRefreshTokenRejected (which would reintroduce the
+// application-credential-as-revocation hazard on the deauth path).
+func TestFetchActivity_AmbiguousTokenRejectionRetries(t *testing.T) {
+	var tokenRefreshCount atomic.Int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == testTokenPath {
+			tokenRefreshCount.Add(1)
+			w.WriteHeader(http.StatusUnauthorized) // bare 401, no structured body
+			return
+		}
+		t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	tokenStore := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.Data{
+			testOwnerID: {AccessToken: "expired", RefreshToken: "maybe-live", ExpiresAt: pastExpiry()},
+		},
+	}
+	client := newTestClient(server, tokenStore)
+
+	_, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if errors.Is(err, ErrStravaAuth) {
+		t.Errorf("ambiguous 401 classified as a confirmed refresh rejection: %v", err)
+	}
+	if tokenRefreshCount.Load() < 2 {
+		t.Errorf("token refresh calls = %d, want >1 (an ambiguous rejection is transient and retried)", tokenRefreshCount.Load())
 	}
 }
 
@@ -1797,5 +1843,252 @@ func TestRefreshAndPersist_ConcurrentRefreshesCollapseToOneCall(t *testing.T) {
 	}
 	if got := tokenCalls.Load(); got != 1 {
 		t.Errorf("outbound /oauth/token calls = %d, want 1 — concurrent refreshes must collapse", got)
+	}
+}
+
+// VerifyGrant backs the dispatcher's forged-deauth defense. GrantRevoked is a
+// destructive authorization decision, so these tests exercise both positive
+// proof and the ambiguous cases that must remain GrantUnknown.
+
+func TestVerifyGrant_RevokedGrantReturnsRevoked(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != testTokenPath {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		if _, err := w.Write([]byte(`{"message":"Bad Request","errors":[{"resource":"RefreshToken","field":"refresh_token","code":"invalid"}]}`)); err != nil {
+			t.Errorf("write response: %v", err)
+		}
+	}))
+	defer server.Close()
+
+	tokenStore := &portstest.MockTokenStore{Tokens: map[int64]*stravatoken.Data{
+		testOwnerID: {AccessToken: "expired", RefreshToken: "revoked", ExpiresAt: pastExpiry()},
+	}}
+	client := newTestClient(server, tokenStore)
+
+	status, err := client.VerifyGrant(context.Background(), testOwnerID)
+	if err != nil {
+		t.Fatalf("VerifyGrant() error = %v, want nil", err)
+	}
+	if status != ports.GrantRevoked {
+		t.Errorf("status = %s, want revoked", status)
+	}
+}
+
+func TestVerifyGrant_LiveAccessTokenIsActiveWithoutRotation(t *testing.T) {
+	var tokenCalls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v3/athlete":
+			if got := r.Header.Get("Authorization"); got != "Bearer live-access" {
+				t.Errorf("Authorization = %q, want live token", got)
+			}
+			if err := json.NewEncoder(w).Encode(map[string]any{"id": testOwnerID}); err != nil {
+				t.Errorf("encode response: %v", err)
+			}
+		case testTokenPath:
+			tokenCalls.Add(1)
+			w.WriteHeader(http.StatusInternalServerError)
+		default:
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	tokenStore := &portstest.MockTokenStore{Tokens: map[int64]*stravatoken.Data{
+		testOwnerID: {AccessToken: "live-access", RefreshToken: "live-refresh", ExpiresAt: futureExpiry()},
+	}}
+	client := newTestClient(server, tokenStore)
+
+	status, err := client.VerifyGrant(context.Background(), testOwnerID)
+	if err != nil {
+		t.Fatalf("VerifyGrant() error = %v, want nil", err)
+	}
+	if status != ports.GrantActive {
+		t.Errorf("status = %s, want active", status)
+	}
+	if got := tokenCalls.Load(); got != 0 {
+		t.Errorf("token refresh calls = %d, want 0; forged events must not rotate live tokens", got)
+	}
+	if len(tokenStore.WrittenTokens) != 0 {
+		t.Errorf("unexpected token write: %+v", tokenStore.WrittenTokens)
+	}
+}
+
+func TestVerifyGrant_ExpiredActiveGrantRefreshes(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != testTokenPath {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		if err := json.NewEncoder(w).Encode(map[string]any{
+			"access_token": "rotated-access", "refresh_token": "rotated-refresh", "expires_at": futureExpiry(),
+		}); err != nil {
+			t.Errorf("encode response: %v", err)
+		}
+	}))
+	defer server.Close()
+
+	tokenStore := &portstest.MockTokenStore{Tokens: map[int64]*stravatoken.Data{
+		testOwnerID: {AccessToken: "expired", RefreshToken: "live-refresh", ExpiresAt: pastExpiry()},
+	}}
+	client := newTestClient(server, tokenStore)
+
+	status, err := client.VerifyGrant(context.Background(), testOwnerID)
+	if err != nil || status != ports.GrantActive {
+		t.Fatalf("VerifyGrant() = (%s, %v), want (active, nil)", status, err)
+	}
+	if written := tokenStore.WrittenTokens[testOwnerID]; written == nil || written.RefreshToken != "rotated-refresh" {
+		t.Errorf("expected rotated token persisted, got %+v", written)
+	}
+}
+
+func TestVerifyGrant_ApplicationCredentialRejectionIsUnknown(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		if _, err := w.Write([]byte(`{"message":"Bad Request","errors":[{"resource":"Application","field":"client_id","code":"invalid"}]}`)); err != nil {
+			t.Errorf("write response: %v", err)
+		}
+	}))
+	defer server.Close()
+
+	tokenStore := &portstest.MockTokenStore{Tokens: map[int64]*stravatoken.Data{
+		testOwnerID: {AccessToken: "expired", RefreshToken: "still-possibly-live", ExpiresAt: pastExpiry()},
+	}}
+	client := newTestClient(server, tokenStore)
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	status, err := client.VerifyGrant(ctx, testOwnerID)
+	if err == nil {
+		t.Fatal("err = nil, want ambiguous application-credential error")
+	}
+	if status != ports.GrantUnknown {
+		t.Errorf("status = %s, want unknown; app credentials cannot prove athlete revocation", status)
+	}
+	if errors.Is(err, errRefreshTokenRejected) {
+		t.Errorf("application rejection classified as refresh-token rejection: %v", err)
+	}
+}
+
+type staleGrantTokenStore struct {
+	mu          sync.Mutex
+	stale       *stravatoken.Data
+	fresh       *stravatoken.Data
+	invalidated bool
+}
+
+func (s *staleGrantTokenStore) GetTokens(context.Context, int64) (*stravatoken.Data, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.invalidated {
+		return s.fresh, nil
+	}
+	return s.stale, nil
+}
+
+func (s *staleGrantTokenStore) WriteTokensIfUnmodified(context.Context, int64, *stravatoken.Data, time.Time) error {
+	return errors.New("unexpected token write")
+}
+
+func (s *staleGrantTokenStore) DeleteTokens(context.Context, int64) error { return nil }
+
+func (s *staleGrantTokenStore) Invalidate(int64) {
+	s.mu.Lock()
+	s.invalidated = true
+	s.mu.Unlock()
+}
+
+func TestVerifyGrant_StaleRejectedCacheRereadsAuthoritativeToken(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v3/athlete":
+			switch r.Header.Get("Authorization") {
+			case "Bearer stale-access":
+				w.WriteHeader(http.StatusUnauthorized)
+			case "Bearer fresh-access":
+				if err := json.NewEncoder(w).Encode(map[string]any{"id": testOwnerID}); err != nil {
+					t.Errorf("encode response: %v", err)
+				}
+			default:
+				t.Errorf("unexpected Authorization header %q", r.Header.Get("Authorization"))
+				w.WriteHeader(http.StatusUnauthorized)
+			}
+		case testTokenPath:
+			if err := r.ParseForm(); err != nil {
+				t.Errorf("ParseForm: %v", err)
+			}
+			if got := r.Form.Get(paramRefreshToken); got != "stale-refresh" {
+				t.Errorf("refresh_token = %q, want stale-refresh", got)
+			}
+			w.WriteHeader(http.StatusBadRequest)
+			if _, err := w.Write([]byte(`{"errors":[{"resource":"RefreshToken","field":"refresh_token","code":"invalid"}]}`)); err != nil {
+				t.Errorf("write response: %v", err)
+			}
+		default:
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	store := &staleGrantTokenStore{
+		stale: &stravatoken.Data{AccessToken: "stale-access", RefreshToken: "stale-refresh", ExpiresAt: futureExpiry()},
+		fresh: &stravatoken.Data{AccessToken: "fresh-access", RefreshToken: "fresh-refresh", ExpiresAt: futureExpiry()},
+	}
+	client := newTestClient(server, store)
+
+	status, err := client.VerifyGrant(context.Background(), testOwnerID)
+	if err != nil || status != ports.GrantActive {
+		t.Fatalf("VerifyGrant() = (%s, %v), want (active, nil)", status, err)
+	}
+	store.mu.Lock()
+	invalidated := store.invalidated
+	store.mu.Unlock()
+	if !invalidated {
+		t.Error("rejected cached token did not invalidate before authoritative re-read")
+	}
+}
+
+func TestVerifyGrant_NoTokensReturnsUnknownAndErrTokenNotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("no Strava call expected with no stored tokens, got %s %s", r.Method, r.URL.Path)
+	}))
+	defer server.Close()
+
+	client := newTestClient(server, &portstest.MockTokenStore{})
+	status, err := client.VerifyGrant(context.Background(), testOwnerID)
+	if !errors.Is(err, ports.ErrTokenNotFound) {
+		t.Fatalf("err = %v, want ErrTokenNotFound", err)
+	}
+	if status != ports.GrantUnknown {
+		t.Errorf("status = %s, want unknown", status)
+	}
+}
+
+func TestVerifyGrant_TransientErrorIsUnknown(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	tokenStore := &portstest.MockTokenStore{Tokens: map[int64]*stravatoken.Data{
+		testOwnerID: {AccessToken: "expired", RefreshToken: "live-refresh", ExpiresAt: pastExpiry()},
+	}}
+	client := newTestClient(server, tokenStore)
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	status, err := client.VerifyGrant(ctx, testOwnerID)
+	if err == nil {
+		t.Fatal("err = nil, want transient error")
+	}
+	if status != ports.GrantUnknown {
+		t.Errorf("status = %s, want unknown", status)
 	}
 }

@@ -228,7 +228,7 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 	pubsubHist := newHistogram(meter, log, "desirelines.io/pubsub/publish.duration", "PubSub publish duration")
 	webhookCounter := newCounter(meter, log, "desirelines.io/webhook/events", "Webhook events processed")
 	ownerCheckCounter := newCounter(meter, log, "desirelines.io/webhook/owner_check", "Webhook owner allowlist check outcomes (allowed/stray/orphan/error)")
-	deauthCleanupCounter := newCounter(meter, log, "desirelines.io/webhook/deauth_cleanup", "Deauth token-deletion outcomes (deleted/delete_failed)")
+	deauthCleanupCounter := newCounter(meter, log, "desirelines.io/webhook/deauth_cleanup", "Deauth verification, durable-handoff, and token-cleanup outcomes")
 	rowPublishCounter := newCounter(meter, log, "desirelines.io/bigquery/row_publish", "BigQuery activity-row publish outcomes (published/skipped/error)")
 	httpHist := newHistogram(meter, log, "desirelines.io/http/request.duration", "HTTP request duration")
 

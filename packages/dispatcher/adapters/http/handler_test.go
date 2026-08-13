@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	webhookproto "github.com/andy-esch/desirelines/packages/dispatcher/adapters/proto"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
@@ -450,16 +451,20 @@ func TestHandler_HandleEvent(t *testing.T) {
 }
 
 type handleEventTestCase struct {
-	name                string
-	method              string
-	contentType         string
-	payload             any
-	mockSubID           int32
-	mockSubErr          error
-	publishErr          error
-	deauthPublishErr    error
-	stravaResult        []byte
-	stravaErr           error
+	name             string
+	method           string
+	contentType      string
+	payload          any
+	mockSubID        int32
+	mockSubErr       error
+	publishErr       error
+	deauthPublishErr error
+	stravaResult     []byte
+	stravaErr        error
+	// stravaVerifyStatus / stravaVerifyErr drive deauth confirmation. The zero
+	// status is unknown and therefore fails closed unless a case opts in.
+	stravaVerifyStatus  ports.GrantStatus
+	stravaVerifyErr     error
 	mockTokenStore      *portstest.MockTokenStore
 	mockDeauthPublisher *portstest.MockPublisher
 	mockAllowlist       *portstest.MockAllowlist
@@ -500,8 +505,10 @@ func runHandleEventTest(t *testing.T, tt *handleEventTestCase) {
 	}
 	mockDeauthPublisher := mockDeauthPublisherOrDefault(tt.mockDeauthPublisher, tt.deauthPublishErr)
 	mockStrava := &portstest.MockStravaClient{
-		FetchResult: tt.stravaResult,
-		FetchErr:    tt.stravaErr,
+		FetchResult:  tt.stravaResult,
+		FetchErr:     tt.stravaErr,
+		VerifyStatus: tt.stravaVerifyStatus,
+		VerifyErr:    tt.stravaVerifyErr,
 	}
 
 	handler := NewHandler(mockPublisher, mockDeauthPublisher, mockSecrets, mockStrava, mockTokenStoreOrDefault(tt.mockTokenStore), allowlistOrDefault(tt.mockAllowlist), log, nil)
@@ -561,7 +568,7 @@ func runHandleEventTest(t *testing.T, tt *handleEventTestCase) {
 	}
 }
 
-func TestHandler_AthleteDeauth(t *testing.T) {
+func TestHandler_AthleteDeauth(t *testing.T) { //nolint:gocyclo // Parent test groups independent deauth scenarios.
 	deauthDeletePayload := webhookproto.StravaWebhookJSON{
 		AspectType:     "delete",
 		EventTime:      testEventTime,
@@ -575,6 +582,7 @@ func TestHandler_AthleteDeauth(t *testing.T) {
 		mockTokens := &portstest.MockTokenStore{}
 		mockDeauth := &portstest.MockPublisher{}
 		tt := handleEventTestCase{
+			stravaVerifyStatus:  ports.GrantRevoked,
 			method:              "POST",
 			contentType:         "application/json",
 			payload:             deauthDeletePayload,
@@ -598,8 +606,9 @@ func TestHandler_AthleteDeauth(t *testing.T) {
 	t.Run("Deauth update with authorized false deletes tokens and publishes", func(t *testing.T) {
 		mockTokens := &portstest.MockTokenStore{}
 		tt := handleEventTestCase{
-			method:      "POST",
-			contentType: "application/json",
+			stravaVerifyStatus: ports.GrantRevoked,
+			method:             "POST",
+			contentType:        "application/json",
 			payload: webhookproto.StravaWebhookJSON{
 				AspectType:     "update",
 				EventTime:      testEventTime,
@@ -627,8 +636,9 @@ func TestHandler_AthleteDeauth(t *testing.T) {
 		mockTokens := &portstest.MockTokenStore{}
 		mockAllow := portstest.NewAllowAllMockAllowlist()
 		tt := handleEventTestCase{
-			method:      "POST",
-			contentType: "application/json",
+			stravaVerifyStatus: ports.GrantRevoked,
+			method:             "POST",
+			contentType:        "application/json",
 			payload: webhookproto.StravaWebhookJSON{
 				AspectType:     "update",
 				EventTime:      testEventTime,
@@ -655,8 +665,9 @@ func TestHandler_AthleteDeauth(t *testing.T) {
 	t.Run("Deauth update with BOOLEAN authorized false deletes tokens (type-drift)", func(t *testing.T) {
 		mockTokens := &portstest.MockTokenStore{}
 		tt := handleEventTestCase{
-			method:      "POST",
-			contentType: "application/json",
+			stravaVerifyStatus: ports.GrantRevoked,
+			method:             "POST",
+			contentType:        "application/json",
 			payload: webhookproto.StravaWebhookJSON{
 				AspectType:     "update",
 				EventTime:      testEventTime,
@@ -685,13 +696,14 @@ func TestHandler_AthleteDeauth(t *testing.T) {
 			DeleteErr: errors.New("firestore unavailable"),
 		}
 		tt := handleEventTestCase{
-			method:         "POST",
-			contentType:    "application/json",
-			payload:        deauthDeletePayload,
-			mockSubID:      testSubscriptionID,
-			mockTokenStore: mockTokens,
-			expectedStatus: http.StatusOK,
-			expectedBody:   "acknowledged",
+			stravaVerifyStatus: ports.GrantRevoked,
+			method:             "POST",
+			contentType:        "application/json",
+			payload:            deauthDeletePayload,
+			mockSubID:          testSubscriptionID,
+			mockTokenStore:     mockTokens,
+			expectedStatus:     http.StatusOK,
+			expectedBody:       "acknowledged",
 		}
 		runHandleEventTest(t, &tt)
 
@@ -703,16 +715,107 @@ func TestHandler_AthleteDeauth(t *testing.T) {
 	t.Run("Deauth with publish failure returns 500", func(t *testing.T) {
 		mockTokens := &portstest.MockTokenStore{}
 		tt := handleEventTestCase{
-			method:           "POST",
-			contentType:      "application/json",
-			payload:          deauthDeletePayload,
-			mockSubID:        testSubscriptionID,
-			mockTokenStore:   mockTokens,
-			deauthPublishErr: errors.New("pubsub unavailable"),
-			expectedStatus:   http.StatusInternalServerError,
-			expectedCode:     "DEAUTH_FAILED",
+			stravaVerifyStatus: ports.GrantRevoked,
+			method:             "POST",
+			contentType:        "application/json",
+			payload:            deauthDeletePayload,
+			mockSubID:          testSubscriptionID,
+			mockTokenStore:     mockTokens,
+			deauthPublishErr:   errors.New("pubsub unavailable"),
+			expectedStatus:     http.StatusInternalServerError,
+			expectedCode:       "DEAUTH_FAILED",
 		}
 		runHandleEventTest(t, &tt)
+		if got := mockTokens.DeletedCount(); got != 0 {
+			t.Errorf("DeleteTokens called %d times before durable publish, want 0", got)
+		}
+	})
+
+	t.Run("Publish failure retains tokens so redelivery can complete cleanup", func(t *testing.T) {
+		body, err := json.Marshal(deauthDeletePayload)
+		if err != nil {
+			t.Fatalf("marshal payload: %v", err)
+		}
+		mockTokens := &portstest.MockTokenStore{}
+		mockDeauth := &portstest.MockPublisher{PublishErr: errors.New("pubsub unavailable")}
+		mockStrava := &portstest.MockStravaClient{VerifyStatus: ports.GrantRevoked}
+		mockAllow := portstest.NewAllowAllMockAllowlist()
+		handler := NewHandler(
+			&portstest.MockPublisher{}, mockDeauth,
+			&portstest.MockSecretProvider{SubscriptionID: testSubscriptionID},
+			mockStrava, mockTokens, mockAllow, gcplog.NewNoOpLogger(), nil,
+		)
+		router := handler.RegisterRoutes()
+		post := func() *httptest.ResponseRecorder {
+			req := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewReader(body))
+			req.Header.Set("Content-Type", contentTypeJSON)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			return w
+		}
+
+		if w := post(); w.Code != http.StatusInternalServerError {
+			t.Fatalf("first status = %d, want 500", w.Code)
+		}
+		if got := mockTokens.DeletedCount(); got != 0 {
+			t.Fatalf("first delivery deleted tokens %d times, want 0", got)
+		}
+		if got := len(mockAllow.InvalidatedWith); got != 0 {
+			t.Fatalf("first delivery invalidated allowlist %d times, want 0", got)
+		}
+
+		mockDeauth.PublishErr = nil
+		if w := post(); w.Code != http.StatusOK {
+			t.Fatalf("redelivery status = %d, want 200 (body: %s)", w.Code, w.Body.String())
+		}
+		if got := mockStrava.VerifyCalledCount(); got != 2 {
+			t.Errorf("VerifyGrant calls = %d, want 2", got)
+		}
+		if got := mockDeauth.PublishedCount(); got != 1 {
+			t.Errorf("successful deauth publishes = %d, want 1", got)
+		}
+		if got := mockTokens.DeletedCount(); got != 1 {
+			t.Errorf("DeleteTokens calls after redelivery = %d, want 1", got)
+		}
+	})
+
+	t.Run("Deauth verification has a one-second fail-closed budget", func(t *testing.T) {
+		body, err := json.Marshal(deauthDeletePayload)
+		if err != nil {
+			t.Fatalf("marshal payload: %v", err)
+		}
+		mockTokens := &portstest.MockTokenStore{}
+		mockDeauth := &portstest.MockPublisher{}
+		mockStrava := &portstest.MockStravaClient{
+			VerifyStatus: ports.GrantRevoked,
+			VerifyDelay:  5 * time.Second,
+		}
+		handler := NewHandler(
+			&portstest.MockPublisher{}, mockDeauth,
+			&portstest.MockSecretProvider{SubscriptionID: testSubscriptionID},
+			mockStrava, mockTokens, portstest.NewAllowAllMockAllowlist(), gcplog.NewNoOpLogger(), nil,
+		)
+		req := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewReader(body))
+		req.Header.Set("Content-Type", contentTypeJSON)
+		w := httptest.NewRecorder()
+		started := time.Now()
+		handler.RegisterRoutes().ServeHTTP(w, req)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("status = %d, want 500", w.Code)
+		}
+		if elapsed := time.Since(started); elapsed >= 2*time.Second {
+			t.Errorf("verification elapsed %s, want below Strava's 2s response budget", elapsed)
+		}
+		if deadline, ok := mockStrava.LastVerifyDeadline(); !ok || deadline.Sub(started) > deauthVerificationTimeout+100*time.Millisecond {
+			t.Errorf("verification deadline = %v (set=%v), want within %s", deadline, ok, deauthVerificationTimeout)
+		}
+		if got := mockDeauth.PublishedCount(); got != 0 {
+			t.Errorf("deauth publishes = %d after timeout, want 0", got)
+		}
+		if got := mockTokens.DeletedCount(); got != 0 {
+			t.Errorf("DeleteTokens calls = %d after timeout, want 0", got)
+		}
 	})
 
 	t.Run("Non-deauth athlete event is acknowledged without processing", func(t *testing.T) {
@@ -815,11 +918,13 @@ func TestHandler_OwnerCheck_DeauthBypassesAllowlist(t *testing.T) {
 	mockDeauth := &portstest.MockPublisher{}
 	denyingAllowlist := &portstest.MockAllowlist{Allowed: false}
 
+	// Grant confirmed revoked: this test is about the allowlist bypass, not the
+	// forged-deauth gate, so the deauth is genuine and must still clean up.
 	handler := NewHandler(
 		&portstest.MockPublisher{},
 		mockDeauth,
 		&portstest.MockSecretProvider{SubscriptionID: testSubscriptionID},
-		&portstest.MockStravaClient{},
+		&portstest.MockStravaClient{VerifyStatus: ports.GrantRevoked},
 		mockTokens,
 		denyingAllowlist,
 		log,
