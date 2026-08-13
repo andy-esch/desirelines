@@ -19,6 +19,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
 	"github.com/andy-esch/desirelines/packages/shared/apierrors"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
+	"go.opentelemetry.io/otel/metric"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -1098,6 +1099,185 @@ func ownerCheckResultLabels(rm metricdata.ResourceMetrics) []string {
 				if v, exists := dp.Attributes.Value("result"); exists {
 					out = append(out, v.AsString())
 				}
+			}
+		}
+	}
+	return out
+}
+
+func TestHandler_EventAgeHistogram(t *testing.T) {
+	now := time.Date(2026, time.August, 13, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name          string
+		body          func(t *testing.T) []byte
+		secretSubID   int32
+		wantStatus    int
+		wantDirection string
+		wantSeconds   float64
+		wantMetric    bool
+	}{
+		{
+			name:          "past event records delivery age",
+			body:          eventAgeTestBody(now.Unix() - 45),
+			secretSubID:   testSubscriptionID,
+			wantStatus:    http.StatusOK,
+			wantDirection: eventTimePast,
+			wantSeconds:   45,
+			wantMetric:    true,
+		},
+		{
+			name:          "equal timestamp belongs to past direction",
+			body:          eventAgeTestBody(now.Unix()),
+			secretSubID:   testSubscriptionID,
+			wantStatus:    http.StatusOK,
+			wantDirection: eventTimePast,
+			wantSeconds:   0,
+			wantMetric:    true,
+		},
+		{
+			name:          "future event records clock skew",
+			body:          eventAgeTestBody(now.Unix() + 12),
+			secretSubID:   testSubscriptionID,
+			wantStatus:    http.StatusOK,
+			wantDirection: eventTimeFuture,
+			wantSeconds:   12,
+			wantMetric:    true,
+		},
+		{
+			name:        "subscription mismatch is not observed",
+			body:        eventAgeTestBody(now.Unix() - 45),
+			secretSubID: 999,
+			wantStatus:  http.StatusUnauthorized,
+		},
+		{
+			name: "invalid json is not observed",
+			body: func(t *testing.T) []byte {
+				t.Helper()
+				return []byte(`{"object_type"`)
+			},
+			secretSubID: testSubscriptionID,
+			wantStatus:  http.StatusBadRequest,
+		},
+		{
+			name:        "invalid schema is not observed",
+			body:        eventAgeTestBody(0),
+			secretSubID: testSubscriptionID,
+			wantStatus:  http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reader := sdkmetric.NewManualReader()
+			provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+			meter := provider.Meter("test")
+			histogram, err := meter.Float64Histogram(
+				"desirelines.io/webhook/event_age",
+				metric.WithUnit("s"),
+			)
+			if err != nil {
+				t.Fatalf("create histogram: %v", err)
+			}
+
+			handler := NewHandler(
+				&portstest.MockPublisher{},
+				&portstest.MockPublisher{},
+				&portstest.MockSecretProvider{SubscriptionID: tt.secretSubID},
+				&portstest.MockStravaClient{},
+				&portstest.MockTokenStore{},
+				portstest.NewAllowAllMockAllowlist(),
+				gcplog.NewNoOpLogger(),
+				&HandlerConfig{
+					EventAgeHistogram: histogram,
+					Now:               func() time.Time { return now },
+				},
+			)
+
+			req := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewReader(tt.body(t)))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			handler.RegisterRoutes().ServeHTTP(w, req)
+			if w.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d (body: %s)", w.Code, tt.wantStatus, w.Body.String())
+			}
+
+			var rm metricdata.ResourceMetrics
+			if collectErr := reader.Collect(context.Background(), &rm); collectErr != nil {
+				t.Fatalf("collect metrics: %v", collectErr)
+			}
+			measurements := eventAgeMeasurements(rm)
+			if !tt.wantMetric {
+				if len(measurements) != 0 {
+					t.Fatalf("event_age measurements = %v, want none", measurements)
+				}
+				return
+			}
+			if len(measurements) != 1 {
+				t.Fatalf("event_age measurement count = %d, want 1 (%v)", len(measurements), measurements)
+			}
+			got := measurements[0]
+			if got.count != 1 || got.sum != tt.wantSeconds {
+				t.Errorf("event_age = count %d sum %.3f, want count 1 sum %.3f", got.count, got.sum, tt.wantSeconds)
+			}
+			if got.direction != tt.wantDirection {
+				t.Errorf("direction = %q, want %q", got.direction, tt.wantDirection)
+			}
+			if got.aspectType != "create" || got.objectType != "athlete" {
+				t.Errorf("labels = aspect_type %q object_type %q, want create/athlete", got.aspectType, got.objectType)
+			}
+		})
+	}
+}
+
+func eventAgeTestBody(eventTime int64) func(t *testing.T) []byte {
+	return func(t *testing.T) []byte {
+		t.Helper()
+		body, err := json.Marshal(webhookproto.StravaWebhookJSON{
+			AspectType:     "create",
+			ObjectType:     "athlete",
+			ObjectID:       testOwnerID,
+			OwnerID:        testOwnerID,
+			EventTime:      eventTime,
+			SubscriptionID: testSubscriptionID,
+		})
+		if err != nil {
+			t.Fatalf("marshal webhook: %v", err)
+		}
+		return body
+	}
+}
+
+type eventAgeMeasurement struct {
+	count                 uint64
+	sum                   float64
+	direction, aspectType string
+	objectType            string
+}
+
+func eventAgeMeasurements(rm metricdata.ResourceMetrics) []eventAgeMeasurement {
+	var out []eventAgeMeasurement
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if m.Name != "desirelines.io/webhook/event_age" {
+				continue
+			}
+			histogram, ok := m.Data.(metricdata.Histogram[float64])
+			if !ok {
+				continue
+			}
+			for _, dp := range histogram.DataPoints {
+				measurement := eventAgeMeasurement{count: dp.Count, sum: dp.Sum}
+				if value, exists := dp.Attributes.Value("direction"); exists {
+					measurement.direction = value.AsString()
+				}
+				if value, exists := dp.Attributes.Value("aspect_type"); exists {
+					measurement.aspectType = value.AsString()
+				}
+				if value, exists := dp.Attributes.Value("object_type"); exists {
+					measurement.objectType = value.AsString()
+				}
+				out = append(out, measurement)
 			}
 		}
 	}

@@ -8,7 +8,8 @@
 # - Cloud Run resource utilization
 # - PubSub push-delivery performance
 # - Application metrics (OTel) — Strava/Postgres/BigQuery latency, webhook
-#   counters, owner-check outcomes, postgres-writer operation latency.
+#   counters, event-age distribution, owner-check outcomes, and
+#   postgres-writer operation latency.
 #
 # Alert policies live in `alerts.tf` / `uptime_checks.tf` / `readiness_probes.tf`;
 # SLO compliance + burn-rate alerts in `slos.tf`.
@@ -935,7 +936,7 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
         #   error    — allowlist read failed; alerts at >1/min
         {
           yPos   = 70
-          width  = 12
+          width  = 6
           height = 4
           widget = {
             title = "Webhook Owner Check Outcomes (per minute)"
@@ -959,6 +960,91 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               timeshiftDuration = "0s"
               yAxis = {
                 label = "Events/min"
+                scale = "LINEAR"
+              }
+            }
+          }
+        },
+
+        # Strava event age and future clock skew - Row 70, Right
+        # Observe-only evidence for the dispatcher freshness policy. The
+        # histogram records a non-negative offset in seconds; direction=past
+        # is delivery age and direction=future is provider/payload clock skew.
+        # Deliberately no threshold or alert until genuine delivery/retry data
+        # supports one.
+        {
+          xPos   = 6
+          yPos   = 70
+          width  = 6
+          height = 4
+          widget = {
+            title = "Strava webhook event age / future skew"
+            xyChart = {
+              dataSets = [
+                {
+                  timeSeriesQuery = {
+                    timeSeriesFilter = {
+                      filter = "metric.type=\"workload.googleapis.com/desirelines.io/webhook/event_age\" AND resource.type=\"generic_task\" AND metric.labels.direction=\"past\""
+                      aggregation = {
+                        alignmentPeriod    = "60s"
+                        perSeriesAligner   = "ALIGN_DELTA"
+                        crossSeriesReducer = "REDUCE_PERCENTILE_50"
+                      }
+                    }
+                  }
+                  plotType       = "LINE"
+                  targetAxis     = "Y1"
+                  legendTemplate = "delivery age P50"
+                },
+                {
+                  timeSeriesQuery = {
+                    timeSeriesFilter = {
+                      filter = "metric.type=\"workload.googleapis.com/desirelines.io/webhook/event_age\" AND resource.type=\"generic_task\" AND metric.labels.direction=\"past\""
+                      aggregation = {
+                        alignmentPeriod    = "60s"
+                        perSeriesAligner   = "ALIGN_DELTA"
+                        crossSeriesReducer = "REDUCE_PERCENTILE_95"
+                      }
+                    }
+                  }
+                  plotType       = "LINE"
+                  targetAxis     = "Y1"
+                  legendTemplate = "delivery age P95"
+                },
+                {
+                  timeSeriesQuery = {
+                    timeSeriesFilter = {
+                      filter = "metric.type=\"workload.googleapis.com/desirelines.io/webhook/event_age\" AND resource.type=\"generic_task\" AND metric.labels.direction=\"past\""
+                      aggregation = {
+                        alignmentPeriod    = "60s"
+                        perSeriesAligner   = "ALIGN_DELTA"
+                        crossSeriesReducer = "REDUCE_PERCENTILE_99"
+                      }
+                    }
+                  }
+                  plotType       = "LINE"
+                  targetAxis     = "Y1"
+                  legendTemplate = "delivery age P99"
+                },
+                {
+                  timeSeriesQuery = {
+                    timeSeriesFilter = {
+                      filter = "metric.type=\"workload.googleapis.com/desirelines.io/webhook/event_age\" AND resource.type=\"generic_task\" AND metric.labels.direction=\"future\""
+                      aggregation = {
+                        alignmentPeriod    = "60s"
+                        perSeriesAligner   = "ALIGN_DELTA"
+                        crossSeriesReducer = "REDUCE_PERCENTILE_95"
+                      }
+                    }
+                  }
+                  plotType       = "LINE"
+                  targetAxis     = "Y1"
+                  legendTemplate = "future skew P95"
+                },
+              ]
+              timeshiftDuration = "0s"
+              yAxis = {
+                label = "Seconds"
                 scale = "LINEAR"
               }
             }

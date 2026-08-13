@@ -70,6 +70,16 @@ var extendedDurationInstrumentNames = []string{
 	"desirelines.io/strava/oauth_exchange.duration",
 }
 
+// eventAgeBuckets keeps useful resolution around ordinary webhook delivery
+// while retaining visibility into delayed retries and pathological old/future
+// event timestamps. Values are seconds; the final boundary is 30 days. A
+// separate view is intentional because the shared duration histograms use
+// milliseconds and should not inherit these boundaries.
+var eventAgeBuckets = []float64{
+	0, 1, 2, 5, 10, 30, 60, 120, 300, 600, 1800, 3600,
+	21600, 43200, 86400, 259200, 604800, 2592000,
+}
+
 // newMeterProvider constructs the SDK MeterProvider with the project's
 // standard resource and View configuration. Extracted from Setup so the
 // View wiring can be exercised with a ManualReader in provider_test.go
@@ -79,6 +89,7 @@ func newMeterProvider(res *resource.Resource, reader sdkmetric.Reader) *sdkmetri
 		sdkmetric.WithReader(reader),
 		sdkmetric.WithResource(res),
 		sdkmetric.WithView(extendedDurationViews()...),
+		sdkmetric.WithView(eventAgeView()),
 	)
 }
 
@@ -136,6 +147,22 @@ func extendedDurationViews() []sdkmetric.View {
 		)
 	}
 	return views
+}
+
+// eventAgeView applies the seconds-based delivery-age buckets only to the
+// dispatcher event-age histogram.
+func eventAgeView() sdkmetric.View {
+	return sdkmetric.NewView(
+		sdkmetric.Instrument{
+			Name: "desirelines.io/webhook/event_age",
+			Kind: sdkmetric.InstrumentKindHistogram,
+		},
+		sdkmetric.Stream{
+			Aggregation: sdkmetric.AggregationExplicitBucketHistogram{
+				Boundaries: eventAgeBuckets,
+			},
+		},
+	)
 }
 
 // Providers holds the initialized OTel meter and tracer.

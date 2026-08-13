@@ -115,6 +115,47 @@ func TestNewMeterProvider_AppliesExtendedDurationViewsToHistograms(t *testing.T)
 	}
 }
 
+func TestNewMeterProvider_AppliesEventAgeBuckets(t *testing.T) {
+	reader := sdkmetric.NewManualReader()
+	mp := newMeterProvider(resource.Empty(), reader)
+
+	const instrumentName = "desirelines.io/webhook/event_age"
+	hist, err := mp.Meter(scopeName).Float64Histogram(instrumentName, otelmetric.WithUnit("s"))
+	if err != nil {
+		t.Fatalf("create histogram: %v", err)
+	}
+	hist.Record(context.Background(), 900000)
+
+	var rm metricdata.ResourceMetrics
+	if collectErr := reader.Collect(context.Background(), &rm); collectErr != nil {
+		t.Fatalf("collect: %v", collectErr)
+	}
+
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if m.Name != instrumentName {
+				continue
+			}
+			data, ok := m.Data.(metricdata.Histogram[float64])
+			if !ok {
+				t.Fatalf("expected Histogram[float64] for %s, got %T", instrumentName, m.Data)
+			}
+			if len(data.DataPoints) != 1 {
+				t.Fatalf("expected 1 data point, got %d", len(data.DataPoints))
+			}
+			bounds := data.DataPoints[0].Bounds
+			if len(bounds) != len(eventAgeBuckets) {
+				t.Fatalf("event-age boundary count = %d, want %d", len(bounds), len(eventAgeBuckets))
+			}
+			if got := bounds[len(bounds)-1]; got != 2592000 {
+				t.Fatalf("event-age last boundary = %.0f, want 2592000", got)
+			}
+			return
+		}
+	}
+	t.Fatalf("did not find %s in collected metrics", instrumentName)
+}
+
 // TestExtendedDurationViews_DoNotMatchUnlistedInstruments asserts that the
 // Views do not accidentally apply to non-duration instruments (e.g.,
 // webhook/events counter, postgres/pool.connections gauge).
