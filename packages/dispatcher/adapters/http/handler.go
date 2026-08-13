@@ -64,6 +64,14 @@ const (
 	ownerCheckError   = "error"
 )
 
+// Event-time directions (label values for the event_age histogram). The
+// histogram records a non-negative magnitude; this label distinguishes normal
+// delivery age from an event timestamp that is ahead of the dispatcher clock.
+const (
+	eventTimePast   = "past"
+	eventTimeFuture = "future"
+)
+
 // Outcomes of the best-effort activity-row publish (label values for the
 // row_publish counter). Every activity event that reaches the publish step
 // records exactly one of these.
@@ -198,6 +206,7 @@ type Handler struct {
 	rateLimiter          *ratelimit.Limiter
 	maxRequestBodySize   int64
 	webhookCounter       metric.Int64Counter
+	eventAgeHistogram    metric.Float64Histogram
 	ownerCheckCounter    metric.Int64Counter
 	deauthCleanupCounter metric.Int64Counter
 	rowPublishCounter    metric.Int64Counter
@@ -205,6 +214,7 @@ type Handler struct {
 	rowRefetchTimeout    time.Duration
 	httpHistogram        metric.Float64Histogram
 	tracer               trace.Tracer
+	now                  func() time.Time
 }
 
 // HandlerConfig holds configuration for the HTTP handler.
@@ -212,7 +222,12 @@ type HandlerConfig struct {
 	MaxRequestBodySize int64
 	RateLimiter        *ratelimit.Limiter
 	WebhookCounter     metric.Int64Counter
-	OwnerCheckCounter  metric.Int64Counter
+	// EventAgeHistogram records the non-negative difference between the
+	// dispatcher's receive time and Strava's event_time in seconds. Its
+	// direction label distinguishes past/equal events from future timestamps.
+	// Optional; nil disables the metric.
+	EventAgeHistogram metric.Float64Histogram
+	OwnerCheckCounter metric.Int64Counter
 	// DeauthCleanupCounter records whether a deauthorized athlete's tokens were
 	// actually deleted. Optional; nil disables the metric.
 	DeauthCleanupCounter metric.Int64Counter
@@ -235,6 +250,10 @@ type HandlerConfig struct {
 	// at construction time the handler falls back to a no-op tracer; spans
 	// inside the handler simply don't get emitted.
 	Tracer trace.Tracer
+	// Now supplies the receive timestamp. Nil takes time.Now. This is injected
+	// only to make event-age boundary and direction behavior deterministic in
+	// tests; production should leave it unset.
+	Now func() time.Time
 }
 
 // NewHandler creates a new webhook handler with injected dependencies.
@@ -262,6 +281,10 @@ func NewHandler(publisher, deauthPublisher ports.Publisher, secretProvider ports
 		// registers globally; if OTel is disabled it's the no-op tracer.
 		tracer = otel.Tracer(tracerScope)
 	}
+	now := cfg.Now
+	if now == nil {
+		now = time.Now
+	}
 	return &Handler{
 		secretProvider:       secretProvider,
 		publisher:            publisher,
@@ -274,6 +297,7 @@ func NewHandler(publisher, deauthPublisher ports.Publisher, secretProvider ports
 		rateLimiter:          cfg.RateLimiter,
 		maxRequestBodySize:   maxBodySize,
 		webhookCounter:       cfg.WebhookCounter,
+		eventAgeHistogram:    cfg.EventAgeHistogram,
 		ownerCheckCounter:    cfg.OwnerCheckCounter,
 		deauthCleanupCounter: cfg.DeauthCleanupCounter,
 		rowPublishCounter:    cfg.RowPublishCounter,
@@ -281,6 +305,7 @@ func NewHandler(publisher, deauthPublisher ports.Publisher, secretProvider ports
 		rowRefetchTimeout:    rowRefetchTimeout,
 		httpHistogram:        cfg.HTTPHistogram,
 		tracer:               tracer,
+		now:                  now,
 	}
 }
 
@@ -412,7 +437,8 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 	// the webhook" to "row visible in postgres." Stashing on the context
 	// here lets the publisher stamp it as a Pub/Sub attribute later
 	// without needing to thread the timestamp through every helper.
-	ctx = pubsubadapter.WithWebhookReceivedAt(ctx, time.Now())
+	receivedAt := h.now()
+	ctx = pubsubadapter.WithWebhookReceivedAt(ctx, receivedAt)
 	r = r.WithContext(ctx)
 
 	body, ok := h.readAndValidateBody(w, r)
@@ -437,6 +463,7 @@ func (h *Handler) handleEvent(w http.ResponseWriter, r *http.Request) {
 	ctx = gcplog.WithCorrelationID(ctx, correlationID)
 
 	h.recordWebhookMetric(ctx, webhook)
+	h.recordEventAgeMetric(ctx, webhook, receivedAt)
 
 	h.routeWebhookEvent(ctx, w, r.WithContext(ctx), webhook, body, correlationID)
 }
@@ -525,6 +552,35 @@ func (h *Handler) checkSubscriptionID(w http.ResponseWriter, r *http.Request, we
 		return false
 	}
 	return true
+}
+
+// recordEventAgeMetric records the absolute offset between handler receive
+// time and Strava's event_time. Keeping the value non-negative makes the
+// duration-like histogram well behaved; direction preserves whether the
+// measurement is ordinary delivery age or future clock skew. All labels have
+// fixed, bounded vocabularies.
+func (h *Handler) recordEventAgeMetric(ctx context.Context, webhook *generated.WebhookEvent, receivedAt time.Time) {
+	if h.eventAgeHistogram == nil {
+		return
+	}
+
+	// Subtract Unix seconds directly: time.Time.Sub returns a time.Duration and
+	// can overflow its roughly 292-year range for a pathological event_time.
+	receivedSeconds := float64(receivedAt.Unix()) + float64(receivedAt.Nanosecond())/float64(time.Second)
+	offsetSeconds := receivedSeconds - float64(webhook.EventTime)
+	direction := eventTimePast
+	if offsetSeconds < 0 {
+		direction = eventTimeFuture
+		offsetSeconds = -offsetSeconds
+	}
+
+	h.eventAgeHistogram.Record(ctx, offsetSeconds,
+		metric.WithAttributes(
+			attribute.String("direction", direction),
+			attribute.String("aspect_type", webhookproto.AspectTypeToString(webhook.AspectType)),
+			attribute.String("object_type", webhookproto.ObjectTypeToString(webhook.ObjectType)),
+		),
+	)
 }
 
 // recordWebhookMetric increments the webhook-events counter labeled by

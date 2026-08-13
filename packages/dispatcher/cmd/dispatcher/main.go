@@ -198,7 +198,14 @@ func (d *Dependencies) Close() {
 // (non-fatally) on failure. The returned instrument is usable regardless —
 // OTel returns a no-op on error.
 func newHistogram(meter metric.Meter, log *slog.Logger, name, desc string) metric.Float64Histogram {
-	h, err := meter.Float64Histogram(name, metric.WithUnit("ms"), metric.WithDescription(desc))
+	return newHistogramWithUnit(meter, log, name, desc, "ms")
+}
+
+// newHistogramWithUnit creates a Float64Histogram with the supplied UCUM unit,
+// warning (non-fatally) on failure. It is used for non-millisecond
+// distributions such as webhook event age.
+func newHistogramWithUnit(meter metric.Meter, log *slog.Logger, name, desc, unit string) metric.Float64Histogram {
+	h, err := meter.Float64Histogram(name, metric.WithUnit(unit), metric.WithDescription(desc))
 	if err != nil {
 		log.Warn("Failed to create histogram", "name", name, "error", err)
 	}
@@ -227,6 +234,7 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 	firestoreHist := newHistogram(meter, log, "desirelines.io/firestore/operation.duration", "Firestore operation duration")
 	pubsubHist := newHistogram(meter, log, "desirelines.io/pubsub/publish.duration", "PubSub publish duration")
 	webhookCounter := newCounter(meter, log, "desirelines.io/webhook/events", "Webhook events processed")
+	eventAgeHistogram := newHistogramWithUnit(meter, log, "desirelines.io/webhook/event_age", "Absolute offset between dispatcher receive time and Strava event_time", "s")
 	ownerCheckCounter := newCounter(meter, log, "desirelines.io/webhook/owner_check", "Webhook owner allowlist check outcomes (allowed/stray/orphan/error)")
 	deauthCleanupCounter := newCounter(meter, log, "desirelines.io/webhook/deauth_cleanup", "Deauth verification, durable-handoff, and token-cleanup outcomes")
 	rowPublishCounter := newCounter(meter, log, "desirelines.io/bigquery/row_publish", "BigQuery activity-row publish outcomes (published/skipped/error)")
@@ -338,6 +346,7 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 		MaxRequestBodySize:   cfg.MaxRequestBodySize,
 		RateLimiter:          rateLimiter,
 		WebhookCounter:       webhookCounter,
+		EventAgeHistogram:    eventAgeHistogram,
 		OwnerCheckCounter:    ownerCheckCounter,
 		DeauthCleanupCounter: deauthCleanupCounter,
 		HTTPHistogram:        httpHist,
