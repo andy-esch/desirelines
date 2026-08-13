@@ -68,7 +68,7 @@ dev = [
 #      Renovate bumps both in one PR (see the "uv" group in renovate.json).
 # Exact pin, not a floor: allowing devs to run *ahead* of the Dockerfile tag is
 # the direction that breaks the production image.
-required-version = "==0.12.3"
+required-version = "==0.12.4"
 
 [build-system]
 requires = ["uv_build>=0.12.1,<0.13.0"]
