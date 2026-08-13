@@ -37,11 +37,10 @@ var (
 	ErrStravaAuth = ports.ErrStravaAuthFailed
 	ErrStravaAPI  = errors.New("strava: API error")
 
-	// errRefreshTokenRejected marks a 400/401 response from Strava's
-	// /oauth/token endpoint. The stored refresh token itself has been
-	// invalidated (revoked, rotated, or wrong), so retrying with the same
-	// refresh token will fail the same way — refreshAndPersist treats this
-	// as non-retryable and returns immediately.
+	// errRefreshTokenRejected marks a structured rejection that specifically
+	// identifies the athlete's refresh token as invalid. A bare 400/401 is not
+	// enough: Strava uses the same statuses for application-credential errors,
+	// which must never be interpreted as an athlete revoking access.
 	errRefreshTokenRejected = errors.New("strava: refresh token rejected")
 
 	// errCallerContextEnded marks a request cut short by the *caller's*
@@ -130,6 +129,9 @@ const (
 	refreshReasonEmptyToken      = "empty_token"
 	refreshReasonProactiveExpiry = "proactive_expiry"
 	refreshReasonReactive401     = "reactive_401"
+	// refreshReasonDeauthVerify marks the refresh VerifyGrant uses to
+	// probe whether a deauthorization event is genuine (see that method).
+	refreshReasonDeauthVerify = "deauth_verify"
 )
 
 // tokenResponse represents the JSON response from Strava's OAuth token endpoint.
@@ -137,6 +139,21 @@ type tokenResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 	ExpiresAt    int64  `json:"expires_at"`
+}
+
+// oauthErrorResponse is the non-secret portion of Strava's OAuth error body.
+// It is parsed only to distinguish an athlete refresh-token rejection from an
+// application/configuration rejection; the body is never logged or returned.
+type oauthErrorResponse struct {
+	Errors []struct {
+		Resource string `json:"resource"`
+		Field    string `json:"field"`
+		Code     string `json:"code"`
+	} `json:"errors"`
+}
+
+type athleteResponse struct {
+	ID int64 `json:"id"`
 }
 
 // Client implements ports.StravaClient by calling the Strava REST API.
@@ -326,6 +343,122 @@ func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) (
 		return nil, err
 	}
 	return body, err
+}
+
+// VerifyGrant confirms an unsigned deauthorization event without turning it
+// into a token-rotation or quota-amplification primitive. A live, unexpired
+// access token is checked with the read-only /athlete endpoint. Only an expired
+// or rejected access token requires a refresh.
+//
+// A refresh-token rejection authorizes deletion only when Strava's structured
+// error identifies that token (not the application credentials) and an
+// authoritative token-store re-read still contains the rejected credentials.
+// That second read rules out an out-of-process re-authorization hidden behind
+// this process's cache.
+func (c *Client) VerifyGrant(ctx context.Context, ownerID int64) (_ ports.GrantStatus, err error) {
+	ctx, spanDone := otel.StartSpan(ctx, c.tracer, "strava.verify_grant",
+		attribute.Int64("strava.owner_id", ownerID),
+	)
+	defer func() { spanDone(err) }()
+
+	tokens, err := c.tokenStore.GetTokens(ctx, ownerID)
+	if err != nil {
+		return ports.GrantUnknown, fmt.Errorf("get tokens for athlete %d: %w", ownerID, err)
+	}
+	return c.verifyGrantWithTokens(ctx, ownerID, tokens, true)
+}
+
+func (c *Client) verifyGrantWithTokens(ctx context.Context, ownerID int64, tokens *stravatoken.Data, rereadOnRejection bool) (ports.GrantStatus, error) {
+	// Avoid rotating a healthy token for every forged webhook. If the access
+	// token is nominally live, /athlete is a cheap, read-only proof that it still
+	// belongs to this owner. A 401 falls through to the stronger refresh check.
+	if tokens.AccessToken != "" && time.Now().Unix() < tokens.ExpiresAt {
+		if verifyErr := c.doVerifyCurrentAthlete(ctx, ownerID, tokens.AccessToken); verifyErr == nil {
+			return ports.GrantActive, nil
+		} else if !isAuthError(verifyErr) {
+			return ports.GrantUnknown, fmt.Errorf("verify current athlete %d: %w", ownerID, verifyErr)
+		}
+	}
+
+	if _, refreshErr := c.refreshAndPersist(ctx, ownerID, tokens, refreshReasonDeauthVerify); refreshErr == nil {
+		return ports.GrantActive, nil
+	} else if !errors.Is(refreshErr, errRefreshTokenRejected) {
+		return ports.GrantUnknown, fmt.Errorf("verify grant for athlete %d: %w", ownerID, refreshErr)
+	}
+
+	if !rereadOnRejection {
+		trace.SpanFromContext(ctx).SetAttributes(attribute.Bool("strava.grant_revoked", true))
+		return ports.GrantRevoked, nil
+	}
+
+	// refreshAndPersist invalidates caching stores on this exact rejection. The
+	// next read is therefore authoritative and catches a fresh token written by
+	// another process (for example, an API-gateway re-authorization).
+	fresh, getErr := c.tokenStore.GetTokens(ctx, ownerID)
+	if getErr != nil {
+		return ports.GrantUnknown, fmt.Errorf("re-read tokens after rejected grant check for athlete %d: %w", ownerID, getErr)
+	}
+	if sameGrantCredentials(tokens, fresh) {
+		trace.SpanFromContext(ctx).SetAttributes(attribute.Bool("strava.grant_revoked", true))
+		return ports.GrantRevoked, nil
+	}
+	return c.verifyGrantWithTokens(ctx, ownerID, fresh, false)
+}
+
+func sameGrantCredentials(a, b *stravatoken.Data) bool {
+	return a.AccessToken == b.AccessToken &&
+		a.RefreshToken == b.RefreshToken &&
+		a.ExpiresAt == b.ExpiresAt &&
+		a.LastRefreshed.Equal(b.LastRefreshed)
+}
+
+// doVerifyCurrentAthlete proves a live access token belongs to ownerID.
+func (c *Client) doVerifyCurrentAthlete(ctx context.Context, ownerID int64, accessToken string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.apiBase+"/athlete", nil)
+	if err != nil {
+		return fmt.Errorf("create athlete request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return fmt.Errorf("%w: %w", errCallerContextEnded, ctxErr)
+		}
+		return fmt.Errorf("athlete request failed: %w", err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.logger.Error("Failed to close response body",
+				"correlation_id", gcplog.CorrelationIDFromContext(ctx), "error", closeErr)
+		}
+	}()
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxTokenResponseBytes))
+	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return fmt.Errorf("%w: %w", errCallerContextEnded, ctxErr)
+		}
+		return fmt.Errorf("read athlete response body: %w", err)
+	}
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		var athlete athleteResponse
+		if decodeErr := json.Unmarshal(body, &athlete); decodeErr != nil {
+			return fmt.Errorf("decode athlete response: %w", decodeErr)
+		}
+		if athlete.ID != ownerID {
+			return fmt.Errorf("access token identifies athlete %d, want %d", athlete.ID, ownerID)
+		}
+		return nil
+	case http.StatusUnauthorized:
+		return &authError{statusCode: resp.StatusCode}
+	case http.StatusTooManyRequests:
+		return &rateLimitError{retryAfter: parseRetryAfter(resp.Header.Get("Retry-After"))}
+	default:
+		return &stravaAPIError{statusCode: resp.StatusCode}
+	}
 }
 
 // fetchActivityWithTokens runs the proactive-refresh + retry-loop body
@@ -771,7 +904,7 @@ func (c *Client) doRefreshToken(ctx context.Context, refreshToken string) (*stra
 	}
 	if resp.StatusCode != http.StatusOK {
 		apiErr := &stravaAPIError{statusCode: resp.StatusCode}
-		if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusUnauthorized {
+		if (resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusUnauthorized) && isRefreshTokenInvalid(body) {
 			return nil, fmt.Errorf("%w: %w", errRefreshTokenRejected, apiErr)
 		}
 		return nil, apiErr
@@ -791,6 +924,21 @@ func (c *Client) doRefreshToken(ctx context.Context, refreshToken string) (*stra
 		RefreshToken: tokenResp.RefreshToken,
 		ExpiresAt:    tokenResp.ExpiresAt,
 	}, nil
+}
+
+func isRefreshTokenInvalid(body []byte) bool {
+	var response oauthErrorResponse
+	if err := json.Unmarshal(body, &response); err != nil {
+		return false
+	}
+	for _, apiErr := range response.Errors {
+		if apiErr.Resource == "RefreshToken" &&
+			(apiErr.Field == paramRefreshToken || apiErr.Field == "code") &&
+			apiErr.Code == "invalid" {
+			return true
+		}
+	}
+	return false
 }
 
 // authError is an internal error type for 401 responses.

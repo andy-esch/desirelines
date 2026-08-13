@@ -117,6 +117,31 @@ const (
 	rowErrorPanic = "panic"
 )
 
+// Outcomes of the deauth cleanup path (label values for the deauth_cleanup
+// counter). Every confirmed-or-rejected athlete-deauth event records exactly one.
+const (
+	// deauthDeleted / deauthDeleteFailed: a confirmed deauth whose token deletion
+	// succeeded / failed. deauthDeleteFailed is a privacy signal — see
+	// recordDeauthCleanup.
+	deauthDeleted      = "deleted"
+	deauthDeleteFailed = "delete_failed"
+	// deauthPublishFailed: the grant was confirmed revoked but the durable
+	// handoff failed. Tokens are deliberately retained so a Strava redelivery
+	// can verify and retry the publish.
+	deauthPublishFailed = "publish_failed"
+	// deauthRejectedForged: the athlete's grant still works, so the event is
+	// spurious or forged; nothing was deleted or published. This is the counter
+	// the forged-deauth defense drives.
+	deauthRejectedForged = "rejected_forged"
+	// deauthUnconfirmedNoTokens: no stored tokens to confirm the deauth against,
+	// so it was dropped rather than acted on (protects an allowlisted-but-
+	// unauthenticated athlete's footprint from a forged event).
+	deauthUnconfirmedNoTokens = "unconfirmed_no_tokens"
+	// deauthUnconfirmedError: Strava could not be reached to confirm; the event
+	// was neither deleted nor rejected — returned 500 so Strava redelivers.
+	deauthUnconfirmedError = "unconfirmed_error"
+)
+
 // Internal constants for recurring strings
 const (
 	hubModeSubscribe    = "subscribe"
@@ -149,6 +174,16 @@ const handleEventDeadline = 10 * time.Second
 // a single attempt, since the client's retry backoff starts at 1s; retries belong
 // on the primary path, not here.
 const DefaultRowRefetchTimeout = 1 * time.Second
+
+// deauthProcessingTimeout bounds confirmation plus durable handoff below
+// Strava's two-second webhook response requirement. Local token deletion is
+// best effort after that handoff and shares the same deadline.
+const deauthProcessingTimeout = 1900 * time.Millisecond
+
+// deauthVerificationTimeout leaves roughly half of Strava's two-second webhook
+// response budget for the durable Pub/Sub handoff. A timeout is unconfirmed and
+// therefore never authorizes deletion.
+const deauthVerificationTimeout = 1 * time.Second
 
 // Handler orchestrates the webhook processing.
 type Handler struct {
@@ -521,13 +556,16 @@ func (h *Handler) recordOwnerCheck(ctx context.Context, webhook *generated.Webho
 	)
 }
 
-// recordDeauthCleanup increments the deauth token-deletion counter labeled by
-// outcome (deleted / delete_failed). No-op when no counter is configured.
+// recordDeauthCleanup increments the deauth-cleanup counter labeled by outcome
+// (deleted / delete_failed / publish_failed / rejected_forged /
+// unconfirmed_no_tokens / unconfirmed_error). No-op when no counter is configured.
 //
-// The failure case is a privacy signal, not just an error: a deauthorized
-// athlete whose tokens survive is data we were asked to stop holding. It used
-// to be visible only as a Warn string, so "how often does cleanup fail?" could
-// only be answered by log-mining — which is why there was no alert on it.
+// delete_failed is a privacy signal, not just an error: a deauthorized athlete
+// whose tokens survive is data we were asked to stop holding. It used to be
+// visible only as a Warn string, so "how often does cleanup fail?" could only be
+// answered by log-mining — which is why there was no alert on it. rejected_forged
+// is the counter the forged-deauth defense drives: a sustained nonzero rate means
+// something is posting deauth events for athletes whose grants are still live.
 func (h *Handler) recordDeauthCleanup(ctx context.Context, outcome string) {
 	if h.deauthCleanupCounter == nil {
 		return
@@ -879,15 +917,20 @@ func (h *Handler) recordRowPublish(ctx context.Context, webhook *generated.Webho
 // which we coerce below). We also handle aspect_type=delete defensively in case
 // Strava sends that form.
 //
-// Deliberately NO allowlist gate (unlike handleActivityEvent). Deauth is
-// cleanup, and cleanup must run regardless of *current* allowlist membership:
-// an athlete who was allowlisted, is later removed, and then deauthorizes still
-// has Firestore tokens + downstream data to purge. Gating on IsAllowed here
-// would strand that data. A true stray (never allowlisted) has no tokens and no
-// data, so the delete + publish are harmless no-ops — the deletion service is
-// idempotent and the deauth-event volume is bounded. This is an intentional
-// design decision (see TestHandler_OwnerCheck_DeauthBypassesAllowlist), not a
-// missing guard; please don't "mirror the activity-path gate" here.
+// Strava signs nothing, so a deauthorization webhook is an unauthenticated
+// assertion. Before the destructive delete + publish, the grant is confirmed
+// actually revoked (verifyDeauthorization): a forged event for a live athlete
+// deletes nothing (dispatcher security assessment — an unauthenticated forged
+// deauth otherwise purges an arbitrary athlete's data). Confirmation, not the
+// allowlist, is what authorizes cleanup here.
+//
+// Deliberately NO allowlist gate (unlike handleActivityEvent). Cleanup must run
+// regardless of *current* allowlist membership: an athlete who was allowlisted,
+// is later removed, and then deauthorizes still has Firestore tokens + downstream
+// data to purge, and — because they still have tokens — their revoked grant
+// confirms. Gating on IsAllowed here would strand that data. This is an
+// intentional design decision (see TestHandler_OwnerCheck_DeauthBypassesAllowlist),
+// not a missing guard; please don't "mirror the activity-path gate" here.
 func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter, r *http.Request, webhook *generated.WebhookEvent, body []byte) {
 	correlationID := gcplog.CorrelationIDFromContext(ctx)
 
@@ -923,25 +966,50 @@ func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter,
 		return
 	}
 
-	// No IsAllowed check on purpose — a confirmed deauth proceeds to delete +
-	// publish regardless of allowlist membership. See the function doc comment
-	// for why (cleanup must cover former members; strays are harmless no-ops).
+	ctx, cancel := context.WithTimeout(ctx, deauthProcessingTimeout)
+	defer cancel()
+
 	h.logger.Info("Athlete deauthorization received",
 		"owner_id", webhook.OwnerId,
 		"correlation_id", correlationID,
 		"aspect_type", webhook.AspectType.String(),
 	)
 
-	// Best-effort token deletion — the downstream deletion job will clean up on failure.
+	// Confirm the deauthorization is genuine before any destructive action. No
+	// IsAllowed check on purpose — confirmation, not allowlist membership,
+	// authorizes cleanup (see the function doc comment). Returns false when the
+	// event was handled (rejected/unconfirmed) and the caller must stop.
+	if !h.verifyDeauthorization(ctx, w, r, webhook, correlationID) {
+		return
+	}
+
+	// Publish to the dedicated deauth topic. CONTRACT: the deauth signal is the *topic
+	// identity*, not the body — the published payload carries the athlete event (owner_id,
+	// aspect/object type) but no explicit `authorized:false` flag. Consumers act on receipt
+	// from this topic; they must not depend on inspecting the body for deauth intent (it's
+	// detected here from the raw webhook and deliberately not propagated).
+	enriched := &generated.EnrichedEvent{Event: webhook}
+	if publishErr := h.deauthPublisher.Publish(ctx, enriched, correlationID); publishErr != nil {
+		h.recordDeauthCleanup(ctx, deauthPublishFailed)
+		h.writeError(w, r, http.StatusInternalServerError, ErrCodeDeauthFailed,
+			"Failed to publish deauth event",
+			fmt.Sprintf("Publish failed: %v", publishErr))
+		return
+	}
+
+	// The durable handoff must happen before local token deletion. If publish
+	// fails, retaining the token lets Strava's retry re-confirm and retry the
+	// handoff. After publish succeeds, downstream cleanup owns eventual deletion,
+	// so this local delete is best effort and only shortens exposure.
 	if deleteErr := h.tokenStore.DeleteTokens(ctx, webhook.OwnerId); deleteErr != nil {
-		h.recordDeauthCleanup(ctx, "delete_failed")
+		h.recordDeauthCleanup(ctx, deauthDeleteFailed)
 		h.logger.Warn("Failed to delete tokens during deauth (will be cleaned up by deletion job)",
 			"correlation_id", correlationID,
 			"owner_id", webhook.OwnerId,
 			"error", deleteErr,
 		)
 	} else {
-		h.recordDeauthCleanup(ctx, "deleted")
+		h.recordDeauthCleanup(ctx, deauthDeleted)
 	}
 
 	// Drop any cached allowlist decision for this owner. The deletion service
@@ -953,20 +1021,66 @@ func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter,
 		inv.Invalidate(strconv.FormatInt(webhook.OwnerId, 10))
 	}
 
-	// Publish to the dedicated deauth topic. CONTRACT: the deauth signal is the *topic
-	// identity*, not the body — the published payload carries the athlete event (owner_id,
-	// aspect/object type) but no explicit `authorized:false` flag. Consumers act on receipt
-	// from this topic; they must not depend on inspecting the body for deauth intent (it's
-	// detected here from the raw webhook and deliberately not propagated).
-	enriched := &generated.EnrichedEvent{Event: webhook}
-	if publishErr := h.deauthPublisher.Publish(ctx, enriched, correlationID); publishErr != nil {
-		h.writeError(w, r, http.StatusInternalServerError, ErrCodeDeauthFailed,
-			"Failed to publish deauth event",
-			fmt.Sprintf("Publish failed: %v", publishErr))
-		return
-	}
-
 	h.writeAcknowledged(w)
+}
+
+// verifyDeauthorization confirms an athlete deauthorization is genuine before
+// the caller performs the irreversible delete + publish. It returns true only
+// when the grant is confirmed revoked; otherwise it has already written the
+// response and the caller must return.
+//
+// Three non-proceed outcomes, each fail-closed toward NOT deleting:
+//
+//   - grant still active → the event is spurious or forged. Acknowledge (200) so
+//     the sender stops retrying, and touch nothing.
+//   - no stored tokens → nothing to confirm against and nothing in the token
+//     store to purge. Acknowledge and drop, so a forged event cannot delete an
+//     allowlisted-but-unauthenticated athlete's remaining footprint.
+//   - transient error → Strava could not be reached to confirm. Return 500 so
+//     Strava redelivers (bounded by its 3-attempt cap); a genuine deauth confirms
+//     on a later attempt, while a forgery cannot force deletion by inducing an
+//     error.
+func (h *Handler) verifyDeauthorization(ctx context.Context, w http.ResponseWriter, r *http.Request, webhook *generated.WebhookEvent, correlationID string) bool {
+	ctx, spanDone := sharedotel.StartSpan(ctx, h.tracer, "dispatcher.webhook.verify_deauth")
+	var spanErr error
+	defer func() { spanDone(spanErr) }()
+
+	verifyCtx, cancel := context.WithTimeout(ctx, deauthVerificationTimeout)
+	defer cancel()
+	status, err := h.stravaClient.VerifyGrant(verifyCtx, webhook.OwnerId)
+	switch {
+	case errors.Is(err, ports.ErrTokenNotFound):
+		h.recordDeauthCleanup(ctx, deauthUnconfirmedNoTokens)
+		h.logger.Warn("Deauth for athlete with no stored tokens — cannot confirm, dropping",
+			"correlation_id", correlationID,
+			"owner_id", webhook.OwnerId,
+		)
+		h.writeAcknowledged(w)
+		return false
+	case err != nil:
+		spanErr = err
+		h.recordDeauthCleanup(ctx, deauthUnconfirmedError)
+		h.writeError(w, r, http.StatusInternalServerError, ErrCodeDeauthFailed,
+			"Failed to confirm deauthorization",
+			fmt.Sprintf("Deauth confirmation failed for owner %d: %v", webhook.OwnerId, err))
+		return false
+	case status == ports.GrantActive:
+		h.recordDeauthCleanup(ctx, deauthRejectedForged)
+		h.logger.Warn("Deauth rejected — athlete grant still active (spurious or forged event)",
+			"correlation_id", correlationID,
+			"owner_id", webhook.OwnerId,
+		)
+		h.writeAcknowledged(w)
+		return false
+	case status != ports.GrantRevoked:
+		spanErr = fmt.Errorf("grant verification returned %s without an error", status)
+		h.recordDeauthCleanup(ctx, deauthUnconfirmedError)
+		h.writeError(w, r, http.StatusInternalServerError, ErrCodeDeauthFailed,
+			"Failed to confirm deauthorization",
+			fmt.Sprintf("Deauth confirmation returned %s for owner %d", status, webhook.OwnerId))
+		return false
+	}
+	return true
 }
 
 // webhookResponse is the JSON response for successful webhook processing.
