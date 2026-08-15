@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/andy-esch/desirelines/packages/dispatcher/config"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports/portstest"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
@@ -487,19 +488,28 @@ func TestSecurity_DeauthPublishFailureRetainsTokenForRetry(t *testing.T) {
 	}
 }
 
-// TestSecurity_Current_SubscriptionIDIsAnEnumerationOracle characterizes the
-// side-effect-free probe that turns the only gate into a guessable one: a
-// non-deauth athlete event distinguishes a correct subscription_id (200) from a
-// wrong one (401 INVALID_SUBSCRIPTION_ID) while touching no store, so an
-// attacker can search the space without leaving a trace in any data path.
-//
-// Rewrite if rejections become indistinguishable or the probe gains a cost.
-func TestSecurity_Current_SubscriptionIDIsAnEnumerationOracle(t *testing.T) {
+// TestSecurity_SubscriptionIDEnumerationRequiresCallbackCapability closes D-3:
+// without the callback capability, a probe cannot reach JSON parsing or the
+// subscription-ID comparison. Correct and incorrect IDs therefore have the same
+// generic response and no downstream side effects.
+func TestSecurity_SubscriptionIDEnumerationRequiresCallbackCapability(t *testing.T) {
+	rig := newSecurityRig(t, false)
+	h := NewHandler(rig.primary, rig.deauth,
+		&portstest.MockSecretProvider{VerifyToken: "correct-verify-token", SubscriptionID: testSubscriptionID},
+		rig.strava, rig.tokens, rig.allow, gcplog.NewNoOpLogger(), &HandlerConfig{
+			WebhookRouteMode:          config.WebhookRouteModeCapability,
+			WebhookCallbackCapability: testWebhookCapability,
+		})
+	rig.router = h.RegisterRoutes()
+
 	probe := func(subscriptionID int) *httptest.ResponseRecorder {
-		rig := newSecurityRig(t, false)
-		w := rig.post(fmt.Sprintf(
+		body := fmt.Sprintf(
 			`{"aspect_type":"create","object_type":"athlete","object_id":1,"owner_id":9,"event_time":1,"subscription_id":%d}`,
-			subscriptionID))
+			subscriptionID)
+		req := httptest.NewRequest(http.MethodPost, "/webhook", strings.NewReader(body))
+		req.Header.Set("Content-Type", contentTypeJSON)
+		w := httptest.NewRecorder()
+		rig.router.ServeHTTP(w, req)
 		if rig.tokens.DeletedCount() != 0 || len(rig.deauth.Published) != 0 || len(rig.primary.Published) != 0 || rig.strava.VerifyCalledCount() != 0 {
 			t.Fatalf("probe for subscription_id %d left side effects", subscriptionID)
 		}
@@ -509,11 +519,11 @@ func TestSecurity_Current_SubscriptionIDIsAnEnumerationOracle(t *testing.T) {
 	hit := probe(testSubscriptionID)
 	miss := probe(testSubscriptionID + 1)
 
-	if hit.Code == miss.Code {
-		t.Errorf("correct and incorrect subscription_id both returned %d — oracle may be closed; update this test", hit.Code)
+	if hit.Code != http.StatusNotFound || miss.Code != http.StatusNotFound {
+		t.Errorf("got hit=%d miss=%d, want uniform 404/404", hit.Code, miss.Code)
 	}
-	if hit.Code != http.StatusOK || miss.Code != http.StatusUnauthorized {
-		t.Errorf("got hit=%d miss=%d, want 200/401", hit.Code, miss.Code)
+	if hit.Body.String() != miss.Body.String() {
+		t.Errorf("correct and incorrect subscription IDs produced distinct bodies: %q vs %q", hit.Body.String(), miss.Body.String())
 	}
 }
 

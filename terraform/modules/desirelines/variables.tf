@@ -191,6 +191,14 @@ variable "app_config" {
     # staleness bug, settable via GitOps with no code change.
     dispatcher_allowlist_cache_ttl = optional(string, "5m")
     dispatcher_token_cache_ttl     = optional(string, "5m")
+    # Strava callback migration state. "legacy" avoids mounting the callback
+    # capability before Infisical has populated its Secret Manager version;
+    # "dual" is cutover-only; "capability" is the secure steady state.
+    dispatcher_webhook_route_mode = optional(string, "legacy")
+    # Numeric Secret Manager version mounted for the callback capability. This
+    # is deliberately pinned: publishing a new Infisical-synced version must not
+    # rotate the live callback independently of subscription recreation.
+    dispatcher_webhook_callback_capability_version = optional(string, "")
     # Best-effort publish of activity rows to the BigQuery CDC topic — the only
     # path by which activity rows reach BigQuery — and the kill switch for it:
     # set false to stop publishing in place during an incident (GitOps apply, no
@@ -210,5 +218,18 @@ variable "app_config" {
   })
   default = {
     log_level = "INFO"
+  }
+
+  validation {
+    condition     = contains(["legacy", "dual", "capability"], var.app_config.dispatcher_webhook_route_mode)
+    error_message = "app_config.dispatcher_webhook_route_mode must be legacy, dual, or capability."
+  }
+
+  validation {
+    condition = (
+      var.app_config.dispatcher_webhook_route_mode == "legacy" ||
+      can(regex("^[1-9][0-9]*$", var.app_config.dispatcher_webhook_callback_capability_version))
+    )
+    error_message = "app_config.dispatcher_webhook_callback_capability_version must be a numeric Secret Manager version in dual or capability mode."
   }
 }

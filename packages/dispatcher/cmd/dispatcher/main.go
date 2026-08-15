@@ -101,23 +101,14 @@ func run(log *slog.Logger) error {
 	}
 	defer deps.Close()
 
-	// Build router. Wrap with otelhttp at the composition root so Cloud Trace
-	// gets a server span per request and the gcplog middleware adopts its
-	// trace_id for log correlation. Span name is formatted as "METHOD /path"
-	// (e.g. "POST /webhook") — dispatcher paths are low-cardinality
-	// (/webhook, /health, /), so using the raw path is safe and avoids the
-	// chi-route-pattern lookup apigateway needs.
+	// Build the router with otelhttp inside the handler's callback-capability
+	// boundary. The boundary validates and redacts the bearer path before OTel
+	// derives either the span name or its automatic url.path attribute.
 	//
-	// Unlike apigateway, dispatcher does NOT use WithPublicEndpointFn —
-	// callers are trusted (PubSub push, Cloud Scheduler) gated by Cloud Run
-	// IAM, so propagating the caller's traceparent is correct.
-	router := otelhttp.NewHandler(
-		deps.handler.RegisterRoutes(),
-		"dispatcher",
-		otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
-			return r.Method + " " + r.URL.Path
-		}),
-	)
+	// Unlike apigateway, dispatcher does NOT use WithPublicEndpointFn. Preserve
+	// the existing trace-parent behavior here; callback sender authentication is
+	// handled separately by the capability boundary.
+	router := buildDispatcherRouter(deps.handler)
 
 	port := config.GetEnvOrDefault("PORT", "8080")
 	log.Info("Server listening", "port", port)
@@ -161,6 +152,23 @@ func run(log *slog.Logger) error {
 
 	log.Info("Shutdown complete")
 	return nil
+}
+
+// buildDispatcherRouter owns the security-sensitive production ordering between
+// the callback boundary and automatic HTTP instrumentation. Keeping it as one
+// testable composition function prevents a future main refactor from wrapping
+// RegisterRoutes outside the redaction boundary.
+func buildDispatcherRouter(handler *httpadapter.Handler, options ...otelhttp.Option) http.Handler {
+	return handler.RegisterRoutesInstrumented(func(inner http.Handler) http.Handler {
+		instrumentOptions := make([]otelhttp.Option, 0, 1+len(options))
+		instrumentOptions = append(instrumentOptions,
+			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
+				return r.Method + " " + r.URL.Path
+			}),
+		)
+		instrumentOptions = append(instrumentOptions, options...)
+		return otelhttp.NewHandler(inner, "dispatcher", instrumentOptions...)
+	})
 }
 
 // Dependencies holds all initialized dependencies for the dispatcher.
@@ -237,6 +245,7 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 	eventAgeHistogram := newHistogramWithUnit(meter, log, "desirelines.io/webhook/event_age", "Absolute offset between dispatcher receive time and Strava event_time", "s")
 	ownerCheckCounter := newCounter(meter, log, "desirelines.io/webhook/owner_check", "Webhook owner allowlist check outcomes (allowed/stray/orphan/error)")
 	deauthCleanupCounter := newCounter(meter, log, "desirelines.io/webhook/deauth_cleanup", "Deauth verification, durable-handoff, and token-cleanup outcomes")
+	callbackCapabilityCounter := newCounter(meter, log, "desirelines.io/webhook/callback_capability", "Webhook callback capability outcomes (accepted/rejected/legacy)")
 	rowPublishCounter := newCounter(meter, log, "desirelines.io/bigquery/row_publish", "BigQuery activity-row publish outcomes (published/skipped/error)")
 	httpHist := newHistogram(meter, log, "desirelines.io/http/request.duration", "HTTP request duration")
 
@@ -303,12 +312,23 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 	)
 
 	secretProvider := envadapter.NewDefaultSecretCache(log)
+	// The callback capability is loaded once at boot from an explicitly pinned
+	// Secret Manager version. Its rotation cannot take effect independently of a
+	// Strava subscription recreation and controlled route-mode rollout, so both
+	// hot-reloading it and mounting "latest" would create a misleading partial
+	// rotation path. Verify token and subscription ID retain their existing
+	// SecretCache refresh behavior.
+	webhookCallbackCapability, err := loadWebhookCallbackCapability(cfg)
+	if err != nil {
+		return nil, err
+	}
+	log.Info("Webhook callback route configured", "mode", cfg.WebhookRouteMode)
 
 	// Application credentials are loaded once, at boot, and deliberately do NOT
-	// hot-reload the way the webhook secrets above do: a rotation takes effect on
-	// the next container, not mid-process. They change approximately never, and
-	// the read-only mount they come from has no rotation signal worth polling
-	// for. Decided 2026-08-11; don't wire these into SecretCache "for
+	// hot-reload the way the verify-token/subscription-ID cache above does: a
+	// rotation takes effect on the next container, not mid-process. They change
+	// approximately never, and the read-only mount has no rotation signal worth
+	// polling for. Decided 2026-08-11; don't wire these into SecretCache "for
 	// consistency" — the two have different lifecycles on purpose.
 	//
 	// Per-user Strava tokens are a different thing again: they rotate on every
@@ -343,17 +363,20 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 	}, log)
 
 	handler := httpadapter.NewHandler(publisher, deauthPublisher, secretProvider, stravaClient, tokenStore, allowChecker, log, &httpadapter.HandlerConfig{
-		MaxRequestBodySize:   cfg.MaxRequestBodySize,
-		RateLimiter:          rateLimiter,
-		WebhookCounter:       webhookCounter,
-		EventAgeHistogram:    eventAgeHistogram,
-		OwnerCheckCounter:    ownerCheckCounter,
-		DeauthCleanupCounter: deauthCleanupCounter,
-		HTTPHistogram:        httpHist,
-		RowPublisher:         rowPublisherPort,
-		RowPublishCounter:    rowPublishCounter,
-		RowEncoding:          bqrow.Encoding(cfg.ActivityRowEncoding),
-		Tracer:               tracer,
+		MaxRequestBodySize:        cfg.MaxRequestBodySize,
+		RateLimiter:               rateLimiter,
+		WebhookCounter:            webhookCounter,
+		EventAgeHistogram:         eventAgeHistogram,
+		OwnerCheckCounter:         ownerCheckCounter,
+		DeauthCleanupCounter:      deauthCleanupCounter,
+		CallbackCapabilityCounter: callbackCapabilityCounter,
+		HTTPHistogram:             httpHist,
+		WebhookRouteMode:          cfg.WebhookRouteMode,
+		WebhookCallbackCapability: webhookCallbackCapability,
+		RowPublisher:              rowPublisherPort,
+		RowPublishCounter:         rowPublishCounter,
+		RowEncoding:               bqrow.Encoding(cfg.ActivityRowEncoding),
+		Tracer:                    tracer,
 	})
 
 	return &Dependencies{
@@ -364,4 +387,22 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 		handler:         handler,
 		logger:          log,
 	}, nil
+}
+
+func loadWebhookCallbackCapability(cfg *config.Config) (string, error) {
+	if !cfg.WebhookRouteMode.RequiresCallbackCapability() {
+		return "", nil
+	}
+
+	capability, err := secrets.LoadFromMount(
+		config.SecretPathWebhookCallbackCapability,
+		"STRAVA_WEBHOOK_CALLBACK_CAPABILITY",
+	)
+	if err != nil {
+		return "", fmt.Errorf("webhook callback capability: %w", err)
+	}
+	if validateErr := config.ValidateWebhookCallbackCapability(capability); validateErr != nil {
+		return "", fmt.Errorf("webhook callback capability: %w", validateErr)
+	}
+	return capability, nil
 }

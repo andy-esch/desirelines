@@ -390,6 +390,15 @@ resource "google_secret_manager_secret" "strava_webhook_subscription_id" {
   labels = { environment = var.environment, purpose = "strava-webhook", managed_by = "infisical" }
 }
 
+resource "google_secret_manager_secret" "strava_webhook_callback_capability" {
+  secret_id = "INFISICAL_STRAVA_WEBHOOK_CALLBACK_CAPABILITY"
+  project   = var.gcp_project_id
+  replication {
+    auto {}
+  }
+  labels = { environment = var.environment, purpose = "strava-webhook-callback", managed_by = "infisical" }
+}
+
 # Auth state secret for CSRF protection in OAuth flow
 resource "google_secret_manager_secret" "auth_state_secret" {
   secret_id = "INFISICAL_AUTH_STATE_SECRET"
@@ -406,7 +415,8 @@ resource "google_secret_manager_secret" "auth_state_secret" {
 resource "google_secret_manager_secret_iam_member" "dispatcher_webhook_tokens" {
   for_each = toset([
     google_secret_manager_secret.strava_webhook_verify_token.secret_id,
-    google_secret_manager_secret.strava_webhook_subscription_id.secret_id
+    google_secret_manager_secret.strava_webhook_subscription_id.secret_id,
+    google_secret_manager_secret.strava_webhook_callback_capability.secret_id
   ])
   secret_id = each.value
   role      = "roles/secretmanager.secretAccessor"

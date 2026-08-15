@@ -1476,6 +1476,41 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
               }]
             }
           }
+        },
+
+        # Webhook callback-capability cutover - Row 98, Full Width
+        # `legacy` should fall to zero before capability-only mode. Rejected
+        # traffic is observed here before an alert threshold is calibrated.
+        {
+          yPos   = 98
+          width  = 12
+          height = 4
+          widget = {
+            title = "Webhook Callback Capability Outcomes (per minute)"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "metric.type=\"workload.googleapis.com/desirelines.io/webhook/callback_capability\" AND resource.type=\"generic_task\""
+                    aggregation = {
+                      alignmentPeriod    = "60s"
+                      perSeriesAligner   = "ALIGN_SUM"
+                      crossSeriesReducer = "REDUCE_SUM"
+                      groupByFields      = ["metric.labels.result"]
+                    }
+                  }
+                }
+                plotType       = "LINE"
+                targetAxis     = "Y1"
+                legendTemplate = "$${metric.labels.result}"
+              }]
+              timeshiftDuration = "0s"
+              yAxis = {
+                label = "Requests/min"
+                scale = "LINEAR"
+              }
+            }
+          }
         }
       ]
     }

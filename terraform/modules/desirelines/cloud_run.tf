@@ -41,10 +41,14 @@ locals {
 
   # Secret definitions for dynamic blocks
   # Keys use INFISICAL_ prefix to match Infisical-managed secret names
-  strava_webhook_secrets = {
+  strava_webhook_secrets = merge({
     "INFISICAL_STRAVA_WEBHOOK_VERIFY_TOKEN"    = google_secret_manager_secret.strava_webhook_verify_token.secret_id
     "INFISICAL_STRAVA_WEBHOOK_SUBSCRIPTION_ID" = google_secret_manager_secret.strava_webhook_subscription_id.secret_id
-  }
+    }, var.app_config.dispatcher_webhook_route_mode == "legacy" ? {} : {
+    # Do not mount until Infisical has populated the first version; the
+    # dispatcher deliberately fails startup when it cannot read the value.
+    "INFISICAL_STRAVA_WEBHOOK_CALLBACK_CAPABILITY" = google_secret_manager_secret.strava_webhook_callback_capability.secret_id
+  })
 
   strava_api_secrets = {
     "INFISICAL_STRAVA_CLIENT_ID"     = google_secret_manager_secret.strava_client_id.secret_id
@@ -150,6 +154,14 @@ resource "google_cloud_run_v2_service" "dispatcher" {
         value = var.app_config.dispatcher_token_cache_ttl
       }
 
+      # Explicit migration state for the public Strava callback. The default is
+      # legacy so provisioning the empty secret container cannot break today's
+      # revision; move to dual only after Infisical has synced a value.
+      env {
+        name  = "WEBHOOK_ROUTE_MODE"
+        value = var.app_config.dispatcher_webhook_route_mode
+      }
+
       # Best-effort publish of each activity as a BigQuery CDC row, alongside
       # the primary activity_events publish. Also the kill switch for that path:
       # set false to stop publishing in place during an incident (GitOps apply,
@@ -205,7 +217,9 @@ resource "google_cloud_run_v2_service" "dispatcher" {
           secret       = volumes.value
           default_mode = 292 # 0444
           items {
-            version = "latest"
+            # Unlike the routinely refreshed secrets, the callback capability
+            # must rotate only with a deliberate subscription recreation.
+            version = volumes.key == "INFISICAL_STRAVA_WEBHOOK_CALLBACK_CAPABILITY" ? var.app_config.dispatcher_webhook_callback_capability_version : "latest"
             path    = "value"
             mode    = 292
           }

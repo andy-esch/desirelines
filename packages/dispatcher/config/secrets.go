@@ -11,6 +11,10 @@ const (
 	SecretPathVerifyToken = "/etc/secrets/INFISICAL_STRAVA_WEBHOOK_VERIFY_TOKEN/value" //nolint:gosec // Path, not credential
 	// SecretPathSubscriptionID is the path to the subscription ID secret file.
 	SecretPathSubscriptionID = "/etc/secrets/INFISICAL_STRAVA_WEBHOOK_SUBSCRIPTION_ID/value" //nolint:gosec // Path, not credential
+	// SecretPathWebhookCallbackCapability is the path to the secret callback
+	// capability. Unlike the verify token and subscription ID, it is loaded once
+	// at boot because rotating it requires recreating the Strava subscription.
+	SecretPathWebhookCallbackCapability = "/etc/secrets/INFISICAL_STRAVA_WEBHOOK_CALLBACK_CAPABILITY/value" //nolint:gosec // Path, not credential
 
 	// Strava API secrets (used by strava/Client)
 
