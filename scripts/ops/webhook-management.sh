@@ -54,7 +54,21 @@ echo "✅ Project verified: $GCP_PROJECT_ID"
 # Helper function to read a secret from Secret Manager
 read_secret() {
   local secret_name="$1"
-  gcloud secrets versions access latest --secret="$secret_name" --project="$GCP_PROJECT_ID" 2>/dev/null
+  local secret_version="${2:-latest}"
+  gcloud secrets versions access "$secret_version" --secret="$secret_name" --project="$GCP_PROJECT_ID" 2>/dev/null
+}
+
+# curl's config-file grammar treats quotes, backslashes, and line breaks as
+# syntax. Refuse malformed secret values rather than letting them inject a new
+# directive into the stdin-only config used by create/view.
+validate_curl_config_value() {
+  local value_name="$1"
+  local value="$2"
+
+  if [[ "$value" == *'"'* || "$value" == *\\* || "$value" == *$'\r'* || "$value" == *$'\n'* ]]; then
+    echo "❌ Error: $value_name contains characters that are unsafe for curl configuration"
+    exit 1
+  fi
 }
 
 # Helper function for confirmation prompt
@@ -92,41 +106,89 @@ case "$COMMAND" in
       exit 1
     fi
 
-    BASE_URL=$(gcloud run services describe "$SERVICE_NAME" \
+    SERVICE_JSON=$(gcloud run services describe "$SERVICE_NAME" \
       --region=$REGION \
       --project="$GCP_PROJECT_ID" \
-      --format="value(status.url)")
-    CALLBACK_URL="${BASE_URL}/webhook"
-
+      --format=json)
+    BASE_URL=$(printf '%s\n' "$SERVICE_JSON" | jq -er '.status.url')
+    CALLBACK_CAPABILITY_VERSION=$(printf '%s\n' "$SERVICE_JSON" | jq -er '
+      .spec.template.spec.volumes[]
+      | select(.secret.secretName == "INFISICAL_STRAVA_WEBHOOK_CALLBACK_CAPABILITY")
+      | .secret.items[]
+      | select(.path == "value")
+      | .key
+    ') || {
+      echo "❌ Error: The deployed dispatcher does not mount a callback capability"
+      echo "   Deploy dual or capability mode with a pinned numeric secret version first."
+      exit 1
+    }
+    if [[ ! "$CALLBACK_CAPABILITY_VERSION" =~ ^[1-9][0-9]*$ ]]; then
+      echo "❌ Error: The deployed callback capability is not pinned to a numeric secret version"
+      exit 1
+    fi
     # Read individual secrets (synced from Infisical)
     CLIENT_ID=$(read_secret "INFISICAL_STRAVA_CLIENT_ID")
     CLIENT_SECRET=$(read_secret "INFISICAL_STRAVA_CLIENT_SECRET")
     VERIFY_TOKEN=$(read_secret "INFISICAL_STRAVA_WEBHOOK_VERIFY_TOKEN")
+    CALLBACK_CAPABILITY=$(read_secret "INFISICAL_STRAVA_WEBHOOK_CALLBACK_CAPABILITY" "$CALLBACK_CAPABILITY_VERSION")
 
-    if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ] || [ -z "$VERIFY_TOKEN" ]; then
+    if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ] || [ -z "$VERIFY_TOKEN" ] || [ -z "$CALLBACK_CAPABILITY" ]; then
       echo "❌ Error: Could not read required secrets from Secret Manager"
       echo "   Ensure Infisical sync is configured and secrets exist."
       echo "   See docs/guides/secrets.md for setup instructions."
       exit 1
     fi
+    if [[ ! "$CALLBACK_CAPABILITY" =~ ^[0-9a-f]{64}$ ]]; then
+      echo "❌ Error: Callback capability must be exactly 64 lowercase hexadecimal characters"
+      exit 1
+    fi
+    validate_curl_config_value "Cloud Run URL" "$BASE_URL"
+    validate_curl_config_value "Strava client ID" "$CLIENT_ID"
+    validate_curl_config_value "Strava client secret" "$CLIENT_SECRET"
+    validate_curl_config_value "Strava verify token" "$VERIFY_TOKEN"
+    CALLBACK_URL="${BASE_URL}/webhook/${CALLBACK_CAPABILITY}"
 
     echo "   Environment:  $ENV_NAME"
     echo "   Project:      $GCP_PROJECT_ID"
     echo "   Dispatcher:   $SERVICE_NAME"
-    echo "   Callback URL: $CALLBACK_URL"
     echo "   Client ID:    $CLIENT_ID"
+    echo "   Secret ver:   $CALLBACK_CAPABILITY_VERSION"
+    echo "   Callback URL: [redacted capability URL]"
 
     confirm_action \
       "This will register a new webhook subscription with Strava." \
       "   Strava will send all activity events to the callback URL."
 
     echo "Creating webhook subscription..."
-    curl -s -X POST \
-      https://www.strava.com/api/v3/push_subscriptions \
-      -F client_id="$CLIENT_ID" \
-      -F client_secret="$CLIENT_SECRET" \
-      -F callback_url="$CALLBACK_URL" \
-      -F verify_token="$VERIFY_TOKEN" | jq .
+    # Feed credentials and the bearer callback URL over stdin, never argv.
+    # See docs/guides/secure-scripting.md §1 (No Secrets in Args).
+    CREATE_STATUS=0
+    CREATE_RESPONSE=$(
+      curl --config - <<EOF
+url = "https://www.strava.com/api/v3/push_subscriptions"
+request = "POST"
+silent
+show-error
+fail-with-body
+form-string = "client_id=$CLIENT_ID"
+form-string = "client_secret=$CLIENT_SECRET"
+form-string = "callback_url=$CALLBACK_URL"
+form-string = "verify_token=$VERIFY_TOKEN"
+EOF
+    ) || CREATE_STATUS=$?
+    SAFE_CREATE_RESPONSE=${CREATE_RESPONSE//"$CALLBACK_CAPABILITY"/[redacted]}
+    if ! printf '%s\n' "$SAFE_CREATE_RESPONSE" | jq .; then
+      printf '%s\n' "$SAFE_CREATE_RESPONSE"
+    fi
+    if [ "$CREATE_STATUS" -ne 0 ]; then
+      echo "❌ Strava rejected the subscription (curl exit $CREATE_STATUS)"
+      exit "$CREATE_STATUS"
+    fi
+    if ! CREATED_SUBSCRIPTION_ID=$(printf '%s\n' "$CREATE_RESPONSE" | jq -er '.id | numbers'); then
+      echo "❌ Error: Strava response did not contain a numeric subscription ID"
+      exit 1
+    fi
+    echo "✅ Subscription created. Store ID $CREATED_SUBSCRIPTION_ID in INFISICAL_STRAVA_WEBHOOK_SUBSCRIPTION_ID before expecting deliveries."
     ;;
 
   "view")
@@ -144,11 +206,38 @@ case "$COMMAND" in
       echo "❌ Error: Could not read Strava credentials from Secret Manager"
       exit 1
     fi
+    validate_curl_config_value "Strava client ID" "$CLIENT_ID"
+    validate_curl_config_value "Strava client secret" "$CLIENT_SECRET"
 
-    curl -sG \
-      -d client_id="$CLIENT_ID" \
-      -d client_secret="$CLIENT_SECRET" \
-      https://www.strava.com/api/v3/push_subscriptions | jq .
+    # Feed credentials over stdin, never argv. The response is parsed before
+    # display so Strava's callback_url bearer credential cannot reach output.
+    # See docs/guides/secure-scripting.md §1 (No Secrets in Args).
+    VIEW_STATUS=0
+    VIEW_RESPONSE=$(
+      curl --config - <<EOF
+url = "https://www.strava.com/api/v3/push_subscriptions"
+get
+silent
+show-error
+fail-with-body
+data-urlencode = "client_id=$CLIENT_ID"
+data-urlencode = "client_secret=$CLIENT_SECRET"
+EOF
+    ) || VIEW_STATUS=$?
+    if ! printf '%s\n' "$VIEW_RESPONSE" | jq '
+      if type == "array" or type == "object" then
+        walk(if type == "object" then del(.callback_url) else . end)
+      else
+        error("unexpected Strava response type")
+      end
+    '; then
+      echo "❌ Error: Refusing to print an unparseable Strava response because it might contain the callback credential"
+      exit 1
+    fi
+    if [ "$VIEW_STATUS" -ne 0 ]; then
+      echo "❌ Strava rejected the subscription lookup (curl exit $VIEW_STATUS)"
+      exit "$VIEW_STATUS"
+    fi
     ;;
 
   "delete")

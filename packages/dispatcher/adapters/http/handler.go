@@ -12,7 +12,10 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
+	"net/netip"
+	"path"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/andy-esch/desirelines/packages/dispatcher/adapters/bqrow"
@@ -70,6 +73,15 @@ const (
 const (
 	eventTimePast   = "past"
 	eventTimeFuture = "future"
+)
+
+// Callback-capability outcomes have a fixed vocabulary so the public boundary
+// cannot create attacker-controlled metric labels.
+const (
+	callbackCapabilityAccepted = "accepted"
+	callbackCapabilityRejected = "rejected"
+	callbackCapabilityLegacy   = "legacy"
+	redactedWebhookPath        = "/webhook/[redacted]"
 )
 
 // Outcomes of the best-effort activity-row publish (label values for the
@@ -213,6 +225,10 @@ type Handler struct {
 	rowEncoding          bqrow.Encoding
 	rowRefetchTimeout    time.Duration
 	httpHistogram        metric.Float64Histogram
+	callbackCounter      metric.Int64Counter
+	webhookRouteMode     config.WebhookRouteMode
+	callbackHash         [sha256.Size]byte
+	callbackConfigured   bool
 	tracer               trace.Tracer
 	now                  func() time.Time
 }
@@ -232,6 +248,15 @@ type HandlerConfig struct {
 	// actually deleted. Optional; nil disables the metric.
 	DeauthCleanupCounter metric.Int64Counter
 	HTTPHistogram        metric.Float64Histogram
+	// CallbackCapabilityCounter records accepted, rejected, and temporary
+	// legacy-route use. Optional; nil disables the metric.
+	CallbackCapabilityCounter metric.Int64Counter
+	// WebhookRouteMode controls the legacy-to-capability cutover. Empty retains
+	// legacy behavior for tests and local callers; production sets it explicitly.
+	WebhookRouteMode config.WebhookRouteMode
+	// WebhookCallbackCapability is a 32-byte value encoded as 64 lowercase hex
+	// characters. NewHandler retains only its SHA-256 digest.
+	WebhookCallbackCapability string
 	// RowPublisher enables the best-effort second publish of each activity as
 	// a BigQuery CDC row. Nil — the default — disables it entirely; that is
 	// what the feature flag being off looks like from in here.
@@ -285,6 +310,15 @@ func NewHandler(publisher, deauthPublisher ports.Publisher, secretProvider ports
 	if now == nil {
 		now = time.Now
 	}
+	webhookRouteMode := cfg.WebhookRouteMode
+	if webhookRouteMode == "" {
+		webhookRouteMode = config.WebhookRouteModeLegacy
+	}
+	var callbackHash [sha256.Size]byte
+	callbackConfigured := config.ValidateWebhookCallbackCapability(cfg.WebhookCallbackCapability) == nil
+	if callbackConfigured {
+		callbackHash = sha256.Sum256([]byte(cfg.WebhookCallbackCapability))
+	}
 	return &Handler{
 		secretProvider:       secretProvider,
 		publisher:            publisher,
@@ -304,21 +338,33 @@ func NewHandler(publisher, deauthPublisher ports.Publisher, secretProvider ports
 		rowEncoding:          rowEncoding,
 		rowRefetchTimeout:    rowRefetchTimeout,
 		httpHistogram:        cfg.HTTPHistogram,
+		callbackCounter:      cfg.CallbackCapabilityCounter,
+		webhookRouteMode:     webhookRouteMode,
+		callbackHash:         callbackHash,
+		callbackConfigured:   callbackConfigured,
 		tracer:               tracer,
 		now:                  now,
 	}
 }
 
 // RegisterRoutes configures the router with essential middleware and registers
-// endpoints. The returned router assumes the caller wraps it in
-// otelhttp.NewHandler so the OTel-dependent middleware (sharedotel.StampRequestID)
-// has an active server span. See cmd/dispatcher/main.go.
+// endpoints. Production callers that add HTTP instrumentation must use
+// RegisterRoutesInstrumented so the callback capability is redacted before the
+// instrumentation sees it.
 func (h *Handler) RegisterRoutes() http.Handler {
+	return h.RegisterRoutesInstrumented(nil)
+}
+
+// RegisterRoutesInstrumented builds the router and places instrument around it,
+// inside the callback-capability boundary. This ordering is security-sensitive:
+// an outer HTTP tracer would otherwise copy the bearer capability into its
+// automatic url.path attribute before application middleware could redact it.
+// A nil instrument behaves like RegisterRoutes.
+func (h *Handler) RegisterRoutesInstrumented(instrument func(http.Handler) http.Handler) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(chiMiddleware.RequestID)
 	r.Use(gcplog.BridgeRequestID)
-	r.Use(gcplog.CloudRunRealIP)
 	if h.rateLimiter != nil {
 		// 429 rejections short-circuit here, before HTTPRequestLoggerWithMetrics —
 		// by design, so a fast reject doesn't pollute the latency histogram. The
@@ -342,11 +388,178 @@ func (h *Handler) RegisterRoutes() http.Handler {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	// Strava webhook endpoints
-	r.Get("/webhook", h.handleVerification)
-	r.Post("/webhook", h.handleEvent)
+	// Strava webhook endpoints. The outer callback boundary validates and
+	// replaces a real capability segment with a fixed redacted segment before
+	// this router, middleware, tracing, or handlers can observe it.
+	switch h.webhookRouteMode {
+	case config.WebhookRouteModeLegacy:
+		h.registerWebhookRoute(r, "/webhook")
+	case config.WebhookRouteModeDual:
+		h.registerWebhookRoute(r, "/webhook")
+		h.registerWebhookRoute(r, "/webhook/{callback_capability}")
+	case config.WebhookRouteModeCapability:
+		h.registerWebhookRoute(r, "/webhook/{callback_capability}")
+	default:
+		// Fail closed if a caller bypasses config.LoadConfig and supplies an
+		// unknown mode directly.
+	}
 
-	return r
+	var routed http.Handler = r
+	if instrument != nil {
+		routed = instrument(routed)
+	}
+	// Resolve the trusted Cloud Run client address before the capability boundary
+	// so rejected probes retain useful, credential-free forensic context. This
+	// middleware only rewrites RemoteAddr; it does not log, trace, or read a body.
+	return gcplog.CloudRunRealIP(h.protectWebhookCallback(routed))
+}
+
+func (h *Handler) registerWebhookRoute(r chi.Router, routePath string) {
+	r.Get(routePath, h.handleVerification)
+	r.Post(routePath, h.handleEvent)
+}
+
+// protectWebhookCallback is deliberately the outermost application boundary.
+// It validates the raw escaped path, records only a bounded outcome, and either
+// rejects immediately or gives downstream code a cloned request whose path no
+// longer contains the bearer credential.
+func (h *Handler) protectWebhookCallback(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		escapedPath := r.URL.EscapedPath()
+		if escapedPath == "/webhook" {
+			switch h.webhookRouteMode {
+			case config.WebhookRouteModeLegacy:
+				next.ServeHTTP(w, r)
+			case config.WebhookRouteModeDual:
+				h.recordCallbackCapability(r.Context(), callbackCapabilityLegacy)
+				next.ServeHTTP(w, r)
+			default:
+				h.rejectCallbackCapability(w, r)
+			}
+			return
+		}
+
+		candidate, isWebhookSubpath := strings.CutPrefix(escapedPath, "/webhook/")
+		if !isWebhookSubpath {
+			// Reject normalized route variants and capability-shaped values before
+			// instrumentation. A credential copied under //webhook, /WEBHOOK, a
+			// dot-segment path, an encoded prefix, an unrelated path, or a suffix
+			// must not fall through into application logs or trace attributes.
+			if isWebhookPathVariant(r.URL.Path) || containsCallbackCapabilityShape(
+				r.URL.Path,
+				r.URL.RawPath,
+				r.RequestURI,
+			) {
+				h.rejectCallbackCapability(w, r)
+				return
+			}
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		if h.webhookRouteMode == config.WebhookRouteModeLegacy {
+			// No capability route is registered, but redact any would-be segment
+			// before tracing/logging to keep this migration state safe to probe.
+			next.ServeHTTP(w, redactWebhookPath(r))
+			return
+		}
+
+		candidateHash := sha256.Sum256([]byte(candidate))
+		validFormat := config.ValidateWebhookCallbackCapability(candidate) == nil
+		matches := subtle.ConstantTimeCompare(candidateHash[:], h.callbackHash[:]) == 1
+		if !validFormat || !h.callbackConfigured || !matches {
+			h.rejectCallbackCapability(w, r)
+			return
+		}
+
+		h.recordCallbackCapability(r.Context(), callbackCapabilityAccepted)
+		next.ServeHTTP(w, redactWebhookPath(r))
+	})
+}
+
+func (h *Handler) rejectCallbackCapability(w http.ResponseWriter, r *http.Request) {
+	h.recordCallbackCapability(r.Context(), callbackCapabilityRejected)
+	if h.logger != nil {
+		h.logger.Warn("Webhook callback capability rejected",
+			slog.Group("httpRequest",
+				"requestMethod", boundedWebhookMethod(r.Method),
+				"requestUrl", redactedWebhookPath,
+				"remoteIp", boundedRemoteIP(r.RemoteAddr),
+			),
+			"result", callbackCapabilityRejected,
+		)
+	}
+	http.NotFound(w, r)
+}
+
+func (h *Handler) recordCallbackCapability(ctx context.Context, result string) {
+	if h.callbackCounter == nil {
+		return
+	}
+	h.callbackCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("result", result)))
+}
+
+func redactWebhookPath(r *http.Request) *http.Request {
+	redacted := r.Clone(r.Context())
+	redacted.URL.Path = redactedWebhookPath
+	redacted.URL.RawPath = ""
+	// Deliberately omit the query from RequestURI even though URL.RawQuery is
+	// preserved for Strava verification. RequestURI is not used for routing or
+	// query parsing downstream, and hub.verify_token must not reach diagnostics.
+	redacted.RequestURI = redactedWebhookPath
+	return redacted
+}
+
+func isWebhookPathVariant(decodedPath string) bool {
+	cleaned := strings.TrimPrefix(path.Clean(decodedPath), "/")
+	firstSegment, _, _ := strings.Cut(cleaned, "/")
+	return strings.EqualFold(firstSegment, "webhook")
+}
+
+func containsCallbackCapabilityShape(values ...string) bool {
+	for _, value := range values {
+		credentialUnits := 0
+		for i := 0; i < len(value); i++ {
+			if isASCIIHex(value[i]) {
+				credentialUnits++
+			} else if value[i] == '%' && i+2 < len(value) && isASCIIHex(value[i+1]) && isASCIIHex(value[i+2]) {
+				// Treat one percent escape as one unit. This deliberately catches
+				// nested encodings too: %2530 is scanned as %25, 3, 0, so a
+				// recoverable encoded credential cannot reach telemetry.
+				credentialUnits++
+				i += 2
+			} else {
+				credentialUnits = 0
+			}
+			if credentialUnits >= 64 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func isASCIIHex(c byte) bool {
+	return c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F'
+}
+
+func boundedWebhookMethod(method string) string {
+	switch method {
+	case http.MethodGet, http.MethodPost:
+		return method
+	default:
+		return "OTHER"
+	}
+}
+
+func boundedRemoteIP(remoteAddr string) string {
+	if addrPort, err := netip.ParseAddrPort(remoteAddr); err == nil {
+		return addrPort.Addr().String()
+	}
+	if addr, err := netip.ParseAddr(remoteAddr); err == nil {
+		return addr.String()
+	}
+	return "unknown"
 }
 
 // writeError builds a coded APIError and writes it with the handler's logger.

@@ -240,3 +240,23 @@ output "alert_policy_ids" {
     unknown_sport_type_detected   = google_monitoring_alert_policy.unknown_sport_type_detected.id
   }
 }
+# Cloud Run request logs are created before application middleware runs and
+# retain the request URL, including Strava's verification-token query. Exclude
+# dispatcher URLs containing raw or percent-encoded capability shapes plus
+# legacy verification GETs so neither credential is routed into the project's
+# _Default log bucket.
+# Application logs, traces, and metrics remain available with query-free,
+# redacted paths and bounded outcome labels.
+resource "google_logging_project_exclusion" "dispatcher_webhook_callback_capability" {
+  name        = "exclude-dispatcher-webhook-callback-capability"
+  description = "Prevent Strava webhook URL credentials from being retained in Cloud Run platform request logs."
+  project     = var.gcp_project_id
+
+  filter = <<-EOT
+    resource.type = "cloud_run_revision" AND
+    resource.labels.service_name = "${var.project_name}-dispatcher" AND
+    log_id("run.googleapis.com/requests") AND
+    (httpRequest.requestUrl =~ "(?i)([0-9a-f]|%[0-9a-f]{2}){64}" OR
+     (httpRequest.requestMethod = "GET" AND httpRequest.requestUrl =~ "(?i)/webhook([/?#]|$)"))
+  EOT
+}

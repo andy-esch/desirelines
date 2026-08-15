@@ -44,12 +44,17 @@ See `webhook/owner_check` metric for outcome breakdown.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/webhook` | Strava subscription verification (hub.mode, hub.challenge, hub.verify_token) |
-| `POST` | `/webhook` | Receive Strava webhook events |
+| `GET` | `/webhook/{callback-capability}` | Strava subscription verification (hub.mode, hub.challenge, hub.verify_token) |
+| `POST` | `/webhook/{callback-capability}` | Receive Strava webhook events |
 | `GET` | `/health` | Health check endpoint |
 | `HEAD` | `/` | Health probe for Cloud Run |
 
-**Note:** The Strava webhook callback URL must include the `/webhook` path (e.g., `https://your-service.run.app/webhook`).
+`WEBHOOK_ROUTE_MODE` controls migration: `legacy` accepts only `/webhook`,
+`dual` temporarily accepts both forms, and `capability` accepts only the
+capability URL. The callback capability is a bearer credential; never print or
+store the full callback URL in logs, traces, dashboards, or support artifacts.
+Use the [callback-capability cutover runbook](../../docs/runbooks/webhook-callback-capability.md)
+for activation, re-registration, rollback, and rotation.
 
 ## Deauthorization
 
@@ -89,6 +94,7 @@ FIRESTORE_DATABASE=desirelines
 # Optional
 LOG_LEVEL=INFO   # Default: INFO
 PORT=8080        # Default: 8080 (Cloud Run sets this)
+WEBHOOK_ROUTE_MODE=legacy # legacy | dual | capability
 ```
 
 ### Secrets
@@ -102,6 +108,7 @@ are **not** plain config vars:
 |-------------|------------------|-------------|
 | `/etc/secrets/INFISICAL_STRAVA_WEBHOOK_VERIFY_TOKEN/value` | `STRAVA_WEBHOOK_VERIFY_TOKEN` | Webhook subscription verify token |
 | `/etc/secrets/INFISICAL_STRAVA_WEBHOOK_SUBSCRIPTION_ID/value` | `STRAVA_WEBHOOK_SUBSCRIPTION_ID` | Strava webhook subscription ID |
+| `/etc/secrets/INFISICAL_STRAVA_WEBHOOK_CALLBACK_CAPABILITY/value` | `STRAVA_WEBHOOK_CALLBACK_CAPABILITY` | 32 random bytes encoded as 64 lowercase hex characters; required in `dual` and `capability` modes |
 | `/etc/secrets/INFISICAL_STRAVA_CLIENT_ID/value` | `STRAVA_CLIENT_ID` | Strava API app client ID |
 | `/etc/secrets/INFISICAL_STRAVA_CLIENT_SECRET/value` | `STRAVA_CLIENT_SECRET` | Strava API app client secret |
 
@@ -113,7 +120,8 @@ are **not** plain config vars:
 # Start backend (includes PubSub emulator)
 docker compose --profile backend up
 
-# Test webhook
+# Test webhook in legacy mode (use `/webhook/$STRAVA_WEBHOOK_CALLBACK_CAPABILITY`
+# in dual/capability mode; do not paste a real capability into shared output)
 curl -X POST http://localhost:8081/webhook \
   -H "Content-Type: application/json" \
   -d '{"aspect_type":"create","event_time":1234567890,"object_id":12345,"object_type":"activity","owner_id":67890,"subscription_id":123456}'
@@ -134,6 +142,7 @@ GCP_PUBSUB_TOPIC=desirelines_activity_events \
 GCP_PUBSUB_DEAUTH_TOPIC=desirelines_deauth_events \
 FIRESTORE_DATABASE=local-dev \
 STRAVA_WEBHOOK_SUBSCRIPTION_ID=123456 \
+WEBHOOK_ROUTE_MODE=legacy \
 go run ./cmd/dispatcher
 ```
 

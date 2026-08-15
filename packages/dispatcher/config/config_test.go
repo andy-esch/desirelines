@@ -3,6 +3,7 @@ package config
 import (
 	"log/slog"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -52,6 +53,7 @@ func TestLoadConfig_DefaultValues(t *testing.T) {
 	unsetEnv(t, "HTTP_WRITE_TIMEOUT")
 	unsetEnv(t, "HTTP_READ_HEADER_TIMEOUT")
 	unsetEnv(t, "MAX_REQUEST_BODY_SIZE")
+	unsetEnv(t, "WEBHOOK_ROUTE_MODE")
 
 	// Set required env vars
 	t.Setenv("GCP_PROJECT_ID", "test-project")
@@ -78,6 +80,67 @@ func TestLoadConfig_DefaultValues(t *testing.T) {
 	// Max body size should have default value
 	if cfg.MaxRequestBodySize != DefaultMaxRequestBodySize {
 		t.Errorf("Expected default max body size %d, got %d", DefaultMaxRequestBodySize, cfg.MaxRequestBodySize)
+	}
+	if cfg.WebhookRouteMode != WebhookRouteModeLegacy {
+		t.Errorf("WebhookRouteMode = %q, want %q", cfg.WebhookRouteMode, WebhookRouteModeLegacy)
+	}
+}
+
+func TestLoadConfig_WebhookRouteMode(t *testing.T) {
+	setRequired := func(t *testing.T) {
+		t.Helper()
+		t.Setenv("GCP_PROJECT_ID", "test-project")
+		t.Setenv("GCP_PUBSUB_TOPIC", "test-topic")
+		t.Setenv("GCP_PUBSUB_DEAUTH_TOPIC", "test-deauth-topic")
+		t.Setenv("FIRESTORE_DATABASE", "test-db")
+	}
+
+	for _, mode := range []WebhookRouteMode{
+		WebhookRouteModeLegacy,
+		WebhookRouteModeDual,
+		WebhookRouteModeCapability,
+	} {
+		t.Run(string(mode), func(t *testing.T) {
+			setRequired(t)
+			t.Setenv("WEBHOOK_ROUTE_MODE", string(mode))
+			cfg, err := LoadConfig()
+			if err != nil {
+				t.Fatalf("LoadConfig failed: %v", err)
+			}
+			if cfg.WebhookRouteMode != mode {
+				t.Errorf("WebhookRouteMode = %q, want %q", cfg.WebhookRouteMode, mode)
+			}
+		})
+	}
+
+	t.Run("unknown fails closed", func(t *testing.T) {
+		setRequired(t)
+		t.Setenv("WEBHOOK_ROUTE_MODE", "sometimes")
+		if _, err := LoadConfig(); err == nil {
+			t.Fatal("LoadConfig accepted an unknown WEBHOOK_ROUTE_MODE")
+		}
+	})
+}
+
+func TestValidateWebhookCallbackCapability(t *testing.T) {
+	valid := strings.Repeat("a", WebhookCallbackCapabilityLength)
+	if err := ValidateWebhookCallbackCapability(valid); err != nil {
+		t.Fatalf("valid capability rejected: %v", err)
+	}
+
+	for name, value := range map[string]string{
+		"empty":        "",
+		"short":        valid[:len(valid)-1],
+		"long":         valid + "a",
+		"uppercase":    strings.Repeat("A", WebhookCallbackCapabilityLength),
+		"non-hex":      strings.Repeat("g", WebhookCallbackCapabilityLength),
+		"encoded byte": "%61" + valid[3:],
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := ValidateWebhookCallbackCapability(value); err == nil {
+				t.Fatalf("ValidateWebhookCallbackCapability(%q) succeeded", name)
+			}
+		})
 	}
 }
 
