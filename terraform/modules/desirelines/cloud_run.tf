@@ -219,7 +219,7 @@ resource "google_cloud_run_v2_service" "dispatcher" {
           items {
             # Unlike the routinely refreshed secrets, the callback capability
             # must rotate only with a deliberate subscription recreation.
-            version = volumes.key == "INFISICAL_STRAVA_WEBHOOK_CALLBACK_CAPABILITY" ? var.app_config.dispatcher_webhook_callback_capability_version : "latest"
+            version = volumes.key == "INFISICAL_STRAVA_WEBHOOK_CALLBACK_CAPABILITY" ? var.dispatcher_webhook_callback_capability_secret_version : "latest"
             path    = "value"
             mode    = 292
           }
