@@ -247,18 +247,6 @@ class TestSessionTimeoutSettings:
         )
         assert config.session_timeout_settings() == ()
 
-    def test_never_renders_a_libpq_options_string(self):
-        """Regression guard: these GUCs must never reach the startup packet.
-
-        PgBouncer (and therefore Neon's pooled endpoint) allows only
-        client_encoding, datestyle, timezone, standard_conforming_strings and
-        application_name in `options`, and fails the connection outright for
-        anything else. Passing these as `-c name=value` took the whole
-        postgres-writer pipeline down.
-        """
-        settings = PoolConfig().session_timeout_settings()
-
-        for name, value in settings:
-            assert not name.startswith("-c")
-            assert " " not in name
-            assert " " not in value
+    # The "never reaches the startup packet" invariant is guarded where it can
+    # actually fail — test_unit_of_work.py's check on create_engine's
+    # connect_args. Asserting it against these literals proves nothing.

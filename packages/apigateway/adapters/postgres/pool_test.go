@@ -1,7 +1,9 @@
 package postgres
 
 import (
+	"context"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 )
@@ -207,4 +209,32 @@ func TestPoolConfigValidation(t *testing.T) {
 			t.Errorf("ErrInvalidPoolConfig = %q, want %q", ErrInvalidPoolConfig.Error(), expectedMsg)
 		}
 	})
+}
+
+// TestServerTimeoutsRideRuntimeParams pins the transport for the server-side
+// timeouts. Neon's pooled endpoint forwards these as discrete startup fields
+// but rejects the same GUCs inside a libpq `options` string — the failure that
+// took the Python writer's connections down. Without this test, the warning in
+// NewPool is only prose.
+func TestServerTimeoutsRideRuntimeParams(t *testing.T) {
+	// #nosec G101 - test connection string uses dummy credentials.
+	const connStr = "postgresql://user:pass@host/db?sslmode=require&application_name=apigateway"
+
+	pool, err := NewPool(context.Background(), connStr, slog.New(slog.DiscardHandler), nil)
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	params := pool.Config().ConnConfig.RuntimeParams
+
+	for _, guc := range []string{"statement_timeout", "idle_in_transaction_session_timeout"} {
+		if params[guc] == "" {
+			t.Errorf("RuntimeParams[%q] unset: the timeout never reaches Postgres", guc)
+		}
+	}
+
+	if got, ok := params["options"]; ok {
+		t.Errorf("RuntimeParams[\"options\"] = %q: a pooler rejects GUCs sent this way", got)
+	}
 }

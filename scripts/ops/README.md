@@ -15,8 +15,13 @@ Operational scripts for setup, deployment, data management, and webhook administ
 | Script | Purpose |
 |--------|---------|
 | `webhook-management.sh` | Manage Strava webhook subscriptions (create, view, delete) |
+| `dlq-replay.sh` | Replay dead-lettered messages onto their source topic |
+| `_gcp_env.sh` | Sourced helper: environment/project guards and destructive-action confirmation |
 
-The webhook script is invoked via just: `just webhook <action> <env>`. See the [Strava Webhook Guide](../../docs/guides/strava-webhook.md).
+Both are invoked via just: `just webhook <action> <env>` and
+`just dlq-replay <service> <env> [--execute]`. See the
+[Strava Webhook Guide](../../docs/guides/strava-webhook.md) and
+[Redriving a DLQ](../../docs/runbooks/dlq-redrive.md).
 
 ## Related
 

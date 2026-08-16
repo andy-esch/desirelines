@@ -47,14 +47,12 @@ def _single_connection_config(
 
 
 def _current_setting(session: Session, guc: str) -> str:
-    """Read a GUC as the session currently sees it."""
     return session.execute(
         text("SELECT current_setting(:guc)"), {"guc": guc}
     ).scalar_one()
 
 
 def _connection_setting(engine: Engine, guc: str) -> str:
-    """Read a GUC on a raw engine connection, outside any session."""
     with engine.connect() as connection:
         return connection.execute(
             text("SELECT current_setting(:guc)"), {"guc": guc}
@@ -65,10 +63,9 @@ def _connection_setting(engine: Engine, guc: str) -> str:
 def timeout_engine(db_url: str) -> Iterator[tuple[Engine, sessionmaker[Session]]]:
     """A real ``create_session_factory`` result with the timeouts configured.
 
-    The integration ``db_session`` fixture binds its own Session to hold a
-    rollback-only transaction, which bypasses the factory entirely — these
-    tests need the factory's own sessions to see its listener. Read-only, so
-    the missing rollback wrapper costs nothing.
+    Not the ``db_session`` fixture: it binds its own Session, bypassing the
+    factory whose listener is under test. Read-only, so skipping that fixture's
+    rollback wrapper costs nothing.
     """
     engine, session_factory = create_session_factory(
         db_url,
@@ -90,6 +87,18 @@ def test_timeouts_apply_inside_the_transaction(timeout_engine):
     with session_factory() as session:
         assert _current_setting(session, "statement_timeout") == "17s"
         assert _current_setting(session, "idle_in_transaction_session_timeout") == "41s"
+
+
+def test_savepoints_inherit_the_timeouts(timeout_engine):
+    """Why the listener skips nested transactions: the savepoint already has them.
+
+    The region-tagging path opens a savepoint per activity, so re-issuing the
+    SET LOCAL there would be one wasted round trip each.
+    """
+    _, session_factory = timeout_engine
+
+    with session_factory() as session, session.begin_nested():
+        assert _current_setting(session, "statement_timeout") == "17s"
 
 
 def test_timeouts_do_not_outlive_the_transaction(timeout_engine):

@@ -22,34 +22,13 @@ fi
 COMMAND="$1"
 ENV_NAME="$2"
 
-# Validate environment
-if [[ ! "$ENV_NAME" =~ ^(dev|prod)$ ]]; then
-  echo "❌ Error: Environment must be 'dev' or 'prod'"
-  exit 1
-fi
+# shellcheck source=/dev/null  # path is resolved at runtime, not lintable
+source "$(dirname "${BASH_SOURCE[0]}")/_gcp_env.sh"
 
-# Get GCP project configuration
-GCP_PROJECT_ID=$(gcloud config get-value project 2>/dev/null)
+require_env_name "$ENV_NAME"
+require_gcp_project "$ENV_NAME"
+
 REGION="us-central1"
-
-if [ -z "$GCP_PROJECT_ID" ]; then
-  echo "❌ Error: No GCP project set in gcloud config"
-  echo "Run: gcloud config set project YOUR_PROJECT_ID"
-  exit 1
-fi
-
-# Safety check: verify project matches requested environment
-EXPECTED_PROJECT="desirelines-${ENV_NAME}"
-if [ "$GCP_PROJECT_ID" != "$EXPECTED_PROJECT" ]; then
-  echo "❌ Error: Project mismatch!"
-  echo "   Requested environment: $ENV_NAME"
-  echo "   Expected project:      $EXPECTED_PROJECT"
-  echo "   Current project:       $GCP_PROJECT_ID"
-  echo ""
-  echo "Run: gcloud config set project $EXPECTED_PROJECT"
-  exit 1
-fi
-echo "✅ Project verified: $GCP_PROJECT_ID"
 
 # Helper function to read a secret from Secret Manager
 read_secret() {

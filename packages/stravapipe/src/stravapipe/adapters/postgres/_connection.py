@@ -117,15 +117,10 @@ class PoolConfig(NamedTuple):
     def session_timeout_settings(self) -> tuple[tuple[str, str], ...]:
         """Return the server-side timeouts as ``(guc_name, value)`` pairs.
 
-        Deliberately not a libpq ``options`` string. These GUCs must never ride
-        the startup packet: PgBouncer — and therefore Neon's pooled endpoint —
-        permits only ``client_encoding``, ``datestyle``, ``timezone``,
-        ``standard_conforming_strings`` and ``application_name`` there, and
-        rejects the whole connection for anything else. Callers apply these
-        per-transaction instead; see ``_register_transaction_timeouts``.
-
-        Returns an empty tuple when both timeouts are disabled (0), so callers
-        can skip the per-transaction round trip entirely.
+        Deliberately not a libpq ``options`` string — a pooler rejects these
+        GUCs on the startup packet. Applied per-transaction instead; see
+        ``_register_transaction_timeouts`` for why. Empty when both timeouts are
+        disabled (0), so callers can skip the round trip entirely.
         """
         settings: list[tuple[str, str]] = []
         if self.statement_timeout_ms > 0:

@@ -53,8 +53,10 @@ def _register_transaction_timeouts(
     pooling in front of Postgres (Neon's pooled endpoint, PgBouncer, pgpool):
 
     * Not the libpq startup packet. A pooler only forwards the handful of
-      parameters it can track, and rejects the connection outright for the
-      rest — the failure is a total outage at connect time, not a lost setting.
+      parameters it can track — ``client_encoding``, ``datestyle``,
+      ``timezone``, ``standard_conforming_strings``, ``application_name`` — and
+      rejects the connection outright for the rest. The failure is a total
+      outage at connect time, not a lost setting.
     * Not a plain ``SET`` at connect time. Under transaction pooling the server
       connection is handed back to the pooler at commit, so the setting both
       fails to persist for this client and leaks onto whichever client picks up
@@ -65,13 +67,8 @@ def _register_transaction_timeouts(
     single ``SELECT set_config(...)`` so the guarantee costs one round trip per
     transaction, and names and values are bound rather than interpolated.
 
-    Args:
-        session_factory: Sessions created by this factory get the timeouts.
-            Scoped to the factory rather than the ``Session`` class so test
-            fixtures binding their own session are unaffected.
-        settings: ``(guc_name, value)`` pairs from
-            ``PoolConfig.session_timeout_settings()``. Empty means every timeout
-            is disabled and no listener is registered at all.
+    Listening on the factory rather than the ``Session`` class leaves test
+    fixtures that bind their own session alone.
     """
     if not settings:
         return
@@ -90,6 +87,13 @@ def _register_transaction_timeouts(
         transaction: SessionTransaction,
         connection: Connection,
     ) -> None:
+        # after_begin also fires for every SAVEPOINT, which inherits the
+        # enclosing transaction's SET LOCAL and restores it on release. Writing
+        # it again would be one wasted round trip per savepoint — and the
+        # region-tagging path opens one per activity, so a 100-activity backfill
+        # batch would pay ~100 of them for a single unit of work.
+        if transaction.nested:
+            return
         connection.execute(statement, params)
 
 
@@ -103,10 +107,8 @@ def create_session_factory(
     - External pooler (Neon, PgBouncer): Uses NullPool (no client-side pooling)
     - Internal pooling: Uses QueuePool with conservative settings
 
-    Sessions from the returned factory carry the server-side timeouts in
-    ``pool_config``, applied per-transaction — never as connection parameters,
-    which a pooler in front of Postgres will refuse. See
-    ``_register_transaction_timeouts``.
+    Sessions from the returned factory apply ``pool_config``'s server-side
+    timeouts per transaction; see ``_register_transaction_timeouts``.
 
     Callers own the engine and must call ``engine.dispose()`` on shutdown
     to avoid pool leaks across Cloud Run revisions.
