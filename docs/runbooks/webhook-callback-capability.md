@@ -25,8 +25,8 @@ task files, chat, screenshots, commands, dashboards, or logs.
   after Strava creates the replacement subscription.
 - The matching `desirelines` module tag is selected in the
   `desirelines-deploy` repository before its `app_config` sets
-  `dispatcher_webhook_route_mode` and
-  `dispatcher_webhook_callback_capability_version`. The CI deploy identity
+  `dispatcher_webhook_route_mode`, and its module call sets
+  `dispatcher_webhook_callback_capability_secret_version`. The CI deploy identity
   already declares `roles/logging.configWriter` in both environments.
 
 ## Activation gate: prove the URL is not retained
@@ -37,7 +37,8 @@ the real callback:
 1. Sync the canary value and note its numeric Secret Manager version. In the
    `desirelines-deploy` development environment, update the module tag, set
    `dispatcher_webhook_route_mode = "dual"`, set
-   `dispatcher_webhook_callback_capability_version` to that number, and apply.
+   `dispatcher_webhook_callback_capability_secret_version` on the module call to
+   that number, and apply.
 2. Send one valid verification-shaped GET and one invalid POST to the capability
    route without printing the URL. Use a client that supplies its configuration
    over stdin rather than putting the URL in process argv.
