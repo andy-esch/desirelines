@@ -45,9 +45,9 @@ esac
 # third in bigquery_subscription.tf (hyphens, env-suffixed) — so they are
 # spelled out rather than derived.
 case "$SERVICE" in
-  postgres-writer)  SOURCE_TOPIC="desirelines_activity_events" ;;
+  postgres-writer) SOURCE_TOPIC="desirelines_activity_events" ;;
   deletion-service) SOURCE_TOPIC="desirelines_deauth_events" ;;
-  activity-rows)    SOURCE_TOPIC="desirelines-activity-rows-${ENV_NAME}" ;;
+  activity-rows) SOURCE_TOPIC="desirelines-activity-rows-${ENV_NAME}" ;;
   *)
     echo "❌ Error: Unknown service '$SERVICE'"
     usage

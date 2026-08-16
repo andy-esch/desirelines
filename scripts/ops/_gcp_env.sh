@@ -58,10 +58,16 @@ confirm_destructive() {
 
   if [ "$env_name" = "prod" ]; then
     read -rp "Type 'yes' to confirm: " reply </dev/tty
-    [ "$reply" = "yes" ] || { echo "❌ Operation cancelled"; exit 1; }
+    [ "$reply" = "yes" ] || {
+      echo "❌ Operation cancelled"
+      exit 1
+    }
   else
     read -rp "Continue? (y/N): " reply </dev/tty
-    [[ "$reply" =~ ^[Yy]$ ]] || { echo "❌ Operation cancelled"; exit 1; }
+    [[ "$reply" =~ ^[Yy]$ ]] || {
+      echo "❌ Operation cancelled"
+      exit 1
+    }
   fi
   echo ""
 }
