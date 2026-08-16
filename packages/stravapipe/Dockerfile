@@ -40,7 +40,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # uv: pinned, matches the runtime image just below this comment block.
-COPY --from=ghcr.io/astral-sh/uv:0.12.4 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.12.5 /uv /uvx /bin/
 
 # UV_LINK_MODE=copy: cache mounts are on overlayfs, which doesn't
 #   support hardlinks; without this, uv warns and falls back per-file
