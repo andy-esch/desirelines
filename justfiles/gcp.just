@@ -19,6 +19,10 @@ auth-status:
 webhook action env:
     ./scripts/ops/webhook-management.sh {{action}} {{env}}
 
+# DLQ redrive (service: postgres-writer, deletion-service, activity-rows). Dry run unless --execute
+dlq-replay service env *flags:
+    ./scripts/ops/dlq-replay.sh {{service}} {{env}} {{flags}}
+
 # Build and Publish Docker images (tag: optional git sha)
 build-publish tag='':
     ./scripts/ops/deploy/build-and-publish.sh {{tag}}

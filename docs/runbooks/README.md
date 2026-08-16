@@ -56,6 +56,8 @@ SLO specs live in [`docs/slo.md`](../slo.md).
 
 - [Reading traces](reading-traces.md) — trace inspection and the slow-pattern
   table. Not an alert; referenced by several runbooks above.
+- [Redriving a DLQ](dlq-redrive.md) — replaying dead-lettered messages onto
+  their source topic. Referenced by the three DLQ runbooks.
 
 ## Operations
 

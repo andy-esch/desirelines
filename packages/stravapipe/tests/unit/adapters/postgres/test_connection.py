@@ -7,6 +7,7 @@ import pytest
 
 from stravapipe.adapters.postgres._connection import (
     ConnectionStringError,
+    PoolConfig,
     _read_raw_connection_string,
     _transform_dialect,
     _validate_connection_string,
@@ -214,3 +215,38 @@ class TestLoadConnectionString:
             load_connection_string()
 
         assert "application_name" in str(exc_info.value)
+
+
+class TestSessionTimeoutSettings:
+    """Tests for PoolConfig.session_timeout_settings."""
+
+    def test_returns_both_timeouts_by_default(self):
+        """Should emit both GUCs as (name, value) pairs with defaults."""
+        assert PoolConfig().session_timeout_settings() == (
+            ("statement_timeout", "30000"),
+            ("idle_in_transaction_session_timeout", "60000"),
+        )
+
+    def test_omits_disabled_statement_timeout(self):
+        """Should drop statement_timeout when set to 0."""
+        config = PoolConfig(statement_timeout_ms=0)
+        assert config.session_timeout_settings() == (
+            ("idle_in_transaction_session_timeout", "60000"),
+        )
+
+    def test_omits_disabled_idle_in_transaction_timeout(self):
+        """Should drop idle_in_transaction_session_timeout when set to 0."""
+        config = PoolConfig(idle_in_transaction_timeout_ms=0)
+        assert config.session_timeout_settings() == (("statement_timeout", "30000"),)
+
+    def test_empty_when_both_disabled(self):
+        """Both knobs at 0 is the escape hatch: no settings to apply at all."""
+        config = PoolConfig(
+            statement_timeout_ms=0,
+            idle_in_transaction_timeout_ms=0,
+        )
+        assert config.session_timeout_settings() == ()
+
+    # The "never reaches the startup packet" invariant is guarded where it can
+    # actually fail — test_unit_of_work.py's check on create_engine's
+    # connect_args. Asserting it against these literals proves nothing.

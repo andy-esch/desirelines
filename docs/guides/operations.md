@@ -42,8 +42,8 @@ Topics and subscriptions per service, each dead-lettering to its own
 `*-dlq` topic with a matching `*-dlq-monitoring` pull subscription for
 inspection. Console → Pub/Sub → Topics / Subscriptions.
 
-The DLQs are the ones that page — see the DLQ runbooks. There is currently **no
-automated redrive path**; draining a DLQ is a manual pull-and-republish.
+The DLQs are the ones that page — see the DLQ runbooks, and **Redrive a DLQ**
+under Common procedures below.
 
 ## Logs
 
@@ -110,6 +110,12 @@ Firestore and only the athlete can mint new ones.
 
 Note that a Strava OAuth grant survives a rejected callback — only an explicit
 user revoke or a deauthorization call actually drains it.
+
+### Redrive a DLQ
+
+Fix the failure first, then `just dlq-replay <service> <env>` for a dry run and
+again with `--execute`. Full procedure:
+[Redriving a DLQ](../runbooks/dlq-redrive.md).
 
 ### Cut a new Terraform module tag
 

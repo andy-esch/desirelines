@@ -54,7 +54,6 @@ product-affecting: reads come from PostgreSQL. Repair PG and reconcile via the b
 connections and cause write timeouts) and `slo-2-webhook-ingest-success.md` —
 SLO 2 measures exactly this DLQ, so it is probably burning too.
 
-> **Redrive**: there is no automated replay path today. Draining the DLQ
-> currently means pulling messages and re-publishing them to the source topic by
-> hand. Treat this runbook as incomplete until a documented redrive procedure
-> exists.
+**Redrive**: once the writer is healthy, replay with `just dlq-replay
+postgres-writer <env>` (dry run) then `--execute`. See
+[Redriving a DLQ](dlq-redrive.md).

@@ -56,7 +56,7 @@ escalate rather than let it sit. Cross-reference `python-readiness-failing.md`
 (the deletion service may also be failing readiness) and the DLQ runbooks for
 the sibling services if a shared dependency (Neon) is the root cause.
 
-> **Redrive**: there is no automated replay path today. Draining the DLQ means
-> pulling messages and re-publishing them to the source topic by hand. Treat this
-> runbook as incomplete until a documented redrive procedure exists — and, given
-> the compliance stakes, verify the deletion actually completed after replay.
+**Redrive**: once the failing store is healthy, replay with `just dlq-replay
+deletion-service <env>` (dry run) then `--execute`. See
+[Redriving a DLQ](dlq-redrive.md) — it carries the compliance-verification step
+for this service.

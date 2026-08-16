@@ -37,3 +37,8 @@ gcloud pubsub subscriptions pull desirelines-activity-rows-dlq-monitoring-<env> 
 **If still stuck**: [activity-row-publish-failing.md](activity-row-publish-failing.md)
 covers the other half — rows that never left the dispatcher. This alert only
 sees rows BigQuery received and refused.
+
+**Redrive**: once the schema mismatch is resolved, replay with `just dlq-replay
+activity-rows <env>` (dry run) then `--execute`. See
+[Redriving a DLQ](dlq-redrive.md). Nothing reads this table, so draining without
+replay is also defensible here — unlike the other two DLQs.

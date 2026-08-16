@@ -24,6 +24,7 @@ scripts/
 | Deploy backend      | Merge to main (auto) or via `desirelines-deploy` repo                                                                                                                |
 | Backfill activities | `gcloud run jobs execute desirelines-backfill --set-env-vars ATHLETE_ID=<id>,BACKFILL_YEARS=2024` (see `packages/stravapipe/src/stravapipe/cloudrun/backfill_job.py`) |
 | Manage webhook      | `just webhook <action> <env>`                                                                                                                                        |
+| Redrive a DLQ       | `just dlq-replay <service> <env> [--execute]` (see [Redriving a DLQ](../docs/runbooks/dlq-redrive.md))                                                                |
 
 ## By Directory
 
@@ -35,6 +36,7 @@ Consolidated operational scripts.
 - **`ops/deploy/`**: Deployment (`deploy-web.sh`, `build-and-publish.sh`)
 - **`ops/regions/`**: Region boundary reference-data loader (`load_census_regions.py`)
 - **`ops/webhook-management.sh`**: Webhook operations (create, view, delete)
+- **`ops/dlq-replay.sh`**: DLQ redrive (pull, republish to source topic, ack)
 - **`ops/check-strava-sports.py`**: Strava sport-type drift detector
 
 Historical backfills now run as the `desirelines-backfill` Cloud Run job

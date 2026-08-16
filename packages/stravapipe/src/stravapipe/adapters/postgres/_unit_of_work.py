@@ -10,9 +10,9 @@ from types import TracebackType
 from typing import Literal, Self
 
 from opentelemetry.trace import Tracer
-from sqlalchemy import create_engine
-from sqlalchemy.engine import Engine
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy import create_engine, event, text
+from sqlalchemy.engine import Connection, Engine
+from sqlalchemy.orm import Session, SessionTransaction, sessionmaker
 from sqlalchemy.pool import NullPool, QueuePool
 
 from stravapipe.adapters.postgres._connection import PoolConfig
@@ -43,6 +43,60 @@ def _report_session_cleanup_failure(
     )
 
 
+def _register_transaction_timeouts(
+    session_factory: sessionmaker[Session],
+    settings: tuple[tuple[str, str], ...],
+) -> None:
+    """Apply the server-side timeouts with ``SET LOCAL`` on each transaction.
+
+    Two constraints rule out the alternatives, both imposed by connection
+    pooling in front of Postgres (Neon's pooled endpoint, PgBouncer, pgpool):
+
+    * Not the libpq startup packet. A pooler only forwards the handful of
+      parameters it can track — ``client_encoding``, ``datestyle``,
+      ``timezone``, ``standard_conforming_strings``, ``application_name`` — and
+      rejects the connection outright for the rest. The failure is a total
+      outage at connect time, not a lost setting.
+    * Not a plain ``SET`` at connect time. Under transaction pooling the server
+      connection is handed back to the pooler at commit, so the setting both
+      fails to persist for this client and leaks onto whichever client picks up
+      that connection next.
+
+    ``SET LOCAL`` is scoped to the transaction, which is exactly the window a
+    pooler guarantees is served by one server connection. Every GUC goes in a
+    single ``SELECT set_config(...)`` so the guarantee costs one round trip per
+    transaction, and names and values are bound rather than interpolated.
+
+    Listening on the factory rather than the ``Session`` class leaves test
+    fixtures that bind their own session alone.
+    """
+    if not settings:
+        return
+
+    calls: list[str] = []
+    params: dict[str, str] = {}
+    for index, (name, value) in enumerate(settings):
+        calls.append(f"set_config(:name_{index}, :value_{index}, true)")
+        params[f"name_{index}"] = name
+        params[f"value_{index}"] = value
+    statement = text(f"SELECT {', '.join(calls)}")
+
+    @event.listens_for(session_factory, "after_begin")
+    def _apply_transaction_timeouts(
+        session: Session,
+        transaction: SessionTransaction,
+        connection: Connection,
+    ) -> None:
+        # after_begin also fires for every SAVEPOINT, which inherits the
+        # enclosing transaction's SET LOCAL and restores it on release. Writing
+        # it again would be one wasted round trip per savepoint — and the
+        # region-tagging path opens one per activity, so a 100-activity backfill
+        # batch would pay ~100 of them for a single unit of work.
+        if transaction.nested:
+            return
+        connection.execute(statement, params)
+
+
 def create_session_factory(
     database_url: str,
     pool_config: PoolConfig | None = None,
@@ -52,6 +106,9 @@ def create_session_factory(
     Automatically selects pooling strategy based on configuration:
     - External pooler (Neon, PgBouncer): Uses NullPool (no client-side pooling)
     - Internal pooling: Uses QueuePool with conservative settings
+
+    Sessions from the returned factory apply ``pool_config``'s server-side
+    timeouts per transaction; see ``_register_transaction_timeouts``.
 
     Callers own the engine and must call ``engine.dispose()`` on shutdown
     to avoid pool leaks across Cloud Run revisions.
@@ -77,14 +134,6 @@ def create_session_factory(
     if pool_config is None:
         pool_config = PoolConfig.from_env()
 
-    # Server-side timeouts, sent as libpq startup options so every connection
-    # carries them without a per-checkout round trip. Heads-up if the connection
-    # target ever changes: a pooler in front of Postgres has to pass these
-    # through. Neon's pooled endpoint accepts both today; setting either knob to
-    # 0 drops it, which is the escape hatch if that stops being true.
-    options = pool_config.server_settings_options()
-    connect_args = {"options": options} if options else {}
-
     if pool_config.uses_external_pooler(database_url):
         # External pooler (Neon, PgBouncer, etc.) - no client-side pooling
         logger.info(
@@ -94,7 +143,6 @@ def create_session_factory(
         engine = create_engine(
             database_url,
             poolclass=NullPool,
-            connect_args=connect_args,
         )
     else:
         # Internal pooling - use QueuePool with conservative settings
@@ -113,10 +161,13 @@ def create_session_factory(
             max_overflow=pool_config.max_overflow,
             pool_recycle=pool_config.pool_recycle,
             pool_pre_ping=pool_config.pool_pre_ping,
-            connect_args=connect_args,
         )
 
-    return engine, sessionmaker(bind=engine, expire_on_commit=False)
+    session_factory = sessionmaker(bind=engine, expire_on_commit=False)
+    _register_transaction_timeouts(
+        session_factory, pool_config.session_timeout_settings()
+    )
+    return engine, session_factory
 
 
 class SqlAlchemyUnitOfWork(AbstractUnitOfWork):

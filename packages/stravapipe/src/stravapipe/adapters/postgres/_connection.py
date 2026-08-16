@@ -114,21 +114,25 @@ class PoolConfig(NamedTuple):
             ),
         )
 
-    def server_settings_options(self) -> str:
-        """Render the server-side timeouts as a libpq ``options`` string.
+    def session_timeout_settings(self) -> tuple[tuple[str, str], ...]:
+        """Return the server-side timeouts as ``(guc_name, value)`` pairs.
 
-        Returns an empty string when both timeouts are disabled (0), so callers
-        can skip passing ``options`` entirely rather than sending an empty one.
+        Deliberately not a libpq ``options`` string — a pooler rejects these
+        GUCs on the startup packet. Applied per-transaction instead; see
+        ``_register_transaction_timeouts`` for why. Empty when both timeouts are
+        disabled (0), so callers can skip the round trip entirely.
         """
-        settings: list[str] = []
+        settings: list[tuple[str, str]] = []
         if self.statement_timeout_ms > 0:
-            settings.append(f"-c statement_timeout={self.statement_timeout_ms}")
+            settings.append(("statement_timeout", str(self.statement_timeout_ms)))
         if self.idle_in_transaction_timeout_ms > 0:
             settings.append(
-                "-c idle_in_transaction_session_timeout="
-                f"{self.idle_in_transaction_timeout_ms}"
+                (
+                    "idle_in_transaction_session_timeout",
+                    str(self.idle_in_transaction_timeout_ms),
+                )
             )
-        return " ".join(settings)
+        return tuple(settings)
 
     def uses_external_pooler(self, database_url: str) -> bool:
         """Determine if external pooler is in use.
