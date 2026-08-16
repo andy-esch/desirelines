@@ -127,8 +127,10 @@ func NewPool(ctx context.Context, connString string, logger *slog.Logger, tracer
 	//
 	// Heads-up if the connection target ever changes: these ride the startup
 	// packet, and a connection pooler in front of Postgres has to be willing to
-	// pass them through. Neon's pooled endpoint accepts both today. If a future
-	// pooler rejects an unknown startup parameter the failure shows up on first
+	// pass them through. Neon's pooled endpoint accepts both as RuntimeParams
+	// (discrete startup fields) today, but rejects the same GUCs inside a libpq
+	// `options` string — so do not "simplify" these into one options value.
+	// Rejection is a total outage, not a lost setting, and it surfaces on first
 	// query rather than at pool construction (pgxpool connects lazily), so the
 	// knobs below accept 0 to drop the parameter entirely as an escape hatch.
 	statementTimeoutMs := getInt32Env("DB_STATEMENT_TIMEOUT_MS", defaultStatementTimeoutMs)

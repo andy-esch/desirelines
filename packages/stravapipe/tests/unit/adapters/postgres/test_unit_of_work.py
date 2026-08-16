@@ -6,9 +6,13 @@ from unittest.mock import MagicMock, patch
 from opentelemetry.trace import Tracer
 import pytest
 from sqlalchemy.exc import OperationalError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
-from stravapipe.adapters.postgres._unit_of_work import SqlAlchemyUnitOfWork
+from stravapipe.adapters.postgres._connection import PoolConfig
+from stravapipe.adapters.postgres._unit_of_work import (
+    SqlAlchemyUnitOfWork,
+    create_session_factory,
+)
 
 
 def _tracer_with_span(
@@ -341,3 +345,96 @@ def test_enter_rejects_reuse_while_session_is_active():
 
     assert uow._session is session
     uow.__exit__(None, None, None)
+
+
+def _begin_transaction(session_factory: sessionmaker[Session]) -> MagicMock:
+    """Fire ``after_begin`` for a session from ``session_factory``.
+
+    Stands in for a real transaction, which would need a live PostgreSQL.
+    Returns the connection the listeners saw, for assertions on what SQL the
+    transaction opened with.
+    """
+    session = session_factory()
+    connection = MagicMock()
+    session.dispatch.after_begin(session, MagicMock(), connection)
+    return connection
+
+
+class TestCreateSessionFactoryTimeouts:
+    """Tests for how server-side timeouts reach the database."""
+
+    def test_never_sends_timeouts_as_connection_parameters(self):
+        """Regression guard: timeouts must not ride the libpq startup packet.
+
+        PgBouncer — and therefore Neon's pooled endpoint — allows only
+        client_encoding, datestyle, timezone, standard_conforming_strings and
+        application_name there, and rejects the connection outright for
+        anything else. Sending `options=-c statement_timeout=...` failed every
+        connect and took the whole postgres-writer pipeline down.
+        """
+        with patch(
+            "stravapipe.adapters.postgres._unit_of_work.create_engine"
+        ) as create_engine_mock:
+            create_session_factory(
+                "postgresql+psycopg://u:p@host-pooler.neon.tech/db",
+                PoolConfig(),
+            )
+
+        connect_args = create_engine_mock.call_args.kwargs.get("connect_args", {})
+        assert "options" not in connect_args
+
+    @pytest.mark.parametrize(
+        "database_url",
+        [
+            "postgresql+psycopg://u:p@host-pooler.neon.tech/db",
+            "postgresql+psycopg://u:p@host.neon.tech/db",
+        ],
+        ids=["pooled", "direct"],
+    )
+    def test_applies_timeouts_per_transaction(self, database_url: str):
+        """Each transaction should set both GUCs locally in one round trip."""
+        with patch("stravapipe.adapters.postgres._unit_of_work.create_engine"):
+            _, session_factory = create_session_factory(database_url, PoolConfig())
+
+        connection = _begin_transaction(session_factory)
+
+        connection.execute.assert_called_once()
+        statement, params = connection.execute.call_args.args
+        assert str(statement) == (
+            "SELECT set_config(:name_0, :value_0, true), "
+            "set_config(:name_1, :value_1, true)"
+        )
+        assert params == {
+            "name_0": "statement_timeout",
+            "value_0": "30000",
+            "name_1": "idle_in_transaction_session_timeout",
+            "value_1": "60000",
+        }
+
+    def test_registers_no_listener_when_timeouts_disabled(self):
+        """Both knobs at 0 is the escape hatch: no per-transaction round trip."""
+        with patch("stravapipe.adapters.postgres._unit_of_work.create_engine"):
+            _, session_factory = create_session_factory(
+                "postgresql+psycopg://u:p@host-pooler.neon.tech/db",
+                PoolConfig(statement_timeout_ms=0, idle_in_transaction_timeout_ms=0),
+            )
+
+        connection = _begin_transaction(session_factory)
+
+        connection.execute.assert_not_called()
+
+    def test_leaves_sessions_from_other_factories_alone(self):
+        """The listener is scoped to this factory, not to Session globally.
+
+        Test fixtures bind their own Session to an external connection (see
+        SqlAlchemyUnitOfWork's docstring); those must not inherit the timeouts.
+        """
+        with patch("stravapipe.adapters.postgres._unit_of_work.create_engine"):
+            create_session_factory(
+                "postgresql+psycopg://u:p@host-pooler.neon.tech/db",
+                PoolConfig(),
+            )
+
+        connection = _begin_transaction(sessionmaker(bind=MagicMock()))
+
+        connection.execute.assert_not_called()
