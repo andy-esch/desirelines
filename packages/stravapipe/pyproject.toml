@@ -228,7 +228,12 @@ ignore_errors = true
 # (pytest catches its bugs); mypy on it adds little, so ignore it here. The
 # generator itself stays fully type-checked.
 [[tool.mypy.overrides]]
-module = ["bigquery.test_generate_proto", "test_generate_proto"]
+module = [
+    "bigquery.test_generate_proto",
+    "test_generate_proto",
+    "bigquery.scripts.test_schema_to_bq",
+    "test_schema_to_bq",
+]
 ignore_errors = true
 
 # Tests: idiomatic pytest (`def test_foo():` without `-> None`), heavy use
@@ -281,5 +286,5 @@ ignore_missing_imports = true
 # it wholesale; the generator itself (`bigquery.generate_proto`) stays fully
 # type-checked.
 [[tool.mypy.overrides]]
-module = ["bigquery.test_generate_proto"]
+module = ["bigquery.test_generate_proto", "bigquery.scripts.test_schema_to_bq"]
 ignore_errors = true
