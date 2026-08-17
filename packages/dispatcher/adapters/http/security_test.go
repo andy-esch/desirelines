@@ -272,9 +272,9 @@ func TestSecurity_BodySizeIsCapped(t *testing.T) {
 }
 
 // TestSecurity_ForgedDeauthWithActiveGrantIsRejected is the regression for the
-// endpoint's central weakness (finding D-1): Strava signs nothing, so a
-// deauthorization is an unauthenticated assertion, and the handler must not act
-// on it unless the athlete's grant is actually revoked.
+// endpoint's central weakness: Strava signs nothing, so a deauthorization is an
+// unauthenticated assertion, and the handler must not act on it unless the
+// athlete's grant is actually revoked.
 //
 // Each payload shape below was accepted before the fix — deleting the victim's
 // tokens and publishing to the deletion topic even against a denying allowlist.
@@ -488,10 +488,11 @@ func TestSecurity_DeauthPublishFailureRetainsTokenForRetry(t *testing.T) {
 	}
 }
 
-// TestSecurity_SubscriptionIDEnumerationRequiresCallbackCapability closes D-3:
-// without the callback capability, a probe cannot reach JSON parsing or the
-// subscription-ID comparison. Correct and incorrect IDs therefore have the same
-// generic response and no downstream side effects.
+// TestSecurity_SubscriptionIDEnumerationRequiresCallbackCapability pins the
+// closure of the subscription-ID enumeration oracle: without the callback
+// capability, a probe cannot reach JSON parsing or the subscription-ID
+// comparison. Correct and incorrect IDs therefore have the same generic
+// response and no downstream side effects.
 func TestSecurity_SubscriptionIDEnumerationRequiresCallbackCapability(t *testing.T) {
 	rig := newSecurityRig(t, false)
 	h := NewHandler(rig.primary, rig.deauth,
