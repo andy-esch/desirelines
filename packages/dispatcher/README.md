@@ -49,9 +49,10 @@ See `webhook/owner_check` metric for outcome breakdown.
 | `GET` | `/health` | Health check endpoint |
 | `HEAD` | `/` | Health probe for Cloud Run |
 
-`WEBHOOK_ROUTE_MODE` controls migration: `legacy` accepts only `/webhook`,
-`dual` temporarily accepts both forms, and `capability` accepts only the
-capability URL. The callback capability is a bearer credential; never print or
+The capability URL is the only webhook route; plain `/webhook` is retired and
+returns the same generic `404` as any unknown path. The callback capability is a
+bearer credential and is required at startup — the dispatcher fails to boot
+without a valid one rather than serving an unprotected route. Never print or
 store the full callback URL in logs, traces, dashboards, or support artifacts.
 Use the [callback-capability cutover runbook](../../docs/runbooks/webhook-callback-capability.md)
 for activation, re-registration, rollback, and rotation.
@@ -94,7 +95,6 @@ FIRESTORE_DATABASE=desirelines
 # Optional
 LOG_LEVEL=INFO   # Default: INFO
 PORT=8080        # Default: 8080 (Cloud Run sets this)
-WEBHOOK_ROUTE_MODE=legacy # legacy | dual | capability
 ```
 
 ### Secrets
@@ -142,7 +142,7 @@ GCP_PUBSUB_TOPIC=desirelines_activity_events \
 GCP_PUBSUB_DEAUTH_TOPIC=desirelines_deauth_events \
 FIRESTORE_DATABASE=local-dev \
 STRAVA_WEBHOOK_SUBSCRIPTION_ID=123456 \
-WEBHOOK_ROUTE_MODE=legacy \
+STRAVA_WEBHOOK_CALLBACK_CAPABILITY=$(openssl rand -hex 32) \
 go run ./cmd/dispatcher
 ```
 

@@ -52,7 +52,7 @@ func TestIntegration_ConcurrentRequests(t *testing.T) {
 	}
 	log := gcplog.NewNoOpLogger()
 
-	handler := NewHandler(mockPub, mockDeauthPub, mockSecrets, mockStrava, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, nil)
+	handler := NewHandler(mockPub, mockDeauthPub, mockSecrets, mockStrava, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, testHandlerConfig())
 	router := handler.RegisterRoutes()
 
 	const numRequests = 100
@@ -76,7 +76,7 @@ func TestIntegration_ConcurrentRequests(t *testing.T) {
 				t.Errorf("failed to marshal payload: %v", err)
 				return
 			}
-			req := httptest.NewRequest("POST", "/webhook", bytes.NewReader(body))
+			req := httptest.NewRequest("POST", testWebhookPath, bytes.NewReader(body))
 			req.Header.Set("Content-Type", "application/json")
 
 			rr := httptest.NewRecorder()
@@ -119,7 +119,7 @@ func TestIntegration_SecretReload(t *testing.T) {
 	}
 	log := gcplog.NewNoOpLogger()
 
-	handler := NewHandler(mockPub, &portstest.MockPublisher{}, mockSecrets, mockStrava, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, nil)
+	handler := NewHandler(mockPub, &portstest.MockPublisher{}, mockSecrets, mockStrava, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, testHandlerConfig())
 	router := handler.RegisterRoutes()
 
 	mustMarshal := func(v any) []byte {
@@ -139,7 +139,7 @@ func TestIntegration_SecretReload(t *testing.T) {
 		EventTime:      1234567890,
 		SubscriptionID: 22222,
 	})
-	req1 := httptest.NewRequest("POST", "/webhook", bytes.NewReader(payload1))
+	req1 := httptest.NewRequest("POST", testWebhookPath, bytes.NewReader(payload1))
 	req1.Header.Set("Content-Type", "application/json")
 	rr1 := httptest.NewRecorder()
 	router.ServeHTTP(rr1, req1)
@@ -160,7 +160,7 @@ func TestIntegration_SecretReload(t *testing.T) {
 		EventTime:      1234567890,
 		SubscriptionID: 22222,
 	})
-	req2 := httptest.NewRequest("POST", "/webhook", bytes.NewReader(payload2))
+	req2 := httptest.NewRequest("POST", testWebhookPath, bytes.NewReader(payload2))
 	req2.Header.Set("Content-Type", "application/json")
 	rr2 := httptest.NewRecorder()
 	router.ServeHTTP(rr2, req2)
@@ -178,7 +178,7 @@ func TestIntegration_SecretReload(t *testing.T) {
 		EventTime:      1234567890,
 		SubscriptionID: 33333,
 	})
-	req3 := httptest.NewRequest("POST", "/webhook", bytes.NewReader(payload3))
+	req3 := httptest.NewRequest("POST", testWebhookPath, bytes.NewReader(payload3))
 	req3.Header.Set("Content-Type", "application/json")
 	rr3 := httptest.NewRecorder()
 	router.ServeHTTP(rr3, req3)
@@ -196,7 +196,7 @@ func TestIntegration_ConcurrentVerification(t *testing.T) {
 	}
 	log := gcplog.NewNoOpLogger()
 
-	handler := NewHandler(&portstest.MockPublisher{}, &portstest.MockPublisher{}, mockSecrets, &portstest.MockStravaClient{}, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, nil)
+	handler := NewHandler(&portstest.MockPublisher{}, &portstest.MockPublisher{}, mockSecrets, &portstest.MockStravaClient{}, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, testHandlerConfig())
 	router := handler.RegisterRoutes()
 
 	const numRequests = 50
@@ -207,7 +207,7 @@ func TestIntegration_ConcurrentVerification(t *testing.T) {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-			url := fmt.Sprintf("/webhook?hub.mode=subscribe&hub.challenge=challenge-%d&hub.verify_token=verify-token", id)
+			url := fmt.Sprintf(testWebhookPath+"?hub.mode=subscribe&hub.challenge=challenge-%d&hub.verify_token=verify-token", id)
 			req := httptest.NewRequest("GET", url, nil)
 			rr := httptest.NewRecorder()
 			router.ServeHTTP(rr, req)

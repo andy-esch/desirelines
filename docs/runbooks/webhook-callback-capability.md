@@ -17,16 +17,25 @@ The capability URL is only ever resolved from Cloud Run, never typed. The
 project's own web domain is a separate static host: a request sent there returns
 the frontend and copies the capability into a third-party CDN's access logs.
 
+> **The legacy/dual cutover is complete and the route modes no longer exist.**
+> Both environments run the capability route only, and
+> `dispatcher_webhook_route_mode` has been removed from the module — setting it
+> is now an error, not a no-op. What stays live in this runbook is **rotation**:
+> Preconditions, Emergency rotation, and the telemetry checks. The Activation
+> gate, Development activation rehearsal, Production cutover, and Rollback
+> sections describe the one-time migration and are retained as history —
+> rollback to a plain `/webhook` is no longer possible, because that route is
+> gone from the code.
+
 ## Preconditions
 
 - Deauthorization grant confirmation is deployed and healthy, so a forged
   deauthorization cannot act on a still-authorized athlete.
-- The dispatcher build supports `WEBHOOK_ROUTE_MODE=legacy|dual|capability`.
 - Terraform has created `INFISICAL_STRAVA_WEBHOOK_CALLBACK_CAPABILITY` in the
   target project, and Infisical is still the authoritative value source.
 - The callback capability has an enabled numeric Secret Manager version. Record
-  the version number, not the value; `dual` and `capability` deployments refuse
-  an unpinned or `latest` reference.
+  the version number, not the value; the dispatcher refuses an unpinned or
+  `latest` reference, and fails startup without a valid capability.
 - Terraform has applied the narrowly scoped
   `exclude-dispatcher-webhook-callback-capability` Cloud Logging exclusion.
   It excludes raw or percent-encoded capability-shaped callback URLs and legacy
@@ -37,8 +46,7 @@ the frontend and copies the capability into a third-party CDN's access logs.
 - The operator can update `INFISICAL_STRAVA_WEBHOOK_SUBSCRIPTION_ID` immediately
   after Strava creates the replacement subscription.
 - The matching `desirelines` module tag is selected in the
-  `desirelines-deploy` repository before its `app_config` sets
-  `dispatcher_webhook_route_mode`, and its module call sets
+  `desirelines-deploy` repository, and its module call sets
   `dispatcher_webhook_callback_capability_secret_version`. The CI deploy identity
   already declares `roles/logging.configWriter` in both environments.
 

@@ -27,7 +27,7 @@ func setupBenchHandler(b *testing.B) http.Handler {
 	}
 	log := gcplog.NewNoOpLogger()
 
-	handler := NewHandler(mockPub, mockDeauthPub, mockSecrets, mockStrava, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, nil)
+	handler := NewHandler(mockPub, mockDeauthPub, mockSecrets, mockStrava, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, testHandlerConfig())
 	return handler.RegisterRoutes()
 }
 
@@ -48,7 +48,7 @@ func BenchmarkHandler_ServeHTTP_ValidWebhook(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		req := httptest.NewRequest("POST", "/webhook", bytes.NewReader(payload))
+		req := httptest.NewRequest("POST", testWebhookPath, bytes.NewReader(payload))
 		req.Header.Set("Content-Type", "application/json")
 		rr := httptest.NewRecorder()
 
@@ -65,7 +65,7 @@ func BenchmarkHandler_ServeHTTP_Verification(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		req := httptest.NewRequest("GET", "/webhook?hub.mode=subscribe&hub.challenge=test&hub.verify_token=bench-token", nil)
+		req := httptest.NewRequest("GET", testWebhookPath+"?hub.mode=subscribe&hub.challenge=test&hub.verify_token=bench-token", nil)
 		rr := httptest.NewRecorder()
 
 		router.ServeHTTP(rr, req)
@@ -83,7 +83,7 @@ func BenchmarkHandler_ServeHTTP_InvalidWebhook(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		req := httptest.NewRequest("POST", "/webhook", bytes.NewReader(body))
+		req := httptest.NewRequest("POST", testWebhookPath, bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		rr := httptest.NewRecorder()
 
@@ -113,7 +113,7 @@ func BenchmarkHandler_ServeHTTP_Concurrent(b *testing.B) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			req := httptest.NewRequest("POST", "/webhook", bytes.NewReader(payload))
+			req := httptest.NewRequest("POST", testWebhookPath, bytes.NewReader(payload))
 			req.Header.Set("Content-Type", "application/json")
 			rr := httptest.NewRecorder()
 
