@@ -17,18 +17,24 @@ derives the protobuf profiles — including the CDC topic schema that Pub/Sub
 validates published rows against. It is also the schema the backfill job's
 staging + MERGE path writes.
 
-To output schema in BigQuery CLI format:
+To output a schema for `bq mk`:
 
 ```bash
-# Full schema (default)
-uv run schemas/bigquery/scripts/schema_to_bq.py activities
-
-# Minimal schema
-uv run schemas/bigquery/scripts/schema_to_bq.py activities --minimal
-
-# JSON format (for tooling)
+# JSON schema array (for tooling, and for any schema with nested/repeated fields)
 uv run schemas/bigquery/scripts/schema_to_bq.py activities --json
+
+# Inline CLI format, minimal schema
+uv run schemas/bigquery/scripts/schema_to_bq.py activities --minimal
 ```
+
+`bq mk`'s [inline schema format](https://cloud.google.com/bigquery/docs/schemas#specifying_a_json_schema_file)
+is `name:type` pairs and nothing else — it cannot state a mode, and it cannot
+express a RECORD's nested fields, so every column it creates is NULLABLE and
+scalar. `activities_full.json` has both RECORD (`athlete`, `map`, …) and
+REPEATED (`start_latlng`, `laps`, …) columns, so the inline mode refuses it and
+points at `--json`; write that output to a file and pass it as
+`bq mk --table --schema=<file>.json`. `activities_minimal.json` is flat, so the
+inline mode works there.
 
 ## Schema Format
 

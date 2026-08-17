@@ -225,6 +225,33 @@ class TestUnmappedType:
         assert "_BQ_TO_PROTO_SCALAR" in msg
 
 
+class TestMissingMode:
+    """`mode` is optional in BigQuery's schema JSON, so a field without one is
+    valid input and must generate rather than raise."""
+
+    def test_field_without_mode_is_treated_as_nullable(self):
+        body = _render([{"name": "x", "type": "STRING"}])
+        assert "optional string x = 1;" in body
+
+    def test_missing_mode_matches_an_explicit_nullable(self):
+        assert _render([{"name": "x", "type": "STRING"}]) == _render(
+            [{"name": "x", "type": "STRING", "mode": "NULLABLE"}]
+        )
+
+    def test_nested_record_field_without_mode_is_also_nullable(self):
+        body = _render(
+            [
+                {
+                    "name": "athlete",
+                    "type": "RECORD",
+                    "mode": "NULLABLE",
+                    "fields": [{"name": "id", "type": "INTEGER"}],
+                }
+            ]
+        )
+        assert "optional int64 id = 1;" in body
+
+
 class TestFullSchema:
     """Smoke test: generating against the actual repo's BQ schema must
     succeed and produce a non-empty proto file."""
