@@ -36,28 +36,11 @@ const (
 	// schema is attached to it.
 	DefaultActivityRowEncoding = "json"
 
-	// WebhookRouteModeLegacy keeps the existing plain /webhook callback.
-	WebhookRouteModeLegacy WebhookRouteMode = "legacy"
-	// WebhookRouteModeDual accepts both plain and capability routes temporarily.
-	WebhookRouteModeDual WebhookRouteMode = "dual"
-	// WebhookRouteModeCapability accepts only the protected callback route.
-	WebhookRouteModeCapability WebhookRouteMode = "capability"
-
 	// WebhookCallbackCapabilityLength is 32 random bytes encoded as lowercase
 	// hexadecimal. The fixed canonical form makes path parsing bounded and
 	// rejects alternate encodings before the constant-time comparison.
 	WebhookCallbackCapabilityLength = 64
 )
-
-// WebhookRouteMode controls the callback-route cutover. Dual is deliberately a
-// migration state; capability is the secure steady state.
-type WebhookRouteMode string
-
-// RequiresCallbackCapability reports whether startup must load the callback
-// capability secret for this route mode.
-func (m WebhookRouteMode) RequiresCallbackCapability() bool {
-	return m == WebhookRouteModeDual || m == WebhookRouteModeCapability
-}
 
 // Config holds non-secret configuration for the dispatcher.
 // Secrets (verify token, subscription ID) are handled by SecretCache,
@@ -71,7 +54,6 @@ type Config struct {
 	WriteTimeout           time.Duration
 	ReadHeaderTimeout      time.Duration
 	MaxRequestBodySize     int64
-	WebhookRouteMode       WebhookRouteMode
 	// ActivityRowPublishEnabled turns on the best-effort publish of each
 	// activity as a BigQuery CDC row, alongside the primary webhook publish —
 	// the only path by which activity rows reach BigQuery — and the kill switch
@@ -141,11 +123,6 @@ func LoadConfig() (*Config, error) {
 		return nil, err
 	}
 
-	webhookRouteMode, err := parseWebhookRouteMode(os.Getenv("WEBHOOK_ROUTE_MODE"))
-	if err != nil {
-		return nil, err
-	}
-
 	// AllowZero, not parseDurationEnv: "0" is the documented kill switch (disable
 	// the cache), so it must parse to 0, not fail-closed the way a bad HTTP
 	// timeout should. Unset still takes the 5m default; negative is still rejected.
@@ -173,27 +150,12 @@ func LoadConfig() (*Config, error) {
 		WriteTimeout:                 writeTimeout,
 		ReadHeaderTimeout:            readHeaderTimeout,
 		MaxRequestBodySize:           maxBodySize,
-		WebhookRouteMode:             webhookRouteMode,
 		AllowlistCacheTTL:            allowlistCacheTTL,
 		TokenCacheTTL:                tokenCacheTTL,
 		ActivityRowPublishEnabled:    rowPublish.enabled,
 		GCPPubSubActivityRowsTopicID: rowPublish.topicID,
 		ActivityRowEncoding:          rowPublish.encoding,
 	}, nil
-}
-
-func parseWebhookRouteMode(raw string) (WebhookRouteMode, error) {
-	if raw == "" {
-		return WebhookRouteModeLegacy, nil
-	}
-
-	mode := WebhookRouteMode(raw)
-	switch mode {
-	case WebhookRouteModeLegacy, WebhookRouteModeDual, WebhookRouteModeCapability:
-		return mode, nil
-	default:
-		return "", fmt.Errorf("WEBHOOK_ROUTE_MODE must be one of legacy, dual, or capability")
-	}
 }
 
 // ValidateWebhookCallbackCapability validates the only accepted wire format:

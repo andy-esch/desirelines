@@ -80,7 +80,6 @@ const (
 const (
 	callbackCapabilityAccepted = "accepted"
 	callbackCapabilityRejected = "rejected"
-	callbackCapabilityLegacy   = "legacy"
 	redactedWebhookPath        = "/webhook/[redacted]"
 )
 
@@ -226,7 +225,6 @@ type Handler struct {
 	rowRefetchTimeout    time.Duration
 	httpHistogram        metric.Float64Histogram
 	callbackCounter      metric.Int64Counter
-	webhookRouteMode     config.WebhookRouteMode
 	callbackHash         [sha256.Size]byte
 	callbackConfigured   bool
 	tracer               trace.Tracer
@@ -248,12 +246,9 @@ type HandlerConfig struct {
 	// actually deleted. Optional; nil disables the metric.
 	DeauthCleanupCounter metric.Int64Counter
 	HTTPHistogram        metric.Float64Histogram
-	// CallbackCapabilityCounter records accepted, rejected, and temporary
-	// legacy-route use. Optional; nil disables the metric.
+	// CallbackCapabilityCounter records accepted and rejected callback outcomes.
+	// Optional; nil disables the metric.
 	CallbackCapabilityCounter metric.Int64Counter
-	// WebhookRouteMode controls the legacy-to-capability cutover. Empty retains
-	// legacy behavior for tests and local callers; production sets it explicitly.
-	WebhookRouteMode config.WebhookRouteMode
 	// WebhookCallbackCapability is a 32-byte value encoded as 64 lowercase hex
 	// characters. NewHandler retains only its SHA-256 digest.
 	WebhookCallbackCapability string
@@ -310,10 +305,6 @@ func NewHandler(publisher, deauthPublisher ports.Publisher, secretProvider ports
 	if now == nil {
 		now = time.Now
 	}
-	webhookRouteMode := cfg.WebhookRouteMode
-	if webhookRouteMode == "" {
-		webhookRouteMode = config.WebhookRouteModeLegacy
-	}
 	var callbackHash [sha256.Size]byte
 	callbackConfigured := config.ValidateWebhookCallbackCapability(cfg.WebhookCallbackCapability) == nil
 	if callbackConfigured {
@@ -339,7 +330,6 @@ func NewHandler(publisher, deauthPublisher ports.Publisher, secretProvider ports
 		rowRefetchTimeout:    rowRefetchTimeout,
 		httpHistogram:        cfg.HTTPHistogram,
 		callbackCounter:      cfg.CallbackCapabilityCounter,
-		webhookRouteMode:     webhookRouteMode,
 		callbackHash:         callbackHash,
 		callbackConfigured:   callbackConfigured,
 		tracer:               tracer,
@@ -391,18 +381,7 @@ func (h *Handler) RegisterRoutesInstrumented(instrument func(http.Handler) http.
 	// Strava webhook endpoints. The outer callback boundary validates and
 	// replaces a real capability segment with a fixed redacted segment before
 	// this router, middleware, tracing, or handlers can observe it.
-	switch h.webhookRouteMode {
-	case config.WebhookRouteModeLegacy:
-		h.registerWebhookRoute(r, "/webhook")
-	case config.WebhookRouteModeDual:
-		h.registerWebhookRoute(r, "/webhook")
-		h.registerWebhookRoute(r, "/webhook/{callback_capability}")
-	case config.WebhookRouteModeCapability:
-		h.registerWebhookRoute(r, "/webhook/{callback_capability}")
-	default:
-		// Fail closed if a caller bypasses config.LoadConfig and supplies an
-		// unknown mode directly.
-	}
+	h.registerWebhookRoute(r, "/webhook/{callback_capability}")
 
 	var routed http.Handler = r
 	if instrument != nil {
@@ -427,15 +406,9 @@ func (h *Handler) protectWebhookCallback(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		escapedPath := r.URL.EscapedPath()
 		if escapedPath == "/webhook" {
-			switch h.webhookRouteMode {
-			case config.WebhookRouteModeLegacy:
-				next.ServeHTTP(w, r)
-			case config.WebhookRouteModeDual:
-				h.recordCallbackCapability(r.Context(), callbackCapabilityLegacy)
-				next.ServeHTTP(w, r)
-			default:
-				h.rejectCallbackCapability(w, r)
-			}
+			// The plain route is retired. It is rejected here rather than left
+			// unregistered so it cannot reach the router, middleware, or tracing.
+			h.rejectCallbackCapability(w, r)
 			return
 		}
 
@@ -454,13 +427,6 @@ func (h *Handler) protectWebhookCallback(next http.Handler) http.Handler {
 				return
 			}
 			next.ServeHTTP(w, r)
-			return
-		}
-
-		if h.webhookRouteMode == config.WebhookRouteModeLegacy {
-			// No capability route is registered, but redact any would-be segment
-			// before tracing/logging to keep this migration state safe to probe.
-			next.ServeHTTP(w, redactWebhookPath(r))
 			return
 		}
 
