@@ -109,12 +109,12 @@ config = "packages/stravapipe/pyproject.toml"
 # (local) report different diagnostics. Pants only ships hashes through
 # 0.15.5, so anything newer needs its own `known_versions` rows —
 # regenerate with `just ruff-hashes <version>` when this version moves.
-version = "0.15.22"
+version = "0.16.3"
 known_versions = [
-  "0.15.22|linux_arm64 |88feb2dc2fafb92482185201f4d483134fbaab10370c79512d3dd372f1d3f28b|10314264",
-  "0.15.22|linux_x86_64|853462df618fb9f156a9f04d9d899d9e5a9e1a43fbffaec72df4bb159348e71b|11091403",
-  "0.15.22|macos_arm64 |a2881af26fd1d19f4932c4ddf1e70b4e0efcf48513c5dae082564e03f0b467a3|9953013",
-  "0.15.22|macos_x86_64|687a9ceb88ab85dab061026d5017218225a481121b1a40862cc8f92b56f18090|10608019",
+  "0.16.3|linux_arm64 |8319ba22f655e6efc086103486d7165bf0de73f71ff1c5f25ba580153ad05feb|10411229",
+  "0.16.3|linux_x86_64|d67c9b5949981698c48915abf65e0b3406ba9184ad73521cdf20a926bc889c73|11225151",
+  "0.16.3|macos_arm64 |136a4db6512d9b16dda56ac8604696ed65c3b1a914a142de029e7f8d5006f1d9|9944235",
+  "0.16.3|macos_x86_64|05c2a6705e7c0c056d6d93ff538978583f0c47b4c28d334ab9d58d2e8daf4c24|10742637",
 ]
 
 # Mypy type checking configuration

@@ -77,9 +77,13 @@ def proto_to_dict(event: pb.WebhookEvent) -> dict[str, Any]:
     }
 
 
-def _updates_to_dict(updates: pb.ActivityUpdates | None) -> dict[str, str]:
-    """Convert typed ActivityUpdates back to dict for JSON serialization."""
-    if updates is None or not updates.ByteSize():
+def _updates_to_dict(updates: pb.ActivityUpdates) -> dict[str, str]:
+    """Convert typed ActivityUpdates back to dict for JSON serialization.
+
+    ``updates`` is a singular protobuf sub-message, so it is never None — an
+    unset one reads back as a default-empty instance, which ByteSize() catches.
+    """
+    if not updates.ByteSize():
         return {}
 
     result: dict[str, str] = {}
