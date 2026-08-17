@@ -21,9 +21,15 @@
 //
 // # Usage
 //
-//	seq := bqrow.SequenceNumber(webhook.EventTime, time.Now())
+//	seq := bqrow.SequenceNumber(webhook.EventTime, bqrow.ChangeTypeUpsert, time.Now())
 //	body, err := bqrow.Upsert(enriched.RawActivity, seq)   // full-row replace
+//
+//	seq := bqrow.SequenceNumber(webhook.EventTime, bqrow.ChangeTypeDelete, time.Now())
 //	body, err := bqrow.Delete(webhook.ObjectId, seq)       // key-only delete
+//
+// The change type goes into the sequence number as well as the body: it ranks
+// a delete above an upsert carrying the same event_time. Pass the same one to
+// both or a same-second delete can lose to an upsert — see [SequenceNumber].
 //
 // Upsert replaces the whole row, so it must only be called with a complete
 // activity payload — never with a partial one, which would blank every column

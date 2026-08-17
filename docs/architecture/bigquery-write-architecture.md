@@ -47,7 +47,7 @@ Two tables:
 
 | table | subscription | write shape |
 |---|---|---|
-| `activities_live` | CDC BigQuery subscription, primary key `id` | `_CHANGE_TYPE = UPSERT` on create/update, `_CHANGE_TYPE = DELETE` on delete, ordered by `_CHANGE_SEQUENCE_NUMBER` — hex sections, the webhook `event_time` then a local tiebreak for events Strava stamped in the same second |
+| `activities_live` | CDC BigQuery subscription, primary key `id` | `_CHANGE_TYPE = UPSERT` on create/update, `_CHANGE_TYPE = DELETE` on delete, ordered by `_CHANGE_SEQUENCE_NUMBER` — hex sections, the webhook `event_time` then a change-type rank (`DELETE` outranks `UPSERT`) followed by a local tiebreak for events Strava stamped in the same second |
 | `activities_log` (**not built** — see below) | plain append BigQuery subscription, no key | every event, append-only; the "deleted set" would be derivable as `log ANTI JOIN live` |
 
 Deletes are first-class (a `DELETE` change message). Out-of-order and redelivered
@@ -150,7 +150,13 @@ originally guessed wrong.
   unlike the Storage Write profile, which requires int64 micros.
 - **The CDC keys are message body fields**, not attributes.
   `_CHANGE_SEQUENCE_NUMBER` is hex sections separated by `/`, compared as
-  unsigned numbers.
+  unsigned numbers. BigQuery keeps the largest per key and *ignores* anything
+  numbering below what that key has already seen, so the number has to be
+  non-decreasing — a section that can move backwards drops writes silently
+  rather than reordering them. Section 2 therefore leads with a change-type
+  rank, so a `DELETE` outranks an `UPSERT` carrying the same `event_time`
+  instead of the two resolving by whichever the dispatcher happened to build
+  first (which would resurrect deleted rows).
 - **`photos.urls` must be JSON *text*, not a nested object.** The original note
   here said the opposite. Sending the object BigQuery rejects the whole message
   with `JSON Object: 'urls' is incompatible with BigQuery field 'urls' of type
