@@ -172,16 +172,14 @@ variable "infisical_project_id" {
 
 variable "dispatcher_webhook_callback_capability_secret_version" {
   description = "Numeric Google Secret Manager version mounted for the dispatcher webhook callback capability. This exceptional pin coordinates capability rotation with Strava subscription recreation; ordinary runtime secrets continue to use latest."
-  type        = string
-  default     = ""
-  nullable    = false
+  # Required: the capability is mounted unconditionally now that the plain
+  # /webhook route is retired, and the dispatcher fails startup without it.
+  type     = string
+  nullable = false
 
   validation {
-    condition = (
-      var.app_config.dispatcher_webhook_route_mode == "legacy" ||
-      can(regex("^[1-9][0-9]*$", var.dispatcher_webhook_callback_capability_secret_version))
-    )
-    error_message = "dispatcher_webhook_callback_capability_secret_version must be a numeric Secret Manager version in dual or capability mode."
+    condition     = can(regex("^[1-9][0-9]*$", var.dispatcher_webhook_callback_capability_secret_version))
+    error_message = "dispatcher_webhook_callback_capability_secret_version must be a numeric Secret Manager version."
   }
 }
 
@@ -206,10 +204,6 @@ variable "app_config" {
     # staleness bug, settable via GitOps with no code change.
     dispatcher_allowlist_cache_ttl = optional(string, "5m")
     dispatcher_token_cache_ttl     = optional(string, "5m")
-    # Strava callback migration state. "legacy" avoids mounting the callback
-    # capability before Infisical has populated its Secret Manager version;
-    # "dual" is cutover-only; "capability" is the secure steady state.
-    dispatcher_webhook_route_mode = optional(string, "legacy")
     # Best-effort publish of activity rows to the BigQuery CDC topic — the only
     # path by which activity rows reach BigQuery — and the kill switch for it:
     # set false to stop publishing in place during an incident (GitOps apply, no
@@ -231,8 +225,4 @@ variable "app_config" {
     log_level = "INFO"
   }
 
-  validation {
-    condition     = contains(["legacy", "dual", "capability"], var.app_config.dispatcher_webhook_route_mode)
-    error_message = "app_config.dispatcher_webhook_route_mode must be legacy, dual, or capability."
-  }
 }

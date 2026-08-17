@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/andy-esch/desirelines/packages/dispatcher/config"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports/portstest"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/andy-esch/desirelines/packages/shared/ratelimit"
@@ -24,10 +23,20 @@ import (
 
 const testWebhookCapability = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
-func newCallbackCapabilityHandler(t *testing.T, mode config.WebhookRouteMode, capability string, mutate func(*HandlerConfig)) *Handler {
+// testWebhookPath is the only route that reaches the handler: the plain
+// /webhook callback is retired, so every test that means "deliver a webhook"
+// must carry the capability.
+const testWebhookPath = "/webhook/" + testWebhookCapability
+
+// testHandlerConfig supplies the capability that RegisterRoutes now requires.
+// Tests that previously passed a nil HandlerConfig relied on the plain route.
+func testHandlerConfig() *HandlerConfig {
+	return &HandlerConfig{WebhookCallbackCapability: testWebhookCapability}
+}
+
+func newCallbackCapabilityHandler(t *testing.T, capability string, mutate func(*HandlerConfig)) *Handler {
 	t.Helper()
 	cfg := &HandlerConfig{
-		WebhookRouteMode:          mode,
 		WebhookCallbackCapability: capability,
 	}
 	if mutate != nil {
@@ -55,26 +64,24 @@ func verificationRequest(path string) *http.Request {
 	return req
 }
 
-func TestWebhookCallbackCapability_RouteModes(t *testing.T) {
+// The plain /webhook route is retired. These cases pin that it is gone and that
+// only an exact capability reaches the handler — the invariant the migration
+// modes existed to arrive at.
+func TestWebhookCallbackCapability_Routes(t *testing.T) {
 	tests := []struct {
 		name       string
-		mode       config.WebhookRouteMode
 		path       string
 		wantStatus int
 	}{
-		{"legacy accepts plain route", config.WebhookRouteModeLegacy, "/webhook", http.StatusOK},
-		{"legacy does not expose capability route", config.WebhookRouteModeLegacy, "/webhook/" + testWebhookCapability, http.StatusNotFound},
-		{"dual accepts plain route", config.WebhookRouteModeDual, "/webhook", http.StatusOK},
-		{"dual accepts capability route", config.WebhookRouteModeDual, "/webhook/" + testWebhookCapability, http.StatusOK},
-		{"dual rejects wrong capability", config.WebhookRouteModeDual, "/webhook/" + strings.Repeat("1", 64), http.StatusNotFound},
-		{"capability rejects plain route", config.WebhookRouteModeCapability, "/webhook", http.StatusNotFound},
-		{"capability accepts capability route", config.WebhookRouteModeCapability, "/webhook/" + testWebhookCapability, http.StatusOK},
-		{"unknown mode fails closed", config.WebhookRouteMode("unknown"), "/webhook/" + testWebhookCapability, http.StatusNotFound},
+		{"retired plain route is not served", "/webhook", http.StatusNotFound},
+		{"capability route is served", "/webhook/" + testWebhookCapability, http.StatusOK},
+		{"wrong capability is rejected", "/webhook/" + strings.Repeat("1", 64), http.StatusNotFound},
+		{"empty capability segment is rejected", "/webhook/", http.StatusNotFound},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := newCallbackCapabilityHandler(t, tt.mode, testWebhookCapability, nil)
+			h := newCallbackCapabilityHandler(t, testWebhookCapability, nil)
 			w := httptest.NewRecorder()
 			h.RegisterRoutes().ServeHTTP(w, verificationRequest(tt.path))
 			if w.Code != tt.wantStatus {
@@ -85,7 +92,7 @@ func TestWebhookCallbackCapability_RouteModes(t *testing.T) {
 }
 
 func TestWebhookCallbackCapability_ValidPostReachesExistingValidation(t *testing.T) {
-	h := newCallbackCapabilityHandler(t, config.WebhookRouteModeCapability, testWebhookCapability, nil)
+	h := newCallbackCapabilityHandler(t, testWebhookCapability, nil)
 
 	for _, tc := range []struct {
 		name           string
@@ -112,7 +119,7 @@ func TestWebhookCallbackCapability_ValidPostReachesExistingValidation(t *testing
 }
 
 func TestWebhookCallbackCapability_InvalidCandidatesAreUniformAndUnread(t *testing.T) {
-	h := newCallbackCapabilityHandler(t, config.WebhookRouteModeCapability, testWebhookCapability, nil)
+	h := newCallbackCapabilityHandler(t, testWebhookCapability, nil)
 	instrumented := false
 	router := h.RegisterRoutesInstrumented(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -159,9 +166,10 @@ func TestWebhookCallbackCapability_InvalidCandidatesAreUniformAndUnread(t *testi
 }
 
 func TestWebhookCallbackCapability_RejectionMatchesOrdinaryNotFoundResponse(t *testing.T) {
-	capabilityHandler := newCallbackCapabilityHandler(t, config.WebhookRouteModeCapability, testWebhookCapability, nil)
-	legacyHandler := newCallbackCapabilityHandler(t, config.WebhookRouteModeLegacy, testWebhookCapability, nil)
+	capabilityHandler := newCallbackCapabilityHandler(t, testWebhookCapability, nil)
 
+	// A wrong capability, the retired plain route, and an unrelated path must be
+	// byte-identical, so a prober cannot tell which of the three they hit.
 	responses := make([]*httptest.ResponseRecorder, 0, 3)
 	for _, tc := range []struct {
 		router http.Handler
@@ -169,7 +177,7 @@ func TestWebhookCallbackCapability_RejectionMatchesOrdinaryNotFoundResponse(t *t
 	}{
 		{capabilityHandler.RegisterRoutes(), "/webhook/" + strings.Repeat("1", 64)},
 		{capabilityHandler.RegisterRoutes(), "/not-found"},
-		{legacyHandler.RegisterRoutes(), "/webhook/" + testWebhookCapability},
+		{capabilityHandler.RegisterRoutes(), "/webhook"},
 	} {
 		w := httptest.NewRecorder()
 		tc.router.ServeHTTP(w, verificationRequest(tc.path))
@@ -200,53 +208,44 @@ func TestWebhookCallbackCapability_NonCanonicalCredentialPathsNeverExposeCredent
 		"/unrelated/" + strings.ReplaceAll(encodedCapability, "%", "%25"),
 	}
 
-	for _, mode := range []config.WebhookRouteMode{
-		config.WebhookRouteModeLegacy,
-		config.WebhookRouteModeDual,
-		config.WebhookRouteModeCapability,
-	} {
-		t.Run(string(mode), func(t *testing.T) {
-			logger, capture := gcplog.NewCaptureLogger()
-			h := NewHandler(
-				&portstest.MockPublisher{},
-				&portstest.MockPublisher{},
-				&portstest.MockSecretProvider{VerifyToken: "verify-token", SubscriptionID: testSubscriptionID},
-				&portstest.MockStravaClient{},
-				&portstest.MockTokenStore{},
-				portstest.NewAllowAllMockAllowlist(),
-				logger,
-				&HandlerConfig{
-					WebhookRouteMode:          mode,
-					WebhookCallbackCapability: testWebhookCapability,
-				},
-			)
+	logger, capture := gcplog.NewCaptureLogger()
+	h := NewHandler(
+		&portstest.MockPublisher{},
+		&portstest.MockPublisher{},
+		&portstest.MockSecretProvider{VerifyToken: "verify-token", SubscriptionID: testSubscriptionID},
+		&portstest.MockStravaClient{},
+		&portstest.MockTokenStore{},
+		portstest.NewAllowAllMockAllowlist(),
+		logger,
+		&HandlerConfig{
+			WebhookCallbackCapability: testWebhookCapability,
+		},
+	)
 
-			instrumentPath := ""
-			router := h.RegisterRoutesInstrumented(func(next http.Handler) http.Handler {
-				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					instrumentPath = r.URL.Path
-					next.ServeHTTP(w, r)
-				})
-			})
+	instrumentPath := ""
+	router := h.RegisterRoutesInstrumented(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			instrumentPath = r.URL.Path
+			next.ServeHTTP(w, r)
+		})
+	})
 
-			for _, target := range targets {
-				t.Run(target, func(t *testing.T) {
-					instrumentPath = ""
-					w := httptest.NewRecorder()
-					router.ServeHTTP(w, verificationRequest(target))
-					if w.Code != http.StatusNotFound || w.Body.String() != "404 page not found\n" {
-						t.Errorf("response = (%d, %q), want uniform 404", w.Code, w.Body.String())
-					}
-					if strings.Contains(instrumentPath, testWebhookCapability) {
-						t.Errorf("instrumentation retained callback capability in path %q", instrumentPath)
-					}
-					if instrumentPath != "" && instrumentPath != redactedWebhookPath {
-						t.Errorf("instrumentation path = %q, want empty or redacted", instrumentPath)
-					}
-					if got := fmt.Sprint(capture.Logs()); strings.Contains(got, testWebhookCapability) {
-						t.Errorf("application logs retained callback capability: %s", got)
-					}
-				})
+	for _, target := range targets {
+		t.Run(target, func(t *testing.T) {
+			instrumentPath = ""
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, verificationRequest(target))
+			if w.Code != http.StatusNotFound || w.Body.String() != "404 page not found\n" {
+				t.Errorf("response = (%d, %q), want uniform 404", w.Code, w.Body.String())
+			}
+			if strings.Contains(instrumentPath, testWebhookCapability) {
+				t.Errorf("instrumentation retained callback capability in path %q", instrumentPath)
+			}
+			if instrumentPath != "" && instrumentPath != redactedWebhookPath {
+				t.Errorf("instrumentation path = %q, want empty or redacted", instrumentPath)
+			}
+			if got := fmt.Sprint(capture.Logs()); strings.Contains(got, testWebhookCapability) {
+				t.Errorf("application logs retained callback capability: %s", got)
 			}
 		})
 	}
@@ -278,7 +277,7 @@ func TestWebhookCallbackCapability_RejectionPrecedesRateLimiter(t *testing.T) {
 		MaxClients:      1,
 		CleanupInterval: time.Hour,
 	}, gcplog.NewNoOpLogger())
-	h := newCallbackCapabilityHandler(t, config.WebhookRouteModeCapability, testWebhookCapability, func(cfg *HandlerConfig) {
+	h := newCallbackCapabilityHandler(t, testWebhookCapability, func(cfg *HandlerConfig) {
 		cfg.RateLimiter = limiter
 	})
 	router := h.RegisterRoutes()
@@ -309,7 +308,6 @@ func TestWebhookCallbackCapability_RedactsBeforeInstrumentationAndLogs(t *testin
 		portstest.NewAllowAllMockAllowlist(),
 		logger,
 		&HandlerConfig{
-			WebhookRouteMode:          config.WebhookRouteModeCapability,
 			WebhookCallbackCapability: testWebhookCapability,
 		},
 	)
@@ -344,7 +342,7 @@ func TestWebhookCallbackCapability_OTelNeverSeesCredentialPath(t *testing.T) {
 		}
 	})
 
-	h := newCallbackCapabilityHandler(t, config.WebhookRouteModeCapability, testWebhookCapability, nil)
+	h := newCallbackCapabilityHandler(t, testWebhookCapability, nil)
 	router := h.RegisterRoutesInstrumented(func(next http.Handler) http.Handler {
 		return otelhttp.NewHandler(next, "dispatcher",
 			otelhttp.WithTracerProvider(provider),
@@ -384,7 +382,7 @@ func TestWebhookCallbackCapability_RecordsOnlyBoundedOutcomes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create counter: %v", err)
 	}
-	h := newCallbackCapabilityHandler(t, config.WebhookRouteModeDual, testWebhookCapability, func(cfg *HandlerConfig) {
+	h := newCallbackCapabilityHandler(t, testWebhookCapability, func(cfg *HandlerConfig) {
 		cfg.CallbackCapabilityCounter = counter
 	})
 	router := h.RegisterRoutes()
@@ -403,10 +401,10 @@ func TestWebhookCallbackCapability_RecordsOnlyBoundedOutcomes(t *testing.T) {
 		t.Fatalf("collect metrics: %v", collectErr)
 	}
 	got := callbackCapabilityOutcomes(rm)
+	// The retired plain route now counts as a rejection, not its own outcome.
 	want := map[string]int64{
 		callbackCapabilityAccepted: 1,
-		callbackCapabilityRejected: 1,
-		callbackCapabilityLegacy:   1,
+		callbackCapabilityRejected: 2,
 	}
 	if len(got) != len(want) {
 		t.Fatalf("outcomes = %v, want %v", got, want)
@@ -425,7 +423,7 @@ func TestWebhookCallbackCapability_HTTPMetricUsesRouteTemplate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create histogram: %v", err)
 	}
-	h := newCallbackCapabilityHandler(t, config.WebhookRouteModeCapability, testWebhookCapability, func(cfg *HandlerConfig) {
+	h := newCallbackCapabilityHandler(t, testWebhookCapability, func(cfg *HandlerConfig) {
 		cfg.HTTPHistogram = histogram
 	})
 	w := httptest.NewRecorder()
@@ -485,7 +483,7 @@ func callbackCapabilityOutcomes(rm metricdata.ResourceMetrics) map[string]int64 
 func TestWebhookCallbackCapability_MissingConfiguredSecretFailsClosed(t *testing.T) {
 	for _, capability := range []string{"", "short", strings.Repeat("A", 64)} {
 		t.Run(fmt.Sprintf("len_%d", len(capability)), func(t *testing.T) {
-			h := newCallbackCapabilityHandler(t, config.WebhookRouteModeCapability, capability, nil)
+			h := newCallbackCapabilityHandler(t, capability, nil)
 			w := httptest.NewRecorder()
 			h.RegisterRoutes().ServeHTTP(w, verificationRequest("/webhook/"+testWebhookCapability))
 			if w.Code != http.StatusNotFound {

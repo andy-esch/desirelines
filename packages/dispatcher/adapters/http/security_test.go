@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/andy-esch/desirelines/packages/dispatcher/config"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports/portstest"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
@@ -58,13 +57,15 @@ func newSecurityRig(t *testing.T, allowed bool) *securityRig {
 	}
 	h := NewHandler(rig.primary, rig.deauth,
 		&portstest.MockSecretProvider{VerifyToken: "correct-verify-token", SubscriptionID: testSubscriptionID},
-		rig.strava, rig.tokens, rig.allow, gcplog.NewNoOpLogger(), nil)
+		rig.strava, rig.tokens, rig.allow, gcplog.NewNoOpLogger(), &HandlerConfig{
+			WebhookCallbackCapability: testWebhookCapability,
+		})
 	rig.router = h.RegisterRoutes()
 	return rig
 }
 
 func (r *securityRig) post(body string) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewReader([]byte(body)))
+	req := httptest.NewRequest(http.MethodPost, testWebhookPath, bytes.NewReader([]byte(body)))
 	req.Header.Set("Content-Type", contentTypeJSON)
 	w := httptest.NewRecorder()
 	r.router.ServeHTTP(w, req)
@@ -136,7 +137,7 @@ func TestSecurity_RejectionsDoNotEchoSecrets(t *testing.T) {
 		rig.post(`{not json`).Body.String(),
 	)
 
-	req := httptest.NewRequest(http.MethodGet, "/webhook?hub.mode=subscribe&hub.challenge=c&hub.verify_token=wrong", nil)
+	req := httptest.NewRequest(http.MethodGet, testWebhookPath+"?hub.mode=subscribe&hub.challenge=c&hub.verify_token=wrong", nil)
 	w := httptest.NewRecorder()
 	rig.router.ServeHTTP(w, req)
 	bodies = append(bodies, w.Body.String())
@@ -165,7 +166,7 @@ func TestSecurity_VerificationRequiresNonEmptyToken(t *testing.T) {
 		portstest.NewAllowAllMockAllowlist(), gcplog.NewNoOpLogger(), nil)
 	router := h.RegisterRoutes()
 
-	req := httptest.NewRequest(http.MethodGet, "/webhook?hub.mode=subscribe&hub.challenge=pwned&hub.verify_token=", nil)
+	req := httptest.NewRequest(http.MethodGet, testWebhookPath+"?hub.mode=subscribe&hub.challenge=pwned&hub.verify_token=", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -189,15 +190,16 @@ func TestSecurity_PublicSurfaceIsMinimal(t *testing.T) {
 		name, method, path string
 		wantStatus         int
 	}{
-		{"canonical webhook post", http.MethodPost, "/webhook", http.StatusOK},
+		{"canonical webhook post", http.MethodPost, testWebhookPath, http.StatusOK},
+		{"retired plain route not routed", http.MethodPost, "/webhook", http.StatusNotFound},
 		{"trailing slash not routed", http.MethodPost, "/webhook/", http.StatusNotFound},
 		{"double slash not routed", http.MethodPost, "//webhook", http.StatusNotFound},
 		{"dot segments not collapsed into a match", http.MethodPost, "/foo/../webhook", http.StatusNotFound},
 		{"percent-encoded path not routed", http.MethodPost, "/%77ebhook", http.StatusNotFound},
 		{"uppercase path not routed", http.MethodPost, "/WEBHOOK", http.StatusNotFound},
-		{"put rejected", http.MethodPut, "/webhook", http.StatusMethodNotAllowed},
-		{"patch rejected", http.MethodPatch, "/webhook", http.StatusMethodNotAllowed},
-		{"delete rejected", http.MethodDelete, "/webhook", http.StatusMethodNotAllowed},
+		{"put rejected", http.MethodPut, testWebhookPath, http.StatusMethodNotAllowed},
+		{"patch rejected", http.MethodPatch, testWebhookPath, http.StatusMethodNotAllowed},
+		{"delete rejected", http.MethodDelete, testWebhookPath, http.StatusMethodNotAllowed},
 		{"pprof absent", http.MethodGet, "/debug/pprof/", http.StatusNotFound},
 		{"metrics absent", http.MethodGet, "/metrics", http.StatusNotFound},
 		{"env absent", http.MethodGet, "/debug/vars", http.StatusNotFound},
@@ -238,7 +240,7 @@ func TestSecurity_ContentTypeIsEnforced(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.ctype, func(t *testing.T) {
 			rig := newSecurityRig(t, true)
-			req := httptest.NewRequest(http.MethodPost, "/webhook",
+			req := httptest.NewRequest(http.MethodPost, testWebhookPath,
 				strings.NewReader(deauthBody(testSubscriptionID)))
 			if tc.ctype != "" {
 				req.Header.Set("Content-Type", tc.ctype)
@@ -423,7 +425,9 @@ func newStatefulDeauthRig(t *testing.T) *securityRig {
 	}
 	h := NewHandler(rig.primary, rig.deauth,
 		&portstest.MockSecretProvider{VerifyToken: "correct-verify-token", SubscriptionID: testSubscriptionID},
-		rig.strava, rig.tokens, rig.allow, gcplog.NewNoOpLogger(), nil)
+		rig.strava, rig.tokens, rig.allow, gcplog.NewNoOpLogger(), &HandlerConfig{
+			WebhookCallbackCapability: testWebhookCapability,
+		})
 	rig.router = h.RegisterRoutes()
 	return rig
 }
@@ -498,7 +502,6 @@ func TestSecurity_SubscriptionIDEnumerationRequiresCallbackCapability(t *testing
 	h := NewHandler(rig.primary, rig.deauth,
 		&portstest.MockSecretProvider{VerifyToken: "correct-verify-token", SubscriptionID: testSubscriptionID},
 		rig.strava, rig.tokens, rig.allow, gcplog.NewNoOpLogger(), &HandlerConfig{
-			WebhookRouteMode:          config.WebhookRouteModeCapability,
 			WebhookCallbackCapability: testWebhookCapability,
 		})
 	rig.router = h.RegisterRoutes()

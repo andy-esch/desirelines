@@ -318,11 +318,10 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 	// hot-reloading it and mounting "latest" would create a misleading partial
 	// rotation path. Verify token and subscription ID retain their existing
 	// SecretCache refresh behavior.
-	webhookCallbackCapability, err := loadWebhookCallbackCapability(cfg)
+	webhookCallbackCapability, err := loadWebhookCallbackCapability()
 	if err != nil {
 		return nil, err
 	}
-	log.Info("Webhook callback route configured", "mode", cfg.WebhookRouteMode)
 
 	// Application credentials are loaded once, at boot, and deliberately do NOT
 	// hot-reload the way the verify-token/subscription-ID cache above does: a
@@ -371,7 +370,6 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 		DeauthCleanupCounter:      deauthCleanupCounter,
 		CallbackCapabilityCounter: callbackCapabilityCounter,
 		HTTPHistogram:             httpHist,
-		WebhookRouteMode:          cfg.WebhookRouteMode,
 		WebhookCallbackCapability: webhookCallbackCapability,
 		RowPublisher:              rowPublisherPort,
 		RowPublishCounter:         rowPublishCounter,
@@ -389,11 +387,7 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 	}, nil
 }
 
-func loadWebhookCallbackCapability(cfg *config.Config) (string, error) {
-	if !cfg.WebhookRouteMode.RequiresCallbackCapability() {
-		return "", nil
-	}
-
+func loadWebhookCallbackCapability() (string, error) {
 	capability, err := secrets.LoadFromMount(
 		config.SecretPathWebhookCallbackCapability,
 		"STRAVA_WEBHOOK_CALLBACK_CAPABILITY",

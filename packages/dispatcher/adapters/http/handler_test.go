@@ -171,10 +171,10 @@ func TestHandler_HandleVerification(t *testing.T) {
 			mockPublisher := &portstest.MockPublisher{}
 			mockStrava := &portstest.MockStravaClient{}
 
-			handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, mockSecrets, mockStrava, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, nil)
+			handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, mockSecrets, mockStrava, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, testHandlerConfig())
 			router := handler.RegisterRoutes()
 
-			req := httptest.NewRequest(tt.method, "/webhook", nil)
+			req := httptest.NewRequest(tt.method, testWebhookPath, nil)
 			q := req.URL.Query()
 			for k, v := range tt.queryParams {
 				q.Add(k, v)
@@ -512,7 +512,7 @@ func runHandleEventTest(t *testing.T, tt *handleEventTestCase) {
 		VerifyErr:    tt.stravaVerifyErr,
 	}
 
-	handler := NewHandler(mockPublisher, mockDeauthPublisher, mockSecrets, mockStrava, mockTokenStoreOrDefault(tt.mockTokenStore), allowlistOrDefault(tt.mockAllowlist), log, nil)
+	handler := NewHandler(mockPublisher, mockDeauthPublisher, mockSecrets, mockStrava, mockTokenStoreOrDefault(tt.mockTokenStore), allowlistOrDefault(tt.mockAllowlist), log, testHandlerConfig())
 	router := handler.RegisterRoutes()
 
 	var body []byte
@@ -526,7 +526,7 @@ func runHandleEventTest(t *testing.T, tt *handleEventTestCase) {
 		}
 	}
 
-	req := httptest.NewRequest(tt.method, "/webhook", bytes.NewReader(body))
+	req := httptest.NewRequest(tt.method, testWebhookPath, bytes.NewReader(body))
 	if tt.contentType != "" {
 		req.Header.Set("Content-Type", tt.contentType)
 	}
@@ -744,11 +744,11 @@ func TestHandler_AthleteDeauth(t *testing.T) { //nolint:gocyclo // Parent test g
 		handler := NewHandler(
 			&portstest.MockPublisher{}, mockDeauth,
 			&portstest.MockSecretProvider{SubscriptionID: testSubscriptionID},
-			mockStrava, mockTokens, mockAllow, gcplog.NewNoOpLogger(), nil,
+			mockStrava, mockTokens, mockAllow, gcplog.NewNoOpLogger(), testHandlerConfig(),
 		)
 		router := handler.RegisterRoutes()
 		post := func() *httptest.ResponseRecorder {
-			req := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewReader(body))
+			req := httptest.NewRequest(http.MethodPost, testWebhookPath, bytes.NewReader(body))
 			req.Header.Set("Content-Type", contentTypeJSON)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
@@ -794,9 +794,9 @@ func TestHandler_AthleteDeauth(t *testing.T) { //nolint:gocyclo // Parent test g
 		handler := NewHandler(
 			&portstest.MockPublisher{}, mockDeauth,
 			&portstest.MockSecretProvider{SubscriptionID: testSubscriptionID},
-			mockStrava, mockTokens, portstest.NewAllowAllMockAllowlist(), gcplog.NewNoOpLogger(), nil,
+			mockStrava, mockTokens, portstest.NewAllowAllMockAllowlist(), gcplog.NewNoOpLogger(), testHandlerConfig(),
 		)
-		req := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewReader(body))
+		req := httptest.NewRequest(http.MethodPost, testWebhookPath, bytes.NewReader(body))
 		req.Header.Set("Content-Type", contentTypeJSON)
 		w := httptest.NewRecorder()
 		started := time.Now()
@@ -863,7 +863,7 @@ func TestHandler_OwnerCheck_StrayDoesNotCallStrava(t *testing.T) {
 		&portstest.MockTokenStore{},
 		mockAllowlist,
 		log,
-		nil,
+		testHandlerConfig(),
 	)
 	router := handler.RegisterRoutes()
 
@@ -879,7 +879,7 @@ func TestHandler_OwnerCheck_StrayDoesNotCallStrava(t *testing.T) {
 		t.Fatalf("marshal: %v", err)
 	}
 
-	req := httptest.NewRequest("POST", "/webhook", bytes.NewReader(payload))
+	req := httptest.NewRequest("POST", testWebhookPath, bytes.NewReader(payload))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -929,7 +929,7 @@ func TestHandler_OwnerCheck_DeauthBypassesAllowlist(t *testing.T) {
 		mockTokens,
 		denyingAllowlist,
 		log,
-		nil,
+		testHandlerConfig(),
 	)
 	router := handler.RegisterRoutes()
 
@@ -946,7 +946,7 @@ func TestHandler_OwnerCheck_DeauthBypassesAllowlist(t *testing.T) {
 		t.Fatalf("marshal: %v", err)
 	}
 
-	req := httptest.NewRequest("POST", "/webhook", bytes.NewReader(payload))
+	req := httptest.NewRequest("POST", testWebhookPath, bytes.NewReader(payload))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -1052,11 +1052,11 @@ func TestHandler_OwnerCheck_CounterLabels(t *testing.T) {
 				&portstest.MockTokenStore{},
 				c.allowlist,
 				log,
-				&HandlerConfig{OwnerCheckCounter: counter},
+				&HandlerConfig{OwnerCheckCounter: counter, WebhookCallbackCapability: testWebhookCapability},
 			)
 			router := handler.RegisterRoutes()
 
-			req := httptest.NewRequest("POST", "/webhook", bytes.NewReader(c.payloadBytes))
+			req := httptest.NewRequest("POST", testWebhookPath, bytes.NewReader(c.payloadBytes))
 			req.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
@@ -1189,12 +1189,13 @@ func TestHandler_EventAgeHistogram(t *testing.T) {
 				portstest.NewAllowAllMockAllowlist(),
 				gcplog.NewNoOpLogger(),
 				&HandlerConfig{
-					EventAgeHistogram: histogram,
-					Now:               func() time.Time { return now },
+					EventAgeHistogram:         histogram,
+					Now:                       func() time.Time { return now },
+					WebhookCallbackCapability: testWebhookCapability,
 				},
 			)
 
-			req := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewReader(tt.body(t)))
+			req := httptest.NewRequest(http.MethodPost, testWebhookPath, bytes.NewReader(tt.body(t)))
 			req.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
 			handler.RegisterRoutes().ServeHTTP(w, req)
@@ -1290,7 +1291,7 @@ func TestHandler_EnrichmentBehavior_Create(t *testing.T) {
 	mockStrava := &portstest.MockStravaClient{FetchResult: rawActivity}
 	mockPublisher := &portstest.MockPublisher{}
 
-	handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, nil)
+	handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, testHandlerConfig())
 	router := handler.RegisterRoutes()
 
 	payload, marshalErr := json.Marshal(webhookproto.StravaWebhookJSON{
@@ -1305,7 +1306,7 @@ func TestHandler_EnrichmentBehavior_Create(t *testing.T) {
 		t.Fatalf("Failed to marshal payload: %v", marshalErr)
 	}
 
-	req := httptest.NewRequest("POST", "/webhook", bytes.NewReader(payload))
+	req := httptest.NewRequest("POST", testWebhookPath, bytes.NewReader(payload))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -1339,7 +1340,7 @@ func TestHandler_EnrichmentBehavior_Update_TitleOnly(t *testing.T) {
 	mockStrava := &portstest.MockStravaClient{}
 	mockPublisher := &portstest.MockPublisher{}
 
-	handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, nil)
+	handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, testHandlerConfig())
 	router := handler.RegisterRoutes()
 
 	payload, marshalErr := json.Marshal(webhookproto.StravaWebhookJSON{
@@ -1355,7 +1356,7 @@ func TestHandler_EnrichmentBehavior_Update_TitleOnly(t *testing.T) {
 		t.Fatalf("Failed to marshal payload: %v", marshalErr)
 	}
 
-	req := httptest.NewRequest("POST", "/webhook", bytes.NewReader(payload))
+	req := httptest.NewRequest("POST", testWebhookPath, bytes.NewReader(payload))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -1383,7 +1384,7 @@ func TestHandler_EnrichmentBehavior_Update_TypeChange(t *testing.T) {
 	mockStrava := &portstest.MockStravaClient{FetchResult: rawActivity}
 	mockPublisher := &portstest.MockPublisher{}
 
-	handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, nil)
+	handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, testHandlerConfig())
 	router := handler.RegisterRoutes()
 
 	payload, marshalErr := json.Marshal(webhookproto.StravaWebhookJSON{
@@ -1399,7 +1400,7 @@ func TestHandler_EnrichmentBehavior_Update_TypeChange(t *testing.T) {
 		t.Fatalf("Failed to marshal payload: %v", marshalErr)
 	}
 
-	req := httptest.NewRequest("POST", "/webhook", bytes.NewReader(payload))
+	req := httptest.NewRequest("POST", testWebhookPath, bytes.NewReader(payload))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -1430,7 +1431,7 @@ func TestHandler_EnrichmentBehavior_Update_TypeChange_ActivityGone(t *testing.T)
 	mockStrava := &portstest.MockStravaClient{FetchErr: ports.ErrActivityNotFound}
 	mockPublisher := &portstest.MockPublisher{}
 
-	handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, nil)
+	handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, testHandlerConfig())
 	router := handler.RegisterRoutes()
 
 	payload, marshalErr := json.Marshal(webhookproto.StravaWebhookJSON{
@@ -1446,7 +1447,7 @@ func TestHandler_EnrichmentBehavior_Update_TypeChange_ActivityGone(t *testing.T)
 		t.Fatalf("Failed to marshal payload: %v", marshalErr)
 	}
 
-	req := httptest.NewRequest("POST", "/webhook", bytes.NewReader(payload))
+	req := httptest.NewRequest("POST", testWebhookPath, bytes.NewReader(payload))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -1521,7 +1522,7 @@ func TestHandler_EnrichmentBehavior_Delete(t *testing.T) {
 	mockStrava := &portstest.MockStravaClient{}
 	mockPublisher := &portstest.MockPublisher{}
 
-	handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, nil)
+	handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, testHandlerConfig())
 	router := handler.RegisterRoutes()
 
 	payload, marshalErr := json.Marshal(webhookproto.StravaWebhookJSON{
@@ -1536,7 +1537,7 @@ func TestHandler_EnrichmentBehavior_Delete(t *testing.T) {
 		t.Fatalf("Failed to marshal payload: %v", marshalErr)
 	}
 
-	req := httptest.NewRequest("POST", "/webhook", bytes.NewReader(payload))
+	req := httptest.NewRequest("POST", testWebhookPath, bytes.NewReader(payload))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -1563,7 +1564,7 @@ func TestNewHandler_WithConfig(t *testing.T) {
 	mockTokens := &portstest.MockTokenStore{}
 
 	// Create handler with a very small MaxRequestBodySize
-	cfg := &HandlerConfig{MaxRequestBodySize: 512}
+	cfg := &HandlerConfig{MaxRequestBodySize: 512, WebhookCallbackCapability: testWebhookCapability}
 	handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, mockSecrets, mockStrava, mockTokens, portstest.NewAllowAllMockAllowlist(), log, cfg)
 	router := handler.RegisterRoutes()
 
@@ -1585,7 +1586,7 @@ func TestNewHandler_WithConfig(t *testing.T) {
 		t.Fatalf("Test payload must exceed 512 bytes, got %d", len(body))
 	}
 
-	req := httptest.NewRequest("POST", "/webhook", bytes.NewReader(body))
+	req := httptest.NewRequest("POST", testWebhookPath, bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -1604,7 +1605,7 @@ func TestNewHandler_WithConfig(t *testing.T) {
 // Test health endpoints
 func TestHandler_Health(t *testing.T) {
 	log := gcplog.NewNoOpLogger()
-	handler := NewHandler(&portstest.MockPublisher{}, &portstest.MockPublisher{}, &portstest.MockSecretProvider{}, &portstest.MockStravaClient{}, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, nil)
+	handler := NewHandler(&portstest.MockPublisher{}, &portstest.MockPublisher{}, &portstest.MockSecretProvider{}, &portstest.MockStravaClient{}, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, testHandlerConfig())
 	router := handler.RegisterRoutes()
 
 	tests := []struct {
@@ -1782,7 +1783,7 @@ func TestHandler_WebhookValidationSpans(t *testing.T) {
 		&portstest.MockTokenStore{},
 		&portstest.MockAllowlist{Allowed: true},
 		gcplog.NewNoOpLogger(),
-		&HandlerConfig{Tracer: tp.Tracer("test")},
+		&HandlerConfig{Tracer: tp.Tracer("test"), WebhookCallbackCapability: testWebhookCapability},
 	)
 	router := handler.RegisterRoutes()
 
@@ -1798,7 +1799,7 @@ func TestHandler_WebhookValidationSpans(t *testing.T) {
 		t.Fatalf("marshal: %v", err)
 	}
 
-	req := httptest.NewRequest("POST", "/webhook", bytes.NewReader(payload))
+	req := httptest.NewRequest("POST", testWebhookPath, bytes.NewReader(payload))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -1853,7 +1854,7 @@ func TestHandler_SubscriptionMismatchSpanCarriesAthleteID(t *testing.T) {
 		&portstest.MockTokenStore{},
 		&portstest.MockAllowlist{Allowed: true},
 		gcplog.NewNoOpLogger(),
-		&HandlerConfig{Tracer: tracer},
+		&HandlerConfig{Tracer: tracer, WebhookCallbackCapability: testWebhookCapability},
 	)
 	router := handler.RegisterRoutes()
 
@@ -1873,7 +1874,7 @@ func TestHandler_SubscriptionMismatchSpanCarriesAthleteID(t *testing.T) {
 	// Stamping operates on the active span in ctx; without this, the
 	// stamps land on a no-op span and the test can't observe them.
 	ctx, parentSpan := tracer.Start(context.Background(), "dispatcher.handle_event")
-	req := httptest.NewRequest("POST", "/webhook", bytes.NewReader(payload)).WithContext(ctx)
+	req := httptest.NewRequest("POST", testWebhookPath, bytes.NewReader(payload)).WithContext(ctx)
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)

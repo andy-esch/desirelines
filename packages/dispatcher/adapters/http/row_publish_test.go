@@ -45,9 +45,10 @@ func serveRowPublishWebhook(t *testing.T, setup *rowPublishSetup, payload webhoo
 	t.Helper()
 
 	cfg := &HandlerConfig{
-		RowPublisher:      setup.rowPublisher,
-		RowRefetchTimeout: setup.refetchTimeout,
-		RowEncoding:       setup.encoding,
+		RowPublisher:              setup.rowPublisher,
+		RowRefetchTimeout:         setup.refetchTimeout,
+		RowEncoding:               setup.encoding,
+		WebhookCallbackCapability: testWebhookCapability,
 	}
 	if setup.rowCounter != nil {
 		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(setup.rowCounter))
@@ -73,7 +74,7 @@ func serveRowPublishWebhook(t *testing.T, setup *rowPublishSetup, payload webhoo
 	if err != nil {
 		t.Fatalf("marshal payload: %v", err)
 	}
-	req := httptest.NewRequest("POST", "/webhook", bytes.NewReader(body))
+	req := httptest.NewRequest("POST", testWebhookPath, bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	handler.RegisterRoutes().ServeHTTP(w, req)

@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	httpadapter "github.com/andy-esch/desirelines/packages/dispatcher/adapters/http"
-	"github.com/andy-esch/desirelines/packages/dispatcher/config"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports/portstest"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -21,33 +20,22 @@ import (
 func TestLoadWebhookCallbackCapability(t *testing.T) {
 	const valid = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
-	t.Run("legacy does not require secret", func(t *testing.T) {
-		unsetTestEnv(t, "STRAVA_WEBHOOK_CALLBACK_CAPABILITY")
-		got, err := loadWebhookCallbackCapability(&config.Config{WebhookRouteMode: config.WebhookRouteModeLegacy})
-		if err != nil || got != "" {
-			t.Fatalf("load legacy capability = (%q, %v), want empty nil", got, err)
+	// The capability is unconditional now that the plain route is retired: a
+	// missing or malformed value must fail startup, never yield an empty one.
+	t.Run("loads valid fallback", func(t *testing.T) {
+		t.Setenv("STRAVA_WEBHOOK_CALLBACK_CAPABILITY", valid)
+		got, err := loadWebhookCallbackCapability()
+		if err != nil {
+			t.Fatalf("load capability: %v", err)
+		}
+		if got != valid {
+			t.Fatalf("capability did not round-trip")
 		}
 	})
 
-	for _, mode := range []config.WebhookRouteMode{
-		config.WebhookRouteModeDual,
-		config.WebhookRouteModeCapability,
-	} {
-		t.Run(string(mode)+" loads valid fallback", func(t *testing.T) {
-			t.Setenv("STRAVA_WEBHOOK_CALLBACK_CAPABILITY", valid)
-			got, err := loadWebhookCallbackCapability(&config.Config{WebhookRouteMode: mode})
-			if err != nil {
-				t.Fatalf("load capability: %v", err)
-			}
-			if got != valid {
-				t.Fatalf("capability did not round-trip")
-			}
-		})
-	}
-
 	t.Run("required secret missing", func(t *testing.T) {
 		unsetTestEnv(t, "STRAVA_WEBHOOK_CALLBACK_CAPABILITY")
-		_, err := loadWebhookCallbackCapability(&config.Config{WebhookRouteMode: config.WebhookRouteModeCapability})
+		_, err := loadWebhookCallbackCapability()
 		if err == nil || !strings.Contains(err.Error(), "webhook callback capability") {
 			t.Fatalf("error = %v, want callback-capability error", err)
 		}
@@ -55,7 +43,7 @@ func TestLoadWebhookCallbackCapability(t *testing.T) {
 
 	t.Run("malformed secret rejected", func(t *testing.T) {
 		t.Setenv("STRAVA_WEBHOOK_CALLBACK_CAPABILITY", strings.Repeat("A", 64))
-		_, err := loadWebhookCallbackCapability(&config.Config{WebhookRouteMode: config.WebhookRouteModeDual})
+		_, err := loadWebhookCallbackCapability()
 		if err == nil || !strings.Contains(err.Error(), "lowercase hexadecimal") {
 			t.Fatalf("error = %v, want canonical-format error", err)
 		}
@@ -81,7 +69,6 @@ func TestBuildDispatcherRouter_RedactsCapabilityBeforeProductionOTel(t *testing.
 		portstest.NewAllowAllMockAllowlist(),
 		gcplog.NewNoOpLogger(),
 		&httpadapter.HandlerConfig{
-			WebhookRouteMode:          config.WebhookRouteModeCapability,
 			WebhookCallbackCapability: capability,
 		},
 	)
