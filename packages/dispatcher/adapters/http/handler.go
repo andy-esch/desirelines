@@ -1056,15 +1056,19 @@ func (h *Handler) publishActivityRow(ctx context.Context, enriched *generated.En
 // are logged here and counted by the caller.
 func (h *Handler) buildActivityRow(ctx context.Context, enriched *generated.EnrichedEvent, correlationID string) (body []byte, changeType, skipReason, errDetail string) {
 	webhook := enriched.Event
-	// Section 2 of the sequence number orders events Strava stamped in the
-	// same second; now() is the closest thing to their arrival order.
-	sequenceNumber := bqrow.SequenceNumber(webhook.EventTime, time.Now())
+	// Read once for the whole build: the sequence number's tiebreak orders
+	// events Strava stamped in the same second, and now() is the closest thing
+	// to their arrival order. The change type goes in too — it ranks a delete
+	// above an upsert at the same event_time — so the number is built per branch
+	// rather than up front.
+	builtAt := time.Now()
 
 	var err error
 	switch webhook.AspectType {
 	case generated.AspectType_ASPECT_TYPE_DELETE:
-		body, err = bqrow.BuildDelete(h.rowEncoding, webhook.ObjectId, sequenceNumber)
 		changeType = bqrow.ChangeTypeDelete
+		body, err = bqrow.BuildDelete(h.rowEncoding, webhook.ObjectId,
+			bqrow.SequenceNumber(webhook.EventTime, changeType, builtAt))
 	case generated.AspectType_ASPECT_TYPE_CREATE, generated.AspectType_ASPECT_TYPE_UPDATE:
 		rawActivity := enriched.RawActivity
 		if rawActivity == nil && webhook.AspectType == generated.AspectType_ASPECT_TYPE_UPDATE {
@@ -1094,8 +1098,9 @@ func (h *Handler) buildActivityRow(ctx context.Context, enriched *generated.Enri
 			// A CREATE whose fetch already found the activity gone.
 			return nil, "", rowSkipNoActivity, ""
 		}
-		body, err = bqrow.BuildUpsert(h.rowEncoding, rawActivity, sequenceNumber)
 		changeType = bqrow.ChangeTypeUpsert
+		body, err = bqrow.BuildUpsert(h.rowEncoding, rawActivity,
+			bqrow.SequenceNumber(webhook.EventTime, changeType, builtAt))
 	default:
 		return nil, "", rowSkipUnsupportedAspect, ""
 	}

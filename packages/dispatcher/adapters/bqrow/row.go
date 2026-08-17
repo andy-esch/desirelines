@@ -24,20 +24,76 @@ const (
 // Without it BigQuery cannot address a row, so the message is not publishable.
 var ErrNoActivityID = errors.New("activity payload has no id")
 
+// Section 2 packs two things into one 64-bit value: the change-type rank in the
+// top bit, the local nanosecond tiebreak in the remaining 63.
+//
+// Packed rather than given its own third section so the number stays
+// comparable with rows written before the rank existed. BigQuery compares
+// section 2 numerically, and an upsert's rank bit is zero, so its section 2 is
+// still exactly the nanosecond value it always was — a two-section number from
+// an older build and one from this build order against each other correctly. A
+// separate rank section would have made every new message compare *below* the
+// rows already in the table (rank 0 or 1 against a ~1.7e18 nanosecond value),
+// and BigQuery silently ignores anything numbering lower than what a key has
+// already seen.
+const (
+	changeRankUpsert uint64 = 0
+	changeRankDelete uint64 = 1
+
+	// changeRankShift puts the rank above every tiebreak value, so a DELETE
+	// outranks any UPSERT sharing its event_time no matter what the clock said.
+	changeRankShift = 63
+
+	// maxTiebreak is the largest tiebreak that still clears the rank bit. Unix
+	// nanoseconds do not reach it until ~2262; the clamp keeps a bogus far-future
+	// timestamp from flipping the rank bit and impersonating a delete.
+	maxTiebreak = uint64(1)<<changeRankShift - 1
+)
+
 // SequenceNumber formats a _CHANGE_SEQUENCE_NUMBER: hexadecimal sections
 // separated by "/", at most four sections of at most 16 hex characters each.
-// BigQuery compares them section by section as unsigned numeric values and
-// applies the largest one per primary key, so out-of-order delivery still
-// converges on the newest event.
+// BigQuery compares them section by section as unsigned numeric values, applies
+// the largest per primary key, and ignores any message numbering lower than the
+// highest that key has already seen — so a value that can move backwards does
+// not reorder writes, it silently discards them.
 //
-// Section 1 is the Strava webhook's event_time (Unix seconds): the event
-// Strava stamped later always wins. Section 2 is a local timestamp in
-// nanoseconds, which only breaks ties among events Strava stamped within the
-// same second — there, "whichever this process handled last" is the best
-// ordering available. Both sections are clamped at zero because a negative
-// value has no valid hexadecimal encoding here.
-func SequenceNumber(eventTime int64, tiebreak time.Time) string {
-	return fmt.Sprintf("%016X/%016X", clampToUint64(eventTime), clampToUint64(tiebreak.UnixNano()))
+// Section 1 is the Strava webhook's event_time (Unix seconds): the event Strava
+// stamped later always wins.
+//
+// Section 2 is the change-type rank followed by a local nanosecond tiebreak.
+// The rank makes DELETE outrank UPSERT at the same event_time, so a delete and
+// an upsert Strava stamped in the same second resolve by intent rather than by
+// which one this process happened to build first. Without it, an upsert built
+// after a delete — a redelivery, or two same-second events reordered in flight
+// — wins on the tiebreak and resurrects the deleted row.
+//
+// The tiebreak is wall-clock, which NTP can step backwards, and that is
+// deliberately tolerated: the rank means the only pairs still decided by it are
+// two upserts or two deletes for one activity within one second. Two deletes
+// are identical, and two upserts each rewrite the whole row from a re-fetch, so
+// an inverted clock costs at most a slightly staler snapshot. Ordering that
+// matters belongs in a rank, not here.
+//
+// Sections are clamped at zero because a negative value has no valid
+// hexadecimal encoding here.
+func SequenceNumber(eventTime int64, changeType string, tiebreak time.Time) string {
+	return fmt.Sprintf("%016X/%016X", clampToUint64(eventTime), orderingSection(changeType, tiebreak))
+}
+
+// orderingSection builds section 2 from the change-type rank and the tiebreak.
+func orderingSection(changeType string, tiebreak time.Time) uint64 {
+	nanos := min(clampToUint64(tiebreak.UnixNano()), maxTiebreak)
+	return changeTypeRank(changeType)<<changeRankShift | nanos
+}
+
+// changeTypeRank ranks a change type for section 2. Only DELETE is promoted:
+// anything else ranks below it, so a change type a future caller invents cannot
+// accidentally outrank a delete.
+func changeTypeRank(changeType string) uint64 {
+	if changeType == ChangeTypeDelete {
+		return changeRankDelete
+	}
+	return changeRankUpsert
 }
 
 func clampToUint64(v int64) uint64 {

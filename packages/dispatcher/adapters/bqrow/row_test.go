@@ -3,6 +3,7 @@ package bqrow
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -372,19 +373,21 @@ var sequenceNumberFormat = regexp.MustCompile(`^[0-9A-F]{16}/[0-9A-F]{16}$`)
 
 func TestSequenceNumber_Format(t *testing.T) {
 	tests := []struct {
-		name     string
-		event    int64
-		tiebreak time.Time
+		name       string
+		event      int64
+		changeType string
+		tiebreak   time.Time
 	}{
-		{name: "typical", event: 1755000000, tiebreak: time.Unix(1755000001, 123456789)},
-		{name: "zero", event: 0, tiebreak: time.Unix(0, 0)},
-		{name: "negative clamps rather than emitting -hex", event: -1, tiebreak: time.Unix(0, -1)},
-		{name: "far future", event: 1<<40 - 1, tiebreak: time.Unix(1<<40, 0)},
+		{name: "typical upsert", event: 1755000000, changeType: ChangeTypeUpsert, tiebreak: time.Unix(1755000001, 123456789)},
+		{name: "typical delete", event: 1755000000, changeType: ChangeTypeDelete, tiebreak: time.Unix(1755000001, 123456789)},
+		{name: "zero", event: 0, changeType: ChangeTypeUpsert, tiebreak: time.Unix(0, 0)},
+		{name: "negative clamps rather than emitting -hex", event: -1, changeType: ChangeTypeUpsert, tiebreak: time.Unix(0, -1)},
+		{name: "far future", event: 1<<40 - 1, changeType: ChangeTypeDelete, tiebreak: time.Unix(1<<40, 0)},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := SequenceNumber(tt.event, tt.tiebreak)
+			got := SequenceNumber(tt.event, tt.changeType, tt.tiebreak)
 			if !sequenceNumberFormat.MatchString(got) {
 				t.Errorf("SequenceNumber() = %q, want two 16-char uppercase hex sections", got)
 			}
@@ -397,25 +400,110 @@ func TestSequenceNumber_Format(t *testing.T) {
 func TestSequenceNumber_OrdersByEventTimeThenArrival(t *testing.T) {
 	base := time.Unix(1755000000, 0)
 
-	older := SequenceNumber(1755000000, base)
-	newer := SequenceNumber(1755000001, base)
+	older := SequenceNumber(1755000000, ChangeTypeUpsert, base)
+	newer := SequenceNumber(1755000001, ChangeTypeUpsert, base)
 	if older >= newer {
 		t.Errorf("event_time ordering broken: %q should sort below %q", older, newer)
 	}
 
-	// Same Strava second: arrival order decides.
-	first := SequenceNumber(1755000000, base)
-	second := SequenceNumber(1755000000, base.Add(time.Millisecond))
+	// Same Strava second, same change type: arrival order decides.
+	first := SequenceNumber(1755000000, ChangeTypeUpsert, base)
+	second := SequenceNumber(1755000000, ChangeTypeUpsert, base.Add(time.Millisecond))
 	if first >= second {
 		t.Errorf("arrival tiebreak broken: %q should sort below %q", first, second)
 	}
 
 	// A later Strava event wins even when it arrives first — the point of
 	// sequencing rather than trusting delivery order.
-	late := SequenceNumber(1755000009, base)
-	early := SequenceNumber(1755000000, base.Add(time.Hour))
+	late := SequenceNumber(1755000009, ChangeTypeUpsert, base)
+	early := SequenceNumber(1755000000, ChangeTypeUpsert, base.Add(time.Hour))
 	if early >= late {
 		t.Errorf("event_time must dominate arrival: %q should sort below %q", early, late)
+	}
+}
+
+// The resurrection case: a delete and an upsert Strava stamped in the same
+// second must resolve by intent, never by which one this process built first.
+// BigQuery keeps the largest number, so the delete has to sort above the upsert
+// however the tiebreak falls.
+func TestSequenceNumber_DeleteOutranksSameSecondUpsert(t *testing.T) {
+	const event = 1755000000
+	base := time.Unix(event, 0)
+
+	tests := []struct {
+		name           string
+		deleteTiebreak time.Time
+		upsertTiebreak time.Time
+	}{
+		{
+			name:           "delete built first",
+			deleteTiebreak: base,
+			upsertTiebreak: base.Add(time.Millisecond),
+		},
+		{
+			name:           "upsert built first",
+			deleteTiebreak: base.Add(time.Millisecond),
+			upsertTiebreak: base,
+		},
+		{
+			// The NTP-step case: the delete is genuinely later but draws a
+			// lower nanosecond because the wall clock moved backwards.
+			name:           "clock stepped back between the two",
+			deleteTiebreak: base,
+			upsertTiebreak: base.Add(time.Hour),
+		},
+		{
+			name:           "identical tiebreak",
+			deleteTiebreak: base,
+			upsertTiebreak: base,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			del := SequenceNumber(event, ChangeTypeDelete, tt.deleteTiebreak)
+			ups := SequenceNumber(event, ChangeTypeUpsert, tt.upsertTiebreak)
+			if del <= ups {
+				t.Errorf("delete must outrank a same-second upsert: delete %q should sort above upsert %q", del, ups)
+			}
+		})
+	}
+}
+
+// The rank only breaks ties *within* one event_time. A genuinely later upsert
+// still has to win, or an activity edited after a delete could never come back.
+func TestSequenceNumber_EventTimeDominatesChangeTypeRank(t *testing.T) {
+	base := time.Unix(1755000000, 0)
+
+	del := SequenceNumber(1755000000, ChangeTypeDelete, base)
+	laterUpsert := SequenceNumber(1755000001, ChangeTypeUpsert, base)
+	if del >= laterUpsert {
+		t.Errorf("event_time must dominate the change-type rank: %q should sort below %q", del, laterUpsert)
+	}
+}
+
+// The rank is packed into the top bit of section 2 rather than added as a third
+// section, so an upsert's section 2 stays exactly the nanosecond value earlier
+// builds wrote. That keeps new messages comparable with rows already in the
+// table — BigQuery ignores anything numbering below what a key has seen.
+func TestSequenceNumber_UpsertSectionTwoIsTheBareTiebreak(t *testing.T) {
+	tiebreak := time.Unix(1755000001, 123456789)
+
+	got := SequenceNumber(1755000000, ChangeTypeUpsert, tiebreak)
+	want := fmt.Sprintf("%016X/%016X", uint64(1755000000), uint64(tiebreak.UnixNano()))
+	if got != want {
+		t.Errorf("SequenceNumber() = %q, want %q", got, want)
+	}
+}
+
+// A far-future tiebreak must not flip the rank bit and impersonate a delete.
+func TestSequenceNumber_TiebreakCannotReachTheRankBit(t *testing.T) {
+	overflowing := time.Unix(1<<62, 0) // ~1.5e26 ns, far past maxTiebreak
+
+	ups := SequenceNumber(1755000000, ChangeTypeUpsert, overflowing)
+	del := SequenceNumber(1755000000, ChangeTypeDelete, time.Unix(1755000000, 0))
+	if ups >= del {
+		t.Errorf("a clamped tiebreak must still rank below a delete: upsert %q should sort below delete %q", ups, del)
 	}
 }
 
