@@ -33,6 +33,9 @@ Mode mapping (BQ → proto2):
     REPEATED  any     → ``repeated``
     anything else     → ``optional``
 
+A field with no ``mode`` is treated as NULLABLE, which is what BigQuery
+does with the same input.
+
 Every non-repeated field is labeled ``optional`` regardless of BQ's
 REQUIRED/NULLABLE designation — BQ enforces REQUIRED server-side at
 insert time, and proto2 needs every field to carry an explicit label.
@@ -329,7 +332,10 @@ def _locked_number(numbers: dict[str, int], message: str, field: str) -> int:
 def _emit_field(col: dict[str, Any], field_number: int, out: _Emit) -> None:
     """Emit a single proto field declaration with the appropriate label."""
     name = col["name"]
-    mode = col["mode"]
+    # `mode` is optional in BigQuery's schema JSON and defaults to NULLABLE
+    # there, so a field that omits it is well-formed input, not a bug — match
+    # BQ rather than raising a bare KeyError. relax_schema reads it the same way.
+    mode = col.get("mode", "NULLABLE")
     bq_type = col["type"]
 
     description = col.get("description", "").strip()

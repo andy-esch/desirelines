@@ -4,9 +4,14 @@ Convert BigQuery schema JSON files to BigQuery CLI format.
 
 This script converts JSON schema definitions to formats needed for table creation.
 
+The inline CLI format only fits a flat, all-scalar schema; anything with a
+RECORD or REPEATED column has to go to `bq mk` as a JSON schema file. That is
+`activities_full.json` today, so --json is the mode that works for it, and
+--minimal is the flat one.
+
 Usage:
-    uv run schemas/bigquery/scripts/schema_to_bq.py activities        # Output CLI format
-    uv run schemas/bigquery/scripts/schema_to_bq.py activities --json # Output raw schema array
+    uv run schemas/bigquery/scripts/schema_to_bq.py activities --json    # JSON schema array
+    uv run schemas/bigquery/scripts/schema_to_bq.py activities --minimal # inline CLI format
 """
 
 import json
@@ -31,17 +36,54 @@ def load_table_schema(table_name: str) -> dict[str, Any]:
     return data
 
 
+class UnrepresentableSchemaError(ValueError):
+    """The schema needs structure the inline `bq mk` format cannot carry."""
+
+
+def _inline_unrepresentable(fields: list[dict[str, Any]]) -> list[str]:
+    """Columns the inline format cannot express, each with its reason.
+
+    Only the top level needs scanning: nested fields exist solely inside a
+    RECORD, and the RECORD itself already disqualifies its whole subtree.
+    """
+    offenders = []
+
+    for field in fields:
+        reasons = []
+        if field.get("mode") == "REPEATED":
+            reasons.append("REPEATED mode")
+        if field["type"] == "RECORD":
+            reasons.append("RECORD type")
+        if reasons:
+            offenders.append(f"{field['name']} ({' + '.join(reasons)})")
+
+    return offenders
+
+
 def schema_to_bq_cli(schema_data: dict[str, Any]) -> str:
-    """Convert schema to BigQuery CLI format for 'bq mk' commands."""
-    fields = []
+    """Convert schema to BigQuery CLI format for 'bq mk' commands.
 
-    for field in schema_data["schema"]:
-        # BigQuery CLI format: name:type (no mode specification in CLI)
-        # Mode will be handled through the JSON schema instead
-        field_def = f"{field['name']}:{field['type']}"
-        fields.append(field_def)
+    The inline format is `name:type` pairs and nothing more: it cannot state a
+    mode, and it cannot express a RECORD's nested fields. Every column created
+    from one lands as NULLABLE. A schema needing either has to reach `bq mk` as
+    a JSON file instead, which is what `--json` emits.
 
-    return ",".join(fields)
+    So a schema that uses RECORD or REPEATED raises rather than emitting a
+    string that reads fine and is wrong — `name:RECORD` is not a type `bq mk`
+    accepts, and a dropped REPEATED would quietly create a scalar column.
+    """
+    fields = schema_data["schema"]
+
+    offenders = _inline_unrepresentable(fields)
+    if offenders:
+        raise UnrepresentableSchemaError(
+            "the inline `bq mk` schema format cannot express these columns:\n"
+            + "\n".join(f"  - {offender}" for offender in offenders)
+            + "\n\nUse --json and pass the result to `bq mk` as a schema file:\n"
+            "  bq mk --table --schema=<schema>.json <dataset>.<table>"
+        )
+
+    return ",".join(f"{field['name']}:{field['type']}" for field in fields)
 
 
 def main() -> None:
@@ -72,6 +114,9 @@ def main() -> None:
             print(schema_to_bq_cli(schema_data))
 
     except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except UnrepresentableSchemaError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
     except Exception as e:
