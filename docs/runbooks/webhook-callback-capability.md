@@ -5,9 +5,22 @@ This runbook moves the dispatcher from the public `/webhook` callback to
 payload signature. Never paste the value or complete callback URL into tickets,
 task files, chat, screenshots, commands, dashboards, or logs.
 
+**The capability and the registered Strava subscription are one unit.** The
+capability is half of a URL Strava has stored, so changing the deployed value
+without recreating the subscription points Strava at a callback that no longer
+validates — every delivery becomes a `rejected` 404. Rotation is always
+capability change *plus* subscription recreation, in that order, and always
+costs a delivery gap. Sequence rotations against a route mode that still serves
+a working callback.
+
+The capability URL is only ever resolved from Cloud Run, never typed. The
+project's own web domain is a separate static host: a request sent there returns
+the frontend and copies the capability into a third-party CDN's access logs.
+
 ## Preconditions
 
-- D-1 deauthorization grant confirmation is deployed and healthy.
+- Deauthorization grant confirmation is deployed and healthy, so a forged
+  deauthorization cannot act on a still-authorized athlete.
 - The dispatcher build supports `WEBHOOK_ROUTE_MODE=legacy|dual|capability`.
 - Terraform has created `INFISICAL_STRAVA_WEBHOOK_CALLBACK_CAPABILITY` in the
   target project, and Infisical is still the authoritative value source.
@@ -52,9 +65,29 @@ the real callback:
 5. Inspect any additional user-defined sinks in the project; the project-level
    exclusion protects the default sink but must not be assumed to govern an
    independently configured export.
-6. If any retained surface contains the canary, stop. Correct the exclusion or
-   use an authenticated relay. Rotate away from the exposed canary before
-   continuing.
+6. If any retained surface contains the canary, stop — with one known exception
+   below. Correct the exclusion or use an authenticated relay. Rotate away from
+   the exposed canary before continuing.
+
+`scripts/ops/webhook-activation-gate.sh <env>` runs this gate end to end and
+reports counts without ever displaying the capability.
+
+### Known exception: the Cloud Run platform trace span
+
+Every request produces two spans. The application's own span is redacted
+(`GET /webhook/[redacted]`, `url.path = /webhook/[redacted]`). Its parent is
+emitted by the Google Front End before the container is invoked, is named with
+the raw path, and carries the full URL — capability and `hub.verify_token` — in
+its `/http/url` label. Cloud Logging exclusions do not apply to Cloud Trace, and
+no application change can suppress a span that exists before the application
+runs.
+
+This is accepted rather than fixed, and is tracked separately. Treat exactly one
+such parent span per request as expected. **Anything else** — the capability in
+the application's own span, in any log stream, or in a metric label — is a real
+regression and must stop the gate. The gate script encodes this distinction:
+`ACCEPT_PLATFORM_TRACE_RISK=1` downgrades the platform-span finding to a warning
+and leaves every other assertion hard-failing.
 
 Do not use the real callback capability until this gate passes. Application-side
 redaction cannot alter the request URL that the Cloud Run platform observed
@@ -93,8 +126,13 @@ telemetry evidence, not a live-delivery rehearsal:
    exact secret version mounted by the deployed revision—not `latest`—and shows
    only `[redacted capability URL]`.
 5. Store the returned numeric ID in
-   `INFISICAL_STRAVA_WEBHOOK_SUBSCRIPTION_ID`, wait for sync, and restart or wait
-   for the dispatcher's secret-cache refresh.
+   `INFISICAL_STRAVA_WEBHOOK_SUBSCRIPTION_ID`, wait for sync, then **force a new
+   revision**. Do not rely on the in-process secret cache: it re-reads a mounted
+   file whose contents are resolved when the instance starts, so an instance that
+   booted before the sync keeps serving the previous subscription ID until it is
+   replaced. A delivery in that window fails the subscription check, and Strava
+   drops the event after its retries. Confirm the running revision was created
+   after the new secret version.
 6. Create or update an owned activity. Confirm the callback metric records
    `accepted`, the normal pipeline completes, and `legacy` stops incrementing.
 7. Set production to `capability`, apply, and prove plain GET and POST `/webhook`
@@ -110,10 +148,10 @@ previous route mode/version. After deletion, keep or return to `dual` and use th
 management script to recreate the subscription against the deployed pinned
 capability, then update the newly assigned subscription ID. If the capability
 implementation itself must be rolled back to a legacy-only build, recreate the
-plain callback with an audited stdin-only request; the D-3 script intentionally
-does not offer a casual plain-route creation mode. Every recreation produces a
-new subscription ID; restoring an old secret value does not restore a deleted
-subscription.
+plain callback with an audited stdin-only request; `webhook-management.sh`
+intentionally does not offer a casual plain-route creation mode. Every
+recreation produces a new subscription ID; restoring an old secret value does
+not restore a deleted subscription.
 
 After rollback, determine whether the capability was exposed. If exposure is
 possible, replace it before another cutover attempt.
