@@ -37,17 +37,6 @@ def make_read_detailed_activities(
     return create_strava_activities_repo(tokens=tokens, api_config=StravaApiConfig())
 
 
-def make_read_standard_activities(
-    tokens: StravaTokenSet,
-) -> StravaActivitiesRepo:
-    """Create a Strava activities repository (for PostgreSQL writer).
-
-    Returns StravaActivitiesRepo which implements ReadStandardActivities.
-    Use read_standard_activity_by_id() for standard activities.
-    """
-    return create_strava_activities_repo(tokens=tokens, api_config=StravaApiConfig())
-
-
 __all__ = [
     "StravaActivitiesRepo",
     "StravaApiClient",
@@ -56,6 +45,5 @@ __all__ = [
     "StravaTokenRepo",
     "create_strava_activities_repo",
     "make_read_detailed_activities",
-    "make_read_standard_activities",
     "make_read_strava_token",
 ]

@@ -67,20 +67,6 @@ def _iter_batches[T](
         yield batch_num, total, seq[i : i + size]
 
 
-def _upsert_activity(
-    repository: ActivityRepository,
-    activity: StandardActivity,
-    watermark: int,
-) -> BackfillUpsertResult:
-    """Upsert one backfilled activity, fenced on the run-start watermark.
-
-    Returns the repository outcome. ``SKIPPED`` is a normal result (a live event
-    newer than the run start owns the row), not an error — the caller counts it
-    distinctly and does not reconcile geography for a skipped row.
-    """
-    return repository.upsert_backfill(activity, watermark)
-
-
 def _reconcile_activity_geography(
     repository: ActivityRepository,
     activity: StandardActivity,
@@ -728,7 +714,7 @@ class BackfillService:
                         standard = StandardActivity.model_validate(
                             activity, from_attributes=True
                         )
-                        result = _upsert_activity(uow.activities, standard, watermark)
+                        result = uow.activities.upsert_backfill(standard, watermark)
                         if result is BackfillUpsertResult.SKIPPED:
                             # A live event newer than the run start owns this
                             # row — don't reconcile its geography either.
