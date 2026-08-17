@@ -41,14 +41,13 @@ locals {
 
   # Secret definitions for dynamic blocks
   # Keys use INFISICAL_ prefix to match Infisical-managed secret names
-  strava_webhook_secrets = merge({
+  strava_webhook_secrets = {
     "INFISICAL_STRAVA_WEBHOOK_VERIFY_TOKEN"    = google_secret_manager_secret.strava_webhook_verify_token.secret_id
     "INFISICAL_STRAVA_WEBHOOK_SUBSCRIPTION_ID" = google_secret_manager_secret.strava_webhook_subscription_id.secret_id
-    }, var.app_config.dispatcher_webhook_route_mode == "legacy" ? {} : {
-    # Do not mount until Infisical has populated the first version; the
-    # dispatcher deliberately fails startup when it cannot read the value.
+    # Mounted unconditionally: the capability route is the only webhook route,
+    # and the dispatcher fails startup when it cannot read this value.
     "INFISICAL_STRAVA_WEBHOOK_CALLBACK_CAPABILITY" = google_secret_manager_secret.strava_webhook_callback_capability.secret_id
-  })
+  }
 
   strava_api_secrets = {
     "INFISICAL_STRAVA_CLIENT_ID"     = google_secret_manager_secret.strava_client_id.secret_id
@@ -152,14 +151,6 @@ resource "google_cloud_run_v2_service" "dispatcher" {
       env {
         name  = "TOKEN_CACHE_TTL"
         value = var.app_config.dispatcher_token_cache_ttl
-      }
-
-      # Explicit migration state for the public Strava callback. The default is
-      # legacy so provisioning the empty secret container cannot break today's
-      # revision; move to dual only after Infisical has synced a value.
-      env {
-        name  = "WEBHOOK_ROUTE_MODE"
-        value = var.app_config.dispatcher_webhook_route_mode
       }
 
       # Best-effort publish of each activity as a BigQuery CDC row, alongside
