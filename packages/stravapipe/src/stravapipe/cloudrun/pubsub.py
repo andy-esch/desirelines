@@ -63,6 +63,14 @@ class CloudEventContext:
 # Valid content types for CloudEvents
 # - application/json: Binary format (metadata in ce-* headers, data in body)
 # - application/cloudevents+json: Structured format (everything in JSON body)
+#
+# Only binary mode is actually implemented below — the parser reads ce-type /
+# ce-id / ce-source from headers, which a structured-mode request does not send.
+# A genuine structured-mode delivery therefore clears this gate and then 400s on
+# the missing headers. Eventarc sends binary mode, so nothing hits it today.
+# Either narrow this set to what is parsed or implement structured mode; note
+# there is no CloudEvents SDK dependency here by design, as the whole parser is
+# hand-rolled from headers plus a base64 body.
 _VALID_CONTENT_TYPES = frozenset(
     {
         "application/json",

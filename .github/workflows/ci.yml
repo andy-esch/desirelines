@@ -225,9 +225,11 @@ jobs:
 
       # Supply-chain gate: fail on a known-vulnerable dependency rather than
       # waiting for a Dependabot PR. Audits the resolved lockfile, so it sees
-      # transitive pins too — which is where the real exposure lives (the
-      # starlette CVEs were pinned by a functions-framework upper bound, not by
-      # anything this project declares).
+      # transitive pins too — which is where the real exposure lives, and where
+      # it is easiest to miss: an upper bound in one declared dependency can
+      # hold a transitive one on a vulnerable version long after a fix ships,
+      # with nothing in pyproject.toml naming either. That is worth re-checking
+      # whenever a dependency is dropped, since removing it lifts its caps.
       - name: Audit Python dependencies
         working-directory: packages/stravapipe
         run: |
