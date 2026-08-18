@@ -1171,6 +1171,39 @@ func (h *Handler) recordRowPublish(ctx context.Context, webhook *generated.Webho
 // confirms. Gating on IsAllowed here would strand that data. This is an
 // intentional design decision (see TestHandler_OwnerCheck_DeauthBypassesAllowlist),
 // not a missing guard; please don't "mirror the activity-path gate" here.
+// isDeauthorizingUpdate reports whether an athlete-update `updates` map carries
+// Strava's deauthorization signal, matching the key and value case-insensitively
+// and ignoring surrounding whitespace.
+//
+// The tolerance is deliberate and the asymmetry is the reason. Since deauth
+// cleanup became gated on verifyDeauthorization — which confirms with Strava that
+// the grant is actually revoked before anything is deleted — a false positive
+// here costs one refused confirmation and nothing else. A false negative means
+// retaining credentials a user revoked, which is a privacy failure and breaches
+// the 48-hour deletion requirement in the Strava API Agreement (S5.4). Match
+// loosely; let the grant check be the authority.
+//
+// Strava documents only `{"authorized": "false"}`, but the bare boolean
+// `{"authorized": false}` is already known to ship, so the documented form is
+// demonstrably not the only one. Numeric 0 is accepted for the same reason: it is
+// unambiguous for a key named `authorized`, and costs nothing if it never arrives.
+func isDeauthorizingUpdate(updates map[string]any) bool {
+	for key, raw := range updates {
+		if !strings.EqualFold(strings.TrimSpace(key), "authorized") {
+			continue
+		}
+		val, valid := webhookproto.CoerceToString(raw)
+		if !valid {
+			continue
+		}
+		switch strings.ToLower(strings.TrimSpace(val)) {
+		case "false", "0":
+			return true
+		}
+	}
+	return false
+}
+
 func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter, r *http.Request, webhook *generated.WebhookEvent, body []byte) {
 	correlationID := gcplog.CorrelationIDFromContext(ctx)
 
@@ -1192,10 +1225,8 @@ func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter,
 				"error", err,
 				"owner_id", webhook.OwnerId,
 			)
-		} else if raw, ok := payload.Updates["authorized"]; ok {
-			if val, valid := webhookproto.CoerceToString(raw); valid && val == "false" {
-				isDeauth = true
-			}
+		} else if isDeauthorizingUpdate(payload.Updates) {
+			isDeauth = true
 		}
 	default:
 		// Non-deauth athlete events (e.g., create) are acknowledged.
