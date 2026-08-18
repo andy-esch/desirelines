@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -543,22 +544,31 @@ func TestSecurity_SubscriptionIDEnumerationRequiresCallbackCapability(t *testing
 // bare-boolean variant already proved the documented form is not the only one
 // shipped, and the failure mode here is retaining credentials the user revoked,
 // against the 48-hour deletion requirement in the Strava API Agreement.
-func TestSecurity_Current_DeauthDetectionIsCaseSensitive(t *testing.T) {
+func TestSecurity_DeauthDetectionToleratesSpellingVariants(t *testing.T) {
+	// Every one of these means "the athlete revoked the grant". Each was a
+	// silent miss before 2026-08-17: the event was acked 200, nothing was
+	// counted, and the revoked athlete's tokens stayed in Firestore.
 	cases := []struct{ name, updates string }{
+		{"documented form", `{"authorized":"false"}`},
+		{"bare boolean", `{"authorized":false}`},
 		{"capitalized key", `{"Authorized":"false"}`},
 		{"uppercase key", `{"AUTHORIZED":"false"}`},
 		{"capitalized value", `{"authorized":"False"}`},
 		{"uppercase value", `{"authorized":"FALSE"}`},
+		{"padded value", `{"authorized":" false "}`},
+		{"numeric zero", `{"authorized":0}`},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			rig := newSecurityRig(t, true)
-			// Grant is genuinely revoked, so if the event WERE detected as a
-			// deauth it would pass the confirmation gate and delete. It doesn't —
-			// because the casing defeats detection, not because of the gate. That
-			// is what keeps this a test about detection rather than confirmation.
+			// Grant genuinely revoked, so a detected deauth passes confirmation
+			// and deletes. That makes deletion the observable proof of detection.
 			rig.strava.VerifyStatus = ports.GrantRevoked
+			rig.tokens.Tokens = map[int64]*stravatoken.Data{
+				victimOwnerID: {AccessToken: "a", RefreshToken: "r"},
+			}
+
 			w := rig.post(fmt.Sprintf(
 				`{"aspect_type":"update","object_type":"athlete","object_id":1,"owner_id":%d,"event_time":1,"subscription_id":%d,"updates":%s}`,
 				victimOwnerID, testSubscriptionID, tc.updates))
@@ -566,8 +576,48 @@ func TestSecurity_Current_DeauthDetectionIsCaseSensitive(t *testing.T) {
 			if w.Code != http.StatusOK {
 				t.Fatalf("status = %d, want 200", w.Code)
 			}
+			if got := len(rig.deauth.Published); got != 1 {
+				t.Errorf("deauth publishes = %d, want 1 — the revocation was not detected", got)
+			}
+			if got := rig.tokens.DeletedCount(); got != 1 {
+				t.Errorf("DeleteTokens calls = %d, want 1 — revoked credentials were retained", got)
+			}
+		})
+	}
+}
+
+// TestSecurity_DeauthDetectionIgnoresNonRevocations is the other side of the
+// tolerance added above: matching loosely must not turn an ordinary athlete
+// update into a deletion. The grant check would refuse these anyway, but the
+// detector should not be asking it in the first place.
+func TestSecurity_DeauthDetectionIgnoresNonRevocations(t *testing.T) {
+	cases := []struct{ name, updates string }{
+		{"still authorized", `{"authorized":"true"}`},
+		{"bare true", `{"authorized":true}`},
+		{"numeric one", `{"authorized":1}`},
+		{"unrelated key", `{"weight":"75.0"}`},
+		{"key that merely contains authorized", `{"deauthorized_at":"false"}`},
+		{"empty updates", `{}`},
+		{"nested object value", `{"authorized":{"nested":false}}`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rig := newSecurityRig(t, true)
+			rig.strava.VerifyStatus = ports.GrantRevoked
+
+			w := rig.post(fmt.Sprintf(
+				`{"aspect_type":"update","object_type":"athlete","object_id":1,"owner_id":%d,"event_time":1,"subscription_id":%d,"updates":%s}`,
+				victimOwnerID, testSubscriptionID, tc.updates))
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200", w.Code)
+			}
+			if got := len(rig.deauth.Published); got != 0 {
+				t.Errorf("deauth publishes = %d, want 0 — a non-revocation was treated as one", got)
+			}
 			if got := rig.tokens.DeletedCount(); got != 0 {
-				t.Errorf("DeleteTokens called %d times — case-insensitive detection may have landed; update this test", got)
+				t.Errorf("DeleteTokens calls = %d, want 0", got)
 			}
 		})
 	}
@@ -605,4 +655,118 @@ func FuzzWebhookEndpoint(f *testing.F) {
 			t.Fatalf("subscription gate rejected the request but downstream work still ran: body=%q", body)
 		}
 	})
+}
+
+// attackerOwnerID is an allowlisted athlete under the attacker's control. The
+// cross-owner question is what happens when they name someone else's object.
+const attackerOwnerID = 515151
+
+// activityBody builds an activity create event naming an arbitrary owner/object
+// pair, so a test can separate the two identities the handler treats differently.
+func activityBody(ownerID, objectID int64) string {
+	return fmt.Sprintf(
+		`{"aspect_type":"create","object_type":"activity","object_id":%d,"owner_id":%d,"event_time":1,"subscription_id":%d}`,
+		objectID, ownerID, testSubscriptionID)
+}
+
+// TestSecurity_CrossOwnerEventIsScopedToTheClaimedOwner pins which of the two
+// caller-supplied identities each downstream decision uses. The allowlist gate
+// reads owner_id, but the Strava fetch is FetchActivity(ownerID, objectID) — so a
+// caller can pair an allowlisted owner with an object that owner does not own.
+//
+// The invariant that matters: the owner's own token is what fetches, so Strava is
+// the authority that refuses a cross-owner read. The dispatcher must not
+// substitute the object's owner, and must not publish anything when the fetch is
+// refused.
+func TestSecurity_CrossOwnerEventIsScopedToTheClaimedOwner(t *testing.T) {
+	rig := newSecurityRig(t, true)
+	// Strava refuses the cross-owner read, which is the realistic response when
+	// attackerOwnerID's token asks for an activity belonging to victimOwnerID.
+	rig.strava.FetchErr = errors.New("strava: 404 not found")
+
+	w := rig.post(activityBody(attackerOwnerID, victimOwnerID))
+
+	// The allowlist is consulted for the claimed owner and nobody else. If this
+	// ever reads the object's owner, a non-allowlisted athlete's object id would
+	// become a way to probe allowlist membership.
+	if got := rig.allow.CalledWith; len(got) != 1 || got[0] != strconv.Itoa(attackerOwnerID) {
+		t.Errorf("allowlist consulted with %v, want exactly [%d]", got, attackerOwnerID)
+	}
+
+	// The fetch is attempted with the claimed owner's credentials against the
+	// named object — never the object owner's credentials.
+	if got := rig.strava.FetchedOwnerIDs; len(got) != 1 || got[0] != attackerOwnerID {
+		t.Errorf("fetched with owner IDs %v, want exactly [%d]", got, attackerOwnerID)
+	}
+	if got := rig.strava.FetchedIDs; len(got) != 1 || got[0] != victimOwnerID {
+		t.Errorf("fetched object IDs %v, want exactly [%d]", got, victimOwnerID)
+	}
+
+	// A refused fetch must publish nothing. Publishing an unenriched event here
+	// would put an attacker-chosen owner/object pair onto the topic with no
+	// Strava confirmation behind it.
+	if n := len(rig.primary.Published); n != 0 {
+		t.Errorf("published %d events despite a refused cross-owner fetch, want 0", n)
+	}
+	if n := len(rig.deauth.Published); n != 0 {
+		t.Errorf("published %d deauth events for an activity event, want 0", n)
+	}
+
+	// Fail-closed so Strava retries rather than silently dropping a real event
+	// that failed for a transient reason.
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want 500 so the delivery is retried", w.Code)
+	}
+}
+
+// TestSecurity_AcceptedEventWorkFactorIsBounded measures the downstream work one
+// accepted webhook buys, which is the quantity D-5 was about: an amplification
+// finding is a statement about this ratio. Pinning it turns "we reasoned about
+// the cost once" into a regression — a future fan-out, retry loop, or
+// per-event extra read shows up here as a number change rather than silently.
+func TestSecurity_AcceptedEventWorkFactorIsBounded(t *testing.T) {
+	rig := newSecurityRig(t, true)
+
+	w := rig.post(activityBody(attackerOwnerID, 909090))
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+
+	// One request buys exactly one of each. These are the numbers the assessment
+	// recorded; if one moves, the amplification finding needs re-reading, not
+	// this assertion loosening.
+	if got := rig.allow.CalledCount(); got != 1 {
+		t.Errorf("allowlist reads = %d, want 1 per accepted event", got)
+	}
+	if got := len(rig.strava.FetchedIDs); got != 1 {
+		t.Errorf("Strava calls = %d, want 1 per accepted event", got)
+	}
+	if got := len(rig.primary.Published); got != 1 {
+		t.Errorf("primary publishes = %d, want 1 per accepted event", got)
+	}
+	if got := len(rig.deauth.Published); got != 0 {
+		t.Errorf("deauth publishes = %d, want 0 for an activity event", got)
+	}
+}
+
+// TestSecurity_StrayOwnerCostsNothingDownstream is the other half of the work
+// factor: a non-allowlisted owner must be refused before any paid operation, so
+// the allowlist read is the entire cost of a stray event.
+func TestSecurity_StrayOwnerCostsNothingDownstream(t *testing.T) {
+	rig := newSecurityRig(t, false)
+
+	w := rig.post(activityBody(attackerOwnerID, 909090))
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (stray events are acked quietly)", w.Code)
+	}
+
+	if got := rig.allow.CalledCount(); got != 1 {
+		t.Errorf("allowlist reads = %d, want 1", got)
+	}
+	if got := len(rig.strava.FetchedIDs); got != 0 {
+		t.Errorf("Strava calls = %d, want 0 — a stray owner must not spend quota", got)
+	}
+	if got := len(rig.primary.Published); got != 0 {
+		t.Errorf("primary publishes = %d, want 0", got)
+	}
 }
