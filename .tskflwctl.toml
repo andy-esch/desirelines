@@ -1,3 +1,4 @@
 # tskflwctl planning config — this repo's planning lives in another repo.
 # planning_repo: the external planning repo, relative to this file (or absolute).
 planning_repo = "../desirelines-planning"
+planning_repo_id = "6g1xc8xfyfyj"
