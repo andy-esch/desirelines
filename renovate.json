@@ -6,6 +6,13 @@
     ":semanticCommits",
     "group:monorepos"
   ],
+  "timezone": "America/New_York",
+  "schedule": ["before 6am on monday"],
+  "updateNotScheduled": false,
+  "rebaseWhen": "conflicted",
+  "minimumReleaseAge": "3 days",
+  "prConcurrentLimit": 3,
+  "prHourlyLimit": 2,
   "postUpdateOptions": ["gomodTidy", "npmDedupe"],
   "terraform": {
     "enabled": true
@@ -20,8 +27,9 @@
       "groupName": "all non-major ({{manager}})"
     },
     {
-      "description": "Flag major version bumps for human review (audit finding I-7). automerge is already false by default; the label surfaces majors on the dashboard.",
+      "description": "Gate major version bumps behind the Dependency Dashboard for human review (audit finding I-7). automerge is already false by default; requiring approval prevents automatic branch creation and CI runs.",
       "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true,
       "labels": ["requires-review"]
     },
     {
@@ -71,7 +79,7 @@
     {
       "customType": "regex",
       "description": "Track [tool.uv] required-version as the uv image, so it bumps alongside the Dockerfile tag rather than drifting silently.",
-      "managerFilePatterns": ["packages/stravapipe/pyproject.toml"],
+      "fileMatch": ["^packages/stravapipe/pyproject\\.toml$"],
       "matchStrings": ["required-version\\s*=\\s*\"==(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "ghcr.io/astral-sh/uv",
       "datasourceTemplate": "docker",
@@ -80,7 +88,7 @@
     {
       "customType": "regex",
       "description": "Track the CPython patch the stravapipe Dockerfile installs via `uv python install X.Y.Z` — a raw shell command no built-in manager sees, which is why it drifted behind .python-version (3.14.5 vs 3.14.6). The `python version` packageRule above groups it with the pyenv bump and caps it at 3.14.x.",
-      "managerFilePatterns": ["packages/stravapipe/Dockerfile"],
+      "fileMatch": ["^packages/stravapipe/Dockerfile$"],
       "matchStrings": ["uv python install (?<currentValue>\\d+\\.\\d+\\.\\d+)"],
       "depNameTemplate": "python",
       "datasourceTemplate": "python-version"
@@ -88,7 +96,7 @@
     {
       "customType": "regex",
       "description": "Track the Flyway image the CI migration step runs via `docker run flyway/flyway:X` — a raw shell command the github-actions manager does not parse, so without this the tag would silently rot at whatever was pinned. The schemas/database/Dockerfile FROM is covered by the dockerfile manager; the `flyway` packageRule above keeps both in one PR.",
-      "managerFilePatterns": [".github/workflows/ci.yml"],
+      "fileMatch": ["^\\.github/workflows/ci\\.yml$"],
       "matchStrings": ["flyway/flyway:(?<currentValue>[^\\s\\\\]+)"],
       "depNameTemplate": "flyway/flyway",
       "datasourceTemplate": "docker"
