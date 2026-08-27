@@ -31,6 +31,18 @@ DEFAULT_RETRY_AFTER_SECONDS = 60
 # ceiling a spec-valid header could pin a worker for hours. 900s = 15 min.
 MAX_RETRY_AFTER_SECONDS = 900
 
+# Spread added on top of a honored ``Retry-After`` so concurrent rate-limited
+# workers don't all wake on the same instant and re-trip the limit together.
+# Strava's limits reset on shared wall-clock boundaries, so every client tends
+# to be handed the *same* Retry-After — the exact lockstep the 5xx path already
+# jitters against.
+#
+# Deliberately additive, not full jitter: the 5xx path samples [0, nominal)
+# because it invented that delay itself, but Retry-After is the server telling
+# us the earliest acceptable retry. Sampling below it would retry early and earn
+# another 429, so the honored value is a floor and the jitter only ever delays.
+RATE_LIMIT_JITTER_SECONDS = 5.0
+
 
 def _parse_retry_after(
     header_value: str | None, *, default: int = DEFAULT_RETRY_AFTER_SECONDS
@@ -155,11 +167,19 @@ def retry_on_failure(
                                     "attempts",
                                     retry_after=retry_after,
                                 ) from e
-                            # Cap the wait so a spec-valid but far-future
-                            # ``Retry-After`` can't block a worker indefinitely.
-                            sleep_seconds = min(retry_after, MAX_RETRY_AFTER_SECONDS)
+                            # Honor Retry-After as a floor, add a small spread
+                            # (see RATE_LIMIT_JITTER_SECONDS), then cap the whole
+                            # thing so a spec-valid but far-future Retry-After
+                            # can't block a worker indefinitely. Capping *last*
+                            # keeps MAX_RETRY_AFTER_SECONDS a true ceiling; the
+                            # jitter is simply absorbed in that pathological case.
+                            sleep_seconds = min(
+                                retry_after
+                                + random.uniform(0, RATE_LIMIT_JITTER_SECONDS),
+                                MAX_RETRY_AFTER_SECONDS,
+                            )
                             logger.warning(
-                                "Rate limited, waiting %s seconds (attempt %d/%d)",
+                                "Rate limited, waiting %.1f seconds (attempt %d/%d)",
                                 sleep_seconds,
                                 attempt + 1,
                                 max_attempts,

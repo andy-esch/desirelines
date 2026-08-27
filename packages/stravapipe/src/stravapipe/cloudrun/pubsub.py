@@ -60,23 +60,21 @@ class CloudEventContext:
     delivery_attempt: int | None = None
 
 
-# Valid content types for CloudEvents
-# - application/json: Binary format (metadata in ce-* headers, data in body)
-# - application/cloudevents+json: Structured format (everything in JSON body)
+# Valid content types for CloudEvents.
 #
-# Only binary mode is actually implemented below — the parser reads ce-type /
-# ce-id / ce-source from headers, which a structured-mode request does not send.
-# A genuine structured-mode delivery therefore clears this gate and then 400s on
-# the missing headers. Eventarc sends binary mode, so nothing hits it today.
-# Either narrow this set to what is parsed or implement structured mode; note
-# there is no CloudEvents SDK dependency here by design, as the whole parser is
+# Binary mode only (metadata in ce-* headers, data in the body) — that is what
+# the hand-rolled parser below implements, and what Eventarc sends.
+#
+# ``application/cloudevents+json`` (structured mode: everything in the JSON body)
+# was previously accepted here even though nothing parses it. A structured-mode
+# delivery cleared this gate and then failed further down with a 400 about
+# missing ce-* headers, which reads as a malformed request rather than an
+# unsupported format. It is rejected up front with an accurate 415 instead.
+#
+# If structured mode is ever needed, implement it — do not just re-add the
+# string. There is deliberately no CloudEvents SDK dependency here; the parser is
 # hand-rolled from headers plus a base64 body.
-_VALID_CONTENT_TYPES = frozenset(
-    {
-        "application/json",
-        "application/cloudevents+json",
-    }
-)
+_VALID_CONTENT_TYPES = frozenset({"application/json"})
 
 
 async def parse_pubsub_cloudevent(
@@ -91,7 +89,8 @@ async def parse_pubsub_cloudevent(
         Tuple of (CloudEventContext, decoded message data, message attributes)
 
     Raises:
-        HTTPException: If parsing fails (400) or validation fails (422)
+        HTTPException: 415 if the content type is not binary-mode CloudEvents,
+            400 if parsing fails, 422 if validation fails.
     """
     # Validate content type
     content_type = request.headers.get("content-type", "")

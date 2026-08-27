@@ -333,12 +333,36 @@ async def _handle_create(
     # malformed payload will fail identically.
     activity = validate_or_422(StandardActivity, raw_activity, context="raw_activity")
 
+    # Decode the polyline BEFORE opening the transaction. It is pure CPU and
+    # dominates for long routes, so doing it inside the transaction held a Neon
+    # connection open across work that needs no database at all — and pooled
+    # connections are the scarce resource on this path (see the open task on
+    # bounding writer concurrency). Only insert_route / tag_activity_regions
+    # actually need the transaction.
+    #
+    # Cost of hoisting: on a redelivered CREATE that turns out to be
+    # ALREADY_EXISTS or RESURRECTION_BLOCKED we decode a polyline we then throw
+    # away. That is the minority path (Pub/Sub at-least-once redelivery) and it
+    # burns CPU we are not otherwise using, rather than a connection everything
+    # else is queued behind.
+    #
+    # Trace shape note: postgres.polyline.decode is now a SIBLING of
+    # postgres.insert rather than a child of it. The span still exists with the
+    # same name and attributes, but anything that asserted on its parent will
+    # see the new nesting.
+    geojson: str | None = None
+    if activity.map and activity.map.polyline:
+        with record_span(
+            tracer,
+            "postgres.polyline.decode",
+            {"desirelines.activity_id": activity_id},
+        ):
+            geojson = decode_polyline_to_geojson(activity.map.polyline)
+
     # Insert to PostgreSQL within transaction (no Strava API call needed).
     # The UoW emits postgres.session.acquire and postgres.commit sub-spans
     # internally; the call-site sub-spans below cover the work in between
-    # so a trace shows insert / polyline-decode / route-insert / commit
-    # latency separately. Polyline decode is pure CPU and dominates for
-    # long routes, which is why it gets its own span.
+    # so a trace shows insert / route-insert / commit latency separately.
     uow = SqlAlchemyUnitOfWork(session_factory, tracer=tracer)
     with (
         _pg_span(tracer, "postgres.insert", "INSERT", activity_id),
@@ -361,12 +385,6 @@ async def _handle_create(
             and activity.map
             and activity.map.polyline
         ):
-            with record_span(
-                tracer,
-                "postgres.polyline.decode",
-                {"desirelines.activity_id": activity_id},
-            ):
-                geojson = decode_polyline_to_geojson(activity.map.polyline)
             if geojson:
                 with _pg_span(
                     tracer, "postgres.activities.insert_route", "INSERT", activity_id
