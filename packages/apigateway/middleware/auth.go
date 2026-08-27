@@ -71,7 +71,12 @@ type AuthMiddleware struct {
 	access    AccessChecker
 	logger    *slog.Logger
 	histogram metric.Float64Histogram
-	tracer    otelTrace.Tracer
+	// accessHistogram times the allowlist re-check. Separate from `histogram`
+	// (Firebase verification) because the two answer different questions and a
+	// shared instrument would blur a slow allowlist into token-verify latency.
+	// Nil when there is no access checker, or from callers that don't meter.
+	accessHistogram metric.Float64Histogram
+	tracer          otelTrace.Tracer
 }
 
 // NewAuthMiddleware creates authentication middleware with a pre-initialized token verifier.
@@ -88,8 +93,10 @@ func NewAuthMiddleware(verifier TokenVerifier, logger *slog.Logger, histogram me
 // re-checks the user's current authorization after token verification. Production
 // and local composition roots should use this constructor; the shorter constructor
 // remains useful for focused verifier tests and examples.
-func NewAuthMiddlewareWithAccessCheck(verifier TokenVerifier, access AccessChecker, logger *slog.Logger, histogram metric.Float64Histogram, tracer otelTrace.Tracer) *AuthMiddleware {
-	return newAuthMiddleware(verifier, access, logger, histogram, tracer)
+func NewAuthMiddlewareWithAccessCheck(verifier TokenVerifier, access AccessChecker, logger *slog.Logger, histogram, accessHistogram metric.Float64Histogram, tracer otelTrace.Tracer) *AuthMiddleware {
+	m := newAuthMiddleware(verifier, access, logger, histogram, tracer)
+	m.accessHistogram = accessHistogram
+	return m
 }
 
 func newAuthMiddleware(verifier TokenVerifier, access AccessChecker, logger *slog.Logger, histogram metric.Float64Histogram, tracer otelTrace.Tracer) *AuthMiddleware {
@@ -158,8 +165,14 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 
 		if m.access != nil {
 			accessCtx, cancel := context.WithTimeout(r.Context(), accessCheckTimeout)
+			// Span + histogram pairing, matching auth.verify_id_token above: the
+			// span shows one request's latency, the histogram gives the
+			// alertable time-series. The check was previously traced only, so a
+			// degraded allowlist backend had no metric to alert on.
 			spanCtx, accessSpanDone := otel.StartSpan(accessCtx, m.tracer, "auth.check_access")
+			accessDone := otel.RecordDuration(spanCtx, m.accessHistogram)
 			allowed, accessErr := m.access.IsAllowed(spanCtx, token.UID)
+			accessDone(accessErr)
 			accessSpanDone(accessErr)
 			cancel()
 			if accessErr != nil {

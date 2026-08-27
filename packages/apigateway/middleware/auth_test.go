@@ -178,7 +178,7 @@ func TestAuthMiddleware_AccessCheck(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			nextCalled := false
-			am := NewAuthMiddlewareWithAccessCheck(verifier, tt.checker, logger, nil, nil)
+			am := NewAuthMiddlewareWithAccessCheck(verifier, tt.checker, logger, nil, nil, nil)
 			handler := am.Middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				nextCalled = true
 				w.WriteHeader(http.StatusOK)

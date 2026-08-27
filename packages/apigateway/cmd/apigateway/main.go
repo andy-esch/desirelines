@@ -66,6 +66,9 @@ func main() {
 	log.Info("Server exited gracefully")
 }
 
+// otelSetupTimeout bounds OTel initialization; see its use in run().
+const otelSetupTimeout = 10 * time.Second
+
 func run(log *slog.Logger) error {
 	// Load configuration
 	cfg, err := config.LoadConfig()
@@ -85,8 +88,18 @@ func run(log *slog.Logger) error {
 
 	ctx := context.Background()
 
-	// Initialize OTel metrics + tracing (warn and continue with no-ops on failure)
-	providers, otelShutdown, otelErr := otel.Setup(ctx, log, "desirelines-api-gateway")
+	// Initialize OTel metrics + tracing (warn and continue with no-ops on failure).
+	//
+	// Bounded: Setup() passes its context to GCP resource detection (a
+	// metadata-server call) and to trace-exporter construction, so an
+	// unreachable metadata service or a stuck exporter would otherwise hang
+	// startup indefinitely — before the HTTP server is listening, so Cloud Run
+	// sees a container that never becomes ready. On timeout Setup errors and the
+	// branch below falls back to NoopProviders: serve traffic unobserved rather
+	// than not at all.
+	otelCtx, otelCancel := context.WithTimeout(ctx, otelSetupTimeout)
+	providers, otelShutdown, otelErr := otel.Setup(otelCtx, log, "desirelines-api-gateway")
+	otelCancel()
 	if otelErr != nil {
 		log.Warn("OTel disabled, using no-op providers", "error", otelErr)
 		providers = otel.NoopProviders()
@@ -275,6 +288,10 @@ func initDependencies(ctx context.Context, cfg *config.Config, log *slog.Logger,
 	// the apigateway. Old metric `auth/firebase_verify.duration` predates the
 	// span and is no longer written; query the new name going forward.
 	authHist := newDurationHistogram(meter, log, "desirelines.io/auth/verify_id_token.duration", "Firebase ID token verification duration")
+	// Separate from authHist: the allowlist re-check hits a different backend
+	// (Firestore, or its TTL cache) and was previously traced but never metered,
+	// so there was no time-series to alert a degraded allowlist on.
+	accessHist := newDurationHistogram(meter, log, "desirelines.io/auth/check_access.duration", "Allowlist access-check duration")
 	oauthHist := newDurationHistogram(meter, log, "desirelines.io/strava/oauth_exchange.duration", "Strava OAuth exchange duration")
 	httpHist := newDurationHistogram(meter, log, "desirelines.io/http/request.duration", "HTTP request duration")
 	deps.httpHistogram = httpHist
@@ -300,12 +317,12 @@ func initDependencies(ctx context.Context, cfg *config.Config, log *slog.Logger,
 	// 4–7. Auth setup: Firebase (via emulator in local dev) + Strava (mock in local dev)
 	if cfg.Environment.IsLocal() && os.Getenv("FIREBASE_AUTH_EMULATOR_HOST") != "" {
 		// Local dev: real Firebase auth (via emulator) + mock Strava
-		if authErr := initLocalDevAuth(ctx, cfg, deps, log, authHist, tracer); authErr != nil {
+		if authErr := initLocalDevAuth(ctx, cfg, deps, log, authHist, accessHist, tracer); authErr != nil {
 			return nil, authErr
 		}
 	} else if !cfg.Environment.IsLocal() {
 		// Production/staging: real Firebase + real Strava
-		if authErr := initFirebaseAuth(ctx, cfg, deps, log, authHist, oauthHist, tracer); authErr != nil {
+		if authErr := initFirebaseAuth(ctx, cfg, deps, log, authHist, accessHist, oauthHist, tracer); authErr != nil {
 			return nil, authErr
 		}
 	} else {
@@ -536,7 +553,7 @@ func newFirebaseAuthClient(ctx context.Context, projectID string) (*firebaseauth
 
 // initFirebaseAuth initializes Firebase, Firestore, and OAuth dependencies.
 // Extracted from initDependencies for cyclomatic complexity.
-func initFirebaseAuth(ctx context.Context, cfg *config.Config, deps *Dependencies, log *slog.Logger, authHist, oauthHist otelmetric.Float64Histogram, tracer trace.Tracer) error {
+func initFirebaseAuth(ctx context.Context, cfg *config.Config, deps *Dependencies, log *slog.Logger, authHist, accessHist, oauthHist otelmetric.Float64Histogram, tracer trace.Tracer) error {
 	authClient, err := newFirebaseAuthClient(ctx, cfg.GCPProjectID)
 	if err != nil {
 		return err
@@ -555,7 +572,7 @@ func initFirebaseAuth(ctx context.Context, cfg *config.Config, deps *Dependencie
 		allowChecker = allowlist.NewCachingChecker(allowChecker, cfg.AllowlistCacheTTL, 0)
 	}
 	log.Info("API allowlist cache configured", "ttl", cfg.AllowlistCacheTTL)
-	deps.authMiddleware = middleware.NewAuthMiddlewareWithAccessCheck(authClient, allowChecker, log, authHist, tracer)
+	deps.authMiddleware = middleware.NewAuthMiddlewareWithAccessCheck(authClient, allowChecker, log, authHist, accessHist, tracer)
 
 	authHandler, err := initAuthHandler(cfg, authClient, firestoreClient, allowChecker, log, oauthHist)
 	if err != nil {
@@ -600,7 +617,7 @@ func randomSecret(n int) (string, error) {
 	return base64.StdEncoding.EncodeToString(b), nil
 }
 
-func initLocalDevAuth(ctx context.Context, cfg *config.Config, deps *Dependencies, log *slog.Logger, authHist otelmetric.Float64Histogram, tracer trace.Tracer) error {
+func initLocalDevAuth(ctx context.Context, cfg *config.Config, deps *Dependencies, log *slog.Logger, authHist, accessHist otelmetric.Float64Histogram, tracer trace.Tracer) error {
 	log.Info("Local dev auth: Firebase emulator + mock Strava")
 
 	// Firebase Admin SDK auto-detects FIREBASE_AUTH_EMULATOR_HOST
@@ -646,7 +663,7 @@ func initLocalDevAuth(ctx context.Context, cfg *config.Config, deps *Dependencie
 	// Exercise the same per-request authorization path locally. The mock checker
 	// always allows, but keeping it wired prevents local development from
 	// silently diverging from the production middleware chain.
-	deps.authMiddleware = middleware.NewAuthMiddlewareWithAccessCheck(authClient, mockAllowlist, log, authHist, tracer)
+	deps.authMiddleware = middleware.NewAuthMiddlewareWithAccessCheck(authClient, mockAllowlist, log, authHist, accessHist, tracer)
 
 	handler, err := auth.NewHandler(&auth.HandlerConfig{
 		Strava:      mockStrava,
