@@ -36,8 +36,7 @@ const DefaultTokenCacheMaxEntries = 10_000
 // callback on re-auth, which this in-process cache cannot see — and the TTL bounds
 // how long such a write can be shadowed.
 //
-// NOTE (concurrency): the read-through-then-Put is race-free ONLY because the
-// The read-through is safe under concurrency: GetTokens samples the cache
+// NOTE (concurrency): the read-through is safe under concurrency: GetTokens samples the cache
 // generation before consulting Firestore and fills via PutIfUnchanged, so a Put
 // that would land after a concurrent mutation's Invalidate is refused rather
 // than re-caching a stale value for a full TTL. This used to be the reason

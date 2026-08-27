@@ -1027,7 +1027,10 @@ func (h *Handler) buildActivityRow(ctx context.Context, enriched *generated.Enri
 	// to their arrival order. The change type goes in too — it ranks a delete
 	// above an upsert at the same event_time — so the number is built per branch
 	// rather than up front.
-	builtAt := time.Now()
+	// h.now(), not time.Now(): builtAt is the section-2 nanosecond tiebreak in
+	// bqrow.SequenceNumber below, so it participates in CDC ordering and must
+	// share the handler's single injected clock for deterministic tests.
+	builtAt := h.now()
 
 	var err error
 	switch webhook.AspectType {
