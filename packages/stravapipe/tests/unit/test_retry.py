@@ -13,7 +13,11 @@ import pytest
 import requests
 
 from stravapipe.exceptions import StravaRateLimitError
-from stravapipe.retry import _parse_retry_after, retry_on_failure
+from stravapipe.retry import (
+    RATE_LIMIT_JITTER_SECONDS,
+    _parse_retry_after,
+    retry_on_failure,
+)
 
 
 class TestRetryOnFailure:
@@ -116,7 +120,11 @@ class TestRetryOnFailure:
             result = rate_limited_func()
             assert result == "success"
             assert call_count == 2
-            mock_sleep.assert_called_once_with(1)
+            # Retry-After is a floor, not an exact sleep: RATE_LIMIT_JITTER_SECONDS
+            # is added on top so concurrent rate-limited workers don't wake in
+            # lockstep. Never sleep less than the server asked for.
+            (slept,) = mock_sleep.call_args.args
+            assert 1 <= slept <= 1 + RATE_LIMIT_JITTER_SECONDS
 
     def test_rate_limit_429_exceeds_max_attempts(self):
         """Test rate limiting that exceeds max attempts."""
@@ -156,7 +164,54 @@ class TestRetryOnFailure:
         with patch("time.sleep") as mock_sleep:
             result = rate_limited_no_header()
             assert result == "success"
-            mock_sleep.assert_called_once_with(60)  # Default fallback
+            # 60s default fallback, plus the anti-lockstep jitter.
+            (slept,) = mock_sleep.call_args.args
+            assert 60 <= slept <= 60 + RATE_LIMIT_JITTER_SECONDS
+
+    def test_rate_limit_jitter_desynchronises_and_never_undercuts_retry_after(self):
+        """429 backoff spreads wakeups without ever retrying early.
+
+        The 5xx path uses AWS full jitter (sample from ``[0, nominal)``) because
+        it invents its own delay. ``Retry-After`` is different: it is the server
+        stating the earliest acceptable retry, so sampling below it would retry
+        early and earn another 429. The jitter is therefore additive — a floor of
+        ``retry_after`` with a bounded spread above it.
+
+        Regression for audit 2026-07-30-stravapipe L1: this path previously slept
+        exactly ``Retry-After``, so every rate-limited worker woke on the same
+        instant and re-tripped the limit together.
+        """
+        retry_after = 30
+        observed: list[float] = []
+
+        for _ in range(40):
+            call_count = 0
+
+            @retry_on_failure(max_attempts=2, backoff_seconds=0.01)
+            def rate_limited():
+                nonlocal call_count
+                call_count += 1
+                if call_count < 2:
+                    response = Mock()
+                    response.status_code = 429
+                    response.headers = {"Retry-After": str(retry_after)}
+                    error = requests.exceptions.HTTPError("Rate limited")
+                    error.response = response
+                    raise error
+                return "success"
+
+            with patch("time.sleep") as mock_sleep:
+                assert rate_limited() == "success"
+                (slept,) = mock_sleep.call_args.args
+                observed.append(slept)
+
+        # Never earlier than the server permitted, never unboundedly later.
+        assert all(
+            retry_after <= s <= retry_after + RATE_LIMIT_JITTER_SECONDS
+            for s in observed
+        )
+        # Actually spread — a fixed sleep would collapse to a single value.
+        assert len(set(observed)) > 1
 
     def test_exponential_backoff(self):
         """Nominal backoff progression with jitter pinned to the upper bound."""

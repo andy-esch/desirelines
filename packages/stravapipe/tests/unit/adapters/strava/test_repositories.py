@@ -37,7 +37,7 @@ from stravapipe.exceptions import (
     StravaRateLimitError,
     StravaTokenError,
 )
-from stravapipe.retry import MAX_RETRY_AFTER_SECONDS
+from stravapipe.retry import MAX_RETRY_AFTER_SECONDS, RATE_LIMIT_JITTER_SECONDS
 
 
 @pytest.fixture
@@ -268,8 +268,11 @@ class TestStravaApiClient:
 
             # Every attempt hit the 429 before exhaustion.
             assert m.call_count == api_config.activity_retry_attempts
-            # Parsed Retry-After drove the backoff (not the 60s default)...
-            mock_sleep.assert_called_with(5)
+            # Parsed Retry-After drove the backoff (not the 60s default). It is
+            # a floor: RATE_LIMIT_JITTER_SECONDS is added on top to de-sync
+            # concurrent workers, so assert the window rather than an exact value.
+            (slept,) = mock_sleep.call_args.args
+            assert 5 <= slept <= 5 + RATE_LIMIT_JITTER_SECONDS
             # ...and is reported on the exception.
             assert exc_info.value.retry_after == 5
 
