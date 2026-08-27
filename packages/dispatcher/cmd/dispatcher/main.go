@@ -38,6 +38,16 @@ import (
 )
 
 const (
+	// otelSetupTimeout bounds OTel initialization. Setup() passes its context to
+	// GCP resource detection (a metadata-server call) and to trace-exporter
+	// construction, so an unreachable metadata service or a stuck exporter would
+	// otherwise hang process startup indefinitely — before the HTTP server is
+	// listening, so Cloud Run sees a container that never becomes ready. On
+	// timeout Setup returns an error and the existing otelErr branch falls back
+	// to NoopProviders, which is the right trade: serve traffic unobserved
+	// rather than not at all.
+	otelSetupTimeout = 10 * time.Second
+
 	// startupTimeout is the maximum time allowed for initializing dependencies
 	// (e.g., PubSub gRPC connection). Prevents indefinite hang if GCP metadata
 	// service is unreachable.
@@ -77,7 +87,9 @@ func run(log *slog.Logger) error {
 	}
 
 	// Initialize OTel metrics + tracing (warn and continue with no-ops on failure)
-	providers, otelShutdown, otelErr := otel.Setup(context.Background(), log, "desirelines-dispatcher")
+	otelCtx, otelCancel := context.WithTimeout(context.Background(), otelSetupTimeout)
+	providers, otelShutdown, otelErr := otel.Setup(otelCtx, log, "desirelines-dispatcher")
+	otelCancel()
 	if otelErr != nil {
 		log.Warn("OTel disabled, using no-op providers", "error", otelErr)
 		providers = otel.NoopProviders()
@@ -239,6 +251,10 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 	// 1. Create OTel instruments first so they can be injected into adapters.
 	// Errors are non-fatal; instruments will be no-op on failure.
 	stravaHist := newHistogram(meter, log, "desirelines.io/strava/api.duration", "Strava API call duration")
+	// The breaker previously announced open/half-open transitions only via
+	// logger.Warn, so an open breaker was invisible to alerting — findable only
+	// by reading logs after the fact.
+	stravaBreakerCounter := newCounter(meter, log, "desirelines.io/strava/breaker_state_change", "Strava circuit breaker state transitions (labeled from/to)")
 	firestoreHist := newHistogram(meter, log, "desirelines.io/firestore/operation.duration", "Firestore operation duration")
 	pubsubHist := newHistogram(meter, log, "desirelines.io/pubsub/publish.duration", "PubSub publish duration")
 	webhookCounter := newCounter(meter, log, "desirelines.io/webhook/events", "Webhook events processed")
@@ -343,7 +359,7 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 		return nil, fmt.Errorf("strava client_secret: %w", err)
 	}
 
-	stravaClient := strava.NewClient(stravaClientID, stravaClientSecret, tokenStore, log, stravaHist, tracer)
+	stravaClient := strava.NewClient(stravaClientID, stravaClientSecret, tokenStore, log, stravaHist, stravaBreakerCounter, tracer)
 
 	// Rate limiter: 5 req/s, burst 10 (Strava sends a few events/day normally)
 	// Uses Background context (not startupCtx) because the cleanup goroutine must

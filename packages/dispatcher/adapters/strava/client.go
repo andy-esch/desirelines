@@ -183,7 +183,14 @@ var _ ports.StravaClient = (*Client)(nil)
 // NewClient creates a new Strava API client.
 // OAuth client credentials must be injected by the caller (composition root).
 // Per-user tokens are read from the TokenStore on each request.
-func NewClient(clientID, clientSecret string, tokenStore ports.TokenStore, logger *slog.Logger, histogram metric.Float64Histogram, tracer trace.Tracer) *Client {
+func NewClient(
+	clientID, clientSecret string,
+	tokenStore ports.TokenStore,
+	logger *slog.Logger,
+	histogram metric.Float64Histogram,
+	breakerStateCounter metric.Int64Counter,
+	tracer trace.Tracer,
+) *Client {
 	return &Client{
 		httpClient: &http.Client{
 			Timeout:   httpClientTimeout,
@@ -197,7 +204,7 @@ func NewClient(clientID, clientSecret string, tokenStore ports.TokenStore, logge
 		logger:       logger,
 		histogram:    histogram,
 		tracer:       tracer,
-		breaker:      newStravaBreaker(logger, breakerOpenTimeout),
+		breaker:      newStravaBreaker(logger, breakerOpenTimeout, breakerStateCounter),
 	}
 }
 
@@ -205,7 +212,14 @@ func NewClient(clientID, clientSecret string, tokenStore ports.TokenStore, logge
 // outbound calls on a Client. `timeout` parameterizes the open-state
 // duration so tests can use a short value; production calls pass
 // breakerOpenTimeout (30s).
-func newStravaBreaker(logger *slog.Logger, timeout time.Duration) *gobreaker.CircuitBreaker[[]byte] {
+//
+// stateCounter may be nil (tests, or a failed instrument construction); the
+// state-change hook nil-guards it, matching the handler's counter convention.
+func newStravaBreaker(
+	logger *slog.Logger,
+	timeout time.Duration,
+	stateCounter metric.Int64Counter,
+) *gobreaker.CircuitBreaker[[]byte] {
 	return gobreaker.NewCircuitBreaker[[]byte](gobreaker.Settings{
 		Name:    "strava-api",
 		Timeout: timeout,
@@ -218,6 +232,22 @@ func newStravaBreaker(logger *slog.Logger, timeout time.Duration) *gobreaker.Cir
 				"from", from.String(),
 				"to", to.String(),
 			)
+			if stateCounter == nil {
+				return
+			}
+			// gobreaker gives the hook no context, and a state change is not
+			// request-scoped anyway — it is a property of the breaker, not of
+			// whichever unlucky call tripped it. Background() is correct here.
+			//
+			// Both `from` and `to` are recorded: "how many times did we open"
+			// needs `to`, but distinguishing a genuine recovery
+			// (half-open -> closed) from a flap (open -> half-open -> open)
+			// needs the pair.
+			stateCounter.Add(context.Background(), 1, metric.WithAttributes(
+				attribute.String("breaker", name),
+				attribute.String("from", from.String()),
+				attribute.String("to", to.String()),
+			))
 		},
 		IsSuccessful: isStravaCallSuccessful,
 	})
@@ -373,7 +403,13 @@ func (c *Client) verifyGrantWithTokens(ctx context.Context, ownerID int64, token
 	// token is nominally live, /athlete is a cheap, read-only proof that it still
 	// belongs to this owner. A 401 falls through to the stronger refresh check.
 	if tokens.AccessToken != "" && time.Now().Unix() < tokens.ExpiresAt {
-		if verifyErr := c.doVerifyCurrentAthlete(ctx, ownerID, tokens.AccessToken); verifyErr == nil {
+		// Timed like every other outbound Strava op. Without this the deauth
+		// path was absent from strava.api.duration entirely, so the histogram
+		// under-counted real Strava traffic and a slow /athlete was invisible.
+		done := otel.RecordDuration(ctx, c.histogram, attribute.String("operation", "verify_athlete"))
+		verifyErr := c.doVerifyCurrentAthlete(ctx, ownerID, tokens.AccessToken)
+		done(verifyErr)
+		if verifyErr == nil {
 			return ports.GrantActive, nil
 		} else if !isAuthError(verifyErr) {
 			return ports.GrantUnknown, fmt.Errorf("verify current athlete %d: %w", ownerID, verifyErr)

@@ -20,6 +20,8 @@ import (
 	"github.com/andy-esch/desirelines/packages/shared/otel"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 	"github.com/sony/gobreaker/v2"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
@@ -163,7 +165,7 @@ func newTestClient(server *httptest.Server, tokenStore ports.TokenStore) *Client
 		logger:       logger,
 		histogram:    noopHist,
 		tracer:       noopProviders.Tracer,
-		breaker:      newStravaBreaker(logger, testBreakerTimeout),
+		breaker:      newStravaBreaker(logger, testBreakerTimeout, nil),
 	}
 }
 
@@ -1183,6 +1185,80 @@ func TestJitterBackoff(t *testing.T) {
 			t.Errorf("jitter spread = %v, want >= 100ms (looks collapsed)", spread)
 		}
 	})
+}
+
+// TestCircuitBreaker_EmitsStateChangeMetric pins the alerting signal added for
+// audit 2026-08-19-dispatcher L1: before it, OnStateChange only called
+// logger.Warn, so an open breaker was discoverable solely by reading logs after
+// the fact and could never fire an alert.
+//
+// The from/to pair is asserted, not just `to`: distinguishing a genuine recovery
+// (half-open -> closed) from a flap (open -> half-open -> open) needs both.
+func TestCircuitBreaker_EmitsStateChangeMetric(t *testing.T) {
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	counter, err := provider.Meter("test").Int64Counter("desirelines.io/strava/breaker_state_change")
+	if err != nil {
+		t.Fatalf("create counter: %v", err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		if _, writeErr := w.Write([]byte(`{"error":"down"}`)); writeErr != nil {
+			t.Errorf("failed to write response: %v", writeErr)
+		}
+	}))
+	defer server.Close()
+
+	tokenStore := &portstest.MockTokenStore{
+		Tokens: map[int64]*stravatoken.Data{
+			testOwnerID: {AccessToken: "t", RefreshToken: "r", ExpiresAt: futureExpiry()},
+		},
+	}
+	client := newTestClient(server, tokenStore)
+	// Rebuild the breaker with the counter attached; newTestClient passes nil.
+	client.breaker = newStravaBreaker(gcplog.NewNoOpLogger(), testBreakerTimeout, counter)
+
+	for range breakerFailureThreshold {
+		if _, fetchErr := client.FetchActivity(context.Background(), testOwnerID, testActivityID); fetchErr == nil {
+			t.Fatal("expected error while server is 500")
+		}
+	}
+	if state := client.breaker.State(); state != gobreaker.StateOpen {
+		t.Fatalf("breaker state = %v, want %v", state, gobreaker.StateOpen)
+	}
+
+	var rm metricdata.ResourceMetrics
+	if collectErr := reader.Collect(context.Background(), &rm); collectErr != nil {
+		t.Fatalf("collect metrics: %v", collectErr)
+	}
+
+	got := breakerStateChanges(rm)
+	if got["closed->open"] != 1 {
+		t.Errorf("closed->open transitions = %d, want 1 (all: %v)", got["closed->open"], got)
+	}
+}
+
+// breakerStateChanges flattens the breaker counter into "from->to" => count.
+func breakerStateChanges(rm metricdata.ResourceMetrics) map[string]int64 {
+	out := map[string]int64{}
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if m.Name != "desirelines.io/strava/breaker_state_change" {
+				continue
+			}
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			if !ok {
+				continue
+			}
+			for _, dp := range sum.DataPoints {
+				from, _ := dp.Attributes.Value("from")
+				to, _ := dp.Attributes.Value("to")
+				out[from.AsString()+"->"+to.AsString()] += dp.Value
+			}
+		}
+	}
+	return out
 }
 
 // TestCircuitBreaker_TripsAfterConsecutiveFailures verifies the breaker

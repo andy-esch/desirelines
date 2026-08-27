@@ -67,6 +67,7 @@ var extendedDurationInstrumentNames = []string{
 	"desirelines.io/firestore/operation.duration",
 	"desirelines.io/pubsub/publish.duration",
 	"desirelines.io/auth/verify_id_token.duration",
+	"desirelines.io/auth/check_access.duration",
 	"desirelines.io/strava/oauth_exchange.duration",
 }
 
