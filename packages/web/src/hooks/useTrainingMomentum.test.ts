@@ -2,6 +2,14 @@ import { describe, it, expect } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { useTrainingMomentum } from "./useTrainingMomentum";
 import type { DistanceEntry } from "../types/activity";
+// toLocalDateString, not toISOString(): these fixtures mean "N *local* calendar
+// days ago", but toISOString() formats the UTC date. In a UTC-negative timezone
+// an evening test run pushed the string to the next UTC day, so a fixture built
+// as "8 days ago" was really 7 local days back. That made the staleness
+// assertions below pass only because isActivityDataStale had a matching
+// UTC-vs-local skew; with the clock anchored correctly the mismatch surfaced as
+// a time-of-day-dependent failure. Keep both sides on the local convention.
+import { toLocalDateString } from "../utils/dateUtils";
 
 describe("useTrainingMomentum", () => {
   const createDistanceData = (entries: Array<{ x: string; y: number }>): DistanceEntry[] => {
@@ -15,7 +23,7 @@ describe("useTrainingMomentum", () => {
     for (let i = 9; i >= 0; i--) {
       const date = new Date(today);
       date.setDate(date.getDate() - i);
-      data.push({ x: date.toISOString().split("T")[0]!, y: 100 + (9 - i) ** 2 });
+      data.push({ x: toLocalDateString(date), y: 100 + (9 - i) ** 2 });
     }
 
     const { result } = renderHook(() => useTrainingMomentum(data, 10));
@@ -35,7 +43,7 @@ describe("useTrainingMomentum", () => {
     for (let i = 9; i >= 0; i--) {
       const date = new Date(today);
       date.setDate(date.getDate() - i);
-      data.push({ x: date.toISOString().split("T")[0]!, y: distance });
+      data.push({ x: toLocalDateString(date), y: distance });
       distance += increments[9 - i]!;
     }
 
@@ -51,14 +59,14 @@ describe("useTrainingMomentum", () => {
     for (let i = 15; i >= 8; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
-      data.push({ x: date.toISOString().split("T")[0]!, y: 100 + (15 - i) * 10 });
+      data.push({ x: toLocalDateString(date), y: 100 + (15 - i) * 10 });
     }
     // Add extended data (flat-line) for the last 8 days
     const lastDistance = data.at(-1)!.y;
     for (let i = 7; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
-      data.push({ x: date.toISOString().split("T")[0]!, y: lastDistance });
+      data.push({ x: toLocalDateString(date), y: lastDistance });
     }
 
     const { result } = renderHook(() => useTrainingMomentum(data, 10));
@@ -74,7 +82,7 @@ describe("useTrainingMomentum", () => {
     for (let i = 7; i >= 0; i--) {
       const date = new Date(today);
       date.setDate(date.getDate() - i);
-      data.push({ x: date.toISOString().split("T")[0]!, y: 100 + (7 - i) * 10 });
+      data.push({ x: toLocalDateString(date), y: 100 + (7 - i) * 10 });
     }
 
     const { result } = renderHook(() => useTrainingMomentum(data, 10));
@@ -92,7 +100,7 @@ describe("useTrainingMomentum", () => {
     dates.forEach((daysAgo, idx) => {
       const date = new Date(today);
       date.setDate(date.getDate() - daysAgo);
-      data.push({ x: date.toISOString().split("T")[0]!, y: values[idx]! });
+      data.push({ x: toLocalDateString(date), y: values[idx]! });
     });
 
     const { result } = renderHook(() => useTrainingMomentum(data, 10));

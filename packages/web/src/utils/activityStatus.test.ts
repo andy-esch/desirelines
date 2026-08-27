@@ -110,6 +110,33 @@ describe("isActivityDataStale", () => {
     expect(isActivityDataStale([])).toBe(true);
   });
 
+  // Regression: "days since" used to be computed as
+  //   daysBetween(new Date(lastActivityString), new Date())
+  // which subtracts a UTC-midnight-parsed date from a *live instant* and floors.
+  // The fractional time-of-day therefore leaked into the day count, so the same
+  // data gave different answers depending on when the page was loaded. On the
+  // boundary day in America/New_York (UTC-4), an evening load crossed into the
+  // next UTC day and reported 8 days instead of 7 — flipping the MomentumIndicator
+  // stale badge a full day early. Anchoring "today" with getTodayUtcAnchored()
+  // puts both operands on the same convention.
+  describe("is independent of the time of day the page is loaded", () => {
+    // Exactly 7 local calendar days before 2025-10-22, i.e. on the boundary
+    // (STALE_ACTIVITY_DAYS = 7, and the check is `>` not `>=`).
+    const data: DistanceEntry[] = [
+      { x: "2025-10-01", y: 0 },
+      { x: "2025-10-15", y: 100 },
+    ];
+
+    it.each([
+      ["morning", "2025-10-22T13:00:00Z"], // 09:00 EDT
+      ["midday", "2025-10-22T16:00:00Z"], // 12:00 EDT
+      ["evening", "2025-10-23T01:00:00Z"], // 21:00 EDT, still Oct 22 locally
+    ])("reports not-stale on the boundary day (%s load)", (_label, instant) => {
+      vi.setSystemTime(new Date(instant));
+      expect(isActivityDataStale(data)).toBe(false);
+    });
+  });
+
   it("returns true when no activities found", () => {
     const data: DistanceEntry[] = [
       { x: "2025-10-01", y: 100 },

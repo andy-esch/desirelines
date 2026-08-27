@@ -28,9 +28,16 @@ const INTENSITY_COLORS = [
   "var(--color-intensity-4)", // 6+ activities - neon magenta
 ] as const;
 
-/** Get color for activity count */
+/**
+ * Get color for activity count.
+ *
+ * Defence in depth: the sole caller already floors its input with `|| 0`, so a
+ * non-finite count cannot reach here today. The guard exists because the
+ * fallthrough returns the *brightest* bucket — if that `|| 0` were ever removed,
+ * a NaN would silently paint a day as the busiest of the year rather than fail.
+ */
 function getIntensityColor(count: number): string {
-  if (count === 0) return INTENSITY_COLORS[0];
+  if (!Number.isFinite(count) || count <= 0) return INTENSITY_COLORS[0];
   if (count === 1) return INTENSITY_COLORS[1];
   if (count <= 3) return INTENSITY_COLORS[2];
   if (count <= 5) return INTENSITY_COLORS[3];
@@ -252,7 +259,11 @@ export default function ActivityCalendarHeatmap({
       const sportData = data[sport];
       if (sportData) {
         Object.entries(sportData).forEach(([date, activity]) => {
-          counts[date] = (counts[date] || 0) + activity.activities;
+          // `?? 0`: protojson omits proto3 defaults unless EmitUnpopulated is set, so a
+          // DailyActivity with activities: 0 arrives with the field absent. Unguarded,
+          // `undefined` poisons this date to NaN, which then propagates through
+          // totalActivities into a "NaN activities" header.
+          counts[date] = (counts[date] || 0) + (activity.activities ?? 0);
         });
       }
     });

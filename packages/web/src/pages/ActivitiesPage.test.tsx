@@ -81,6 +81,7 @@ describe("ActivitiesPage", () => {
         isLoading: false,
         error: null,
         hasMore: false,
+        isLoadingMore: false,
         loadMore: vi.fn(),
         retry: vi.fn(),
       });
@@ -98,6 +99,7 @@ describe("ActivitiesPage", () => {
         isLoading: false,
         error: null,
         hasMore: false,
+        isLoadingMore: false,
         loadMore: vi.fn(),
         retry: vi.fn(),
       });
@@ -116,6 +118,7 @@ describe("ActivitiesPage", () => {
         isLoading: false,
         error: null,
         hasMore: false,
+        isLoadingMore: false,
         loadMore: vi.fn(),
         retry: vi.fn(),
       });
@@ -238,6 +241,7 @@ describe("ActivitiesPage", () => {
         isLoading: true,
         error: null,
         hasMore: false,
+        isLoadingMore: false,
         loadMore: vi.fn(),
         retry: vi.fn(),
       });
@@ -256,6 +260,7 @@ describe("ActivitiesPage", () => {
         isLoading: false,
         error: null,
         hasMore: false,
+        isLoadingMore: false,
         loadMore: vi.fn(),
         retry: vi.fn(),
       });
