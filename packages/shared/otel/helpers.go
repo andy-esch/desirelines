@@ -33,7 +33,10 @@ func RecordDuration(ctx context.Context, h metric.Float64Histogram, attrs ...att
 	}
 	start := time.Now()
 	return func(err error) {
-		elapsed := float64(time.Since(start).Milliseconds())
+		// Microseconds()/1000 rather than Milliseconds(): the latter truncates to
+		// whole milliseconds, which floors every sub-ms operation to 0 and collapses
+		// its histogram into a spike at zero.
+		elapsed := float64(time.Since(start).Microseconds()) / 1000.0
 		result := "success"
 		if err != nil {
 			result = "error"

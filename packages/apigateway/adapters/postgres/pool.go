@@ -118,6 +118,9 @@ func NewPool(ctx context.Context, connString string, logger *slog.Logger, tracer
 
 	// Validate pool configuration - pgxpool handles this gracefully (caps at MaxConns)
 	// but we fail early with a clear error message for easier debugging.
+	if config.MaxConns < 1 {
+		return nil, fmt.Errorf("%w: DB_POOL_MAX_CONNS must be >= 1, got %d", ErrInvalidPoolConfig, config.MaxConns)
+	}
 	if config.MinConns > config.MaxConns {
 		return nil, fmt.Errorf("%w: min=%d, max=%d", ErrInvalidPoolConfig, config.MinConns, config.MaxConns)
 	}

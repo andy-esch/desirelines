@@ -211,6 +211,34 @@ func TestPoolConfigValidation(t *testing.T) {
 	})
 }
 
+// TestNewPoolRejectsZeroMaxConns covers the gap that made ErrInvalidPoolConfig
+// escapable: the only pool-config guard used to be MinConns > MaxConns, which
+// DB_POOL_MAX_CONNS=0 slips past — 0 > 0 is false, and defaultMinConns is 0.
+// pgxpool would then cap the pool at zero and the service would fail on first
+// query rather than at construction, which is the failure this guard exists to
+// prevent.
+//
+// Only 0 can reach the guard: getInt32Env rejects negatives (it requires
+// i >= 0) and falls back to the default, so DB_POOL_MAX_CONNS=-1 yields a
+// perfectly valid pool. That is why this test has a single case.
+//
+// NewPool validates before it builds the pool, and pgxpool connects lazily, so
+// this exercises the real function with no database.
+func TestNewPoolRejectsZeroMaxConns(t *testing.T) {
+	// #nosec G101 - test connection string uses dummy credentials.
+	const connString = "postgresql://user:pass@localhost:5432/db?sslmode=require&application_name=apigateway"
+
+	t.Setenv("DB_POOL_MAX_CONNS", "0")
+
+	pool, err := NewPool(context.Background(), connString, slog.Default(), nil)
+	if pool != nil {
+		t.Error("NewPool returned a pool for MaxConns=0; want nil")
+	}
+	if !errors.Is(err, ErrInvalidPoolConfig) {
+		t.Fatalf("NewPool error = %v, want it to wrap ErrInvalidPoolConfig", err)
+	}
+}
+
 // TestServerTimeoutsRideRuntimeParams pins the transport for the server-side
 // timeouts. Neon's pooled endpoint forwards these as discrete startup fields
 // but rejects the same GUCs inside a libpq `options` string — the failure that

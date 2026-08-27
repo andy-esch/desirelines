@@ -125,10 +125,7 @@ func (c *Cache[K, V]) Put(key K, value V) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if _, exists := c.entries[key]; !exists && len(c.entries) >= c.max {
-		c.evictLocked()
-	}
-	c.entries[key] = entry[V]{value: value, expiresAt: c.now().Add(c.ttl)}
+	c.putLocked(key, value)
 }
 
 // Invalidate drops key. Safe to call for a key that isn't cached.
@@ -175,10 +172,7 @@ func (c *Cache[K, V]) PutIfUnchanged(key K, value V, gen uint64) bool {
 	if c.gen != gen {
 		return false
 	}
-	if _, exists := c.entries[key]; !exists && len(c.entries) >= c.max {
-		c.evictLocked()
-	}
-	c.entries[key] = entry[V]{value: value, expiresAt: c.now().Add(c.ttl)}
+	c.putLocked(key, value)
 	return true
 }
 
@@ -195,6 +189,18 @@ func (c *Cache[K, V]) Len() int {
 // Purge expired first — that usually suffices and costs nothing in correctness.
 // Only if every entry is live do we evict the one nearest expiry, which is the
 // least-useful live entry to keep.
+// putLocked evicts if this insert would exceed MaxEntries, then stores the entry
+// with a fresh TTL. Callers must already hold c.mu for writing.
+//
+// Both Put and PutIfUnchanged funnel through here so the evict-then-insert order
+// can't drift between them.
+func (c *Cache[K, V]) putLocked(key K, value V) {
+	if _, exists := c.entries[key]; !exists && len(c.entries) >= c.max {
+		c.evictLocked()
+	}
+	c.entries[key] = entry[V]{value: value, expiresAt: c.now().Add(c.ttl)}
+}
+
 func (c *Cache[K, V]) evictLocked() {
 	now := c.now()
 	for k, e := range c.entries {
