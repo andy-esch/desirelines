@@ -100,6 +100,12 @@ function getClient() {
  * - **Test isolation**: prevents interceptor state from leaking between tests
  * - **HMR**: allows re-configuration when modules are hot-replaced in development
  *
+ * Note on `authInitPromise`: it lives inside `configureClientAuth`'s closure and is
+ * deliberately not reset here. Clearing `configured` means the next
+ * `configureClientAuth()` call builds a fresh closure with its own null handle, and
+ * the interceptor no longer caches a failed outcome — so there is no stale negative
+ * for this function to clear.
+ *
  * @internal — intended for tests and HMR; not for production application code.
  */
 export function resetClient(): void {
@@ -108,6 +114,15 @@ export function resetClient(): void {
 }
 
 const AUTH_READY_TIMEOUT_MS = 5000;
+
+/**
+ * Outcome of the one-time auth-readiness race.
+ *
+ * A discriminated result rather than a boolean so the request interceptor can
+ * report *which* failure happened — the two paths (timer won the race vs.
+ * waitForAuthReady threw) previously shared one "timed out" log line.
+ */
+type AuthInitOutcome = "ready" | "timeout" | "error";
 
 /**
  * Configure the API client with an auth service.
@@ -122,7 +137,7 @@ export function configureClientAuth(authService: AuthService): void {
   configured = true;
 
   const instance = getClient();
-  let authInitPromise: Promise<boolean> | null = null;
+  let authInitPromise: Promise<AuthInitOutcome> | null = null;
 
   instance.interceptors.request.use(async (config) => {
     // Only our own API gateway gets auth tokens and trace propagation;
@@ -139,29 +154,52 @@ export function configureClientAuth(authService: AuthService): void {
 
     // Wait for initial auth state with timeout (only on first request).
     // Uses a shared promise so concurrent requests coalesce into one wait.
+    //
+    // Only a *successful* outcome is cached. Caching a failed race would poison
+    // the whole tab: every later request would await the same resolved-false
+    // promise, skip token injection via the early return below, take a 401, and
+    // pay a refresh+retry round trip — for the rest of the session, with no
+    // recovery short of a reload. The 401 response interceptor keeps that
+    // correct, which is exactly why it went unnoticed; the cost is silent
+    // latency plus one logger.error per request in production.
+    //
+    // The `authInitPromise === attempt` check means concurrent requests that are
+    // all awaiting this same attempt share one retry rather than stampeding N.
     if (!authInitPromise) {
-      authInitPromise = (async () => {
+      const attempt = (async (): Promise<AuthInitOutcome> => {
         try {
-          const timeoutPromise = new Promise<false>((resolve) => {
-            setTimeout(() => resolve(false), AUTH_READY_TIMEOUT_MS);
+          const timeoutPromise = new Promise<AuthInitOutcome>((resolve) => {
+            setTimeout(() => resolve("timeout"), AUTH_READY_TIMEOUT_MS);
           });
-          const authPromise = authService.waitForAuthReady().then(() => true as const);
+          const authPromise = authService.waitForAuthReady().then(() => "ready" as const);
           return await Promise.race([authPromise, timeoutPromise]);
         } catch (e) {
           logger.error(
             "Auth initialization failed:",
             e instanceof Error ? e.message : "unknown error"
           );
-          return false;
+          return "error";
         }
       })();
+      authInitPromise = attempt;
+      void attempt.then((outcome) => {
+        if (outcome !== "ready" && authInitPromise === attempt) {
+          authInitPromise = null;
+        }
+      });
     }
 
-    const ready = await authInitPromise;
-    if (!ready) {
+    const outcome = await authInitPromise;
+    if (outcome !== "ready") {
+      // Report the cause that actually occurred. Reporting "timed out" for the
+      // catch path sent readers looking for a slow network when the real signal
+      // was a thrown error.
       logger.error(
-        `Auth initialization timed out after ${AUTH_READY_TIMEOUT_MS}ms. ` +
-          "Request will proceed without auth token and likely receive 401."
+        outcome === "timeout"
+          ? `Auth initialization timed out after ${AUTH_READY_TIMEOUT_MS}ms. ` +
+              "Proceeding without an auth token; the 401 interceptor will refresh and retry."
+          : "Auth initialization errored. " +
+              "Proceeding without an auth token; the 401 interceptor will refresh and retry."
       );
       return config;
     }
