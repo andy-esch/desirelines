@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fetchActivities, fetchActivitySummary } from "./activities";
+import {
+  fetchActivities,
+  fetchActivitySummary,
+  fetchMultiSportDailySummary,
+  fetchMultiSportMetrics,
+} from "./activities";
 
 // Stub the axios client so the tests see exactly the URL fetchActivities builds.
 const { get } = vi.hoisted(() => ({ get: vi.fn() }));
@@ -67,5 +72,36 @@ describe("fetchActivitySummary query serialization", () => {
 
   it("returns the buckets array, defaulting to empty", async () => {
     expect(await fetchActivitySummary({ sports: [] })).toEqual([]);
+  });
+});
+
+describe("multi-sport fetchers with an empty sports selection", () => {
+  beforeEach(() => {
+    get.mockReset();
+    get.mockResolvedValue({ data: {} });
+  });
+
+  // Regression: both fetchers built params as
+  //   new URLSearchParams({ sports: options.sports.join(",") })
+  // and `[].join(",")` is "", which URLSearchParams still emits as `?sports=`.
+  // The handler rejects a blank value with 400, so hiding every sport in
+  // Settings and then clicking the dashboard heatmap's "Visible" chip produced
+  // a generic "Failed to load calendar data" error where an empty state belonged.
+  it.each([
+    ["fetchMultiSportDailySummary", fetchMultiSportDailySummary],
+    ["fetchMultiSportMetrics", fetchMultiSportMetrics],
+  ])("%s makes no request and resolves empty", async (_name, fn) => {
+    const result = await fn({ year: 2026, sports: [] });
+
+    expect(get).not.toHaveBeenCalled();
+    expect(result).toEqual({});
+  });
+
+  it("still sends sports when the selection is non-empty", async () => {
+    get.mockResolvedValue({ data: { bySport: {} } });
+    await fetchMultiSportDailySummary({ year: 2026, sports: ["cycling"] });
+
+    const params = new URLSearchParams(requestedUrl().split("?")[1]);
+    expect(params.get("sports")).toBe("cycling");
   });
 });

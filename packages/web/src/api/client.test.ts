@@ -268,3 +268,72 @@ function createAxiosError(status: number, config: InternalAxiosRequestConfig): A
     toJSON: () => ({}),
   }) as AxiosError;
 }
+
+describe("auth-init re-arming (request interceptor)", () => {
+  beforeEach(() => {
+    resetClient();
+    client = getClient();
+    configureClientAuth(mockAuthService);
+    vi.mocked(mockAuthService.waitForAuthReady).mockReset();
+    vi.mocked(mockAuthService.getIdToken).mockReset().mockResolvedValue("original-token");
+    mockLogger.error.mockClear();
+  });
+
+  function captureAdapter() {
+    const seen: InternalAxiosRequestConfig[] = [];
+    client.defaults.adapter = vi.fn().mockImplementation((config: InternalAxiosRequestConfig) => {
+      seen.push(config);
+      return Promise.resolve({ status: 200, statusText: "OK", headers: {}, config, data: {} });
+    });
+    return seen;
+  }
+
+  const authHeaderOf = (config: InternalAxiosRequestConfig | undefined) =>
+    (config?.headers as unknown as Record<string, unknown> | undefined)?.Authorization as
+      string | undefined;
+
+  // Regression: authInitPromise used to cache the *result* of the readiness race,
+  // not just the in-flight wait. One throw (or one lost race against the 5s timer)
+  // left a resolved-false promise in the closure for the lifetime of the tab, so
+  // every later request skipped token injection, took a 401, and paid a
+  // refresh+retry round trip. The 401 interceptor kept it correct, which is why it
+  // stayed invisible. Found independently by two audits a week apart
+  // (2026-08-17-web:M1 and 2026-08-24-web:M1).
+  it("recovers on a later request after the first auth-init throws", async () => {
+    vi.mocked(mockAuthService.waitForAuthReady)
+      .mockRejectedValueOnce(new Error("firebase hiccup"))
+      .mockResolvedValue(undefined);
+
+    const seen = captureAdapter();
+
+    await client.get("activities");
+    expect(authHeaderOf(seen[0])).toBeUndefined(); // first request is the casualty
+
+    await client.get("activities");
+    expect(authHeaderOf(seen[1])).toBe("Bearer original-token"); // recovered
+  });
+
+  it("caches a successful init and does not re-wait on later requests", async () => {
+    vi.mocked(mockAuthService.waitForAuthReady).mockResolvedValue(undefined);
+    const seen = captureAdapter();
+
+    await client.get("activities");
+    await client.get("activities/1");
+
+    expect(authHeaderOf(seen[0])).toBe("Bearer original-token");
+    expect(authHeaderOf(seen[1])).toBe("Bearer original-token");
+    // The success path is still coalesced — one wait, not one per request.
+    expect(mockAuthService.waitForAuthReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("logs the error cause rather than reporting a timeout that did not happen", async () => {
+    vi.mocked(mockAuthService.waitForAuthReady).mockRejectedValueOnce(new Error("boom"));
+    captureAdapter();
+
+    await client.get("activities");
+
+    const messages = mockLogger.error.mock.calls.map((c) => String(c[0]));
+    expect(messages.some((m) => m.includes("Auth initialization errored"))).toBe(true);
+    expect(messages.some((m) => m.includes("timed out"))).toBe(false);
+  });
+});

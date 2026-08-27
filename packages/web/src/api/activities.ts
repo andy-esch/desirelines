@@ -217,13 +217,19 @@ export interface FetchMultiSportOptions {
 }
 
 /**
- * Fetch daily summaries for multiple sports in a single request.
- * Returns a map of sport → daily data (Record<string, DailyActivity>).
+ * Build the shared query string for the multi-sport endpoints.
+ *
+ * Extracted so both callers inherit the same empty-array contract: `[].join(",")`
+ * is `""`, and URLSearchParams still emits the key, so `?sports=` reaches a
+ * backend that rejects a blank value with 400. The single-sport fetchers already
+ * follow the omit-if-empty discipline; this brings the batch ones in line.
+ *
+ * Callers must short-circuit on an empty `sports` array rather than rely on this —
+ * an empty selection has no meaningful request to make.
  */
-export const fetchMultiSportDailySummary = async (
-  options: FetchMultiSportOptions
-): Promise<Record<string, Record<string, DailyActivity>>> => {
-  const params = new URLSearchParams({ sports: options.sports.join(",") });
+function buildMultiSportParams(options: FetchMultiSportOptions): URLSearchParams {
+  const params = new URLSearchParams();
+  if (options.sports.length) params.set("sports", options.sports.join(","));
   if (options.from && options.to) {
     params.set("from", options.from);
     params.set("to", options.to);
@@ -231,6 +237,22 @@ export const fetchMultiSportDailySummary = async (
   if (options.tz) {
     params.set("tz", options.tz);
   }
+  return params;
+}
+
+/**
+ * Fetch daily summaries for multiple sports in a single request.
+ * Returns a map of sport → daily data (Record<string, DailyActivity>).
+ */
+export const fetchMultiSportDailySummary = async (
+  options: FetchMultiSportOptions
+): Promise<Record<string, Record<string, DailyActivity>>> => {
+  // No sports selected is a legitimate UI state (every sport hidden in Settings,
+  // then the "Visible" chip clicked). It is not a request: the backend 400s on a
+  // blank `sports` value, which surfaced as a generic "Failed to load calendar
+  // data" error where an empty state belonged.
+  if (options.sports.length === 0) return {};
+  const params = buildMultiSportParams(options);
   const url = `activities/${options.year}/source?${params.toString()}`;
 
   try {
@@ -258,14 +280,9 @@ export const fetchMultiSportDailySummary = async (
 export const fetchMultiSportMetrics = async (
   options: FetchMultiSportOptions
 ): Promise<Record<string, SportMetrics>> => {
-  const params = new URLSearchParams({ sports: options.sports.join(",") });
-  if (options.from && options.to) {
-    params.set("from", options.from);
-    params.set("to", options.to);
-  }
-  if (options.tz) {
-    params.set("tz", options.tz);
-  }
+  // See fetchMultiSportDailySummary: an empty selection has no request to make.
+  if (options.sports.length === 0) return {};
+  const params = buildMultiSportParams(options);
   const url = `activities/${options.year}/metrics?${params.toString()}`;
 
   try {

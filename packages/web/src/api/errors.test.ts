@@ -162,6 +162,26 @@ describe("API Error Utilities", () => {
       consoleErrorSpy.mockRestore();
     });
 
+    // Regression: a native AbortError is a DOMException, which is NOT
+    // `instanceof Error` in browsers, so it fell through to the
+    // `new Error(String(err))` wrap and came back as a plain Error named
+    // "Error" — failing every branch of isCancellationError() and silently
+    // reclassifying a cancellation as a real failure.
+    it("re-throws a native AbortError unwrapped so it stays a cancellation", () => {
+      const abort = new DOMException("The operation was aborted.", "AbortError");
+      expect(abort instanceof Error).toBe(false); // the premise of the bug
+
+      let thrown: unknown;
+      try {
+        throwApiError(abort, "test");
+      } catch (e) {
+        thrown = e;
+      }
+
+      expect(thrown).toBe(abort);
+      expect(isCancellationError(thrown)).toBe(true);
+    });
+
     it("should throw auth error for 401", () => {
       const error = createAxiosError(401);
       expect(() => throwApiError(error, "testFunc")).toThrow(

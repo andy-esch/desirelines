@@ -150,6 +150,16 @@ export function throwApiError(err: unknown, context: string): never {
   if (err instanceof Error) {
     throw err;
   }
+  // Re-throw cancellations unwrapped. A native AbortError is a DOMException,
+  // which is NOT `instanceof Error` in browsers, so it would otherwise fall to
+  // the wrap below and come back as a plain Error named "Error" — failing every
+  // branch of isCancellationError() above. That silently reclassifies a
+  // cancellation as a real failure for any caller following the documented
+  // isCancellationError pattern, contradicting the contract stated in the
+  // activities.ts header.
+  if (isCancellationError(err)) {
+    throw err;
+  }
   // Wrap non-Error values, preserving original as cause for debugging
   const wrapped = new Error(String(err));
   (wrapped as Error & { cause?: unknown }).cause = err;
