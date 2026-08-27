@@ -97,9 +97,15 @@ describe("findLastActivityDate", () => {
 
 describe("isActivityDataStale", () => {
   beforeEach(() => {
-    // Mock current date to October 22, 2025
+    // Mock current date to October 22, 2025.
+    // Local components, not a "Z" instant: isActivityDataStale anchors "today"
+    // via getTodayUtcAnchored(), which reads the *local* calendar date. A fixed
+    // UTC instant lands on a different local day in far-positive zones (12:00Z
+    // is already Oct 23 in Pacific/Auckland), which would shift every "N days
+    // ago" assertion below by one. vite.config.ts only defaults TZ for tests, so
+    // an explicit override is allowed and this has to hold in any zone.
     vi.useFakeTimers();
-    vi.setSystemTime(new Date("2025-10-22T12:00:00Z"));
+    vi.setSystemTime(new Date(2025, 9, 22, 12, 0, 0));
   });
 
   afterEach(() => {
@@ -115,8 +121,8 @@ describe("isActivityDataStale", () => {
   // which subtracts a UTC-midnight-parsed date from a *live instant* and floors.
   // The fractional time-of-day therefore leaked into the day count, so the same
   // data gave different answers depending on when the page was loaded. On the
-  // boundary day in America/New_York (UTC-4), an evening load crossed into the
-  // next UTC day and reported 8 days instead of 7 — flipping the MomentumIndicator
+  // boundary day in a UTC-negative zone, an evening load crossed into the next
+  // UTC day and reported 8 days instead of 7 — flipping the MomentumIndicator
   // stale badge a full day early. Anchoring "today" with getTodayUtcAnchored()
   // puts both operands on the same convention.
   describe("is independent of the time of day the page is loaded", () => {
@@ -127,12 +133,18 @@ describe("isActivityDataStale", () => {
       { x: "2025-10-15", y: 100 },
     ];
 
+    // Built from LOCAL components on purpose. vite.config.ts only *defaults*
+    // TZ to America/New_York for test runs (`??=`, "Respects an explicit TZ
+    // override"), so hardcoded `Z` instants would silently mean a different
+    // local calendar day under `TZ=UTC` or a UTC-positive zone and this
+    // assertion would flip. `new Date(y, m, d, h)` is local in every zone, so
+    // all three cases stay on local 2025-10-22 wherever the suite runs.
     it.each([
-      ["morning", "2025-10-22T13:00:00Z"], // 09:00 EDT
-      ["midday", "2025-10-22T16:00:00Z"], // 12:00 EDT
-      ["evening", "2025-10-23T01:00:00Z"], // 21:00 EDT, still Oct 22 locally
-    ])("reports not-stale on the boundary day (%s load)", (_label, instant) => {
-      vi.setSystemTime(new Date(instant));
+      ["morning", 9],
+      ["midday", 12],
+      ["evening", 21],
+    ])("reports not-stale on the boundary day (%s load)", (_label, hour) => {
+      vi.setSystemTime(new Date(2025, 9, 22, hour, 0, 0));
       expect(isActivityDataStale(data)).toBe(false);
     });
   });
