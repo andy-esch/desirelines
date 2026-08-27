@@ -72,6 +72,12 @@ export interface Rgb {
  * `#rgb`, `#rrggbb`, and `rgb()`/`rgba()`. Returns null for anything else, so
  * callers can fall back rather than render a broken color.
  */
+/** Clamp a parsed colour channel into the valid 0-255 range. */
+function clampChannel(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.min(255, Math.max(0, Math.round(n)));
+}
+
 export function parseRgb(color: string): Rgb | null {
   // Trim once, up front: `getComputedStyle().getPropertyValue()` commonly returns a
   // leading space, and anchoring the rgb() pattern against an untrimmed string made it
@@ -92,7 +98,11 @@ export function parseRgb(color: string): Rgb | null {
   }
   const fn = value.match(/^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/i);
   if (fn) {
-    return { r: Math.round(+fn[1]!), g: Math.round(+fn[2]!), b: Math.round(+fn[3]!) };
+    // Clamp: the hex branch is bounded by its 0xff masks, but this one accepts any
+    // digits the regex matches, so a malformed `rgb(300, 0, 0)` would escape as
+    // r = 300 and skew every downstream luminance/contrast computation instead of
+    // being rejected or corrected at the boundary.
+    return { r: clampChannel(+fn[1]!), g: clampChannel(+fn[2]!), b: clampChannel(+fn[3]!) };
   }
   return null;
 }

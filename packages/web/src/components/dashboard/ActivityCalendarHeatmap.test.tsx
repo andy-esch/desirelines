@@ -8,6 +8,7 @@ import {
   mockDailySportDataReturn,
   emptyDailySportData,
 } from "../../test/fixtures/sportConfig";
+import type { MultiSportData } from "../../hooks/useDailySportData";
 
 // Mock useDailySportData hook
 vi.mock("../../hooks/useDailySportData", () => ({
@@ -695,6 +696,74 @@ describe("ActivityCalendarHeatmap", () => {
         const visibleButton = screen.getByRole("button", { name: "Visible" });
         expect(visibleButton).toHaveAttribute("title", "Show only: cycling, yoga");
       });
+    });
+  });
+
+  describe("malformed wire data", () => {
+    // protojson omits proto3 defaults unless EmitUnpopulated is set, so a
+    // DailyActivity whose `activities` is 0 can arrive with the field absent.
+    // Before the `?? 0` guard, that `undefined` poisoned the day's count to NaN,
+    // which propagated through totalActivities into a literal "NaN activities"
+    // header. SportBucketSchema doesn't descend into DailyActivity, so the dev
+    // contract-drift warning doesn't fire either.
+    it("treats a missing `activities` field as zero instead of rendering NaN", () => {
+      const poisoned = {
+        cycling: {
+          "2026-01-02": {
+            distanceMeters: 45000,
+            timeMinutes: 90,
+            elevationMeters: 500,
+            // `activities` deliberately absent — the wire shape under test.
+            activityIds: [1],
+          },
+          "2026-01-03": {
+            distanceMeters: 30000,
+            timeMinutes: 60,
+            elevationMeters: 300,
+            activities: 2,
+            activityIds: [2],
+          },
+        },
+        running: {},
+        yoga: {},
+      } as unknown as MultiSportData;
+
+      mockUseDailySportData.mockReturnValue(mockDailySportDataReturn({ data: poisoned }));
+
+      const { container } = render(<ActivityCalendarHeatmap />);
+
+      expect(container.textContent).not.toContain("NaN");
+      // The one well-formed day still counts; the absent field contributes 0.
+      expect(screen.getByText(/2 activities in/)).toBeInTheDocument();
+    });
+
+    // Characterisation, not regression: this passes with or without the `?? 0`
+    // guard, because the cell already floors its input with `|| 0` and
+    // `NaN || 0` is 0. It pins that invariant so the audit's "paints the
+    // brightest colour" claim can't become true if someone drops the `|| 0`.
+    it("does not paint a day with a missing count as the busiest colour", () => {
+      const poisoned = {
+        cycling: {
+          "2026-01-02": {
+            distanceMeters: 45000,
+            timeMinutes: 90,
+            elevationMeters: 500,
+            activityIds: [1],
+          },
+        },
+        running: {},
+        yoga: {},
+      } as unknown as MultiSportData;
+
+      mockUseDailySportData.mockReturnValue(mockDailySportDataReturn({ data: poisoned }));
+
+      render(<ActivityCalendarHeatmap />);
+
+      // Cell labels are the accessible surface for the count; a poisoned day
+      // must read as 0, not NaN, and so must take the dim bucket.
+      const cell = screen.getByRole("img", { name: /^2026-01-02:/ });
+      expect(cell).toHaveAttribute("aria-label", "2026-01-02: 0 activities");
+      expect(cell).toHaveStyle({ background: "var(--color-slate-light)" });
     });
   });
 });

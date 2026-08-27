@@ -174,12 +174,18 @@ export default function RecentActivitiesList({
   // Memoized: useActivities' demo path filters on the filter object's identity,
   // so an inline literal would re-filter (and re-render) every render signed out.
   const filter = useMemo(() => ({ from, to, sports: [], limit: 20 }), [from, to]);
-  const { activities, isLoading, error, hasMore, loadMore } = useActivities(filter);
+  const { activities, isLoading, error, hasMore, isLoadingMore, loadMore } = useActivities(filter);
 
   const totalPages = Math.ceil(activities.length / pageSize);
-  // Clamp page if pageSize changed (e.g. container resized) and current page is now out of range
+  // Clamp page if pageSize changed (e.g. container resized) and current page is now out of range.
+  //
+  // Skip the clamp while a next-page fetch is in flight. handleNextPage advances
+  // past the last *local* page and lets loadMore() fill it in, but activities.length
+  // has not grown yet on that render — so clamping here would snap the page back
+  // before the data lands and silently eat the user's click. It only reproduces
+  // when the next server page isn't already cached, i.e. the common case.
   const clampedPage = Math.min(page, Math.max(0, totalPages - 1));
-  if (clampedPage !== page) setPage(clampedPage);
+  if (clampedPage !== page && !isLoadingMore) setPage(clampedPage);
   const startIdx = clampedPage * pageSize;
   const visibleActivities = activities.slice(startIdx, startIdx + pageSize);
 

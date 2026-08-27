@@ -8,6 +8,7 @@
 import type { DistanceEntry } from "../types/activity";
 import { TRAINING_CONSTANTS } from "../constants/training";
 import { daysBetween } from "./dateCalculations";
+import { getTodayUtcAnchored } from "./dateUtils";
 
 /**
  * Finds the date of the last actual activity
@@ -76,7 +77,14 @@ export function isActivityDataStale(
   const lastActivityDate = findLastActivityDate(distanceData);
   if (!lastActivityDate) return true;
 
-  const today = new Date();
+  // getTodayUtcAnchored(), not new Date(): findLastActivityDate parses a
+  // "YYYY-MM-DD" chart string, which JS reads as UTC midnight (dateUtils'
+  // "Convention B"). A raw `new Date()` is a live instant, so daysBetween would
+  // subtract a UTC midnight from a local wall-clock time and floor the result —
+  // making "days since" depend on the time of day the page was loaded. In
+  // America/New_York an evening load reported one day more than the true local
+  // calendar gap, flipping the stale badge a day early.
+  const today = getTodayUtcAnchored();
   const daysSinceActivity = daysBetween(lastActivityDate, today);
 
   return daysSinceActivity > staleThresholdDays;

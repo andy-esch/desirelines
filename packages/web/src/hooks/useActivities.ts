@@ -64,6 +64,12 @@ export interface UseActivitiesResult {
   isLoading: boolean;
   error: Error | null;
   hasMore: boolean;
+  /**
+   * A next-page fetch is in flight. Distinct from `isLoading`, which covers only
+   * the initial load — consumers that optimistically advance a page on loadMore()
+   * need to know the difference so they don't undo the advance mid-fetch.
+   */
+  isLoadingMore: boolean;
   loadMore: () => void;
   retry: () => void;
 }
@@ -123,6 +129,7 @@ export function useActivities(filter: Omit<ActivityListFilter, "cursor">): UseAc
     isLoading: authLoading || (!!user && isFetching && !isFetchingNextPage && !data),
     error: error,
     hasMore: !user ? false : !!hasNextPage,
+    isLoadingMore: isFetchingNextPage,
     loadMore: () => {
       void fetchNextPage();
     },
