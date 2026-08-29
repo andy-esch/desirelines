@@ -387,7 +387,8 @@ class BigQueryStorageWriter:
         """Map a JSON-shaped dict onto the proto message and serialize."""
         msg = bq_activities_pb2.Activity()
         _populate_message(msg, raw)
-        return bytes(msg.SerializeToString())
+        # SerializeToString() already returns bytes; the wrapper was a no-op copy.
+        return msg.SerializeToString()
 
     def _get_or_open_stream(self) -> writer.AppendRowsStream:
         """Return the active stream, lazy-opening one if needed.

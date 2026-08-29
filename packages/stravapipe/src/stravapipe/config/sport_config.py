@@ -4,7 +4,6 @@ from functools import lru_cache
 import json
 import logging
 from pathlib import Path
-from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -118,15 +117,20 @@ class SportCategory:
     The DB stores both: column 'type' = Strava type, column 'sport' = Strava sport_type.
     """
 
-    def __init__(self, name: str, config: dict[str, Any]):
+    def __init__(self, name: str, config: SportCategoryModel):
+        # Takes the validated pydantic model directly. This used to accept a
+        # plain dict and be fed `config.model_dump()`, so every field made a
+        # round trip out of a typed model into an untyped dict and back — which
+        # also meant a renamed field failed at runtime on a KeyError instead of
+        # being caught by mypy.
         self.name = name
-        self.display_name = config["display_name"]
-        self.strava_types = set(config["strava_types"])
-        self.excluded_types = set(config.get("excluded_types", []))
-        self.primary_metric = config["primary_metric"]
-        self.metrics = config["metrics"]
-        self.has_distance = config["has_distance"]
-        self.has_elevation = config["has_elevation"]
+        self.display_name = config.display_name
+        self.strava_types = set(config.strava_types)
+        self.excluded_types = set(config.excluded_types)
+        self.primary_metric = config.primary_metric
+        self.metrics = config.metrics
+        self.has_distance = config.has_distance
+        self.has_elevation = config.has_elevation
 
     def matches(self, sport_type: str) -> bool:
         """Check if a Strava sport_type value belongs to this category."""
@@ -164,7 +168,7 @@ class SportConfig:
             )
 
         self.categories = {
-            name: SportCategory(name, config.model_dump())
+            name: SportCategory(name, config)
             for name, config in validated.sport_categories.items()
         }
 

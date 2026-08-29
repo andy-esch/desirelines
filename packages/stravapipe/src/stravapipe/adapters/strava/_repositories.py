@@ -367,6 +367,41 @@ class StravaApiClient:
             _activity_id=activity_id,
         )
 
+    def _retried_get(
+        self, endpoint: str, *, params: dict[str, Any] | None = None
+    ) -> requests.Response:
+        """Issue a retried GET against the Strava API.
+
+        Shared by the activity and activity-list paths, which previously each
+        carried their own copy of the decorator, the request call and the
+        raise-inside-the-retried-scope comment — so a change to retry policy or
+        timeout handling had to be made twice, correctly, or the two endpoints
+        would silently diverge.
+
+        Raises ``requests.exceptions.RequestException`` on a surviving failure;
+        callers translate it via ``_handle_error_response``, which is where the
+        two paths genuinely differ (activity_id, and the retry closure).
+        """
+
+        @retry_on_failure(
+            max_attempts=self._api_config.activity_retry_attempts,
+            backoff_seconds=self._api_config.activity_retry_backoff,
+        )
+        def _fetch() -> requests.Response:
+            resp = requests.get(
+                url=endpoint,
+                headers=self._get_headers(),
+                params=params,
+                timeout=self._api_config.request_timeout,
+            )
+            # Raise INSIDE the retried scope so @retry_on_failure sees 5xx/429.
+            # 4xx (404/401) is re-raised immediately; 5xx is retried then
+            # re-raised; 429 exhaustion surfaces as StravaRateLimitError.
+            resp.raise_for_status()
+            return resp
+
+        return _fetch()
+
     def _get_activity_with_retry(
         self, activity_id: int, *, _token_refresh_count: int
     ) -> dict[str, Any]:
@@ -377,25 +412,10 @@ class StravaApiClient:
         surviving error to a domain exception via ``_handle_error_response``.
         """
 
-        @retry_on_failure(
-            max_attempts=self._api_config.activity_retry_attempts,
-            backoff_seconds=self._api_config.activity_retry_backoff,
-        )
-        def _fetch() -> requests.Response:
-            endpoint = f"{self._api_config.api_base_url}/activities/{activity_id}"
-            resp = requests.get(
-                url=endpoint,
-                headers=self._get_headers(),
-                timeout=self._api_config.request_timeout,
-            )
-            # Raise INSIDE the retried scope so @retry_on_failure sees 5xx/429.
-            # 4xx (404/401) is re-raised immediately; 5xx is retried then
-            # re-raised; 429 exhaustion surfaces as StravaRateLimitError.
-            resp.raise_for_status()
-            return resp
-
         try:
-            resp = _fetch()
+            resp = self._retried_get(
+                f"{self._api_config.api_base_url}/activities/{activity_id}"
+            )
         except requests.exceptions.RequestException as exc:
             return self._handle_error_response(
                 exc,
@@ -462,29 +482,16 @@ class StravaApiClient:
         surviving error to a domain exception via ``_handle_error_response``.
         """
 
-        @retry_on_failure(
-            max_attempts=self._api_config.activity_retry_attempts,
-            backoff_seconds=self._api_config.activity_retry_backoff,
-        )
-        def _fetch() -> requests.Response:
-            endpoint = f"{self._api_config.api_base_url}/athlete/activities"
-            resp = requests.get(
-                url=endpoint,
-                headers=self._get_headers(),
+        try:
+            resp = self._retried_get(
+                f"{self._api_config.api_base_url}/athlete/activities",
                 params={
                     "before": before,
                     "after": after,
                     "page": page,
                     "per_page": per_page,
                 },
-                timeout=self._api_config.request_timeout,
             )
-            # Raise INSIDE the retried scope so @retry_on_failure sees 5xx/429.
-            resp.raise_for_status()
-            return resp
-
-        try:
-            resp = _fetch()
         except requests.exceptions.RequestException as exc:
             # Route list failures through the SAME domain-exception translation
             # as get_activity (M1) — a bare raise_for_status() here leaked
