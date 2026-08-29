@@ -216,7 +216,7 @@ export function formatMetricDisplayValue(
     case "time":
       return formatHoursMinutes(value);
     case "sessions":
-      return `${Math.round(value).toString()} ${unitLabel}`;
+      return `${Math.round(value)} ${unitLabel}`;
   }
 }
 

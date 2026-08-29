@@ -103,12 +103,10 @@ export function getSportDisplayName(sport: string, sportConfig: SportConfig | nu
 /**
  * Get the primary metric for a sport.
  *
- * Currently returns the server-defined primary metric from sport config.
- * The `userPrefs` parameter is reserved for future user-configurable metrics.
+ * Returns the server-defined primary metric from sport config.
  *
  * @param sport - Sport key (e.g., "cycling")
  * @param sportConfig - Sport configuration from API
- * @param _userPrefs - Reserved for future: user's metric preferences per sport
  * @returns Metric key (e.g., "distance_meters", "time_minutes")
  *
  * @example
@@ -120,16 +118,7 @@ export function getSportDisplayName(sport: string, sportConfig: SportConfig | nu
  * // Returns "time_minutes"
  * ```
  */
-export function getPrimaryMetric(
-  sport: string,
-  sportConfig: SportConfig | null,
-  _userPrefs?: Record<string, string>
-): string {
-  // Future: Check user preferences first
-  // if (_userPrefs?.[sport]) {
-  //   return _userPrefs[sport];
-  // }
-
+export function getPrimaryMetric(sport: string, sportConfig: SportConfig | null): string {
   // Use server-defined primary metric
   if (sportConfig?.sportCategories?.[sport]) {
     return sportConfig.sportCategories[sport].primaryMetric;

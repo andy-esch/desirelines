@@ -17,25 +17,14 @@ import { TRAINING_CONSTANTS } from "../constants/training";
  * @returns Filtered data containing only days with actual activity
  */
 export function filterActualActivityData(distanceData: DistanceEntry[]): DistanceEntry[] {
-  const actualData: DistanceEntry[] = [];
-
-  for (let i = 0; i < distanceData.length; i++) {
-    const curr = distanceData[i];
-    if (!curr) continue;
-    // Include first point always
-    if (i === 0) {
-      actualData.push(curr);
-      continue;
-    }
-
-    // Include point if distance changed from previous day (indicates real activity)
+  // Keep the first point unconditionally, then any point whose cumulative
+  // distance moved from the previous day — a flat step means no activity.
+  return distanceData.filter((curr, i) => {
+    if (!curr) return false;
+    if (i === 0) return true;
     const prev = distanceData[i - 1];
-    if (prev && curr.y !== prev.y) {
-      actualData.push(curr);
-    }
-  }
-
-  return actualData;
+    return prev !== undefined && curr.y !== prev.y;
+  });
 }
 
 /**

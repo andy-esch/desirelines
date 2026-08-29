@@ -80,26 +80,23 @@ export function transformToSportGoalData(options: TransformOptions): SportGoalDa
   let impactGoal = targetGoal;
   let impactGoalLabel = "";
 
+  // One conversion rule for both goals: the target and the impact goal were
+  // each running their own copy of this isDistance/isTime/else chain, so a
+  // change to how goals are displayed had to be made in two places.
+  const goalToDisplayValue = (value: number): number => {
+    if (isDistance) return goalMetersToDisplay(value, userSettings.distanceUnit);
+    if (isTime) return minutesToHours(value);
+    return value;
+  };
+
   if (isAuthMode && goalsData?.goals?.length) {
     const goalValue = getTargetGoalValue(goalsData.goals);
     if (goalValue !== null) {
-      if (isDistance) {
-        targetGoal = goalMetersToDisplay(goalValue, userSettings.distanceUnit);
-      } else if (isTime) {
-        targetGoal = minutesToHours(goalValue);
-      } else {
-        targetGoal = goalValue;
-      }
+      targetGoal = goalToDisplayValue(goalValue);
     }
     // Find the smallest goal for impact calculations
     const minGoal = goalsData.goals.reduce((min, g) => (g.value < min.value ? g : min));
-    if (isDistance) {
-      impactGoal = goalMetersToDisplay(minGoal.value, userSettings.distanceUnit);
-    } else if (isTime) {
-      impactGoal = minutesToHours(minGoal.value);
-    } else {
-      impactGoal = minGoal.value;
-    }
+    impactGoal = goalToDisplayValue(minGoal.value);
     impactGoalLabel = minGoal.label ?? "";
   } else if (!isAuthMode && demoGoals) {
     targetGoal = demoGoals.target;
