@@ -313,6 +313,22 @@ jobs:
             exit 1
           fi
 
+      # Go stdlib CVEs are invisible to Dependabot: they are fixed by the
+      # toolchain, not by a dependency bump, so nothing else in CI would have
+      # caught GO-2026-5037/5039/5856. This step is the only thing watching that
+      # surface, and it is why GO_VERSION is pinned to an exact patch rather
+      # than a "1.26" floor — the pin is what the gate is asserting.
+      #
+      # govulncheck reports only vulnerabilities reachable from the call graph,
+      # so an advisory in a module we require but never call does not fail the
+      # build. That keeps it low-noise; it also means a refactor can turn a
+      # previously-silent advisory into a failure, which is the intended signal.
+      - name: Check for known Go vulnerabilities (govulncheck)
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          cd packages/${{ matrix.package }}
+          govulncheck ./...
+
   # ===========================================================================
   # Web/React: Test, Lint, Format, Type check, Build
   # ===========================================================================
