@@ -60,5 +60,7 @@ def load_postgres_service_config[ConfigT: PostgresServiceConfig](
         ConnectionStringError: If the PostgreSQL connection string is missing
             or invalid.
     """
-    config_dict: dict[str, str] = {"postgres_connection_string": load_connection_string()}
+    config_dict: dict[str, str] = {
+        "postgres_connection_string": load_connection_string()
+    }
     return config_cls.model_validate(config_dict)
