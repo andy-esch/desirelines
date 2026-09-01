@@ -84,7 +84,7 @@ def _download_and_open(url: str, workdir: Path) -> shapefile.Reader:
     """Download a Census shapefile zip and open it with pyshp."""
     zip_path = workdir / Path(url).name
     print(f"Downloading {url}")
-    urllib.request.urlretrieve(url, zip_path)
+    urllib.request.urlretrieve(url, zip_path)  # noqa: S310 -- offline ops tooling downloading a known Census archive URL
 
     extract_dir = workdir / zip_path.stem
     with zipfile.ZipFile(zip_path) as zf:

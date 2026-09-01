@@ -124,8 +124,9 @@ ignore = [
 #
 # The S* (flake8-bandit) exemptions mirror bandit's own "skip tests" default:
 # S101 (asserts ARE the test assertion mechanism), S105/S106 (fixtures pass fake
-# tokens/passwords by design), and S608 (tests build count/verify queries from
-# hardcoded table names, never untrusted input). Suppressing these in tests
+# tokens/passwords by design), S603 (tests run the CLI under test via subprocess
+# with sys.executable + a fixed script path), and S608 (tests build count/verify
+# queries from hardcoded table names, never untrusted input). Suppressing these in tests
 # keeps the security rules meaningful in `src/` without drowning in test noise
 # (1200+ test asserts alone).
 #
@@ -133,12 +134,12 @@ ignore = [
 # (e.g. `just py-lint` via uv, cwd=packages/stravapipe). `**/tests/**` matches
 # when ruff runs from the repo root (e.g. `pants lint`, which passes
 # packages/stravapipe/tests/... paths).
-"tests/**" = ["PLR2004", "PLC0415", "S101", "S105", "S106", "S608"]
-"**/tests/**" = ["PLR2004", "PLC0415", "S101", "S105", "S106", "S608"]
+"tests/**" = ["PLR2004", "PLC0415", "S101", "S105", "S106", "S603", "S608"]
+"**/tests/**" = ["PLR2004", "PLC0415", "S101", "S105", "S106", "S603", "S608"]
 # Not every test lives in a `tests/` dir — `schemas/bigquery` and `scripts/ops`
 # keep their tests beside the code they exercise, so those need matching on the
 # filename instead. Same rationale as above.
-"**/test_*.py" = ["PLR2004", "PLC0415", "S101", "S105", "S106", "S608"]
+"**/test_*.py" = ["PLR2004", "PLC0415", "S101", "S105", "S106", "S603", "S608"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["stravapipe", "tests"]

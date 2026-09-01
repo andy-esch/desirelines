@@ -55,13 +55,13 @@ DEFAULT_TIMEOUT_SECONDS = 15
 
 def fetch_swagger(url: str, timeout: int) -> dict[str, Any]:
     """Download and parse the Strava Swagger document."""
-    req = urllib.request.Request(
+    req = urllib.request.Request(  # noqa: S310 -- offline tooling; URL defaults to Strava's well-known docs endpoint
         url, headers={"User-Agent": "desirelines-sport-sync/1.0"}
     )
     # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected -
     # URL is configurable but defaults to Strava's well-known docs endpoint;
     # only consumed by this offline tooling.
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 -- offline tooling; see fetch_swagger URL note
         if resp.status != HTTPStatus.OK:
             raise RuntimeError(f"swagger fetch returned HTTP {resp.status}")
         data: dict[str, Any] = json.loads(resp.read().decode("utf-8"))
