@@ -25,19 +25,55 @@ func TestLoadFromMount_FileExists(t *testing.T) {
 	}
 }
 
+// A present-but-empty mount must not be reported as a successful load. Before
+// this, LoadFromMount returned ("", nil) here, so a caller could not tell an
+// empty secret from a good one — and the apigateway would go on to sign OAuth
+// state tokens with an empty HMAC key.
 func TestLoadFromMount_FileExistsEmpty(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		contents string
+	}{
+		{"empty", ""},
+		{"whitespace only", "   \n\t  \n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "secret")
+			if err := os.WriteFile(path, []byte(tc.contents), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			got, err := secrets.LoadFromMount(path, "")
+			if err == nil {
+				t.Fatalf("expected an error, got %q with nil error", got)
+			}
+			if got != "" {
+				t.Errorf("got %q, want empty string alongside the error", got)
+			}
+		})
+	}
+}
+
+// An empty mount must not shadow a usable environment variable. This is the
+// case the old behavior got most wrong: it returned "" successfully and the
+// documented fallback never ran.
+func TestLoadFromMount_FileExistsEmpty_FallsBackToEnv(t *testing.T) {
+	const envKey = "TEST_SECRET_EMPTY_MOUNT_FALLBACK"
+
 	dir := t.TempDir()
 	path := filepath.Join(dir, "secret")
-	if err := os.WriteFile(path, []byte(""), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte("  \n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	t.Setenv(envKey, "from-env")
 
-	got, err := secrets.LoadFromMount(path, "")
+	got, err := secrets.LoadFromMount(path, envKey)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got != "" {
-		t.Errorf("got %q, want empty string", got)
+	if got != "from-env" {
+		t.Errorf("got %q, want %q", got, "from-env")
 	}
 }
 
