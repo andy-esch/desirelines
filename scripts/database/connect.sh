@@ -80,6 +80,26 @@ fi
 echo -e "${GREEN}✅ Connection string retrieved${NC}"
 echo ""
 
+# Parse the connection string so the password never reaches psql's argv, where
+# any co-tenant could read it from `ps aux` / /proc/<pid>/cmdline for the life of
+# the session. Same sed shapes as scripts/database/migrate.sh:70-72 — one parser
+# for one URI format, rather than a second dialect to keep in sync.
+# Per docs/guides/secure-scripting.md §1 ("No Secrets in Args").
+DB_USER=$(echo "$CONNECTION_STRING" | sed -E 's|^postgresql://([^:]+):.*|\1|')
+DB_PASSWORD=$(echo "$CONNECTION_STRING" | sed -E 's|^postgresql://[^:]+:(.+)@.*|\1|')
+URL_WITHOUT_CREDS=$(echo "$CONNECTION_STRING" | sed -E 's|^postgresql://.+@|postgresql://|')
+
+if [[ -z "$DB_USER" || -z "$DB_PASSWORD" || "$URL_WITHOUT_CREDS" == "$CONNECTION_STRING" ]]; then
+  echo -e "${RED}❌ Could not parse the connection string into user/password/host${NC}"
+  echo -e "${YELLOW}Expected postgresql://user:password@host/database?params${NC}"
+  exit 1
+fi
+
+# Intentionally do not echo DB_USER, DB_PASSWORD, or CONNECTION_STRING — they
+# contain credentials. Per docs/guides/secure-scripting.md ("No Echoing Secrets").
+
 # Connect via psql
 echo -e "${GREEN}🚀 Connecting to PostgreSQL...${NC}"
-psql "$CONNECTION_STRING"
+# PGPASSWORD is exported only for this psql invocation, so it is not inherited
+# by anything the session spawns (e.g. psql's \! shell escape).
+PGPASSWORD="$DB_PASSWORD" psql "$URL_WITHOUT_CREDS" --username "$DB_USER"

@@ -249,8 +249,38 @@ EOF
       "   You will stop receiving activity events until you create a new subscription."
 
     echo "Deleting webhook subscription..."
-    curl -s -X DELETE \
-      "https://www.strava.com/api/v3/push_subscriptions/$SUBSCRIPTION_ID?client_id=$CLIENT_ID&client_secret=$CLIENT_SECRET" | jq .
+    # Feed the request line over stdin, never argv, so the secret is not visible
+    # in `ps aux` / /proc/<pid>/cmdline for the life of the call.
+    # See docs/guides/secure-scripting.md §1 (No Secrets in Args).
+    #
+    # PARTIAL FIX — the secret remains in the query string, and therefore in
+    # Strava's access logs and any intermediary proxy's. That is not something
+    # this script can avoid: Strava's v3 API documents client_id and
+    # client_secret as *required query parameters* for DELETE
+    # (https://developers.strava.com/docs/webhooks/), with no request-body form.
+    # Only the local argv exposure is closed here. Rotate the client secret if
+    # you have reason to believe Strava-side logs were exposed.
+    DELETE_STATUS=0
+    DELETE_RESPONSE=$(
+      curl --config - <<EOF
+url = "https://www.strava.com/api/v3/push_subscriptions/$SUBSCRIPTION_ID?client_id=$CLIENT_ID&client_secret=$CLIENT_SECRET"
+request = "DELETE"
+silent
+show-error
+fail-with-body
+EOF
+    ) || DELETE_STATUS=$?
+    # jq runs on a captured variable rather than in a pipe: piping curl into jq
+    # would take jq's exit 0 under `set -o pipefail` semantics and report a
+    # Strava rejection as success. A successful DELETE returns an empty body.
+    if [ -n "$DELETE_RESPONSE" ] && ! printf '%s\n' "$DELETE_RESPONSE" | jq . 2>/dev/null; then
+      printf '%s\n' "$DELETE_RESPONSE"
+    fi
+    if [ "$DELETE_STATUS" -ne 0 ]; then
+      echo "❌ Strava rejected the subscription delete (curl exit $DELETE_STATUS)"
+      exit "$DELETE_STATUS"
+    fi
+    echo "✅ Subscription $SUBSCRIPTION_ID deleted. Clear INFISICAL_STRAVA_WEBHOOK_SUBSCRIPTION_ID."
     ;;
 
   *)
