@@ -18,4 +18,3 @@ function generateAvailableYears(): number[] {
 
 /** Years available for selection in the sidebar */
 export const AVAILABLE_YEARS = generateAvailableYears();
-
