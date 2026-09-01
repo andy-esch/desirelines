@@ -18,7 +18,7 @@ class StravaApiConfig(NamedTuple):
     - Backoff values balance responsiveness vs. not hammering a struggling API
     """
 
-    token_url: str = "https://www.strava.com/oauth/token"
+    token_url: str = "https://www.strava.com/oauth/token"  # noqa: S105 -- public Strava OAuth token URL, not a secret
     api_base_url: str = "https://www.strava.com/api/v3"
 
     # 10s timeout: Strava typically responds in 1-2s, this catches network issues

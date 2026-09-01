@@ -280,7 +280,7 @@ def _flatten_into(
 
         if f.type == FieldDescriptor.TYPE_MESSAGE:
             sub = f.message_type
-            assert sub is not None, (
+            assert sub is not None, (  # noqa: S101 -- type-narrowing per protobuf contract (TYPE_MESSAGE => message_type set)
                 f"Field {f.name} is TYPE_MESSAGE but message_type is None"
             )
             normalized = _normalize_name(sub.full_name)

@@ -193,4 +193,4 @@ async def forward_with_cloudevents(target_service: str, request: Request) -> Res
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8080)
+    uvicorn.run(app, host="0.0.0.0", port=8080)  # noqa: S104 -- local-dev container must bind all interfaces to be reachable from the host

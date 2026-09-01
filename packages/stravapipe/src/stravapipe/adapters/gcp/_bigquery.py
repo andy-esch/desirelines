@@ -247,7 +247,7 @@ class ActivitiesWriter:
         delete_query = f"""
         DELETE FROM `{self._client.project_id}.{self._dataset_name}.{self._staging_table_name}`
         WHERE id IN UNNEST(@activity_ids)
-        """
+        """  # noqa: S608 -- table names from config constants; ids bound via @activity_ids
         query_params = [ArrayQueryParameter("activity_ids", "INT64", activity_ids)]
         with record_span(
             self._tracer,
@@ -311,5 +311,5 @@ class ActivitiesWriter:
         WHEN NOT MATCHED THEN
             INSERT ({insert_cols})
             VALUES ({insert_vals})
-        """
+        """  # noqa: S608 -- table + column names from _MERGE_COLUMNS/config; values bound
         return query, query_params
