@@ -175,7 +175,7 @@ def retry_on_failure(
                             # jitter is simply absorbed in that pathological case.
                             sleep_seconds = min(
                                 retry_after
-                                + random.uniform(0, RATE_LIMIT_JITTER_SECONDS),
+                                + random.uniform(0, RATE_LIMIT_JITTER_SECONDS),  # noqa: S311 -- jitter for retry backoff; not security-sensitive
                                 MAX_RETRY_AFTER_SECONDS,
                             )
                             logger.warning(
@@ -228,7 +228,7 @@ def retry_on_failure(
                     # outage webhook catch-up) from re-firing in lockstep
                     # and amplifying load on a recovering Strava endpoint.
                     # Mirrors the Go-side jitter in `dispatcher/adapters/strava/client.go`.
-                    delay = random.uniform(0, nominal)
+                    delay = random.uniform(0, nominal)  # noqa: S311 -- jitter for retry backoff; not security-sensitive
 
                     logger.warning(
                         "Request failed (attempt %d/%d), retrying in %.1f seconds: %s",

@@ -107,6 +107,7 @@ select = [
     "RET",   # flake8-return — cleaner return patterns
     "ASYNC", # flake8-async — async-safety checks (FastAPI apps)
     "PIE",   # flake8-pie — misc cleanup rules
+    "S",     # flake8-bandit — security lints (hardcoded secrets, SQL injection, asserts)
     # Intentionally skipping TCH — project decision, no TYPE_CHECKING guards
     # (see memory `feedback_no_type_checking_guard.md`).
 ]
@@ -121,16 +122,23 @@ ignore = [
 # Deferred imports inside test functions are required to import modules under
 # test *after* patches are applied (module-level state gets frozen at import).
 #
+# The S* (flake8-bandit) exemptions mirror bandit's own "skip tests" default:
+# S101 (asserts ARE the test assertion mechanism), S105/S106 (fixtures pass fake
+# tokens/passwords by design), and S608 (tests build count/verify queries from
+# hardcoded table names, never untrusted input). Suppressing these in tests
+# keeps the security rules meaningful in `src/` without drowning in test noise
+# (1200+ test asserts alone).
+#
 # Two patterns: `tests/**` matches when ruff runs from inside this package
 # (e.g. `just py-lint` via uv, cwd=packages/stravapipe). `**/tests/**` matches
 # when ruff runs from the repo root (e.g. `pants lint`, which passes
 # packages/stravapipe/tests/... paths).
-"tests/**" = ["PLR2004", "PLC0415"]
-"**/tests/**" = ["PLR2004", "PLC0415"]
+"tests/**" = ["PLR2004", "PLC0415", "S101", "S105", "S106", "S608"]
+"**/tests/**" = ["PLR2004", "PLC0415", "S101", "S105", "S106", "S608"]
 # Not every test lives in a `tests/` dir — `schemas/bigquery` and `scripts/ops`
 # keep their tests beside the code they exercise, so those need matching on the
 # filename instead. Same rationale as above.
-"**/test_*.py" = ["PLR2004", "PLC0415"]
+"**/test_*.py" = ["PLR2004", "PLC0415", "S101", "S105", "S106", "S608"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["stravapipe", "tests"]

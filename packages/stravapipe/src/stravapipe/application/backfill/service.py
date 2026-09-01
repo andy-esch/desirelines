@@ -782,7 +782,7 @@ class BackfillService:
         Returns:
             Tuple of (inserted_count, error_count)
         """
-        assert self._bq_writer is not None
+        assert self._bq_writer is not None  # noqa: S101 -- type-narrowing; sole caller guards `if self._bq_writer is not None`
 
         inserted_count = 0
         error_count = 0
@@ -825,7 +825,7 @@ class BackfillService:
         re-raised on the first attempt so the caller logs + counts the
         batch as errored exactly once.
         """
-        assert self._bq_writer is not None
+        assert self._bq_writer is not None  # noqa: S101 -- type-narrowing; reached only via _insert_to_bigquery under the same guard
         for attempt in range(1, _BQ_RETRY_ATTEMPTS + 1):
             try:
                 return self._bq_writer.write_activities_batch(batch)

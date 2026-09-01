@@ -77,7 +77,7 @@ class BQUserDeletionService:
                 f"""
                 DELETE FROM {self._table(table)}
                 WHERE CAST(athlete.id AS STRING) = @user_id
-                """,
+                """,  # noqa: S608 -- table name from hardcoded purge() args; user_id bound via @user_id
                 [user_id_param],
             )
 

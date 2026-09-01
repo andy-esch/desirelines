@@ -118,7 +118,7 @@ _ACTIVITY_UPSERT_EVENT_TIME_GUARD: Final[str] = (
 # blocks and the row inserts unfenced. The outer SELECT reports inserted vs
 # blocked so the caller can tell RESURRECTION_BLOCKED from ALREADY_EXISTS.
 _ACTIVITY_TOMBSTONED_INSERT_SQL: Final[str] = (
-    "WITH tombstone AS ("
+    "WITH tombstone AS ("  # noqa: S608 -- column names from _ACTIVITY_INSERT_COLUMNS const; values are bound :params
     "  SELECT 1 FROM desirelines.deleted_activities"
     "  WHERE id = :id AND deletion_event_time >= :last_event_time"
     "), ins AS ("
@@ -139,7 +139,7 @@ _ACTIVITY_TOMBSTONED_INSERT_SQL: Final[str] = (
 # inserts and no conflict fires. On an existing row the SELECT yields a row, the
 # INSERT conflicts, and the fenced DO UPDATE runs as before.
 _ACTIVITY_INSERT_SELECT_SQL: Final[str] = (
-    f"INSERT INTO desirelines.activities ({', '.join(_ACTIVITY_INSERT_COLUMNS)}) "
+    f"INSERT INTO desirelines.activities ({', '.join(_ACTIVITY_INSERT_COLUMNS)}) "  # noqa: S608 -- column names from _ACTIVITY_INSERT_COLUMNS const; values are bound :params
     f"SELECT {', '.join(f':{col}' for col in _ACTIVITY_INSERT_COLUMNS)} "
     "WHERE NOT EXISTS ("
     "  SELECT 1 FROM desirelines.deleted_activities"
@@ -157,7 +157,7 @@ _ACTIVITY_INSERT_SELECT_SQL: Final[str] = (
 #     last_event_time is at-or-before the watermark (no newer live UPDATE).
 # No row returned => the write was skipped (a newer live event owns the row).
 _ACTIVITY_BACKFILL_UPSERT_SQL: Final[str] = (
-    f"INSERT INTO desirelines.activities ({', '.join(_ACTIVITY_INSERT_COLUMNS)}) "
+    f"INSERT INTO desirelines.activities ({', '.join(_ACTIVITY_INSERT_COLUMNS)}) "  # noqa: S608 -- column names from _ACTIVITY_INSERT_COLUMNS const; values are bound :params
     f"SELECT {', '.join(f':{col}' for col in _ACTIVITY_INSERT_COLUMNS)} "
     "WHERE NOT EXISTS ("
     "  SELECT 1 FROM desirelines.deleted_activities"
@@ -781,7 +781,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             SELECT
                 EXISTS (SELECT 1 FROM target) AS existed,
                 EXISTS (SELECT 1 FROM upd) AS applied
-        """)
+        """)  # noqa: S608 -- static SQL + column constants; activity_id/event_time bound via :params
 
         row = self._session.execute(query, params).fetchone()
         if row is None or not row.existed:

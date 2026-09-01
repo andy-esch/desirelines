@@ -16,7 +16,7 @@ class ConnectionStringError(Exception):
 
 
 # Cloud Run secret mount path (Infisical-managed secrets use INFISICAL_ prefix)
-_SECRET_PATH = "/etc/secrets/INFISICAL_POSTGRES_CONN_WRITER/value"
+_SECRET_PATH = "/etc/secrets/INFISICAL_POSTGRES_CONN_WRITER/value"  # noqa: S105 -- secret-mount FILE PATH, not a secret value
 
 # Environment variable name
 _ENV_VAR = "POSTGRES_CONNECTION_STRING"
