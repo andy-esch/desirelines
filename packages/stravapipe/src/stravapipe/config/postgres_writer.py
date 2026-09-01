@@ -6,43 +6,27 @@ enriches events with activity data before publishing to Pub/Sub.
 
 import logging
 
-from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
-# Import directly from module to avoid pulling in SQLAlchemy dependencies
-from stravapipe.adapters.postgres._connection import load_connection_string
+from stravapipe.config._postgres_service import (
+    PostgresServiceConfig,
+    load_postgres_service_config,
+)
 
 logger = logging.getLogger(__name__)
 
 
-class PostgresWriterConfig(BaseSettings):
+class PostgresWriterConfig(PostgresServiceConfig):
     """Configuration for the PostgreSQL writer cloud function.
 
     Loads configuration from environment variables and optionally from .env file.
     Strava API credentials are no longer required - activity data is provided
     inline by the dispatcher's enriched events.
+
+    Shared settings (gcp_project_id, log_level, postgres_connection_string,
+    readiness_timeout) come from PostgresServiceConfig.
     """
 
-    # GCP configuration
-    gcp_project_id: str
-
-    # Environment
     environment: str = "dev"
-    log_level: str = "INFO"
     enable_cloud_logging: bool = False
-
-    # Database configuration
-    postgres_connection_string: str = Field(description="PostgreSQL connection string")
-
-    # Readiness probe timeout in seconds (per-attempt; the helper retries once
-    # after a short backoff). Override via READINESS_TIMEOUT env var.
-    readiness_timeout: float = 10.0
-
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
-    )
 
 
 def load_postgres_writer_config() -> PostgresWriterConfig:
@@ -59,12 +43,4 @@ def load_postgres_writer_config() -> PostgresWriterConfig:
         ValidationError: If required configuration is missing or invalid.
         ConnectionStringError: If PostgreSQL connection string is missing or invalid.
     """
-    config_dict: dict[str, str] = {}
-
-    # Load PostgreSQL connection string with validation and dialect transformation
-    # This reads from secret volume or env var, validates application_name,
-    # and transforms postgresql:// to postgresql+psycopg://
-    config_dict["postgres_connection_string"] = load_connection_string()
-
-    # Load config, prioritizing passed values over env vars
-    return PostgresWriterConfig.model_validate(config_dict)
+    return load_postgres_service_config(PostgresWriterConfig)

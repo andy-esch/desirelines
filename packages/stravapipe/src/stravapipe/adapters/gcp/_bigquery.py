@@ -268,23 +268,17 @@ class ActivitiesWriter:
 
         Uses parameterized queries to prevent SQL injection.
 
+        Previously split across a wrapper and a `_build_merge_query_base(where_clause)`
+        helper, from when a single-activity merge passed its own predicate. That
+        caller is gone, so the parameter had exactly one possible value and the
+        split bought nothing — while leaving a method whose signature implied
+        callers could inject arbitrary SQL into the WHERE clause.
+
         Returns:
             Tuple of (query_string, query_parameters)
         """
-        where_clause = "id IN UNNEST(@activity_ids)"
         query_params = [ArrayQueryParameter("activity_ids", "INT64", activity_ids)]
-        return self._build_merge_query_base(where_clause), query_params
 
-    def _build_merge_query_base(self, where_clause: str) -> str:
-        """Build MERGE query with parameterized WHERE clause.
-
-        Args:
-            where_clause: SQL WHERE condition for staging table filter
-                          (e.g., "id = 123" or "id IN (1,2,3)")
-
-        Returns:
-            Complete MERGE SQL query string
-        """
         # Build UPDATE SET clause: "col = source.col, ..."
         update_set = ",\n                ".join(
             f"{col} = source.{col}" for col in self._MERGE_COLUMNS
@@ -301,13 +295,13 @@ class ActivitiesWriter:
         # Build explicit SELECT columns for source query (avoids SELECT * EXCEPT fragility)
         select_cols = "id, " + ", ".join(self._MERGE_COLUMNS)
 
-        return f"""
+        query = f"""
         MERGE `{self._client.project_id}.{self._dataset_name}.{self._table_name}` AS target
         USING (
             SELECT {select_cols} FROM (
                 SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY start_date DESC) as row_num
                 FROM `{self._client.project_id}.{self._dataset_name}.{self._staging_table_name}`
-                WHERE {where_clause}
+                WHERE id IN UNNEST(@activity_ids)
             ) WHERE row_num = 1
         ) AS source
         ON target.id = source.id
@@ -318,3 +312,4 @@ class ActivitiesWriter:
             INSERT ({insert_cols})
             VALUES ({insert_vals})
         """
+        return query, query_params

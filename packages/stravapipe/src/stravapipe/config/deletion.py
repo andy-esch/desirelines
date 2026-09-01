@@ -6,40 +6,25 @@ when a user deauthorizes the app from Strava.
 
 import logging
 
-from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
-from stravapipe.adapters.postgres._connection import load_connection_string
+from stravapipe.config._postgres_service import (
+    PostgresServiceConfig,
+    load_postgres_service_config,
+)
 
 logger = logging.getLogger(__name__)
 
 
-class DeletionServiceConfig(BaseSettings):
+class DeletionServiceConfig(PostgresServiceConfig):
     """Configuration for the deletion service.
 
     Loads configuration from environment variables and optionally from .env file.
+
+    Shared settings (gcp_project_id, log_level, postgres_connection_string,
+    readiness_timeout) come from PostgresServiceConfig.
     """
 
-    # GCP configuration
-    gcp_project_id: str
     gcp_bigquery_dataset: str
     firestore_database: str
-
-    # Environment
-    log_level: str = "INFO"
-
-    # Database configuration
-    postgres_connection_string: str = Field(description="PostgreSQL connection string")
-
-    # Readiness probe timeout in seconds (per-attempt; the helper retries once
-    # after a short backoff). Override via READINESS_TIMEOUT env var.
-    readiness_timeout: float = 10.0
-
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
-    )
 
     @property
     def project_id(self) -> str:
@@ -62,6 +47,4 @@ def load_deletion_service_config() -> DeletionServiceConfig:
         ValidationError: If required configuration is missing or invalid.
         ConnectionStringError: If PostgreSQL connection string is missing or invalid.
     """
-    config_dict: dict[str, str] = {}
-    config_dict["postgres_connection_string"] = load_connection_string()
-    return DeletionServiceConfig.model_validate(config_dict)
+    return load_postgres_service_config(DeletionServiceConfig)

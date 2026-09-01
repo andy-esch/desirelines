@@ -84,7 +84,7 @@ def main(argv: list[str] | None = None) -> int:
     # appending the row.
     msg = bq_activities_pb2.Activity()
     msg.id = 0
-    serialized = bytes(msg.SerializeToString())
+    serialized = msg.SerializeToString()
 
     try:
         writer._send_serialized([serialized])

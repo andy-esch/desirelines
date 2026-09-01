@@ -37,6 +37,7 @@ from stravapipe.adapters.gcp import BigQueryClientWrapper
 from stravapipe.adapters.postgres import SqlAlchemyUnitOfWork
 from stravapipe.adapters.postgres._unit_of_work import create_session_factory
 from stravapipe.application.deletion import BQUserDeletionService
+from stravapipe.cloudrun._lifespan import shutdown_app_resources
 from stravapipe.cloudrun._request_context import bootstrap_pubsub_request
 from stravapipe.config import load_deletion_service_config
 from stravapipe.shared.constants import ResponseStatus
@@ -55,7 +56,6 @@ from stravapipe.shared.tracing import (
     instrument_sqlalchemy_engine,
     record_span,
     setup_tracing,
-    shutdown_otel,
 )
 
 logger = setup_logging(__name__)
@@ -279,14 +279,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.exception("Application lifecycle error")
         raise
     finally:
-        engine = getattr(app.state, "db_engine", None)
-        if engine is not None:
-            engine.dispose()
-            logger.info("PostgreSQL engine disposed")
-
-        # shutdown_otel guards each provider shutdown independently (and is safe
-        # to call when a provider was never initialized) and logs completion.
-        shutdown_otel()
+        shutdown_app_resources(app)
 
 
 app = FastAPI(

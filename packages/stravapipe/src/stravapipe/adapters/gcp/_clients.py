@@ -115,17 +115,18 @@ class BigQueryClientWrapper:
             # `num_dml_affected_rows` is present-and-None for non-row-affecting
             # statements; `or 0` avoids int(None) TypeError outside the try block.
             rows_affected = getattr(job, "num_dml_affected_rows", 0) or 0
-        except BadRequest as e:
-            if _STREAMING_BUFFER_ERROR_FRAGMENT in str(e):
+        except Exception as e:
+            if isinstance(e, BadRequest) and _STREAMING_BUFFER_ERROR_FRAGMENT in str(e):
                 # Expected condition: rows are still in BigQuery's streaming
                 # buffer (~90 min after streaming insert). Don't log here —
                 # the typed exception lets caller handle without alert noise.
                 raise StreamingBufferDMLError(
                     f"DML rejected: rows in streaming buffer (job_id={job.job_id})"
                 ) from e
-            logger.exception("DML query failed", extra={"job_id": str(job.job_id)})
-            raise BigQueryError(f"Failed to execute DML query: {e!s}") from e
-        except Exception as e:
+            # One failure tail. This block was previously duplicated verbatim
+            # across a `except BadRequest` and a `except Exception`; BadRequest
+            # is itself an Exception, so the streaming-buffer case is the only
+            # thing that needed distinguishing.
             logger.exception("DML query failed", extra={"job_id": str(job.job_id)})
             raise BigQueryError(f"Failed to execute DML query: {e!s}") from e
         logger.debug(

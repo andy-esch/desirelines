@@ -34,8 +34,6 @@ class WebhookField(StrEnum):
     """Field names in Strava webhook payloads."""
 
     ASPECT_TYPE = "aspect_type"
-    OBJECT_TYPE = "object_type"
-    OBJECT_ID = "object_id"
 
 
 # Default values
