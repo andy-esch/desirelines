@@ -131,8 +131,6 @@ const AppConfigSchema = z.object({
 // TypeScript Types
 // ============================================================================
 
-export type FirebaseConfig = z.infer<typeof FirebaseConfigSchema>;
-export type EmulatorConfig = z.infer<typeof EmulatorConfigSchema>;
 export type AppConfig = z.infer<typeof AppConfigSchema>;
 
 // ============================================================================

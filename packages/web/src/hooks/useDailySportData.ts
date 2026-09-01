@@ -20,15 +20,6 @@ export type DailySportData = Record<string, DailyActivity>;
 /** Daily data for multiple sports - dynamic record */
 export type MultiSportData = Record<string, DailySportData>;
 
-/**
- * @deprecated Use MultiSportData instead. Kept for backwards compatibility.
- */
-export interface MultiDailySportData {
-  cycling: DailySportData;
-  running: DailySportData;
-  yoga: DailySportData;
-}
-
 export interface DailySportDataResult {
   /** Daily data for each requested sport */
   data: MultiSportData;

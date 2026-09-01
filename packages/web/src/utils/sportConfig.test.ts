@@ -108,12 +108,6 @@ describe("getPrimaryMetric", () => {
   it("handles null config gracefully", () => {
     expect(getPrimaryMetric("cycling", null)).toBe("distance_meters");
   });
-
-  it("ignores userPrefs parameter for now (reserved for future)", () => {
-    const userPrefs = { cycling: "time_minutes" };
-    // Currently ignores user prefs, returns server default
-    expect(getPrimaryMetric("cycling", mockSportConfig, userPrefs)).toBe("distance_meters");
-  });
 });
 
 describe("isDistanceSport", () => {

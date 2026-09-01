@@ -100,11 +100,7 @@ export function useWeeklySummary(): {
 
   const demoGoals = useMemo(() => {
     if (user) return null;
-    const result: Record<string, { conservative: number; target: number; stretch: number }> = {};
-    for (const sport of validSports) {
-      result[sport] = generateDemoGoals(sport);
-    }
-    return result;
+    return Object.fromEntries(validSports.map((sport) => [sport, generateDemoGoals(sport)]));
   }, [user, validSports]);
 
   const effectiveUserId = user?.uid ?? "default";
