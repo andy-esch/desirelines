@@ -2,16 +2,15 @@
 
 Main Terraform module for the Desirelines project. Provisions all GCP resources for a single environment (dev or prod).
 
-## Resources Managed
+## Layout
 
-| File                      | Resources                                                                                                                                             |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `cloud_run.tf`            | Cloud Run services (dispatcher, api-gateway, postgres-writer, deletion-service), service accounts, IAM                                                |
-| `pubsub_subscriptions.tf` | Push subscriptions (activity + deauth), dead letter queues                                                                                            |
-| `main.tf`                 | Pub/Sub topics (activity_events, deauth_events, per-service dead-letter topics), BigQuery dataset/tables, Firestore database, Cloud Storage, GCP APIs |
-| `firebase_hosting.tf`     | Firebase Hosting site, custom domain, web app config                                                                                                  |
-| `image_validation.tf`     | Pre-apply check that every image reference a plan intends to deploy exists in Artifact Registry                                                       |
-| `monitoring.tf`           | Monitoring alerts and notification channels                                                                                                           |
+One Terraform file per concern, named for it — `cloud_run.tf`, `alerts.tf`,
+`slos.tf`, `readiness_probes.tf`, and so on; `main.tf` holds the shared
+foundations (Pub/Sub topics, BigQuery, Firestore, enabled APIs).
+
+For what the module actually provisions, read the auto-generated
+[Resources](#resources) table below. It is regenerated from the code by
+terraform-docs, so unlike a hand-maintained summary it cannot fall behind.
 
 ## Usage
 

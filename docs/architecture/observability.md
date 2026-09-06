@@ -213,7 +213,7 @@ The `done(err)` ergonomics means **always pass the error**, even if it's `nil` �
 Use the `record_span` context manager from [`stravapipe/shared/tracing.py`](../../packages/stravapipe/src/stravapipe/shared/tracing.py):
 
 ```python
-with record_span(self._tracer, "bigquery.merge_from_staging", {"activity_id": activity_id}):
+with record_span(self._tracer, "bigquery.merge_batch_from_staging", {"activity_id": activity_id}):
     result = self._client.execute_merge_query(merge_query, params)
 ```
 
@@ -238,7 +238,7 @@ backfill job initialize the tracer **before** constructing adapters that need it
 
 ## Span naming conventions
 
-- **Lowercase, dotted** — `bigquery.merge_from_staging`, not `BigQueryMergeFromStaging`.
+- **Lowercase, dotted** — `bigquery.merge_batch_from_staging`, not `BigQueryMergeFromStaging`.
 - **Service-prefix** when the same logical operation can run in multiple services — e.g. `postgres_writer.webhook.process`, so a second webhook consumer added later doesn't collide with it. Cloud Trace's compact view shows only the span name; the OTel `service.name` resource attribute disambiguates in detail view but not in the timeline.
 - **Operation-scoped, not infrastructure-scoped** — `postgres.activities.insert` says what; `query_database` doesn't.
 
@@ -278,6 +278,7 @@ resolution for custom metrics).
 | `postgres/query.duration` | apigateway | `year_metadata`, `get_by_id`, `list`, `list_routes`, `multi_sport_metrics_by_date_range`, `multi_sport_daily_summary_by_date_range` | One label per repository read method; matches span names |
 | `auth/verify_id_token.duration` | apigateway | (none) | Firebase ID-token verification. Histogram name matches the `auth.verify_id_token` span 1:1 (convention from histogram-label alignment cleanup). |
 | `strava/api.duration` | dispatcher | `fetch_activity`, `refresh_token` | Strava-side latency |
+| `strava/oauth_exchange.duration` | apigateway | (none) | Strava OAuth code-for-token exchange (`OAuthClient.ExchangeCode`). Registered in [`provider.go`](../../packages/shared/otel/provider.go), wired in `packages/apigateway/cmd/apigateway/main.go`. Distinct from the dispatcher's `strava/api.duration`: this is the one-time link/re-link handshake, not the per-activity call path. |
 | `pubsub/publish.duration` | dispatcher | (per topic) | Publish latency |
 | `firestore/operation.duration` | dispatcher | (per op) | Firestore read/write latency |
 | `http/request.duration` | apigateway, dispatcher | `http.method`, `http.status_code`, `http.route` (chi route pattern, e.g. `/activities/{id}`) | Emitted by `gcplog.HTTPRequestLoggerWithMetrics` (`packages/shared/gcplog/middleware.go`) — **not** otelhttp, whose built-in HTTP server metrics are deliberately left unregistered ([`provider.go`](../../packages/shared/otel/provider.go)). **Excludes** probe paths `/health`+`/ready` (`!isProbePath`). Anchors apigateway availability/latency — see [SLO 4](../slo.md#slo-4--apigateway-availability). |
@@ -305,7 +306,7 @@ For most histograms, the `operation` label value matches the span name
 That makes "find the metric for span X" mechanical:
 
 - Span `repository.activities.list_routes` → histogram `postgres/query.duration{operation="list_routes"}`
-- Span `bigquery.merge_from_staging` → histogram `bigquery/operation.duration{operation="merge_from_staging"}`
+- Span `bigquery.merge_batch_from_staging` → histogram `bigquery/operation.duration{operation="merge_batch_from_staging"}`
 
 Span attributes don't propagate into histogram labels — they're
 trace-only. If you need a span attribute as a histogram label, you have

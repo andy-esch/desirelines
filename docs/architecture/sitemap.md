@@ -47,7 +47,9 @@
 
 - **Path**: `/:sport` or `/:sport/:year`
 - **Component**: `SportPage`
-- **Valid sports**: `cycling`, `running`, `yoga`
+- **Valid sports**: API-driven — whatever `schemas/sports/sport_types.json`
+  registers, served to the client via the sport-config endpoint. Not a
+  hard-coded list.
 - **Purpose**: Detailed charts and analysis for a specific sport/year
 - **Auth**: Public (demo data when signed out)
 - **Features**:

@@ -83,17 +83,17 @@ Deploy script checks for required `.env.*.local` files and fails with helpful er
 
 ## Tech Stack
 
-React • TypeScript • Vite • Tailwind CSS • React Router • React Query • Headless UI • Firebase Auth • Firestore • Axios • Recharts • Zod • Vitest
+React • TypeScript • Vite • Tailwind CSS • TanStack Router • TanStack Query • Base UI • Firebase Auth • Firestore • Axios • Recharts • Mapbox GL (react-map-gl) • Zod • Vitest
 
 ## Architecture
 
 ```
-User → Components → API Layer → API Gateway (Go) → Cloud Storage (JSON)
+User → Components → API Layer → API Gateway (Go) → PostgreSQL/PostGIS
                   ↓
             Firestore (User Config)
 ```
 
-**Bundle Optimization**: Pages are lazy-loaded via `React.lazy()` with vendor chunks (React, Firebase, Recharts, React Query, Headless UI, Zod) split for independent caching. Main bundle ~283KB gzipped ~94KB, with heavy dependencies loaded on-demand. Hashed assets are cached immutably; `index.html` uses `no-cache` to ensure fresh chunk references after deploys.
+**Bundle Optimization**: Pages are lazy-loaded via `React.lazy()` with vendor chunks (`react-vendor` incl. TanStack Router, `firebase-vendor`, `chart-vendor`, `query-vendor`, `zod-vendor` — see `vite.config.ts`) split for independent caching. Main bundle ~283KB gzipped ~94KB, with heavy dependencies loaded on-demand. Hashed assets are cached immutably; `index.html` uses `no-cache` to ensure fresh chunk references after deploys.
 
 **Modes**:
 

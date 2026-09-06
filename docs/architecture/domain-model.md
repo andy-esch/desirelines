@@ -30,7 +30,6 @@ The central domain object. Represents a single Strava activity as it flows throu
 |-------|---------|------|------|
 | Strava API response (detailed) | stravapipe | `DetailedStravaActivity` | `packages/stravapipe/src/stravapipe/domain/activity.py` |
 | Strava API response (summary) | stravapipe | `SummaryStravaActivity` | `packages/stravapipe/src/stravapipe/domain/activity.py` |
-| Strava API response (minimal) | stravapipe | `MinimalStravaActivity` | `packages/stravapipe/src/stravapipe/domain/activity.py` |
 | Normalized for DB write | stravapipe | `StandardActivity` | `packages/stravapipe/src/stravapipe/domain/activity.py` |
 | Database table | PostgreSQL | `desirelines.activities` | `schemas/database/migrations/` |
 | Persistence compatibility | schemas | Field disposition manifest | `schemas/activities/persisted_activity_contract.json` |
@@ -70,7 +69,7 @@ Maps Strava activity types (e.g., `Ride`, `Run`) to application sport categories
 
 | Stage | Package | Type | File |
 |-------|---------|------|------|
-| Canonical schema | schemas | JSON file (16 sport categories) | `schemas/sports/sport_types.json` |
+| Canonical schema | schemas | JSON file (17 sport categories) | `schemas/sports/sport_types.json` |
 | Go config | apigateway | `config.SportConfig` / `config.SportCategory` | `packages/apigateway/config/sport_config.go` |
 | Python schema validation | stravapipe | `SportConfigModel` / `SportCategoryModel` | `packages/stravapipe/src/stravapipe/config/sport_config.py` |
 | Python runtime | stravapipe | `SportConfig` / `SportCategory` | `packages/stravapipe/src/stravapipe/config/sport_config.py` |
@@ -150,15 +149,18 @@ Per-user OAuth tokens for Strava API access. Stored in Firestore.
 
 ### Activity Routes
 
-Decoded GPS route geometry (PostGIS `LINESTRING`). Served two ways: origin-
-normalized for the abstract art canvas (`NormalizedRoute`), and real-world as
-Mapbox Vector Tiles for the slippy map (`GET /activities/map/tiles/{z}/{x}/{y}`).
+Decoded GPS route geometry (PostGIS `LINESTRING`), served to the slippy map as
+Mapbox Vector Tiles (`GET /activities/map/tiles/{z}/{x}/{y}`). Tile bytes come
+straight from `ST_AsMVT`, so no Go route type sits in between; the per-activity
+attributes the map cross-filters on travel separately as the map dataset
+(`GET /activities/map/dataset`).
 
 | Stage | Package | Type | File |
 |-------|---------|------|------|
 | Database table | PostgreSQL | `desirelines.activity_routes` | `schemas/database/migrations/V0003__add_activity_routes.sql` |
-| Go repository | apigateway | `repository.NormalizedRoute` | `packages/apigateway/repository/types.go` |
-| Frontend | web | `NormalizedRoute` | `packages/web/src/api/routes.ts` |
+| Tile query | apigateway | `repository.ActivityRepository.GetMapTile` (MVT bytes) | `packages/apigateway/repository/activities.go` |
+| Map dataset row | apigateway | `activitiesv1.MapActivity` | `packages/apigateway/types/generated/activitiesv1/activities.pb.go` |
+| Frontend | web | `MapActivity` | `packages/web/src/types/generated/activities.ts` |
 
 ### Regions & Region Tagging
 

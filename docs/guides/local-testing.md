@@ -124,18 +124,26 @@ psql "postgresql://postgres:postgres@localhost:15430/desirelines"
 ```
 
 ```sql
--- Check activities
-SELECT id, name, sport_type, start_date FROM activities ORDER BY start_date DESC LIMIT 10;
+-- Check activities (tables are schema-qualified; the sport column is `sport`,
+-- and `start_date_local` is athlete local time)
+SELECT id, name, sport, start_date_local
+FROM desirelines.activities
+ORDER BY start_date_local DESC
+LIMIT 10;
 
--- Check daily summaries
-SELECT * FROM daily_activity_summary WHERE year = 2024 LIMIT 10;
+-- Yearly totals by sport
+SELECT year, sport, count(*) AS activities, round(sum(distance) / 1000) AS km
+FROM desirelines.activities
+GROUP BY year, sport
+ORDER BY year DESC, km DESC;
 ```
 
 ### PubSub Messages
 
 ```bash
-# View PubSub emulator UI (if debug profile enabled)
-just start-backend PROFILE=debug
+# View the PubSub emulator UI. `just start-backend` takes no arguments and
+# hardcodes --profile backend, so add the debug profile with compose directly:
+docker compose --env-file .env.local --profile backend --profile debug up --build --detach
 # Open http://localhost:4200
 ```
 
@@ -217,19 +225,38 @@ To load the region boundary reference table, see
 
 ## Environment Variables
 
-Local testing uses `.env` in repo root. Key variables:
+Local testing reads **`.env.local`** in the repo root, not `.env` — `Justfile:2`
+sets `set dotenv-filename := ".env.local"` and the compose recipes pass
+`--env-file .env.local`. A plain `.env` is silently ignored. Start from the
+template:
 
 ```bash
-# PubSub
-PUBSUB_EMULATOR_HOST=localhost:8085
-GCP_PUBSUB_TOPIC=desirelines_activity_events
-
-# Database
-POSTGRES_CONNECTION_STRING=postgresql://postgres:postgres@localhost:15430/desirelines
-
-# Auth (for API Gateway)
-FIREBASE_AUTH_EMULATOR_HOST=localhost:9099
+cp .env.local.example .env.local
 ```
+
+`.env.local` carries your Strava OAuth credentials, GCP project and email
+allowlist, plus the local Postgres trio `docker-compose.yml` interpolates (it
+has no defaults for these, so compose fails without them):
+
+```bash
+POSTGRES_USER_LOCAL=postgres
+POSTGRES_PASSWORD_LOCAL=postgres
+POSTGRES_DB_LOCAL=desirelines
+```
+
+The emulator wiring is not yours to set. `docker-compose.yml` hardcodes it per
+service using *container* hostnames — inside the compose network there is no
+`localhost` to point at:
+
+| Variable | Value in compose |
+|----------|------------------|
+| `PUBSUB_EMULATOR_HOST` | `pubsub-emulator:8085` |
+| `GCP_PUBSUB_TOPIC` | `desirelines_activity_events` |
+| `POSTGRES_CONNECTION_STRING` | `postgresql://…@postgres:5432/…` |
+| `FIREBASE_AUTH_EMULATOR_HOST` | `firebase-emulators:9099` |
+
+From the host, reach the same services through the published ports instead
+(Postgres on `localhost:15430`, the PubSub UI on `localhost:4200`).
 
 ## Related
 
