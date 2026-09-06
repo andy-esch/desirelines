@@ -458,10 +458,7 @@ func (c *Client) doVerifyCurrentAthlete(ctx context.Context, ownerID int64, acce
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			return fmt.Errorf("%w: %w", errCallerContextEnded, ctxErr)
-		}
-		return fmt.Errorf("athlete request failed: %w", err)
+		return wrapHTTPErr(ctx, err, "athlete request failed")
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
@@ -472,10 +469,7 @@ func (c *Client) doVerifyCurrentAthlete(ctx context.Context, ownerID int64, acce
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxTokenResponseBytes))
 	if err != nil {
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			return fmt.Errorf("%w: %w", errCallerContextEnded, ctxErr)
-		}
-		return fmt.Errorf("read athlete response body: %w", err)
+		return wrapHTTPErr(ctx, err, "read athlete response body")
 	}
 
 	switch resp.StatusCode {
@@ -574,10 +568,7 @@ func (c *Client) fetchActivityWithTokens(ctx context.Context, ownerID, activityI
 		stampRateLimited(ctx, fetchErr)
 
 		if attempt < activityRetryAttempts-1 {
-			nominal := min(activityRetryBackoff*time.Duration(1<<attempt), maxRetryBackoff)
-			backoff := retryBackoff(nominal, fetchErr)
-			trace.SpanFromContext(ctx).AddEvent("strava.retry",
-				trace.WithAttributes(retryEventAttrs(attempt+1, backoff, fetchErr)...))
+			backoff := stampRetryBackoff(ctx, attempt, activityRetryBackoff, fetchErr)
 			c.logger.Warn("Strava fetch retry",
 				"correlation_id", cid,
 				"activity_id", activityID,
@@ -585,15 +576,8 @@ func (c *Client) fetchActivityWithTokens(ctx context.Context, ownerID, activityI
 				"backoff", backoff,
 				"error", fetchErr,
 			)
-			select {
-			case <-ctx.Done():
-				// Preserve the cause (e.g. *rateLimitError) so a retry cut
-				// short by the request budget is classified by *why* we were
-				// retrying, not mis-counted as a Strava failure for the bare
-				// ctx.Err(). A real 5xx cause still falls to the breaker's
-				// failure default.
-				return nil, fmt.Errorf("strava backoff interrupted: %w (cause: %w)", ctx.Err(), lastErr)
-			case <-time.After(backoff):
+			if waitErr := waitBeforeRetry(ctx, backoff, lastErr); waitErr != nil {
+				return nil, waitErr
 			}
 		}
 	}
@@ -618,13 +602,7 @@ func (c *Client) doFetchActivity(ctx context.Context, activityID int64, accessTo
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		// Distinguish the caller's budget/cancellation (parent ctx expired)
-		// from http.Client.Timeout (Strava slow): only the former leaves
-		// ctx.Err() non-nil here. Tag it so the breaker stays neutral.
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			return nil, fmt.Errorf("%w: %w", errCallerContextEnded, ctxErr)
-		}
-		return nil, fmt.Errorf("http request failed: %w", err)
+		return nil, wrapHTTPErr(ctx, err, "http request failed")
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
@@ -635,12 +613,7 @@ func (c *Client) doFetchActivity(ctx context.Context, activityID int64, accessTo
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxActivityResponseBytes))
 	if err != nil {
-		// The body read can also be cut short by the caller's budget — keep it
-		// breaker-neutral, same as the Do() error above.
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			return nil, fmt.Errorf("%w: %w", errCallerContextEnded, ctxErr)
-		}
-		return nil, fmt.Errorf("read response body: %w", err)
+		return nil, wrapHTTPErr(ctx, err, "read response body")
 	}
 
 	switch resp.StatusCode {
@@ -815,25 +788,15 @@ func (c *Client) refreshAndPersistOnce(ctx context.Context, ownerID int64, token
 		stampRateLimited(ctx, err)
 
 		if attempt < tokenRetryAttempts-1 {
-			nominal := min(tokenRetryBackoff*time.Duration(1<<attempt), maxRetryBackoff)
-			backoff := retryBackoff(nominal, err)
-			trace.SpanFromContext(ctx).AddEvent("strava.retry",
-				trace.WithAttributes(retryEventAttrs(attempt+1, backoff, err)...))
+			backoff := stampRetryBackoff(ctx, attempt, tokenRetryBackoff, err)
 			c.logger.Warn("Token refresh retry",
 				"correlation_id", cid,
 				"attempt", attempt+1,
 				"backoff", backoff,
 				"error", err,
 			)
-			select {
-			case <-ctx.Done():
-				// Preserve the cause (e.g. *rateLimitError) so a retry cut
-				// short by the request budget is classified by *why* we were
-				// retrying, not mis-counted as a Strava failure for the bare
-				// ctx.Err(). A real 5xx cause still falls to the breaker's
-				// failure default.
-				return nil, fmt.Errorf("strava backoff interrupted: %w (cause: %w)", ctx.Err(), lastErr)
-			case <-time.After(backoff):
+			if waitErr := waitBeforeRetry(ctx, backoff, lastErr); waitErr != nil {
+				return nil, waitErr
 			}
 		}
 	}
@@ -910,11 +873,7 @@ func (c *Client) doRefreshToken(ctx context.Context, refreshToken string) (*stra
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		// See doFetchActivity: caller budget/cancellation vs Strava slowness.
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			return nil, fmt.Errorf("%w: %w", errCallerContextEnded, ctxErr)
-		}
-		return nil, fmt.Errorf("token request failed: %w", err)
+		return nil, wrapHTTPErr(ctx, err, "token request failed")
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
@@ -925,12 +884,7 @@ func (c *Client) doRefreshToken(ctx context.Context, refreshToken string) (*stra
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxTokenResponseBytes))
 	if err != nil {
-		// See doFetchActivity: a caller-budget cut during the body read stays
-		// breaker-neutral rather than counting as a Strava failure.
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			return nil, fmt.Errorf("%w: %w", errCallerContextEnded, ctxErr)
-		}
-		return nil, fmt.Errorf("failed to read token response body: %w", err)
+		return nil, wrapHTTPErr(ctx, err, "failed to read token response body")
 	}
 
 	if resp.StatusCode == http.StatusTooManyRequests {
@@ -975,6 +929,18 @@ func isRefreshTokenInvalid(body []byte) bool {
 		}
 	}
 	return false
+}
+
+// wrapHTTPErr classifies a failed HTTP call or body read against the caller's
+// context. A non-nil ctx.Err() means the caller's budget or cancellation ended
+// the call, not that Strava was slow — http.Client.Timeout leaves ctx.Err()
+// nil — so tag it errCallerContextEnded to keep the circuit breaker neutral.
+// Anything else is Strava's failure and keeps the call site's own msg.
+func wrapHTTPErr(ctx context.Context, err error, msg string) error {
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return fmt.Errorf("%w: %w", errCallerContextEnded, ctxErr)
+	}
+	return fmt.Errorf("%s: %w", msg, err)
 }
 
 // authError is an internal error type for 401 responses.
@@ -1109,4 +1075,31 @@ func retryEventAttrs(attempt int, backoff time.Duration, err error) []attribute.
 		attrs = append(attrs, attribute.String("error", err.Error()))
 	}
 	return attrs
+}
+
+// stampRetryBackoff derives the sleep before the next attempt — exponential
+// from base, capped at maxRetryBackoff, then jittered (and floored at a 429's
+// Retry-After) by retryBackoff — and records the strava.retry span event for
+// it. The backoff is returned rather than slept on here so each retry loop can
+// log it with its own fields before handing it to waitBeforeRetry.
+func stampRetryBackoff(ctx context.Context, attempt int, base time.Duration, err error) time.Duration {
+	nominal := min(base*time.Duration(1<<attempt), maxRetryBackoff)
+	backoff := retryBackoff(nominal, err)
+	trace.SpanFromContext(ctx).AddEvent("strava.retry",
+		trace.WithAttributes(retryEventAttrs(attempt+1, backoff, err)...))
+	return backoff
+}
+
+// waitBeforeRetry sleeps out the backoff, returning non-nil if the caller's
+// context ended first. The wrap preserves cause (e.g. *rateLimitError) so a
+// retry cut short by the request budget is classified by *why* we were
+// retrying, not mis-counted as a Strava failure for the bare ctx.Err(). A real
+// 5xx cause still falls to the breaker's failure default.
+func waitBeforeRetry(ctx context.Context, backoff time.Duration, cause error) error {
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("strava backoff interrupted: %w (cause: %w)", ctx.Err(), cause)
+	case <-time.After(backoff):
+	}
+	return nil
 }
