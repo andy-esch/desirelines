@@ -67,7 +67,7 @@ module "desirelines" {
 | [google_cloud_run_v2_service_iam_member.api_gateway_public_access](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/cloud_run_v2_service_iam_member) | resource |
 | [google_cloud_run_v2_service_iam_member.deletion_service_invoker](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/cloud_run_v2_service_iam_member) | resource |
 | [google_cloud_run_v2_service_iam_member.dispatcher_public_access](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/cloud_run_v2_service_iam_member) | resource |
-| [google_cloud_run_v2_service_iam_member.postgres_writer_eventarc_invoker](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/cloud_run_v2_service_iam_member) | resource |
+| [google_cloud_run_v2_service_iam_member.postgres_writer_invoker](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/cloud_run_v2_service_iam_member) | resource |
 | [google_cloud_run_v2_service_iam_member.scheduler_python_invoker](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/cloud_run_v2_service_iam_member) | resource |
 | [google_cloud_scheduler_job.apigateway_readiness](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/cloud_scheduler_job) | resource |
 | [google_cloud_scheduler_job.python_readiness](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/cloud_scheduler_job) | resource |
