@@ -148,7 +148,7 @@ resource "google_pubsub_subscription" "deletion_service" {
 # The service accounts need permission to invoke their respective Cloud Run services.
 
 # Note: this IAM binding already exists in cloud_run.tf:
-# - google_cloud_run_v2_service_iam_member.postgres_writer_eventarc_invoker
+# - google_cloud_run_v2_service_iam_member.postgres_writer_invoker
 # It grants run.invoker to the service account, which is what we need.
 
 # ==============================================================================

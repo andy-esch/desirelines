@@ -791,9 +791,17 @@ resource "google_cloud_run_v2_service_iam_member" "deletion_service_invoker" {
   member   = "serviceAccount:${google_service_account.deletion_service.email}"
 }
 
+# These are Pub/Sub push invokers, not Eventarc; the old name predates the
+# move off Eventarc triggers. Keep this moved block until every environment's
+# state has applied it — without it the rename plans as destroy + recreate.
+moved {
+  from = google_cloud_run_v2_service_iam_member.postgres_writer_eventarc_invoker
+  to   = google_cloud_run_v2_service_iam_member.postgres_writer_invoker
+}
+
 # Allow PostgreSQL Writer's service account to invoke the Cloud Run service
 # (used by Pub/Sub push subscription OIDC authentication)
-resource "google_cloud_run_v2_service_iam_member" "postgres_writer_eventarc_invoker" {
+resource "google_cloud_run_v2_service_iam_member" "postgres_writer_invoker" {
   project  = var.gcp_project_id
   location = var.gcp_region
   name     = google_cloud_run_v2_service.postgres_writer.name
