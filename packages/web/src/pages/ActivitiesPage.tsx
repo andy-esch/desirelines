@@ -6,6 +6,7 @@ import { getUserSettings } from "../utils/units";
 import { useUserConfig } from "../hooks/useUserConfig";
 import { useSportOptions } from "../hooks/useSportOptions";
 import { useVisibleSports } from "../hooks/useVisibleSports";
+import { useDashboardGoalData } from "../hooks/useDashboardGoalData";
 import { PageLayout } from "../components/layout/PageLayout";
 import ActiveFilterPill, { activeFilterLabels } from "../components/ActiveFilterPill";
 import SportFilterPills from "../components/SportFilterPills";
@@ -49,6 +50,24 @@ const ActivitiesPage = () => {
   const selectedSports = useMemo(
     () => normalizeSports(search.sports?.split(",") ?? []),
     [search.sports]
+  );
+
+  // Impact % is measured against one sport's goal, so the column only appears
+  // under a single-sport filter. With no filter (or several sports) every row
+  // would need its own goal and the one column cannot say which it used — the
+  // per-row Sport badge already carries that distinction.
+  //
+  // Held back until the goals resolve: transformToSportGoalData seeds impactGoal
+  // from metricConfig.defaultGoalValue (dashboardUtils.ts:79) rather than zero,
+  // so an unguarded render shows percentages measured against 2,500 mi and then
+  // silently restates them against the athlete's real goal.
+  const { sportData, isLoading: goalsLoading } = useDashboardGoalData();
+  const goalData = useMemo(
+    () =>
+      !goalsLoading && selectedSports.length === 1
+        ? sportData.find((g) => g.sport === selectedSports[0])
+        : undefined,
+    [goalsLoading, sportData, selectedSports]
   );
 
   // Calculate date range based on selection
@@ -162,6 +181,22 @@ const ActivitiesPage = () => {
           onViewOnMap={(id) => void navigate({ to: "/routes", search: { activity: Number(id) } })}
           distanceUnit={userSettings.distanceUnit}
           elevationUnit={userSettings.elevationUnit}
+          {...(goalData
+            ? {
+                goalTarget: goalData.impactGoal,
+                isSessionSport: goalData.metricType === "sessions",
+                // Name impactGoal, not targetGoal: the percentage above is a
+                // share of impactGoal, and impactGoalLabel is *its* label — the
+                // two are a pair. Rounded like the dashboard's equivalent
+                // tooltip (RecentActivitiesList.tsx:310) since the converted
+                // value carries fractions. The label is the athlete's own and
+                // may be empty (dashboardUtils.ts:100), so the parenthetical is
+                // dropped rather than rendered as "3,000 mi () goal".
+                goalLabel: goalData.impactGoalLabel
+                  ? `${Math.round(goalData.impactGoal).toLocaleString()} ${goalData.metricUnit} (${goalData.impactGoalLabel})`
+                  : `${Math.round(goalData.impactGoal).toLocaleString()} ${goalData.metricUnit}`,
+              }
+            : {})}
         />
       </div>
     </PageLayout>

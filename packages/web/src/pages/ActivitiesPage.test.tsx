@@ -11,6 +11,8 @@ import {
 import ActivitiesPage from "./ActivitiesPage";
 import { validateActivitiesSearch } from "../routes/activities";
 import * as useActivitiesModule from "../hooks/useActivities";
+import { useDashboardGoalData } from "../hooks/useDashboardGoalData";
+import { createYearContext } from "../utils/yearContext";
 
 // Mock dependencies - useActivities is mocked; useAuth is called internally
 // by useActivities but that's fully mocked so useAuth never runs.
@@ -26,6 +28,30 @@ vi.mock("../hooks/useSportConfig", () => ({
 }));
 vi.mock("../hooks/useVisibleSports", () => ({
   useVisibleSports: () => ({ visibleSports: ["cycling", "running", "yoga"] }),
+}));
+// Mocked for the same reason as the others: it reaches useAuth, and these tests
+// render the page without an AuthProvider. `sportData` drives the Impact column,
+// so a cycling entry lets the single-sport-filter cases assert against it.
+vi.mock("../hooks/useDashboardGoalData", () => ({
+  useDashboardGoalData: vi.fn(() => ({
+    sportData: [
+      {
+        sport: "cycling",
+        displayName: "Cycling",
+        color: "#000",
+        currentValue: 1200,
+        targetGoal: 3500,
+        metricUnit: "mi",
+        metricType: "distance",
+        impactGoal: 3000,
+        impactGoalLabel: "Conservative",
+      },
+    ],
+    yearContext: createYearContext(2026),
+    distanceUnit: "miles",
+    isLoading: false,
+    error: null,
+  })),
 }));
 
 /**
@@ -268,6 +294,104 @@ describe("ActivitiesPage", () => {
       await renderActivitiesPage();
 
       expect(screen.getByRole("heading", { name: "Activities" })).toBeInTheDocument();
+    });
+  });
+
+  // The Impact % is a share of ONE sport's goal, so the column is tied to the
+  // single-sport filter. Under no filter or several, a single column could not
+  // say which goal each row was measured against.
+  describe("goal impact column", () => {
+    beforeEach(() => {
+      vi.spyOn(useActivitiesModule, "useActivities").mockReturnValue({
+        activities: mockActivities,
+        isLoading: false,
+        error: null,
+        hasMore: false,
+        isLoadingMore: false,
+        loadMore: vi.fn(),
+        retry: vi.fn(),
+      });
+    });
+
+    it("shows the Impact column when one sport is selected", async () => {
+      await renderActivitiesPage("/activities?sports=cycling");
+
+      expect(await screen.findByRole("columnheader", { name: /impact/i })).toBeInTheDocument();
+    });
+
+    it("names the goal the percentage is measured against", async () => {
+      await renderActivitiesPage("/activities?sports=cycling");
+
+      const header = await screen.findByTitle(
+        "Share of your 3,000 mi (Conservative) goal covered by this activity"
+      );
+      expect(header).toHaveTextContent("Impact");
+    });
+
+    it("omits the parenthetical when the athlete's goal has no label", async () => {
+      vi.mocked(useDashboardGoalData).mockReturnValueOnce({
+        sportData: [
+          {
+            sport: "cycling",
+            displayName: "Cycling",
+            color: "#000",
+            currentValue: 1200,
+            targetGoal: 3500,
+            metricUnit: "mi",
+            metricType: "distance",
+            impactGoal: 3000,
+            impactGoalLabel: "",
+          },
+        ],
+        yearContext: createYearContext(2026),
+        distanceUnit: "miles",
+        isLoading: false,
+        error: null,
+      });
+
+      await renderActivitiesPage("/activities?sports=cycling");
+
+      expect(
+        await screen.findByTitle("Share of your 3,000 mi goal covered by this activity")
+      ).toBeInTheDocument();
+    });
+
+    it("withholds the Impact column until the goals resolve", async () => {
+      // impactGoal falls back to a non-zero metricConfig default, so rendering
+      // mid-load would show a percentage of a goal the athlete never set.
+      vi.mocked(useDashboardGoalData).mockReturnValueOnce({
+        sportData: [],
+        yearContext: createYearContext(2026),
+        distanceUnit: "miles",
+        isLoading: true,
+        error: null,
+      });
+
+      await renderActivitiesPage("/activities?sports=cycling");
+
+      await screen.findByRole("heading", { name: "Activities" });
+      expect(screen.queryByRole("columnheader", { name: /impact/i })).not.toBeInTheDocument();
+    });
+
+    it("hides the Impact column when no sport is selected", async () => {
+      await renderActivitiesPage("/activities");
+
+      await screen.findByRole("heading", { name: "Activities" });
+      expect(screen.queryByRole("columnheader", { name: /impact/i })).not.toBeInTheDocument();
+    });
+
+    it("hides the Impact column when several sports are selected", async () => {
+      await renderActivitiesPage("/activities?sports=cycling,running");
+
+      await screen.findByRole("heading", { name: "Activities" });
+      expect(screen.queryByRole("columnheader", { name: /impact/i })).not.toBeInTheDocument();
+    });
+
+    it("hides the Impact column for a sport with no goal data", async () => {
+      await renderActivitiesPage("/activities?sports=running");
+
+      await screen.findByRole("heading", { name: "Activities" });
+      expect(screen.queryByRole("columnheader", { name: /impact/i })).not.toBeInTheDocument();
     });
   });
 });
