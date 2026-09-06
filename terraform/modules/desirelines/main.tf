@@ -170,6 +170,8 @@ resource "google_pubsub_topic" "postgres_writer_dead_letter" {
   labels = local.common_labels
 
   message_retention_duration = "1209600s" # 14 days
+
+  depends_on = [google_project_service.required_apis]
 }
 
 resource "google_pubsub_topic" "deletion_service_dead_letter" {
@@ -178,6 +180,8 @@ resource "google_pubsub_topic" "deletion_service_dead_letter" {
   labels = local.common_labels
 
   message_retention_duration = "1209600s" # 14 days
+
+  depends_on = [google_project_service.required_apis]
 }
 
 # Grant PubSub service account permission to publish to the dead letter topics
