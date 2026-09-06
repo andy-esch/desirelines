@@ -42,6 +42,10 @@ interface ActivityTableProps {
   goalTarget?: number;
   /** Whether this is a session-based sport (no distance). */
   isSessionSport?: boolean;
+  /** Which goal the Impact % is measured against, e.g. "3,000 mi (Conservative)".
+   *  Only used for the header tooltip — the percentage itself comes from
+   *  `goalTarget`. Omit and the header renders bare. */
+  goalLabel?: string;
 }
 
 /** Format seconds to MM:SS or H:MM:SS */
@@ -97,6 +101,7 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
   elevationUnit = "feet",
   goalTarget,
   isSessionSport = false,
+  goalLabel,
 }) => {
   const showImpact = goalTarget != null && goalTarget > 0;
   if (error) {
@@ -132,7 +137,20 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                 <th className="text-right">Time</th>
                 <th className="text-right">Elevation</th>
                 <th className="text-right">Pace/Speed</th>
-                {showImpact && <th className="text-right">Impact</th>}
+                {showImpact && (
+                  <th className="text-right">
+                    {goalLabel ? (
+                      <span
+                        style={{ cursor: "help", textDecoration: "underline dotted" }}
+                        title={`Share of your ${goalLabel} goal covered by this activity`}
+                      >
+                        Impact
+                      </span>
+                    ) : (
+                      "Impact"
+                    )}
+                  </th>
+                )}
                 <th></th>
               </tr>
             </thead>
