@@ -568,10 +568,7 @@ func (c *Client) fetchActivityWithTokens(ctx context.Context, ownerID, activityI
 		stampRateLimited(ctx, fetchErr)
 
 		if attempt < activityRetryAttempts-1 {
-			nominal := min(activityRetryBackoff*time.Duration(1<<attempt), maxRetryBackoff)
-			backoff := retryBackoff(nominal, fetchErr)
-			trace.SpanFromContext(ctx).AddEvent("strava.retry",
-				trace.WithAttributes(retryEventAttrs(attempt+1, backoff, fetchErr)...))
+			backoff := stampRetryBackoff(ctx, attempt, activityRetryBackoff, fetchErr)
 			c.logger.Warn("Strava fetch retry",
 				"correlation_id", cid,
 				"activity_id", activityID,
@@ -579,15 +576,8 @@ func (c *Client) fetchActivityWithTokens(ctx context.Context, ownerID, activityI
 				"backoff", backoff,
 				"error", fetchErr,
 			)
-			select {
-			case <-ctx.Done():
-				// Preserve the cause (e.g. *rateLimitError) so a retry cut
-				// short by the request budget is classified by *why* we were
-				// retrying, not mis-counted as a Strava failure for the bare
-				// ctx.Err(). A real 5xx cause still falls to the breaker's
-				// failure default.
-				return nil, fmt.Errorf("strava backoff interrupted: %w (cause: %w)", ctx.Err(), lastErr)
-			case <-time.After(backoff):
+			if waitErr := waitBeforeRetry(ctx, backoff, lastErr); waitErr != nil {
+				return nil, waitErr
 			}
 		}
 	}
@@ -798,25 +788,15 @@ func (c *Client) refreshAndPersistOnce(ctx context.Context, ownerID int64, token
 		stampRateLimited(ctx, err)
 
 		if attempt < tokenRetryAttempts-1 {
-			nominal := min(tokenRetryBackoff*time.Duration(1<<attempt), maxRetryBackoff)
-			backoff := retryBackoff(nominal, err)
-			trace.SpanFromContext(ctx).AddEvent("strava.retry",
-				trace.WithAttributes(retryEventAttrs(attempt+1, backoff, err)...))
+			backoff := stampRetryBackoff(ctx, attempt, tokenRetryBackoff, err)
 			c.logger.Warn("Token refresh retry",
 				"correlation_id", cid,
 				"attempt", attempt+1,
 				"backoff", backoff,
 				"error", err,
 			)
-			select {
-			case <-ctx.Done():
-				// Preserve the cause (e.g. *rateLimitError) so a retry cut
-				// short by the request budget is classified by *why* we were
-				// retrying, not mis-counted as a Strava failure for the bare
-				// ctx.Err(). A real 5xx cause still falls to the breaker's
-				// failure default.
-				return nil, fmt.Errorf("strava backoff interrupted: %w (cause: %w)", ctx.Err(), lastErr)
-			case <-time.After(backoff):
+			if waitErr := waitBeforeRetry(ctx, backoff, lastErr); waitErr != nil {
+				return nil, waitErr
 			}
 		}
 	}
@@ -1095,4 +1075,31 @@ func retryEventAttrs(attempt int, backoff time.Duration, err error) []attribute.
 		attrs = append(attrs, attribute.String("error", err.Error()))
 	}
 	return attrs
+}
+
+// stampRetryBackoff derives the sleep before the next attempt — exponential
+// from base, capped at maxRetryBackoff, then jittered (and floored at a 429's
+// Retry-After) by retryBackoff — and records the strava.retry span event for
+// it. The backoff is returned rather than slept on here so each retry loop can
+// log it with its own fields before handing it to waitBeforeRetry.
+func stampRetryBackoff(ctx context.Context, attempt int, base time.Duration, err error) time.Duration {
+	nominal := min(base*time.Duration(1<<attempt), maxRetryBackoff)
+	backoff := retryBackoff(nominal, err)
+	trace.SpanFromContext(ctx).AddEvent("strava.retry",
+		trace.WithAttributes(retryEventAttrs(attempt+1, backoff, err)...))
+	return backoff
+}
+
+// waitBeforeRetry sleeps out the backoff, returning non-nil if the caller's
+// context ended first. The wrap preserves cause (e.g. *rateLimitError) so a
+// retry cut short by the request budget is classified by *why* we were
+// retrying, not mis-counted as a Strava failure for the bare ctx.Err(). A real
+// 5xx cause still falls to the breaker's failure default.
+func waitBeforeRetry(ctx context.Context, backoff time.Duration, cause error) error {
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("strava backoff interrupted: %w (cause: %w)", ctx.Err(), cause)
+	case <-time.After(backoff):
+	}
+	return nil
 }
