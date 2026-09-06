@@ -770,3 +770,59 @@ func TestSecurity_StrayOwnerCostsNothingDownstream(t *testing.T) {
 		t.Errorf("primary publishes = %d, want 0", got)
 	}
 }
+
+// TestSecurity_BaselineResponseHeaders pins the headers this endpoint sets, and
+// the ones it deliberately does not. The omissions are the point: a public
+// endpoint that differs from its apigateway sibling for no recorded reason
+// invites the reader to assume the difference is meaningful. See
+// securityHeaders in handler.go for why each is kept or dropped.
+func TestSecurity_BaselineResponseHeaders(t *testing.T) {
+	want := map[string]string{
+		"X-Content-Type-Options": "nosniff",
+		"Referrer-Policy":        "no-referrer",
+	}
+	// Not set here, unlike the apigateway: no browser renders this response.
+	absent := []string{
+		"Strict-Transport-Security",
+		"Content-Security-Policy",
+		"X-Frame-Options",
+		"Permissions-Policy",
+	}
+
+	// Every response shape, including the ones that never reach the router:
+	// an accepted webhook, chi's 404, and a rejected callback capability.
+	rig := newSecurityRig(t, true)
+	cases := map[string]func() *httptest.ResponseRecorder{
+		"accepted webhook": func() *httptest.ResponseRecorder {
+			return rig.post(deauthBody(testSubscriptionID))
+		},
+		"router 404": func() *httptest.ResponseRecorder {
+			req := httptest.NewRequest(http.MethodGet, "/no-such-route", nil)
+			w := httptest.NewRecorder()
+			rig.router.ServeHTTP(w, req)
+			return w
+		},
+		"rejected capability": func() *httptest.ResponseRecorder {
+			req := httptest.NewRequest(http.MethodPost, "/webhook/wrong-capability", nil)
+			w := httptest.NewRecorder()
+			rig.router.ServeHTTP(w, req)
+			return w
+		},
+	}
+
+	for name, do := range cases {
+		t.Run(name, func(t *testing.T) {
+			w := do()
+			for header, value := range want {
+				if got := w.Header().Get(header); got != value {
+					t.Errorf("%s = %q, want %q", header, got, value)
+				}
+			}
+			for _, header := range absent {
+				if got := w.Header().Get(header); got != "" {
+					t.Errorf("%s = %q, want it unset for a machine-to-machine endpoint", header, got)
+				}
+			}
+		})
+	}
+}

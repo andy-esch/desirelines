@@ -337,6 +337,31 @@ func NewHandler(publisher, deauthPublisher ports.Publisher, secretProvider ports
 	}
 }
 
+// securityHeaders sets the baseline response headers for this endpoint.
+//
+// Deliberately narrower than the apigateway's SecurityHeaders
+// (internal/server/middleware.go), which is not shared with it: that one guards
+// a browser-facing API, this one guards a machine-to-machine webhook that Strava
+// calls and no browser ever renders.
+//
+// Kept:
+//   - X-Content-Type-Options, because the endpoint reflects one caller-supplied
+//     value (hub.challenge) and nosniff is what stops a client from treating
+//     that JSON as some other type.
+//   - Referrer-Policy, which costs nothing and is correct for any origin.
+//
+// Omitted, so the difference is a recorded decision rather than an oversight:
+// HSTS (Cloud Run terminates TLS and no browser holds a policy for this host),
+// X-Frame-Options and CSP frame-ancestors (nothing here is framable), and
+// Permissions-Policy (no document, so no feature policy to constrain).
+func securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Referrer-Policy", "no-referrer")
+		next.ServeHTTP(w, r)
+	})
+}
+
 // RegisterRoutes configures the router with essential middleware and registers
 // endpoints. Production callers that add HTTP instrumentation must use
 // RegisterRoutesInstrumented so the callback capability is redacted before the
@@ -390,7 +415,10 @@ func (h *Handler) RegisterRoutesInstrumented(instrument func(http.Handler) http.
 	// Resolve the trusted Cloud Run client address before the capability boundary
 	// so rejected probes retain useful, credential-free forensic context. This
 	// middleware only rewrites RemoteAddr; it does not log, trace, or read a body.
-	return gcplog.CloudRunRealIP(h.protectWebhookCallback(routed))
+	// Outermost, so the headers reach every response — chi's 404/405, a panic
+	// recovered downstream, and the capability boundary's own rejections, which
+	// never reach the router at all.
+	return securityHeaders(gcplog.CloudRunRealIP(h.protectWebhookCallback(routed)))
 }
 
 func (h *Handler) registerWebhookRoute(r chi.Router, routePath string) {
