@@ -275,15 +275,25 @@ Generation happens in `dist/codegen/`, then Justfile copies to package directori
 
 ### Frontend (protoc + ts-proto)
 
-TypeScript uses protoc directly with ts-proto plugin:
+TypeScript uses protoc directly with the ts-proto plugin. Run it through the
+recipe — `justfiles/web.just` is the source of truth, and the flags below are
+reproduced only to explain them:
 
 ```bash
-protoc \
-  --plugin=protoc-gen-ts_proto=./node_modules/.bin/protoc-gen-ts_proto \
-  --ts_proto_out=packages/web/src/types/generated/ \
-  --ts_proto_opt=outputJsonMethods=true,esModuleInterop=true \
-  schemas/proto/desirelines/sports/v1/sports_metrics.proto
+just proto-gen-web
 ```
+
+It invokes protoc **twice**, with the same base options
+(`outputJsonMethods=false,outputPartialMethods=false,useOptionals=messages,oneof=unions`)
+but a different `forceLong` each time:
+
+| Protos | `forceLong` | Why |
+|--------|-------------|-----|
+| `sports_metrics`, `user_config` | `number` | Their only int64 field is an internal, display-filtered metric that is never compared numerically. ts-proto defaults to `string`, so this flag is required to keep `number`. |
+| `activities` | `string` | **Correctness-critical.** Its int64 ids cross service boundaries and protojson serializes int64 as a JSON *string*. The generated type must say `string` or the contract silently lies; `api/map.ts` coerces to number at the boundary. |
+
+Omitting `forceLong` — as any hand-run command easily does — regenerates the
+activities types with the wrong int64 handling.
 
 ## Proto Consumers by File
 

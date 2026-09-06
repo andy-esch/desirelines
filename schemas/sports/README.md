@@ -16,17 +16,21 @@ The database stores Strava's `sport_type` as-is without validation. Filtering to
 
 ## Schema
 
+Keys are camelCase throughout — the Go loader (`packages/apigateway/config/sport_config.go`)
+binds them by `json:` tag and rejects snake_case. Metric *values* (`distance_meters`,
+`time_minutes`) are snake_case; only the keys are not.
+
 ```json
 {
-  "sport_categories": {
+  "sportCategories": {
     "<category_key>": {
-      "display_name": "Human readable name",
-      "strava_types": ["StravaType1", "StravaType2"],
-      "excluded_types": ["ExcludedType"],
-      "primary_metric": "distance_meters|time_minutes",
+      "displayName": "Human readable name",
+      "stravaTypes": ["StravaType1", "StravaType2"],
+      "excludedTypes": ["ExcludedType"],
+      "primaryMetric": "distance_meters|time_minutes",
       "metrics": ["distance_meters", "time_minutes", ...],
-      "has_distance": true|false,
-      "has_elevation": true|false,
+      "hasDistance": true|false,
+      "hasElevation": true|false,
       "dangerPace": { "valuePerDay": 20, "unit": "miles" },
       "goalDefaults": {
         "increment": 10,
@@ -55,11 +59,11 @@ achievable than a distance sport's ceiling.
 `goalDefaults` is optional per-sport goal tuning read by the web client's
 `getMetricConfig`; backends load and pass it through without interpreting it.
 Every field is optional and inherits the base config for the sport's
-`primary_metric` when omitted — so a sport whose defaults match its base type
+`primaryMetric` when omitted — so a sport whose defaults match its base type
 needs no entry at all. Fields: `increment` (goal +/- step), `rounding`
 (goal-value rounding factor), `defaultValue` (goal when a sport has no
 activities yet), and `chartIntervals` (Y-axis tick thresholds). Values are in
-the display unit of the sport's `primary_metric` (miles for distance sports,
+the display unit of the sport's `primaryMetric` (miles for distance sports,
 hours for time sports). In `chartIntervals`, the final catch-all bucket omits
 `max` (JSON has no `Infinity`); the client restores it as `Infinity`.
 
@@ -69,13 +73,13 @@ This file is synced to three packages via `just sync-schemas`. Each consumer dep
 
 | Field | apigateway (Go) | stravapipe (Python) | web (TypeScript) |
 |-------|-----------------|---------------------|-------------------|
-| `strava_types` | Builds reverse lookup map for categorization | Matches incoming activities via `matches()` | — |
-| `excluded_types` | Loaded | Used in `matches()` filtering | — |
-| `display_name` | Loaded | Loaded | Sport labels in UI |
-| `primary_metric` | Returned via `GetCategory()` | Loaded | Metric selection |
+| `stravaTypes` | Builds reverse lookup map for categorization | Matches incoming activities via `matches()` | — |
+| `excludedTypes` | Loaded | Used in `matches()` filtering | — |
+| `displayName` | Loaded | Loaded | Sport labels in UI |
+| `primaryMetric` | Returned via `GetCategory()` | Loaded | Metric selection |
 | `metrics` | Loaded | Loaded | Chart configuration |
-| `has_distance` | Returned via `GetCategory()` | Loaded | — |
-| `has_elevation` | Returned via `GetCategory()` | Loaded | — |
+| `hasDistance` | Returned via `GetCategory()` | Loaded | — |
+| `hasElevation` | Returned via `GetCategory()` | Loaded | — |
 | `dangerPace` | Loaded, passed through | Loaded, ignored | Danger-zone rendering in charts |
 | `goalDefaults` | Loaded, passed through | Loaded, ignored | Per-sport goal tuning in `getMetricConfig` |
 

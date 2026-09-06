@@ -214,7 +214,7 @@ Resolved 2026-05-10:
       aren't supported by Terraform today. Burn-rate alert pair
       follows the same pattern as SLOs 1/4/5.
 - [x] **Synthetic-fault endpoint** deployed in PR #603 at
-      `/v1/__synthetic_5xx__`. Environment-gated (off in prod via
+      `/v1/__synthetic_fault__`. Environment-gated (off in prod via
       `EnableSyntheticFaults` flag), auth-gated, and cleanly
       removable — see `packages/apigateway/internal/synthetic/handler.go`
       for removal steps.
@@ -223,7 +223,7 @@ Resolved 2026-05-10:
       be calibrated against actual p95 before committing in
       Terraform.
 - [x] **Validate fast-burn alert end-to-end** — confirmed
-      2026-05-11 by repeatedly hitting `/v1/__synthetic_5xx__`
+      2026-05-11 by repeatedly hitting `/v1/__synthetic_fault__`
       (Firebase ID token from Network tab; loop of 200 5xx GETs).
       Burn-rate alert fired through both email and Slack within
       the expected ~10-15 min window. SLO budget burn visible in
