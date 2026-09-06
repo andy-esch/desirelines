@@ -56,6 +56,16 @@ jobs:
         id: metadata
         run: echo "git_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
+      # Per-image filtering, not a blanket paths-ignore: a push that touches
+      # only terraform/, docs, or schemas rebuilds nothing, and a push that
+      # touches one service rebuilds only that service. Images are addressed by
+      # :latest and :<short-sha>, so skipping a build leaves the previous digest
+      # in place and the deploy repo keeps deploying it — correct, because
+      # nothing in that image changed.
+      #
+      # shared/ fans out to both Go services on purpose; it is compiled into
+      # each, so a shared change with no rebuild would ship stale binaries.
+      # Deleting a service's entry here silently stops publishing its image.
       - name: Detect changed paths
         id: filter
         uses: dorny/paths-filter@v4
