@@ -231,12 +231,13 @@ export function useSportPageData(sport: string, year: number): SportPageData {
     const goalMetric = getPrimaryMetric(sport, sportConfig);
     // generateDefaultGoals now stamps metric/createdAt/updatedAt itself, so the
     // map below only converts display→storage units.
-    const generatedGoals = generateDefaultGoals(
-      estimatedYearEnd,
-      roundingFactor,
-      defaultGoalValue,
-      { metric: goalMetric, now }
-    );
+    const generatedGoals = generateDefaultGoals({
+      estimatedDistance: estimatedYearEnd,
+      metric: goalMetric,
+      granularity: roundingFactor,
+      minValue: defaultGoalValue,
+      now,
+    });
     const ctx: GoalUnitContext = { hasDistance, isTime, distanceUnit };
 
     return {

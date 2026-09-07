@@ -253,15 +253,26 @@ export function estimateYearEndDistance(
 }
 
 /**
- * Goal-generation context: sport-specific metric + injectable clock for tests.
+ * Every input to `generateDefaultGoals`: the estimate to build from, the sport
+ * context, the rounding knobs, and an injectable clock for tests.
  *
- * Both `generateDefaultGoals` and the reset button in `GoalControls` thread
- * this through so every newly-minted goal arrives with its proto metadata
- * already populated — no later code path needs to bolt fields on.
+ * One object rather than positional args because the required sport context
+ * used to sit behind two optionals, so callers wrote
+ * `generateDefaultGoals(estimate, undefined, undefined, { metric })` to reach
+ * it — and that shape is how goals once silently reset to cycling-shaped
+ * defaults on every sport. Named fields make the sport context impossible to
+ * skip past.
  */
-export interface GoalGenerationOptions {
+export interface GenerateDefaultGoalsOptions {
+  /** Estimated year-end distance/value, in display units. */
+  estimatedDistance: number;
   /** Sport metric key (e.g. "distance_meters", "time_minutes"). Required. */
   metric: string;
+  /** Rounding increment for the generated goals. */
+  granularity?: number;
+  /** Minimum base value, so a sport with no data still gets meaningful goals
+   *  rather than 0/0/granularity. Defaults to `granularity`. */
+  minValue?: number;
   /** ISO timestamp to stamp on createdAt/updatedAt. Defaults to wall clock; injectable for tests. */
   now?: string;
 }
@@ -274,18 +285,15 @@ export interface GoalGenerationOptions {
  * `createdAt`, `updatedAt`) so the result can be written to Firestore without
  * further enrichment.
  *
- * @param estimatedDistance - Estimated year-end distance/value
- * @param granularity - Rounding increment (default 100)
- * @param minValue - Minimum base value for goal generation (default: granularity).
- *                   Use to ensure meaningful goals when no data exists.
- * @param options - Sport context (`metric`) + optional `now` for deterministic timestamps.
+ * See `GenerateDefaultGoalsOptions` for the inputs.
  */
-export function generateDefaultGoals(
-  estimatedDistance: number,
-  granularity: number = 100,
-  minValue: number | undefined,
-  options: GoalGenerationOptions
-): Goals {
+export function generateDefaultGoals({
+  estimatedDistance,
+  metric,
+  granularity = 100,
+  minValue,
+  now,
+}: GenerateDefaultGoalsOptions): Goals {
   // Ensure we have a meaningful base value for goal generation
   // minValue prevents meaningless goals (like 0, 0, 100) when there's no data
   const effectiveMin = minValue ?? granularity;
@@ -304,13 +312,12 @@ export function generateDefaultGoals(
     conservativeValue = Math.max(1, Math.round(granularity / 2));
   }
 
-  const now = options.now ?? new Date().toISOString();
-  const metric = options.metric;
+  const timestamp = now ?? new Date().toISOString();
 
   return [
-    buildGoal({ id: "1", value: conservativeValue, label: "Conservative", metric }, now),
-    buildGoal({ id: "2", value: rounded, label: "Target", metric }, now),
-    buildGoal({ id: "3", value: rounded + granularity, label: "Stretch", metric }, now),
+    buildGoal({ id: "1", value: conservativeValue, label: "Conservative", metric }, timestamp),
+    buildGoal({ id: "2", value: rounded, label: "Target", metric }, timestamp),
+    buildGoal({ id: "3", value: rounded + granularity, label: "Stretch", metric }, timestamp),
   ];
 }
 
