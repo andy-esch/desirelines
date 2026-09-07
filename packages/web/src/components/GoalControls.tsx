@@ -210,12 +210,12 @@ const GoalControls: React.FC<GoalControlsProps> = ({
             // reset for non-cycling sports — caught in PR review.
             const metricConfig = getMetricConfig(sport, sportConfig);
             void saveGoals(
-              generateDefaultGoals(
-                estimatedYearEnd,
-                metricConfig.roundingFactor,
-                metricConfig.defaultGoalValue,
-                { metric: primaryMetric }
-              )
+              generateDefaultGoals({
+                estimatedDistance: estimatedYearEnd,
+                metric: primaryMetric,
+                granularity: metricConfig.roundingFactor,
+                minValue: metricConfig.defaultGoalValue,
+              })
             );
           }}
           disabled={isSaving}

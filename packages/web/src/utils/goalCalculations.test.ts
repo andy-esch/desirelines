@@ -112,7 +112,11 @@ describe("estimateYearEndDistance", () => {
 
 describe("generateDefaultGoals", () => {
   it("generates 3 goals with 100-mile granularity", () => {
-    const goals = generateDefaultGoals(2650, 100, undefined, defaultOpts);
+    const goals = generateDefaultGoals({
+      estimatedDistance: 2650,
+      granularity: 100,
+      ...defaultOpts,
+    });
     // 2650 rounds UP to 2700 (Math.ceil(2650 / 100) * 100)
     expect(goals).toHaveLength(3);
     expect(goals[0]?.value).toBe(2600);
@@ -124,14 +128,22 @@ describe("generateDefaultGoals", () => {
   });
 
   it("handles exact multiples of 100", () => {
-    const goals = generateDefaultGoals(2500, 100, undefined, defaultOpts);
+    const goals = generateDefaultGoals({
+      estimatedDistance: 2500,
+      granularity: 100,
+      ...defaultOpts,
+    });
     expect(goals[0]?.value).toBe(2400);
     expect(goals[1]?.value).toBe(2500);
     expect(goals[2]?.value).toBe(2600);
   });
 
   it("supports custom granularity", () => {
-    const goals = generateDefaultGoals(2650, 1000, undefined, defaultOpts);
+    const goals = generateDefaultGoals({
+      estimatedDistance: 2650,
+      granularity: 1000,
+      ...defaultOpts,
+    });
     // Rounds up to 3000
     expect(goals[0]?.value).toBe(2000);
     expect(goals[1]?.value).toBe(3000);
@@ -139,7 +151,7 @@ describe("generateDefaultGoals", () => {
   });
 
   it("ensures all goals are unique and > 0 for small estimates", () => {
-    const goals = generateDefaultGoals(50, 100, undefined, defaultOpts);
+    const goals = generateDefaultGoals({ estimatedDistance: 50, granularity: 100, ...defaultOpts });
     // Rounds up to 100. Instead of 0 for conservative (which is invalid),
     // uses half-granularity (50) to ensure all goals are unique and > 0
     expect(goals[0]?.value).toBe(50);
@@ -157,19 +169,34 @@ describe("generateDefaultGoals", () => {
 
   it("uses minValue to ensure meaningful goals when no data exists", () => {
     // Simulates cycling with no data: estimatedDistance=0, granularity=100, minValue=2500
-    const cyclingGoals = generateDefaultGoals(0, 100, 2500, defaultOpts);
+    const cyclingGoals = generateDefaultGoals({
+      estimatedDistance: 0,
+      granularity: 100,
+      minValue: 2500,
+      ...defaultOpts,
+    });
     expect(cyclingGoals[0]?.value).toBe(2400); // Conservative
     expect(cyclingGoals[1]?.value).toBe(2500); // Target
     expect(cyclingGoals[2]?.value).toBe(2600); // Stretch
 
     // Simulates yoga with no data: estimatedDistance=0, granularity=10, minValue=100
-    const yogaGoals = generateDefaultGoals(0, 10, 100, defaultOpts);
+    const yogaGoals = generateDefaultGoals({
+      estimatedDistance: 0,
+      granularity: 10,
+      minValue: 100,
+      ...defaultOpts,
+    });
     expect(yogaGoals[0]?.value).toBe(90); // Conservative
     expect(yogaGoals[1]?.value).toBe(100); // Target
     expect(yogaGoals[2]?.value).toBe(110); // Stretch
 
     // Simulates running with no data: estimatedDistance=0, granularity=10, minValue=1000
-    const runningGoals = generateDefaultGoals(0, 10, 1000, defaultOpts);
+    const runningGoals = generateDefaultGoals({
+      estimatedDistance: 0,
+      granularity: 10,
+      minValue: 1000,
+      ...defaultOpts,
+    });
     expect(runningGoals[0]?.value).toBe(990); // Conservative
     expect(runningGoals[1]?.value).toBe(1000); // Target
     expect(runningGoals[2]?.value).toBe(1010); // Stretch
@@ -179,7 +206,11 @@ describe("generateDefaultGoals", () => {
     // The shape returned by `generateDefaultGoals` is what the reset button in
     // GoalControls writes to Firestore. Pin every field so no future code path
     // can sneak a partial goal through this constructor.
-    const goals = generateDefaultGoals(1000, 100, undefined, defaultOpts);
+    const goals = generateDefaultGoals({
+      estimatedDistance: 1000,
+      granularity: 100,
+      ...defaultOpts,
+    });
     goals.forEach((goal) => {
       expect(goal.id).toEqual(expect.any(String));
       expect(goal.value).toEqual(expect.any(Number));
@@ -191,7 +222,9 @@ describe("generateDefaultGoals", () => {
   });
 
   it("respects the provided metric for sport-specific defaults", () => {
-    const goals = generateDefaultGoals(100, 10, undefined, {
+    const goals = generateDefaultGoals({
+      estimatedDistance: 100,
+      granularity: 10,
       metric: "time_minutes",
       now: FIXTURE_NOW,
     });
