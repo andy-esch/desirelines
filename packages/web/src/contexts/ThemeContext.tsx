@@ -1,103 +1,94 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { resolveThemeColor } from "../utils/colorTokens";
-
-type ThemeMode = "light" | "dark" | "system";
-type ResolvedTheme = "light" | "dark";
+import {
+  DEFAULT_THEME_PREFERENCE,
+  parseThemePreference,
+  resolveTheme,
+  THEME_STORAGE_KEY,
+  type ThemeDefinition,
+  type ThemePreference,
+  type ThemeScheme,
+} from "../themes/registry";
 
 interface ThemeContextValue {
-  theme: ThemeMode;
-  resolvedTheme: ResolvedTheme;
-  setTheme: (mode: ThemeMode) => void;
+  /** What the user chose: a theme id, or "system" to follow the OS color scheme. */
+  preference: ThemePreference;
+  /** The theme currently applied. Read `scheme`, `mapStyle`, etc. from here. */
+  theme: ThemeDefinition;
+  setPreference: (preference: ThemePreference) => void;
 }
 
-const STORAGE_KEY = "theme";
-
-function getSystemPreference(): ResolvedTheme {
+function getSystemScheme(): ThemeScheme {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
-function applyTheme(resolved: ResolvedTheme) {
+/**
+ * Apply a theme to the document. The first-paint script (`themes/bootScript.ts`) does
+ * the same before the app loads; this keeps the DOM in step on every later change.
+ */
+function applyTheme(theme: ThemeDefinition) {
   const root = document.documentElement;
-  if (resolved === "dark") {
-    root.classList.add("dark");
-  } else {
-    root.classList.remove("dark");
-  }
+  root.dataset.theme = theme.id;
+  root.style.colorScheme = theme.scheme;
 
-  // Update meta theme-color for browser chrome. Read from --color-bg-body rather than
-  // restating it: the class is already applied above, so the computed value is the
-  // theme we just switched to.
-  //
-  // The literals in `index.html` (the static meta tag + the FOUC script) genuinely
-  // cannot use this — they run before the stylesheet is parsed, so there is no
-  // computed value to read. They stay hardcoded, and the fallbacks here match them so
-  // the two agree if the token ever goes missing.
   const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
-  if (meta) {
-    meta.content = resolveThemeColor(
-      "--color-bg-body",
-      resolved === "dark" ? "#0f1724" : "#f0f4f8"
-    );
-  }
+  if (meta) meta.content = theme.background;
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
-  theme: "system",
-  resolvedTheme: "dark",
-  setTheme: () => {},
+  preference: DEFAULT_THEME_PREFERENCE,
+  theme: resolveTheme(DEFAULT_THEME_PREFERENCE, "dark"),
+  setPreference: () => {},
 });
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<ThemeMode>(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === "light" || stored === "dark" || stored === "system") return stored;
-    return "system";
-  });
+  const [preference, setPreferenceState] = useState<ThemePreference>(() =>
+    parseThemePreference(localStorage.getItem(THEME_STORAGE_KEY))
+  );
 
-  const [systemPref, setSystemPref] = useState<ResolvedTheme>(getSystemPreference);
+  const [systemScheme, setSystemScheme] = useState<ThemeScheme>(getSystemScheme);
 
-  const setTheme = useCallback((mode: ThemeMode) => {
-    localStorage.setItem(STORAGE_KEY, mode);
+  const setPreference = useCallback((next: ThemePreference) => {
+    localStorage.setItem(THEME_STORAGE_KEY, next);
     // Apply to the DOM here, not only in the effect below. Consumers that *read*
-    // resolved token values (getComputedStyle) re-render as soon as resolvedTheme
-    // changes, and child effects run before the provider's — so if the class were
+    // resolved token values (getComputedStyle) re-render as soon as the theme
+    // changes, and child effects run before the provider's — so if the attribute were
     // only applied in the effect, those consumers would read the previous theme and
     // lag one switch behind. Applying eagerly means the DOM is already correct by the
     // time anything re-renders. The effect stays for mount and system changes.
-    applyTheme(mode === "system" ? getSystemPreference() : mode);
-    setThemeState(mode);
+    applyTheme(resolveTheme(next, getSystemScheme()));
+    setPreferenceState(next);
   }, []);
 
   // Derived during render — no setState needed
-  const resolvedTheme: ResolvedTheme = theme === "system" ? systemPref : theme;
+  const theme = resolveTheme(preference, systemScheme);
 
-  // Apply theme to DOM whenever resolved value changes
+  // Apply theme to DOM whenever the resolved theme changes
   useEffect(() => {
-    applyTheme(resolvedTheme);
-  }, [resolvedTheme]);
+    applyTheme(theme);
+  }, [theme]);
 
-  // Track the OS preference AT ALL TIMES, not just in "system" mode.
+  // Track the OS preference AT ALL TIMES, not just when following the system.
   //
-  // Listening only while in system mode lets `systemPref` go stale: switch to manual
-  // dark, change the OS to light, then pick "System" again — `resolvedTheme` would
-  // resolve against the months-old preference and the effect below would re-apply the
-  // wrong theme, overwriting the correct one `setTheme` had just applied.
+  // Listening only while following the system lets `systemScheme` go stale: pick a
+  // specific theme, change the OS scheme, then pick "System" again — the theme would
+  // resolve against the old scheme and the effect above would re-apply the wrong
+  // theme, overwriting the correct one `setPreference` had just applied.
   //
   // The theme is still only *applied* from here when the OS is actually driving it;
-  // in manual mode `resolvedTheme` ignores `systemPref`, so nothing re-renders.
+  // with a specific theme chosen, `theme` ignores `systemScheme`, so nothing changes.
   useEffect(() => {
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const handler = () => {
-      const next = getSystemPreference();
-      if (theme === "system") applyTheme(next);
-      setSystemPref(next);
+      const next = getSystemScheme();
+      if (preference === "system") applyTheme(resolveTheme("system", next));
+      setSystemScheme(next);
     };
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
-  }, [theme]);
+  }, [preference]);
 
   return (
-    <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme }}>
+    <ThemeContext.Provider value={{ preference, theme, setPreference }}>
       {children}
     </ThemeContext.Provider>
   );

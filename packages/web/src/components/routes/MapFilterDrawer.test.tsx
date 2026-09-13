@@ -33,7 +33,6 @@ function renderDrawer(over: Partial<MapFilterDrawerProps> = {}) {
     onShowAll,
     distanceUnit: "miles",
     elevationUnit: "feet",
-    isDark: true,
     ...over,
   };
   render(<MapFilterDrawer {...props} />);
@@ -41,6 +40,14 @@ function renderDrawer(over: Partial<MapFilterDrawerProps> = {}) {
 }
 
 describe("MapFilterDrawer", () => {
+  it("remaps the accent to the theme's map-chrome token rather than branching on theme", () => {
+    renderDrawer();
+    const panel = screen.getByRole("region", { name: /activity filters/i });
+    expect(panel.style.getPropertyValue("--color-accent-cyan")).toBe(
+      "var(--color-map-chrome-accent)"
+    );
+  });
+
   it("renders the filtered count and a unit-aware distance in the summary", () => {
     renderDrawer();
     expect(screen.getByText("142")).toBeInTheDocument();
@@ -141,7 +148,6 @@ describe("MapFilterDrawer", () => {
       onShowAll: vi.fn(),
       distanceUnit: "miles",
       elevationUnit: "feet",
-      isDark: true,
     };
     const { rerender } = render(<MapFilterDrawer {...props} />);
     rerender(<MapFilterDrawer {...props} open />);

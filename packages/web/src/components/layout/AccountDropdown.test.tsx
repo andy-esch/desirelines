@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { AccountDropdown } from "./AccountDropdown";
+import { VISIBLE_THEMES } from "../../themes/registry";
 
 // Link needs a router context we don't set up here — render it as a plain
 // anchor so the dropdown mounts in isolation.
@@ -13,8 +14,9 @@ vi.mock("../../hooks/useUserProfile", () => ({
   useUserProfile: () => ({ displayName: "Guest", loading: false, profile: null, error: null }),
 }));
 
+const { setPreference } = vi.hoisted(() => ({ setPreference: vi.fn() }));
 vi.mock("../../contexts/ThemeContext", () => ({
-  useTheme: () => ({ theme: "system", setTheme: vi.fn() }),
+  useTheme: () => ({ preference: "system", setPreference }),
 }));
 
 describe("AccountDropdown", () => {
@@ -110,8 +112,9 @@ describe("AccountDropdown", () => {
     const themeGroup = screen.getByRole("group", { name: /theme/i });
     expect(themeGroup).toBeInTheDocument();
 
+    // One radio per released theme, plus System.
     const radios = screen.getAllByRole("menuitemradio");
-    expect(radios).toHaveLength(3);
+    expect(radios).toHaveLength(VISIBLE_THEMES.length + 1);
 
     expect(screen.getByRole("menuitemradio", { name: /system theme/i })).toHaveAttribute(
       "aria-checked",
@@ -120,6 +123,15 @@ describe("AccountDropdown", () => {
     for (const name of [/light theme/i, /dark theme/i]) {
       expect(screen.getByRole("menuitemradio", { name })).toHaveAttribute("aria-checked", "false");
     }
+  });
+
+  it("selects a theme by its id", () => {
+    render(<AccountDropdown user={null} onSignIn={vi.fn()} onSignOut={vi.fn()} />);
+
+    openMenu();
+    fireEvent.click(screen.getByRole("menuitemradio", { name: /light theme/i }));
+
+    expect(setPreference).toHaveBeenCalledWith("legacy-light");
   });
 
   it("closes the menu after a successful sign-out", async () => {

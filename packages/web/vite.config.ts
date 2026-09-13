@@ -1,9 +1,30 @@
-import { defineConfig, loadEnv } from "vite";
+import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { execSync } from "child_process";
 import { fileURLToPath, URL } from "node:url";
+import { buildThemeBootScript, THEME_BOOT_PLACEHOLDER } from "./src/themes/bootScript";
+
+/**
+ * Inline the first-paint theme script into index.html. Generated from the theme list so
+ * the pre-stylesheet theme choice can never drift from the themes that exist. Fails the
+ * build loudly if the placeholder goes missing, rather than shipping a page that flashes.
+ */
+function themeBootScript(): Plugin {
+  return {
+    name: "desirelines-theme-boot-script",
+    transformIndexHtml: {
+      order: "pre",
+      handler(html) {
+        if (!html.includes(THEME_BOOT_PLACEHOLDER)) {
+          throw new Error(`index.html is missing the ${THEME_BOOT_PLACEHOLDER} placeholder`);
+        }
+        return html.replace(THEME_BOOT_PLACEHOLDER, `<script>${buildThemeBootScript()}</script>`);
+      },
+    },
+  };
+}
 
 // In test runs, force the timezone to a zone with a non-zero UTC offset (default:
 // the sole athlete's) so timezone off-by-one bugs surface in CI too — under UTC the
@@ -146,6 +167,7 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       TanStackRouterVite({ quoteStyle: "double", semicolons: true }),
+      themeBootScript(),
       tailwindcss(),
       react({
         babel: {

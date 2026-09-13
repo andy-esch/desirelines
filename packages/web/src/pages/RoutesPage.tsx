@@ -64,8 +64,7 @@ function StatusMessage({ children }: { children: React.ReactNode }) {
 
 export default function RoutesPage() {
   const { user, loading: authLoading } = useAuth();
-  const { resolvedTheme } = useTheme();
-  const isDark = resolvedTheme === "dark";
+  const { theme } = useTheme();
 
   const config = getConfig();
   const mapboxToken = config.mapboxToken;
@@ -452,7 +451,7 @@ export default function RoutesPage() {
               colorExpression={colorExpression}
               filter={mapFilter}
               defaultViewport={defaultViewport}
-              isDark={isDark}
+              mapStyle={theme.mapStyle}
               distanceUnit={distanceUnit}
               getActivity={getActivity}
               selected={selected}
@@ -478,7 +477,6 @@ export default function RoutesPage() {
               onShowAll={routeFilters.showAll}
               distanceUnit={distanceUnit}
               elevationUnit={elevationUnit}
-              isDark={isDark}
               isLoading={datasetLoading}
               error={datasetError}
               onRefresh={refreshMapData}
@@ -531,7 +529,6 @@ export default function RoutesPage() {
                 open={insightsOpen}
                 onOpenChange={openInsights}
                 hideToggle={isMobile && drawerOpen}
-                isDark={isDark}
               >
                 {/* Mount the chart subtree only while the drawer is open — closed, it
                     hides via transform + inert, so without this gate recharts stays

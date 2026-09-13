@@ -1,17 +1,14 @@
 import { useEffect, useId, useRef } from "react";
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
+import { MAP_CHROME_STYLE } from "./mapChrome";
 
 const DRAWER_ID = "map-insights-drawer";
-
-/** Map chrome uses the vivid neon cyan in dark; see MapFilterDrawer's NEON_CHROME. */
-const NEON_CHROME = { "--color-accent-cyan": "var(--color-neon-cyan)" } as CSSProperties;
 
 export interface MapInsightsDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  isDark: boolean;
   /** Hide the closed-state toggle even when collapsed — used on mobile while the
    *  other (filter) bottom sheet is open, so the dock pill doesn't float over it. */
   hideToggle?: boolean;
@@ -70,13 +67,11 @@ export default function MapInsightsDrawer({
   open,
   onOpenChange,
   hideToggle = false,
-  isDark,
   children,
 }: MapInsightsDrawerProps) {
   const toggleButtonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLElement>(null);
   const headingId = useId();
-  const neonChrome = isDark ? NEON_CHROME : undefined;
 
   useEffect(() => {
     if (!open) return;
@@ -117,7 +112,7 @@ export default function MapInsightsDrawer({
         aria-expanded={open}
         aria-controls={DRAWER_ID}
         tabIndex={open || hideToggle ? -1 : undefined}
-        style={neonChrome}
+        style={MAP_CHROME_STYLE}
         className={cn(
           "absolute z-30 inline-flex items-center justify-center rounded-md border border-border/70",
           "bg-card/85 text-body-text shadow-lg backdrop-blur-md",
@@ -146,7 +141,7 @@ export default function MapInsightsDrawer({
         aria-labelledby={headingId}
         tabIndex={-1}
         inert={!open}
-        style={neonChrome}
+        style={MAP_CHROME_STYLE}
         className={cn(
           "absolute z-20 flex flex-col bg-card/85 shadow-xl backdrop-blur-md",
           "transition-transform duration-300 ease-out motion-reduce:transition-none",

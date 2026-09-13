@@ -123,7 +123,7 @@ function renderMap(overrides: Partial<React.ComponentProps<typeof RouteMap>> = {
     refreshAuthToken: vi.fn().mockResolvedValue(undefined),
     colorExpression: "rgb(0,255,255)",
     defaultViewport: null,
-    isDark: true,
+    mapStyle: "mapbox://styles/mapbox/dark-v11",
     distanceUnit: "miles" as const,
     selected: null,
     onSelect: vi.fn(),
@@ -222,8 +222,8 @@ describe("RouteMap layer setup", () => {
     expect(points).toMatchObject({ maxzoom: 6 });
   });
 
-  it("themes the basemap and passes the color expression to the line layer", () => {
-    renderMap({ isDark: false, colorExpression: "rgb(1,2,3)" });
+  it("uses the given basemap style and passes the color expression to the line layer", () => {
+    renderMap({ mapStyle: "mapbox://styles/mapbox/light-v11", colorExpression: "rgb(1,2,3)" });
 
     expect(h.captured.mapStyle).toBe("mapbox://styles/mapbox/light-v11");
     expect((baseLayer()!.paint as Record<string, unknown>)["line-color"]).toBe("rgb(1,2,3)");
@@ -529,7 +529,7 @@ describe("RouteMap viewport fitting", () => {
     getAuthToken: () => "T" as string | undefined,
     refreshAuthToken: vi.fn().mockResolvedValue(undefined),
     colorExpression: "rgb(0,255,255)",
-    isDark: true,
+    mapStyle: "mapbox://styles/mapbox/dark-v11",
     distanceUnit: "miles" as const,
     selected: null,
     onSelect: vi.fn(),

@@ -48,7 +48,7 @@ export function tint(token: string, pct: number): string {
  *
  * Reads the live value off `<html>`, so it reflects the current theme. Callers that
  * must update when the theme changes need to re-run this on that change (e.g. by
- * depending on `useTheme().resolvedTheme`) — it is a point-in-time read, not a
+ * depending on `useTheme().theme.id`) — it is a point-in-time read, not a
  * subscription.
  *
  * @param token - CSS custom property name, including the leading `--`

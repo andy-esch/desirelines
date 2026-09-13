@@ -47,7 +47,7 @@ Plus the scaffolding that makes full-brightness neon legible:
 Exceptions are pure white/black and generic neutrals (`#666` fallbacks, black shadows),
 which are not theme decisions.
 
-To re-theme the app, edit layer 1 and the light overrides. That is the whole point of the
+To re-theme the app, edit layer 1 and the theme blocks. That is the whole point of the
 layering; if a change requires touching component files, the layering has been violated.
 
 ### Helpers
@@ -107,11 +107,53 @@ normal vision.
 
 ## Theming
 
-Dark is the `:root` default; light is an override under `html:not(.dark)`. **There are no
-`dark:` Tailwind utilities in this app** — theme differences go through tokens, or through
-an `html:not(.dark)`-scoped rule when a token cannot express it.
+The app has a list of themes, not a dark/light switch. The active theme is a
+`data-theme="<id>"` attribute on `<html>`, and a theme is **values only**: nothing in a
+component knows which theme is active. **There are no `dark:` Tailwind utilities and no
+theme-id checks in components** — anything that differs between themes is a token value or
+a field on the theme's list entry.
 
-`ThemeProvider` applies the class eagerly on change (not only in an effect), because
+A theme is two halves that must agree:
+
+1. **A CSS block** — `[data-theme="<id>"] { … }` in `src/css/tailwind.css`, redefining the
+   full set of theme-varying tokens. Every block defines the *same* set: `data-theme` can
+   also theme a subtree, and a block that omitted a token would
+   silently inherit the outer theme's value there. Tokens derived from another token (a
+   `color-mix` of the accent, say) are redefined too, because custom properties resolve
+   `var()` where they are declared.
+2. **A list entry** — in `src/themes/registry.ts`: `id`, `label`, `scheme` (`dark` / `light`,
+   which sets `color-scheme` and decides what "System" resolves to), `mapStyle` (the routes
+   map's Mapbox style), `hidden`, `background` (must equal the block's `--color-bg-body`),
+   and picker `swatches`.
+
+### Adding a theme
+
+1. Add the entry with `hidden: true`, so it stays out of the picker while in progress.
+2. Add the CSS block, copying an existing block's token list and changing the values.
+3. Release it by flipping `hidden` to `false`.
+
+The checks run with the web tests: `themeCss.test.ts` fails on a theme without a block, a
+block without a theme, blocks with differing token sets, or a `background` that doesn't
+match `--color-bg-body`; `sportConfig.test.ts` holds `SPORT_COLORS` to 3:1 against every
+dark theme's background; `bootScript.test.ts` keeps the first-paint script in step with
+`ThemeProvider`.
+
+### Retiring a theme
+
+A theme being phased out stays **values only** until it is deleted: a CSS block and a list
+entry, nothing else — no selectors or tokens of its own, no id checks. When a shared change
+can't be expressed through the shared tokens, the retiring theme takes the shared default
+and drifts from how it used to look. The first time it would need a special case, delete
+it instead.
+
+### First paint and switching
+
+`index.html` carries a placeholder that `vite.config.ts` replaces with a script generated
+from the theme list (`src/themes/bootScript.ts`). It applies the stored preference —
+including the old `dark` / `light` values — before the stylesheet loads, so the page never
+flashes the wrong theme, and it can't drift from the list because nobody hand-writes it.
+
+`ThemeProvider` applies the attribute eagerly on change (not only in an effect), because
 consumers that read resolved token values would otherwise render one theme behind.
 
 ## Components
@@ -171,7 +213,9 @@ Adding a new effect means adding a utility here, never a literal in a component.
 
 | File | Purpose |
 | --- | --- |
-| `src/css/tailwind.css` | **Source of truth** — primitives, role tokens, light overrides, component classes |
+| `src/css/tailwind.css` | **Source of truth** — primitives, role tokens, theme blocks, component classes |
+| `src/themes/registry.ts` | The theme list — ids, labels, scheme, map style, release state |
+| `src/themes/bootScript.ts` | First-paint theme script, generated into `index.html` at build |
 | `src/utils/sportConfig.ts` | `SPORT_COLORS` — per-sport data palette |
 | `src/utils/colorTokens.ts` | `tint` / `alpha` / `resolveThemeColor` helpers |
 | `src/constants/chartColors.ts` | Goal-ladder + data-line colors (distinct from sport colors) |

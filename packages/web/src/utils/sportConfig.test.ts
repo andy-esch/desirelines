@@ -9,6 +9,8 @@ import {
   filterValidSports,
   normalizeSports,
 } from "./sportConfig";
+import { parseRgb } from "./colorTokens";
+import { THEMES } from "../themes/registry";
 
 /** Minimal sport config fixture for testing */
 const mockSportConfig: SportConfig = {
@@ -283,16 +285,20 @@ describe("SPORT_COLORS palette invariants", () => {
     expect(failures, `pairs below 12 dE: ${failures.join(", ")}`).toEqual([]);
   });
 
-  it("clears 3:1 against the dark background", () => {
-    // Light mode can fall back to --color-chart-mark-outline; dark mode cannot, because
-    // that token resolves to the page ground there. So the floor only binds on dark.
-    const DARK = [15, 23, 36];
-    const failures = Object.entries(SPORT_COLORS)
-      .map(([s, c]) => [s, contrast(parse(c), DARK)] as const)
-      .filter(([, r]) => r < 3)
-      .map(([s, r]) => `${s} = ${r.toFixed(2)}:1`);
-    expect(failures, `below 3:1 on dark: ${failures.join(", ")}`).toEqual([]);
-  });
+  // Light themes can fall back to --color-chart-mark-outline; dark themes cannot, because
+  // that token resolves to the page ground there. So the floor binds on every dark theme.
+  it.each(THEMES.filter((t) => t.scheme === "dark").map((t) => [t.id, t.background] as const))(
+    "clears 3:1 against the %s background",
+    (_id, background) => {
+      const ground = parseRgb(background);
+      if (!ground) throw new Error(`unparseable background ${background}`);
+      const failures = Object.entries(SPORT_COLORS)
+        .map(([s, c]) => [s, contrast(parse(c), [ground.r, ground.g, ground.b])] as const)
+        .filter(([, r]) => r < 3)
+        .map(([s, r]) => `${s} = ${r.toFixed(2)}:1`);
+      expect(failures, `below 3:1 on ${background}: ${failures.join(", ")}`).toEqual([]);
+    }
+  );
 });
 
 describe("normalizeSports", () => {

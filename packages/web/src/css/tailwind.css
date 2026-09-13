@@ -41,6 +41,13 @@
   --color-neon-accent-border: color-mix(in srgb, var(--color-neon-accent) 40%, transparent);
   --color-neon-accent-glow: color-mix(in srgb, var(--color-neon-accent) 15%, transparent);
 
+  /* === Map chrome accent — what the routes-map drawers remap `--color-accent-cyan` to,
+     so their accents and the Base UI primitives inside them (which paint through
+     `--color-primary` → `accent-cyan`) take a map-specific color. Dark themes use full
+     neon cyan, which reads over the dark basemap; light themes keep the readable
+     interactive accent, because neon cyan is illegible on pale glass. === */
+  --color-map-chrome-accent: var(--color-neon-cyan);
+
   /* === Accent: Magenta — secondary accent === */
   --color-accent-magenta: #ff00ff;
   --color-accent-magenta-glow: rgba(255, 0, 255, 0.15);
@@ -132,11 +139,67 @@
 }
 
 /* ==========================================================================
-   Light-mode overrides — applied when html does NOT have the .dark class.
-   The @theme block above sets the dark-mode defaults.
+   Theme blocks — one per entry in src/themes/registry.ts.
+
+   `data-theme` is set on <html> before first paint (src/themes/bootScript.ts) and can
+   also be set on any element to theme a subtree. So
+   every block redefines the SAME full set of theme-varying tokens: a nested block that
+   left one out would silently inherit the outer theme's value. themeCss.test.ts enforces
+   the matching sets, the registry <-> block correspondence, and the ground color.
+
+   The @theme block above registers these tokens with Tailwind; its values are never the
+   ones a rendered page sees, because a theme block always applies.
+
+   Tokens derived from another token (e.g. the neon-accent border) are redefined here
+   too: custom properties resolve `var()` where they are declared, so a nested block
+   changing only the base token would leave the derived one on the outer theme.
    ========================================================================== */
 
-html:not(.dark) {
+[data-theme="legacy-dark"] {
+  --color-bg-body: #0f1724;
+
+  --color-slate-dark: #2d3748;
+  --color-slate-DEFAULT: #4a5568;
+  --color-slate-light: #778899;
+  --color-slate-lighter: #a0aec0;
+
+  --color-accent-cyan: var(--color-brand-cyan);
+  --color-accent-cyan-hover: #00b8e6;
+  --color-accent-cyan-glow: rgba(0, 212, 255, 0.15);
+  --color-accent-cyan-text: #1a202c;
+
+  --color-neon-accent: var(--color-brand-cyan);
+  --color-neon-accent-border: color-mix(in srgb, var(--color-neon-accent) 40%, transparent);
+  --color-neon-accent-glow: color-mix(in srgb, var(--color-neon-accent) 15%, transparent);
+
+  --color-map-chrome-accent: var(--color-neon-cyan);
+
+  --color-accent-magenta: #ff00ff;
+  --color-accent-magenta-glow: rgba(255, 0, 255, 0.15);
+
+  --color-body-text: #e2e8f0;
+
+  --color-chip-hairline: rgba(148, 163, 184, 0.28);
+
+  --color-chart-grid: rgba(255, 255, 255, 0.12);
+  --color-chart-mark-outline: #0f1724;
+  --color-chart-axis: #718096;
+  --color-chart-tick: #718096;
+  --color-chart-actual-line: #ffffff;
+  --color-chart-tooltip-bg: rgba(45, 55, 72, 0.95);
+  --color-chart-tooltip-border: rgba(0, 212, 255, 0.4);
+  --color-chart-tooltip-text: #ffffff;
+  --color-chart-tooltip-muted: #a0aec0;
+  --color-chart-tooltip-label: #aaaaaa;
+  --color-chart-tooltip-divider: rgba(0, 212, 255, 0.2);
+
+  --color-surface-hover: rgba(255, 255, 255, 0.06);
+  --color-surface-border: rgba(255, 255, 255, 0.08);
+  --color-surface-overlay: rgba(0, 0, 0, 0.7);
+  --color-surface-shadow: rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="legacy-light"] {
   --color-bg-body: #f0f4f8;
 
   --color-slate-dark: #e2e8f0;
@@ -153,6 +216,9 @@ html:not(.dark) {
   --color-neon-accent: #00b8e6;
   --color-neon-accent-border: color-mix(in srgb, var(--color-neon-accent) 75%, transparent);
   --color-neon-accent-glow: color-mix(in srgb, var(--color-neon-accent) 40%, transparent);
+
+  /* Neon cyan is illegible on the pale map glass; keep the readable interactive accent. */
+  --color-map-chrome-accent: var(--color-accent-cyan);
 
   --color-accent-magenta: #c026d3;
   --color-accent-magenta-glow: rgba(192, 38, 211, 0.15);
@@ -181,10 +247,10 @@ html:not(.dark) {
 
 /* ==========================================================================
    shadcn/ui alias shim — maps shadcn's semantic token names onto the canonical
-   Desire Lines tokens above, so shadcn (Base UI) components inherit the app's
-   theme (incl. dark-default / light via `html:not(.dark)`) with NO second source
-   of truth and NO JS theme object. `inline` so utilities resolve to the live
-   --color-* vars (which switch with the theme).
+   Desire Lines tokens above, so shadcn (Base UI) components inherit the active
+   `[data-theme]` block with NO second source of truth and NO JS theme object.
+   `inline` so utilities resolve to the live --color-* vars (which switch with the
+   theme, including inside a nested `data-theme` subtree).
    ========================================================================== */
 @theme inline {
   --color-background: var(--color-bg-body);
