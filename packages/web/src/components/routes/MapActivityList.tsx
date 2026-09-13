@@ -100,7 +100,7 @@ export default function MapActivityList({
           onClick={() => setCollapsed((c) => !c)}
           aria-expanded={!collapsed}
           aria-controls="map-activity-list"
-          className="flex items-center gap-1 text-[0.65rem] font-semibold uppercase tracking-wider text-slate-light hover:text-body-text"
+          className="flex items-center gap-1 text-[0.65rem] font-semibold uppercase tracking-wider text-muted-text hover:text-body-text"
         >
           <span
             className={cn(
@@ -113,7 +113,7 @@ export default function MapActivityList({
           Activities ({total.toLocaleString()})
         </button>
         {!collapsed && totalPages > 1 && (
-          <div className="flex items-center gap-1 text-xs text-slate-light">
+          <div className="flex items-center gap-1 text-xs text-muted-text">
             <span className="tabular-nums">
               {start + 1}–{Math.min(start + PAGE_SIZE, total)} of {total.toLocaleString()}
             </span>
@@ -174,7 +174,7 @@ export default function MapActivityList({
                     <span className="block truncate text-body-text" title={a.name}>
                       {a.name}
                     </span>
-                    <span className="block text-xs tabular-nums text-slate-light">
+                    <span className="block text-xs tabular-nums text-muted-text">
                       {formatActivityDate(a.startDateLocal)} ·{" "}
                       {formatDistance(a.distanceMeters, distanceUnit)} ·{" "}
                       {sportLabels[a.sport] ?? a.sport}
@@ -187,7 +187,7 @@ export default function MapActivityList({
                   rel="noopener noreferrer"
                   title="View on Strava"
                   className={cn(
-                    "shrink-0 rounded p-1 text-slate-light opacity-0 transition-opacity",
+                    "shrink-0 rounded p-1 text-muted-text opacity-0 transition-opacity",
                     "hover:text-accent-cyan focus-visible:opacity-100 group-hover:opacity-100",
                     "motion-reduce:transition-none",
                     isSelected && "opacity-100"

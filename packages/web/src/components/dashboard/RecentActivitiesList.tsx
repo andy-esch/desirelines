@@ -48,12 +48,9 @@ function formatDuration(seconds: number): string {
  * The ramp is interpolated numerically in JS, so it can't consume `var(...)` — the
  * values are resolved at render time instead, which is what makes it theme-aware.
  * It previously interpolated from a hard-coded `#718096` and so stayed a dark-theme
- * gray on the light ground. (That literal was labelled "slate-light" but is actually
- * `--color-chart-tick`'s dark value; slate-light is `#778899`. Now genuinely
- * slate-light, the muted-text role this column wants — an imperceptible shift in
- * dark, correct in light.)
+ * gray on the light ground; the muted-text role is what this column wants.
  */
-const IMPACT_START_TOKEN = "--color-slate-light";
+const IMPACT_START_TOKEN = "--color-muted-text";
 const IMPACT_START_FALLBACK = "#778899";
 const IMPACT_END_TOKEN = "--color-neon-magenta";
 const IMPACT_END_FALLBACK = "#ff00ff";
@@ -68,7 +65,7 @@ const IMPACT_GLOW_THRESHOLD = 0.05;
 
 /**
  * Compute inline styles for the impact percentage column.
- * Interpolates from muted slate (0%) to magenta (2%+) with a glow effect.
+ * Interpolates from muted text (0%) to magenta (2%+) with a glow effect.
  *
  * Endpoints are passed in rather than read here so the resolve happens once per
  * theme in the component, not once per row.
@@ -225,7 +222,7 @@ export default function RecentActivitiesList({
     return (
       <div
         ref={containerRef}
-        className="flex items-center justify-center h-full text-slate-light"
+        className="flex items-center justify-center h-full text-muted-text"
         style={{ fontSize: "0.8rem" }}
       >
         No activities in this time range
@@ -254,37 +251,37 @@ export default function RecentActivitiesList({
           <thead>
             <tr style={{ height: HEADER_HEIGHT }}>
               <th
-                className="text-left ps-0 pe-2 py-0 text-slate-light font-normal align-middle"
+                className="text-left ps-0 pe-2 py-0 text-muted-text font-normal align-middle"
                 style={{ fontSize: "0.7rem" }}
               >
                 Name
               </th>
               <th
-                className="text-left px-1 py-0 text-slate-light font-normal align-middle"
+                className="text-left px-1 py-0 text-muted-text font-normal align-middle"
                 style={{ fontSize: "0.7rem" }}
               >
                 Sport
               </th>
               <th
-                className="text-right px-1 py-0 text-slate-light font-normal align-middle"
+                className="text-right px-1 py-0 text-muted-text font-normal align-middle"
                 style={{ fontSize: "0.7rem" }}
               >
                 Goal Impact
               </th>
               <th
-                className="text-right px-1 py-0 text-slate-light font-normal align-middle"
+                className="text-right px-1 py-0 text-muted-text font-normal align-middle"
                 style={{ fontSize: "0.7rem" }}
               >
                 Distance
               </th>
               <th
-                className="text-right px-1 py-0 text-slate-light font-normal align-middle"
+                className="text-right px-1 py-0 text-muted-text font-normal align-middle"
                 style={{ fontSize: "0.7rem" }}
               >
                 Time
               </th>
               <th
-                className="text-right ps-1 pe-0 py-0 text-slate-light font-normal align-middle"
+                className="text-right ps-1 pe-0 py-0 text-muted-text font-normal align-middle"
                 style={{ fontSize: "0.7rem" }}
               >
                 Date
@@ -334,7 +331,7 @@ export default function RecentActivitiesList({
                                   search: { activity: Number(activity.id) },
                                 })
                               }
-                              className="shrink-0 text-slate-light hover:text-accent-cyan motion-safe:transition-colors"
+                              className="shrink-0 text-muted-text hover:text-accent-cyan motion-safe:transition-colors"
                               title="View on map"
                               aria-label="View this activity on the map"
                             >
@@ -350,13 +347,13 @@ export default function RecentActivitiesList({
                     </div>
                   </td>
                   <td
-                    className="text-slate-light text-left px-1 py-0 align-middle"
+                    className="text-muted-text text-left px-1 py-0 align-middle"
                     style={{ whiteSpace: "nowrap", textTransform: "capitalize" }}
                   >
                     {activity.sport}
                   </td>
                   <td
-                    className={`${impactPct == null ? "text-slate-light " : ""}text-end px-1 py-0 align-middle`}
+                    className={`${impactPct == null ? "text-muted-text " : ""}text-end px-1 py-0 align-middle`}
                     style={{
                       whiteSpace: "nowrap",
                       fontSize: "0.75rem",
@@ -367,7 +364,7 @@ export default function RecentActivitiesList({
                     {formatImpactPct(impactPct)}
                   </td>
                   <td
-                    className="text-slate-light text-right px-1 py-0 align-middle"
+                    className="text-muted-text text-right px-1 py-0 align-middle"
                     style={{ whiteSpace: "nowrap" }}
                   >
                     {activity.distanceMeters
@@ -375,13 +372,13 @@ export default function RecentActivitiesList({
                       : ""}
                   </td>
                   <td
-                    className="text-slate-light text-right px-1 py-0 align-middle"
+                    className="text-muted-text text-right px-1 py-0 align-middle"
                     style={{ whiteSpace: "nowrap" }}
                   >
                     {formatDuration(activity.movingTimeSeconds)}
                   </td>
                   <td
-                    className="text-slate-light text-right ps-1 pe-0 py-0 align-middle"
+                    className="text-muted-text text-right ps-1 pe-0 py-0 align-middle"
                     style={{ whiteSpace: "nowrap" }}
                   >
                     {formatActivityDate(activity.startDateLocal)}
@@ -399,7 +396,7 @@ export default function RecentActivitiesList({
         style={{ minWidth: 32, visibility: showPagination ? "visible" : "hidden" }}
       >
         <button
-          className="btn btn-sm btn-link p-0 text-slate-light min-h-[44px] min-w-[32px] inline-flex items-center justify-center"
+          className="btn btn-sm btn-link p-0 text-muted-text min-h-[44px] min-w-[32px] inline-flex items-center justify-center"
           onClick={() => setPage((p) => p - 1)}
           disabled={!canGoUp}
           style={{ opacity: canGoUp ? 1 : 0.3 }}
@@ -410,13 +407,13 @@ export default function RecentActivitiesList({
           </svg>
         </button>
         <span
-          className="text-slate-light text-center"
+          className="text-muted-text text-center"
           style={{ fontSize: "0.7rem", lineHeight: 1.3 }}
         >
           {page + 1}/{hasMore ? "+" : totalPages}
         </span>
         <button
-          className="btn btn-sm btn-link p-0 text-slate-light min-h-[44px] min-w-[32px] inline-flex items-center justify-center"
+          className="btn btn-sm btn-link p-0 text-muted-text min-h-[44px] min-w-[32px] inline-flex items-center justify-center"
           onClick={handleNextPage}
           disabled={!canGoDown}
           style={{ opacity: canGoDown ? 1 : 0.3 }}

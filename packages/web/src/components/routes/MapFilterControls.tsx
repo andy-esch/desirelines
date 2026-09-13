@@ -79,7 +79,7 @@ function Section({
       <div className="mb-2 flex items-center justify-between gap-2">
         <p
           id={htmlId}
-          className="text-[0.65rem] font-semibold uppercase tracking-wider text-slate-light"
+          className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-text"
         >
           {label}
         </p>
@@ -277,7 +277,7 @@ export default function MapFilterControls({
                     disabled={disabled}
                     className={cn(
                       "h-auto px-1.5 py-0.5 text-[0.7rem] hover:text-body-text",
-                      myActive ? "text-body-text" : "text-slate-light"
+                      myActive ? "text-body-text" : "text-muted-text"
                     )}
                   >
                     My sports
@@ -289,7 +289,7 @@ export default function MapFilterControls({
                     size="sm"
                     onClick={() => onSportsChange([])}
                     disabled={disabled}
-                    className="h-auto gap-1 px-1.5 py-0.5 text-[0.7rem] text-slate-light hover:text-body-text"
+                    className="h-auto gap-1 px-1.5 py-0.5 text-[0.7rem] text-muted-text hover:text-body-text"
                   >
                     Clear
                     <span aria-hidden="true">✕</span>
@@ -353,7 +353,7 @@ export default function MapFilterControls({
             onDistanceChange(lo <= 0 && hi >= distanceMax ? null : [lo, hi]);
           }}
         />
-        <div className="mt-1 flex justify-between text-xs tabular-nums text-slate-light">
+        <div className="mt-1 flex justify-between text-xs tabular-nums text-muted-text">
           <span>
             {fmt(sliderDistance[0])} {unitLabel}
           </span>

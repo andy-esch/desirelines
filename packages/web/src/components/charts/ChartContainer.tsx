@@ -66,7 +66,7 @@ function ChartHeader({
   // Simple header for loading/error/empty states
   if (simple) {
     return (
-      <h3 className="text-slate-light mb-6" style={{ fontSize: "1rem", fontWeight: "500" }}>
+      <h3 className="text-muted-text mb-6" style={{ fontSize: "1rem", fontWeight: "500" }}>
         {title}
       </h3>
     );
@@ -76,14 +76,14 @@ function ChartHeader({
   return (
     <div className="flex justify-between items-center mb-6">
       <div className="flex items-center gap-2">
-        <h3 className="text-slate-light mb-0" style={{ fontSize: "1rem", fontWeight: "500" }}>
+        <h3 className="text-muted-text mb-0" style={{ fontSize: "1rem", fontWeight: "500" }}>
           {title}
         </h3>
         {infoTooltip && (
           <span
             style={{
               cursor: "help",
-              color: "#666",
+              color: "var(--color-muted-text)",
               fontSize: "12px",
               borderRadius: "50%",
               width: "16px",
@@ -91,7 +91,7 @@ function ChartHeader({
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
-              border: "1px solid #666",
+              border: "1px solid var(--color-muted-text)",
             }}
             title={infoTooltip}
           >

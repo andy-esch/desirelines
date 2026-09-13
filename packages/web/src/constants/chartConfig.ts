@@ -9,6 +9,8 @@
  * - DANGER_ZONE_CONFIG: Pacing chart specific (zone of unachievability)
  */
 
+import { alpha } from "../utils/colorTokens";
+
 export const CHART_CONFIG = {
   /** Chart dimensions */
   height: 400,
@@ -88,20 +90,20 @@ export const CHART_CONFIG = {
 export const DANGER_ZONE_CONFIG = {
   /** Shaded area fill */
   area: {
-    fill: "rgba(255, 152, 0, 0.08)",
+    fill: alpha("var(--color-danger-zone)", 8),
     fillOpacity: 0.5,
-    stroke: "rgba(255, 152, 0, 0.3)",
+    stroke: alpha("var(--color-danger-zone)", 30),
     strokeDasharray: "3 3",
   },
   /** Threshold line */
   line: {
-    stroke: "#ff9800",
+    stroke: "var(--color-danger-zone)",
     strokeWidth: 2,
     strokeDasharray: "5 5",
   },
   /** Label styling */
   label: {
-    fill: "#e65100",
+    fill: "var(--color-danger-zone-label)",
     fontSize: 12,
     fontWeight: 600,
     fontStyle: "italic" as const,

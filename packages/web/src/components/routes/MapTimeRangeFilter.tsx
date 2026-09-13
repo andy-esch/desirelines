@@ -62,7 +62,7 @@ export default function MapTimeRangeFilter({
     <section className="px-4 py-3" aria-label="Date range">
       <p
         id="filter-daterange-label"
-        className="mb-2 text-[0.65rem] font-semibold uppercase tracking-wider text-slate-light"
+        className="mb-2 text-[0.65rem] font-semibold uppercase tracking-wider text-muted-text"
       >
         Date range
       </p>
@@ -94,7 +94,7 @@ export default function MapTimeRangeFilter({
           onChange={(e) => onStart(e.target.value)}
           className="h-8 text-xs"
         />
-        <span className="text-slate-light">–</span>
+        <span className="text-muted-text">–</span>
         <Input
           type="date"
           aria-label="End date"

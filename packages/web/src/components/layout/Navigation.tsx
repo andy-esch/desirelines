@@ -54,13 +54,13 @@ export default function Navigation({ className = "", vertical = false }: Navigat
           to="/"
           activeOptions={{ exact: true }}
           activeProps={{ className: "nav-link no-underline active" }}
-          inactiveProps={{ className: "nav-link no-underline text-white/50" }}
+          inactiveProps={{ className: "nav-link no-underline text-header-ink/50" }}
         >
           Dashboard
         </Link>
         <div className="mt-6 mb-1 ps-2">
           <span
-            className="text-white/50 text-sm uppercase font-semibold"
+            className="text-header-ink/50 text-sm uppercase font-semibold"
             style={{ fontSize: "0.65rem", letterSpacing: "0.05em" }}
           >
             Goals
@@ -72,7 +72,7 @@ export default function Navigation({ className = "", vertical = false }: Navigat
             to="/$sport/$year"
             params={{ sport: sport.id, year: String(currentYear) }}
             activeProps={{ className: "nav-link no-underline active" }}
-            inactiveProps={{ className: "nav-link no-underline text-white/50" }}
+            inactiveProps={{ className: "nav-link no-underline text-header-ink/50" }}
             style={{ paddingLeft: "1rem" }}
           >
             {sport.label}
@@ -82,7 +82,7 @@ export default function Navigation({ className = "", vertical = false }: Navigat
             coordinated views — shown for everyone, incl. demo/logged-out. */}
         <div className="mt-6 mb-1 ps-2">
           <span
-            className="text-white/50 text-sm uppercase font-semibold"
+            className="text-header-ink/50 text-sm uppercase font-semibold"
             style={{ fontSize: "0.65rem", letterSpacing: "0.05em" }}
           >
             Activities
@@ -97,7 +97,7 @@ export default function Navigation({ className = "", vertical = false }: Navigat
             // params past the strip middlewares (they don't run on initial load).
             search={pickActivitiesGroupSearch}
             activeProps={{ className: "nav-link no-underline active" }}
-            inactiveProps={{ className: "nav-link no-underline text-white/50" }}
+            inactiveProps={{ className: "nav-link no-underline text-header-ink/50" }}
             style={{ paddingLeft: "1rem" }}
           >
             {v.label}
@@ -114,7 +114,7 @@ export default function Navigation({ className = "", vertical = false }: Navigat
         to="/"
         activeOptions={{ exact: true }}
         activeProps={{ className: "nav-link no-underline active" }}
-        inactiveProps={{ className: "nav-link no-underline text-white/50" }}
+        inactiveProps={{ className: "nav-link no-underline text-header-ink/50" }}
       >
         Dashboard
       </Link>
@@ -122,7 +122,7 @@ export default function Navigation({ className = "", vertical = false }: Navigat
       {/* Goals dropdown */}
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger
-          className={`nav-link ${isOnSportPage ? "active" : "text-white/50"}`}
+          className={`nav-link ${isOnSportPage ? "active" : "text-header-ink/50"}`}
           style={{ cursor: "pointer" }}
         >
           Goals{" "}
@@ -134,12 +134,12 @@ export default function Navigation({ className = "", vertical = false }: Navigat
           {sports.map((sport) => (
             <DropdownMenuLinkItem
               key={sport.id}
-              className="px-4 py-2 text-header-text data-[highlighted]:bg-white/10 data-[highlighted]:text-white"
+              className="px-4 py-2 text-header-text data-[highlighted]:bg-header-ink/10 data-[highlighted]:text-header-ink"
               render={
                 <Link
                   to="/$sport/$year"
                   params={{ sport: sport.id, year: String(currentYear) }}
-                  activeProps={{ className: "bg-white/15 text-white" }}
+                  activeProps={{ className: "bg-header-ink/15 text-header-ink" }}
                 />
               }
             >
@@ -153,7 +153,7 @@ export default function Navigation({ className = "", vertical = false }: Navigat
           shown for everyone, incl. demo/logged-out. */}
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger
-          className={`nav-link ${isOnActivitiesGroup ? "active" : "text-white/50"}`}
+          className={`nav-link ${isOnActivitiesGroup ? "active" : "text-header-ink/50"}`}
           style={{ cursor: "pointer" }}
         >
           Activities{" "}
@@ -165,12 +165,12 @@ export default function Navigation({ className = "", vertical = false }: Navigat
           {ACTIVITIES_VIEWS.map((v) => (
             <DropdownMenuLinkItem
               key={v.to}
-              className="px-4 py-2 text-header-text data-[highlighted]:bg-white/10 data-[highlighted]:text-white"
+              className="px-4 py-2 text-header-text data-[highlighted]:bg-header-ink/10 data-[highlighted]:text-header-ink"
               render={
                 <Link
                   to={v.to}
                   search={pickActivitiesGroupSearch}
-                  activeProps={{ className: "bg-white/15 text-white" }}
+                  activeProps={{ className: "bg-header-ink/15 text-header-ink" }}
                 />
               }
             >

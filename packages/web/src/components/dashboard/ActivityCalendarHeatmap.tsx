@@ -21,7 +21,7 @@ type SportFilterMode = "all" | "visible";
 
 /** Color scale for activity intensity (NEON purple/magenta theme) */
 const INTENSITY_COLORS = [
-  "var(--color-slate-light)", // 0 activities - muted gray
+  "var(--color-intensity-0)", // 0 activities - muted gray
   "var(--color-intensity-1)", // 1 activity - soft purple
   "var(--color-intensity-2)", // 2-3 activities - medium purple
   "var(--color-intensity-3)", // 4-5 activities - bright purple
@@ -297,7 +297,7 @@ export default function ActivityCalendarHeatmap({
     return (
       <div className={className}>
         <div className="flex justify-between items-center mb-2">
-          <h2 className="h6 mb-0 text-slate-light">Activity Calendar</h2>
+          <h2 className="h6 mb-0 text-muted-text">Activity Calendar</h2>
         </div>
         <div className="glass-panel flex items-center justify-center" style={{ height: 120 }}>
           <NeonSpinner size="sm" />
@@ -317,7 +317,7 @@ export default function ActivityCalendarHeatmap({
   return (
     <div className={className}>
       <div className="flex justify-between items-center mb-2">
-        <h2 className="h6 mb-0 text-slate-light">
+        <h2 className="h6 mb-0 text-muted-text">
           Activity Calendar
           <span className="ms-2 text-sm font-normal">
             {totalActivities} activities in {rangeLabel}
@@ -381,7 +381,7 @@ export default function ActivityCalendarHeatmap({
               left: DAY_LABEL_WIDTH,
               display: "flex",
               fontSize: "9px",
-              color: "var(--color-slate-light)",
+              color: "var(--color-muted-text)",
               whiteSpace: "nowrap",
             }}
           >
@@ -407,7 +407,7 @@ export default function ActivityCalendarHeatmap({
               display: "flex",
               flexDirection: "column",
               fontSize: "9px",
-              color: "var(--color-slate-light)",
+              color: "var(--color-muted-text)",
               gap: CELL_GAP,
             }}
           >
@@ -486,7 +486,7 @@ export default function ActivityCalendarHeatmap({
         {/* Legend */}
         <div
           className="flex items-center justify-end gap-1 mt-2"
-          style={{ fontSize: "9px", color: "var(--color-slate-light)" }}
+          style={{ fontSize: "9px", color: "var(--color-muted-text)" }}
         >
           <span>Less</span>
           {INTENSITY_COLORS.map((color, i) => (

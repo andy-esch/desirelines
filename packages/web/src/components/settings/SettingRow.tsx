@@ -33,7 +33,7 @@ export function SettingRow({ label, description, children, readOnly }: SettingRo
           {label}
         </LabelTag>
         {description && (
-          <div id={descriptionId} className="text-slate-light text-sm mt-1">
+          <div id={descriptionId} className="text-muted-text text-sm mt-1">
             {description}
           </div>
         )}

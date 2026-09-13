@@ -33,11 +33,12 @@ import type {
 import {
   CHART_COLORS,
   GOAL_COLORS,
-  PRIOR_YEAR_BASE_COLOR,
+  PRIOR_YEAR_COLOR,
   PRIOR_YEAR_OPACITY_START,
   PRIOR_YEAR_OPACITY_STEP,
 } from "../../constants/chartColors";
 import type { PriorYearLine } from "../../hooks/useCumulativeChartData";
+import { alpha } from "../../utils/colorTokens";
 import { CHART_CONFIG, DANGER_ZONE_CONFIG } from "../../constants/chartConfig";
 import { calculateCumulativeYAxisMax } from "../../utils/chartScaling";
 import ChartTooltip from "./ChartTooltip";
@@ -337,7 +338,13 @@ export function CumulativeChartPresenter({
               key={pl.dataKey}
               type="monotone"
               dataKey={pl.dataKey}
-              stroke={`rgba(${PRIOR_YEAR_BASE_COLOR}, ${PRIOR_YEAR_OPACITY_START - index * PRIOR_YEAR_OPACITY_STEP})`}
+              stroke={alpha(
+                PRIOR_YEAR_COLOR,
+                Math.max(
+                  0,
+                  Math.round((PRIOR_YEAR_OPACITY_START - index * PRIOR_YEAR_OPACITY_STEP) * 100)
+                )
+              )}
               strokeWidth={1.5}
               dot={false}
               name={String(pl.year)}

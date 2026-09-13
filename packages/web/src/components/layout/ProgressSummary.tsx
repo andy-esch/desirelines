@@ -28,11 +28,11 @@ export default function ProgressSummary({
   return (
     <div className="px-4 pt-4 pb-2">
       <div className="flex justify-between text-sm mb-1">
-        <span className="text-slate-light">Current</span>
+        <span className="text-muted-text">Current</span>
         <span className="font-semibold">{formatValue(currentValue)}</span>
       </div>
       <div className="flex justify-between text-sm">
-        <span className="text-slate-light">Est. Year-End</span>
+        <span className="text-muted-text">Est. Year-End</span>
         <span
           className="font-semibold font-display"
           style={{ textShadow: `0 0 12px ${tint("--color-brand-cyan", 20)}` }}

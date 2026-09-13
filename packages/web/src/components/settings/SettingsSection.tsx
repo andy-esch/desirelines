@@ -76,7 +76,7 @@ export function SettingsSection({
       >
         <div className="flex-fill">
           <h5 className="mb-0 text-body-text">{title}</h5>
-          {description && <p className="text-slate-light text-sm mb-0 mt-1">{description}</p>}
+          {description && <p className="text-muted-text text-sm mb-0 mt-1">{description}</p>}
         </div>
         <span
           className="d-inline-flex align-items-center mt-1 ms-3"

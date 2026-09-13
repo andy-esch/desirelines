@@ -36,9 +36,9 @@ export function PageErrorFallback({
   if (variant === "full") {
     return (
       <div className="p-10 font-mono max-w-3xl mx-auto">
-        <h1 className="text-red-500">{title}</h1>
+        <h1 className="text-danger">{title}</h1>
         <p>The application encountered an unexpected error.</p>
-        <pre className="bg-slate-dark text-body-text p-5 rounded overflow-auto">
+        <pre className="bg-surface-raised text-body-text p-5 rounded overflow-auto">
           {error.message}
         </pre>
         {onReset && (

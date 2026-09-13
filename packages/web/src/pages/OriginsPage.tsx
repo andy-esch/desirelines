@@ -16,7 +16,7 @@ const GitHubIcon = () => (
 export default function OriginsPage() {
   return (
     <NarrowPageLayout background="origins" maxWidth="720px">
-      <div className="text-slate-light">
+      <div className="text-muted-text">
         <h1 className="mb-3 font-light text-[2.5rem] neon-gradient-text">Origins</h1>
 
         <section className="mb-12">
@@ -63,7 +63,7 @@ export default function OriginsPage() {
           </a>
         </section>
 
-        <section className="mt-12 pt-6 border-t border-white/10">
+        <section className="mt-12 pt-6 border-t border-surface-border">
           <p className="text-center mb-0">
             <Link to="/" className="text-accent-cyan no-underline">
               &larr; Back to Dashboard

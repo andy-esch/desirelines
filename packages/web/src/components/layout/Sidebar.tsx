@@ -98,8 +98,8 @@ export default function Sidebar({
       <Sheet open={mobileOpen} onOpenChange={(open) => !open && closeMobileSidebar()}>
         <SheetContent side="left" className="max-w-[300px] w-[85vw] md:hidden">
           <div className="flex items-center justify-between p-4">
-            <SheetTitle className="text-white m-0">Controls</SheetTitle>
-            <SheetClose className="bg-transparent border-0 text-white p-1" aria-label="Close">
+            <SheetTitle className="text-body-text m-0">Controls</SheetTitle>
+            <SheetClose className="bg-transparent border-0 text-body-text p-1" aria-label="Close">
               <CloseIconLg />
             </SheetClose>
           </div>

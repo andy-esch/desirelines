@@ -95,7 +95,7 @@ function ComboboxContent({
         <BaseCombobox.Popup
           className={cn(
             "max-h-[min(var(--available-height),20rem)] w-[var(--anchor-width)] min-w-[8rem] overflow-y-auto overscroll-contain",
-            "rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-lg shadow-black/40",
+            "rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-lg shadow-scrim/40",
             "transition-[transform,opacity] data-[starting-style]:opacity-0 data-[ending-style]:opacity-0",
             className
           )}

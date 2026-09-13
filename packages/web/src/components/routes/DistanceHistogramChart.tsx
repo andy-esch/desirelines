@@ -44,11 +44,11 @@ export default function DistanceHistogramChart({
 
   return (
     <section className="px-4 py-3" aria-label="Distance histogram">
-      <p className="mb-2 text-[0.65rem] font-semibold uppercase tracking-wider text-slate-light">
+      <p className="mb-2 text-[0.65rem] font-semibold uppercase tracking-wider text-muted-text">
         Distance ({unit})
       </p>
       {data.length === 0 ? (
-        <p className="text-xs text-slate-light">No activities to summarize.</p>
+        <p className="text-xs text-muted-text">No activities to summarize.</p>
       ) : (
         <>
           <div className="h-32" aria-hidden="true">

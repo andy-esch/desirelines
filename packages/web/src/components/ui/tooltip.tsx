@@ -27,7 +27,7 @@ function TooltipContent({
       <BaseTooltip.Positioner sideOffset={sideOffset} className="z-50 outline-none">
         <BaseTooltip.Popup
           className={cn(
-            "rounded-md border border-border bg-popover px-2.5 py-1.5 text-xs text-popover-foreground shadow-md shadow-black/40",
+            "rounded-md border border-border bg-popover px-2.5 py-1.5 text-xs text-popover-foreground shadow-md shadow-scrim/40",
             "transition-[transform,opacity] data-[starting-style]:opacity-0 data-[ending-style]:opacity-0",
             className
           )}

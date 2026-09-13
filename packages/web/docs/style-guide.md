@@ -41,11 +41,32 @@ accent roles and conflating them is the most common mistake:
 | Data | `SPORT_COLORS` (`src/utils/sportConfig.ts`) | Encodes which sport a mark is. Never chrome. |
 
 Plus the scaffolding that makes full-brightness neon legible:
-`--color-chart-mark-outline`, `--color-chip-hairline`, `--color-sport-on`, `--color-on-neon`.
+`--color-chart-mark-outline`, `--color-chip-hairline`, and `--color-on-accent` (the ink for a
+label sitting *on* a neon fill).
 
-**3. Components** — consume roles only. **No component may name a raw color value.**
-Exceptions are pure white/black and generic neutrals (`#666` fallbacks, black shadows),
-which are not theme decisions.
+Neutrals are named for their job, never their hue, so a theme can set each independently (heavy
+black panel borders with grey muted text, say):
+
+| Token | Job |
+| --- | --- |
+| `--color-muted-text` / `--color-subtle-text` | Secondary copy; subtle reads one step stronger |
+| `--color-surface-raised` | Cards, popovers and pills lifted off the page ground |
+| `--color-control-bg` / `--color-control-border` (+ `-hover`) | Form fields and outlined controls |
+| `--color-divider` | Rules inside a surface |
+| `--color-panel-border` (+ `-hover`) | The outline of a panel or card |
+| `--color-fill-muted` (+ `-hover`) | Neutral fills: secondary buttons, the active toggle |
+| `--color-intensity-0` | The calendar heatmap's "no activity" cell |
+
+Two groups stay fixed across themes: the header chrome, whose brightest ink
+`--color-header-ink` is used at partial alpha (`text-header-ink/50`, `bg-header-ink/10`),
+and `--color-scrim` / `--color-on-scrim`, the darkening layer for modal backdrops, menu
+shadows and a label drawn over a bright fill (`bg-scrim/50`, `shadow-scrim/40`).
+
+**3. Components** consume roles only. **No component may name a raw color value, and no
+component may use Tailwind's built-in palette utilities** (`text-white`, `bg-black/50`,
+`border-slate-500`): they bypass the theme blocks, so they look right in one theme and wrong
+in the next. `colorUtilities.test.ts` fails on either. The one exception is a fallback literal
+for a data color that failed to arrive (e.g. a chart tooltip's `#888`).
 
 To re-theme the app, edit layer 1 and the theme blocks. That is the whole point of the
 layering; if a change requires touching component files, the layering has been violated.
@@ -56,7 +77,7 @@ layering; if a change requires touching component files, the layering has been v
 use them instead of writing `rgba()` literals. `resolveThemeColor(token, fallback)` reads a
 resolved value for consumers that cannot take `var()` (Mapbox style expressions, numeric
 interpolation, `<meta>` tags). It is a point-in-time read — callers that must react to theme
-changes depend on `useTheme().resolvedTheme`.
+changes depend on `useTheme().theme.id`.
 
 ## Rules
 
@@ -169,7 +190,7 @@ available: `.btn-secondary`, `.btn-icon`, `.btn-link`, `.btn-close`, `.btn-sm`,
 
 **Focus:** cyan ring via `--color-accent-cyan`.
 
-**Cards / glass panels:** `--color-slate-light` border, lightens on hover.
+**Cards / glass panels:** `--color-panel-border` border, `--color-panel-border-hover` on hover.
 
 **Neon pills:** `.pill-neon` + `.pill-neon-dot` — the map deep-link pill and the
 active-filter pill. Theme-aware via the decorative tokens; do not add elevation utilities
@@ -229,6 +250,5 @@ Adding a new effect means adding a utility here, never a literal in a component.
 Candidates for pull-back toward the direction, not yet scheduled:
 
 - The shadcn migration left several primitives reading modern-neutral rather than neon.
-- `--color-sport-on` (`#0b1120`) and `--color-on-neon` (`#1a202c`) duplicate one job.
 - Sparkline and map line marks are distinguished by hue alone (rule 6).
 - Thin neon marks — sparkline dashes, `RaceTrack` bars — remain low-contrast on light.

@@ -175,10 +175,10 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
                         <span
                           // The % overlays the colored fill *and* the dark track depending
                           // on progress, so no single text color works for both. A dark
-                          // scrim (`bg-black/50`) gives the white text its own consistent
+                          // scrim (`bg-scrim/50`) gives the white text its own consistent
                           // background → WCAG 1.4.3 passes (~4.8:1+) on every goal fill and
                           // both themes, regardless of what's behind the bar.
-                          className="text-white bg-black/50 px-1.5 py-0.5 rounded-sm leading-none"
+                          className="text-on-scrim bg-scrim/50 px-1.5 py-0.5 rounded-sm leading-none"
                           style={{
                             position: "absolute",
                             left: "50%",
@@ -247,19 +247,19 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
         )}
 
         {yearContext.shouldShowPacing && (
-          <p className="text-slate-light mt-2 mb-0">
+          <p className="text-muted-text mt-2 mb-0">
             <small>
               {yearContext.daysRemaining} days remaining in {year}
             </small>
           </p>
         )}
         {isPastYear && (
-          <p className="text-slate-light mt-2 mb-0">
+          <p className="text-muted-text mt-2 mb-0">
             <small>Historical year - {year} complete</small>
           </p>
         )}
         {yearContext.isFutureYear && (
-          <p className="text-slate-light mt-2 mb-0">
+          <p className="text-muted-text mt-2 mb-0">
             <small>Future year - planning mode</small>
           </p>
         )}

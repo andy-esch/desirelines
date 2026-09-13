@@ -47,11 +47,11 @@ export default function CumulativeDistanceChart({
 
   return (
     <section className="px-4 py-3" aria-label="Cumulative distance">
-      <p className="mb-2 text-[0.65rem] font-semibold uppercase tracking-wider text-slate-light">
+      <p className="mb-2 text-[0.65rem] font-semibold uppercase tracking-wider text-muted-text">
         Cumulative distance
       </p>
       {data.length === 0 ? (
-        <p className="text-xs text-slate-light">No activities to summarize.</p>
+        <p className="text-xs text-muted-text">No activities to summarize.</p>
       ) : (
         <div className="h-36">
           <ResponsiveContainer width="100%" height="100%">

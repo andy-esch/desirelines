@@ -171,7 +171,7 @@ export default function MapInsightsDrawer({
             aria-controls={DRAWER_ID}
             // 44px touch target on mobile (the sheet's main dismiss control); compact
             // on desktop where a mouse is precise.
-            className="h-11 w-11 text-slate-light sm:h-7 sm:w-7"
+            className="h-11 w-11 text-muted-text sm:h-7 sm:w-7"
           >
             {/* Down on mobile (collapses the bottom sheet) / right on desktop. */}
             <Chevron className="h-4 w-4 -rotate-90 sm:rotate-180" />

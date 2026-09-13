@@ -15,7 +15,7 @@ export default function MapLoadingState() {
     <div className="pointer-events-none absolute inset-0 grid place-items-center bg-bg-body/60 backdrop-blur-sm">
       <div className="flex flex-col items-center gap-3">
         <NeonSpinner />
-        <span className="text-sm text-slate-light">Loading map…</span>
+        <span className="text-sm text-muted-text">Loading map…</span>
       </div>
     </div>
   );

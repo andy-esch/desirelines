@@ -763,7 +763,7 @@ describe("ActivityCalendarHeatmap", () => {
       // must read as 0, not NaN, and so must take the dim bucket.
       const cell = screen.getByRole("img", { name: /^2026-01-02:/ });
       expect(cell).toHaveAttribute("aria-label", "2026-01-02: 0 activities");
-      expect(cell).toHaveStyle({ background: "var(--color-slate-light)" });
+      expect(cell).toHaveStyle({ background: "var(--color-intensity-0)" });
     });
   });
 });

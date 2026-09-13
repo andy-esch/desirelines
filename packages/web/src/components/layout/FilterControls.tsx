@@ -56,7 +56,7 @@ export default function FilterControls({
       <div className="flex items-center mb-1">
         <label
           htmlFor="sport-selector"
-          className="form-label text-sm text-slate-light mb-0 text-left"
+          className="form-label text-sm text-muted-text mb-0 text-left"
           style={{ minWidth: "50px" }}
         >
           Sport
@@ -76,7 +76,7 @@ export default function FilterControls({
       <div className="flex items-center">
         <label
           htmlFor="year-selector"
-          className="form-label text-sm text-slate-light mb-0 text-left"
+          className="form-label text-sm text-muted-text mb-0 text-left"
           style={{ minWidth: "50px" }}
         >
           Year

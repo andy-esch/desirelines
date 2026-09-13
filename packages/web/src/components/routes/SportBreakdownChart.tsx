@@ -59,7 +59,7 @@ export default function SportBreakdownChart({
       <div className="mb-3 flex items-center justify-between gap-2">
         <p
           id="insights-sport-label"
-          className="text-[0.65rem] font-semibold uppercase tracking-wider text-slate-light"
+          className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-text"
         >
           By sport
         </p>
@@ -85,7 +85,7 @@ export default function SportBreakdownChart({
       </div>
 
       {rows.length === 0 ? (
-        <p className="text-xs text-slate-light">No activities to summarize.</p>
+        <p className="text-xs text-muted-text">No activities to summarize.</p>
       ) : (
         <ul className="space-y-1.5" aria-labelledby="insights-sport-label">
           {rows.map((row) => {
@@ -111,7 +111,7 @@ export default function SportBreakdownChart({
                     <span className="truncate text-body-text">
                       {sportLabels[row.sport] ?? row.sport}
                     </span>
-                    <span className="shrink-0 tabular-nums text-slate-light">
+                    <span className="shrink-0 tabular-nums text-muted-text">
                       {formatRowValue(row, metric, distanceUnit)}
                     </span>
                   </div>

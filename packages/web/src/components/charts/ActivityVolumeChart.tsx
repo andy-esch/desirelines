@@ -124,7 +124,7 @@ export default function ActivityVolumeChart({
         </BarChart>
       </ResponsiveContainer>
 
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-light">
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-text">
         {series.map((s) => (
           <span key={s.key} className="inline-flex items-center gap-1.5">
             <span

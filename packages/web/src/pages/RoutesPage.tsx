@@ -382,7 +382,7 @@ export default function RoutesPage() {
     return (
       <PageLayout background="routes">
         <StatusMessage>
-          <p className="text-slate-light">
+          <p className="text-muted-text">
             <Link to="/" className="text-accent-cyan no-underline">
               Sign in
             </Link>{" "}
@@ -398,7 +398,7 @@ export default function RoutesPage() {
     return (
       <PageLayout background="routes">
         <StatusMessage>
-          <p className="text-slate-light text-sm" role="status">
+          <p className="text-muted-text text-sm" role="status">
             Map is unavailable right now.
           </p>
         </StatusMessage>
@@ -416,7 +416,7 @@ export default function RoutesPage() {
     return (
       <PageLayout background="routes">
         <StatusMessage>
-          <p className="text-slate-light" role="status">
+          <p className="text-muted-text" role="status">
             Loading map…
           </p>
         </StatusMessage>
@@ -582,7 +582,7 @@ export default function RoutesPage() {
           {/* Deep-link focus banner: the map is pinned to one activity. Offers the
               way back to the full map (also clears the ?activity= param). */}
           {focusId != null && (
-            <div className="pill-neon absolute left-1/2 top-2 z-10 flex -translate-x-1/2 items-center gap-2.5 rounded-full border bg-slate-dark/85 px-3.5 py-1.5 text-xs text-slate-light backdrop-blur-sm">
+            <div className="pill-neon absolute left-1/2 top-2 z-10 flex -translate-x-1/2 items-center gap-2.5 rounded-full border bg-surface-raised/85 px-3.5 py-1.5 text-xs text-muted-text backdrop-blur-sm">
               <span
                 aria-hidden="true"
                 className="pill-neon-dot h-1.5 w-1.5 shrink-0 rounded-full"
@@ -607,7 +607,7 @@ export default function RoutesPage() {
           {/* No geo-bearing activities → map falls back to a world view; hint why it's empty. */}
           {!defaultViewport && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <p className="text-slate-light text-sm bg-bg-body/70 rounded px-3 py-1" role="status">
+              <p className="text-muted-text text-sm bg-bg-body/70 rounded px-3 py-1" role="status">
                 No routes yet. Go record some activities!
               </p>
             </div>
@@ -628,7 +628,7 @@ export default function RoutesPage() {
                   <p className="text-sm font-medium text-body-text">
                     No activities match your filters
                   </p>
-                  <p className="mt-1 text-xs text-slate-light">
+                  <p className="mt-1 text-xs text-muted-text">
                     Hidden by the date, sport, distance, or region filter.
                   </p>
                   <button

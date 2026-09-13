@@ -122,7 +122,7 @@ function Stat({ label, value }: { label: string; value: string }) {
       <div className="truncate font-semibold tabular-nums text-body-text" title={value}>
         {value}
       </div>
-      <div className="text-[0.65rem] uppercase tracking-wider text-slate-light">{label}</div>
+      <div className="text-[0.65rem] uppercase tracking-wider text-muted-text">{label}</div>
     </div>
   );
 }
@@ -359,7 +359,7 @@ export default function MapFilterDrawer({
                 // Not disabled while refreshing — invalidation is idempotent, and a
                 // disabled button wouldn't announce the label change to AT.
                 aria-label={isRefreshing ? "Refreshing map data" : "Refresh map data"}
-                className="h-11 w-11 text-slate-light sm:h-7 sm:w-7"
+                className="h-11 w-11 text-muted-text sm:h-7 sm:w-7"
               >
                 <RefreshIcon
                   className={cn(
@@ -376,7 +376,7 @@ export default function MapFilterDrawer({
               aria-label="Collapse panel"
               aria-expanded={open}
               aria-controls={DRAWER_ID}
-              className="h-11 w-11 text-slate-light sm:h-7 sm:w-7"
+              className="h-11 w-11 text-muted-text sm:h-7 sm:w-7"
             >
               <CollapseIcon className="h-4 w-4 -rotate-90 sm:rotate-0" />
             </Button>
@@ -392,7 +392,7 @@ export default function MapFilterDrawer({
               {/* Kind, non-alarming message (the sr-only status above announces it).
                   `pr-24` keeps the wrapped text clear of the top-right control cluster
                   (refresh + collapse, 44px each on mobile). */}
-              <p aria-hidden="true" className="pr-24 text-sm text-slate-light">
+              <p aria-hidden="true" className="pr-24 text-sm text-muted-text">
                 {statusMessage}
               </p>
               {/* Recourse for a filtered-to-zero set: widen to everything. The default
@@ -420,11 +420,11 @@ export default function MapFilterDrawer({
                   <span className="text-3xl font-bold tabular-nums text-accent-cyan">
                     {stats.count}
                   </span>
-                  <span className="text-sm text-slate-light">
+                  <span className="text-sm text-muted-text">
                     {totals.count === 1 && !isLoading ? "activity" : "activities"}
                   </span>
                 </div>
-                <p className="mt-0.5 text-xs text-slate-light">
+                <p className="mt-0.5 text-xs text-muted-text">
                   {isLoading
                     ? "Loading your routes…"
                     : filteredOut

@@ -49,9 +49,9 @@ export default function MomentumIndicator({
       role="img"
       aria-label={description}
       style={{
-        // slate-lighter (not slate-light): clears WCAG 4.5:1 on the body bg in BOTH
-        // themes for this small glyph; slate-light fails in light mode (~4.3:1).
-        color: "var(--color-slate-lighter)",
+        // subtle-text (not muted-text): clears WCAG 4.5:1 on the body bg in both
+        // legacy themes for this small glyph; muted-text fails on the light one (~4.3:1).
+        color: "var(--color-subtle-text)",
         fontSize: "0.9em",
         marginLeft: "4px",
         cursor: "help",

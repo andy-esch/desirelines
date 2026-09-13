@@ -134,7 +134,7 @@ const ActivitiesPage = () => {
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3 mb-6">
           <div className="flex items-center gap-2">
-            <span id="activitiesTimeLabel" className="text-slate-light text-sm">
+            <span id="activitiesTimeLabel" className="text-muted-text text-sm">
               Time:
             </span>
             <Select
@@ -157,7 +157,7 @@ const ActivitiesPage = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            <span id="activitiesSportLabel" className="text-slate-light text-sm">
+            <span id="activitiesSportLabel" className="text-muted-text text-sm">
               Sport:
             </span>
             <SportFilterPills
