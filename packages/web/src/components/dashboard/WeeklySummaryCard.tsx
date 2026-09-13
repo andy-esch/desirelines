@@ -18,7 +18,7 @@ export default function WeeklySummaryCard() {
   if (error) {
     return (
       <div className="glass-panel h-full">
-        <div className="text-center text-slate-light py-6">
+        <div className="text-center text-muted-text py-6">
           <small>Unable to load weekly summary</small>
         </div>
       </div>
@@ -42,8 +42,8 @@ export default function WeeklySummaryCard() {
   return (
     <div className="glass-panel h-full">
       <div className="flex justify-between items-center mb-2">
-        <h6 className="h6 mb-0 text-slate-light">This Week</h6>
-        <small className="text-slate-light">{weekLabel}</small>
+        <h6 className="h6 mb-0 text-muted-text">This Week</h6>
+        <small className="text-muted-text">{weekLabel}</small>
       </div>
       {isLoading ? (
         <div role="status" aria-label="Loading weekly summary">
@@ -65,7 +65,7 @@ export default function WeeklySummaryCard() {
           ))}
         </div>
       ) : !hasAnyActivity ? (
-        <div className="text-center text-slate-light py-6">
+        <div className="text-center text-muted-text py-6">
           <small>No activity yet this week</small>
         </div>
       ) : (
@@ -119,7 +119,7 @@ export default function WeeklySummaryCard() {
 
           {/* Footer totals */}
           <div className="pt-2 mt-1">
-            <small className="text-slate-light">
+            <small className="text-muted-text">
               Total:{" "}
               {totalDistance > 0 && (
                 <span>{formatMetricDisplayValue(totalDistance, "distance", distanceUnit)}</span>
@@ -149,7 +149,7 @@ function getAchievementStyle(pct: number): CSSProperties {
   if (pct >= 100) {
     return {
       backgroundColor: tint("--color-neon-green", 90),
-      color: "var(--color-on-neon)",
+      color: "var(--color-on-accent)",
       boxShadow: `0 0 6px ${tint("--color-neon-green", 60)}`,
     };
   }
@@ -157,7 +157,7 @@ function getAchievementStyle(pct: number): CSSProperties {
   if (pct >= 75) {
     return {
       backgroundColor: tint("--color-brand-cyan", 85),
-      color: "var(--color-on-neon)",
+      color: "var(--color-on-accent)",
       boxShadow: `0 0 5px ${tint("--color-brand-cyan", 50)}`,
     };
   }
@@ -165,7 +165,7 @@ function getAchievementStyle(pct: number): CSSProperties {
   if (pct >= 50) {
     return {
       backgroundColor: tint("--color-neon-yellow", 85),
-      color: "var(--color-on-neon)",
+      color: "var(--color-on-accent)",
       boxShadow: `0 0 4px ${tint("--color-neon-yellow", 40)}`,
     };
   }

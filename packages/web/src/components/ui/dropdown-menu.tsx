@@ -36,7 +36,7 @@ function DropdownMenuContent({
       >
         <Menu.Popup
           className={cn(
-            "min-w-[8rem] overflow-hidden rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-lg shadow-black/40",
+            "min-w-[8rem] overflow-hidden rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-lg shadow-scrim/40",
             "transition-[transform,opacity] data-[starting-style]:opacity-0 data-[ending-style]:opacity-0",
             className
           )}

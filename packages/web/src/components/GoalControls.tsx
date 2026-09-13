@@ -79,10 +79,10 @@ const GoalControls: React.FC<GoalControlsProps> = ({
 
   return (
     <div className="mb-6">
-      <h6 className="text-slate-light">
+      <h6 className="text-muted-text">
         Desirelines ({goals.length}/5)
         {isSaving && (
-          <span className="ms-2 text-slate-light text-sm" aria-live="polite">
+          <span className="ms-2 text-muted-text text-sm" aria-live="polite">
             Saving...
           </span>
         )}

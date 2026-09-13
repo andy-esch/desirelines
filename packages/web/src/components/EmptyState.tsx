@@ -49,11 +49,11 @@ export function EmptyState({
         <span className="neon-glow-pink">No</span> <span className="neon-glow-cyan">data</span>{" "}
         <span className="neon-glow-green">available</span>
       </div>
-      <p className="text-slate-light text-sm md:text-base text-center m-0">
+      <p className="text-muted-text text-sm md:text-base text-center m-0">
         {message || defaultMessage}
       </p>
       {suggestedYear && sport && (
-        <p className="text-slate-light text-sm md:text-base text-center m-0 mt-2">
+        <p className="text-muted-text text-sm md:text-base text-center m-0 mt-2">
           {isDemo ? (
             <Link
               to="/demo/$sport/$year"

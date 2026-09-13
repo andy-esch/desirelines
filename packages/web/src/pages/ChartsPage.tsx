@@ -211,7 +211,7 @@ export default function ChartsPage() {
       <div className="px-4 md:px-6 py-6 max-w-6xl mx-auto">
         <div className="mb-3">
           <h1 className="h3 mb-0 font-display">Charts</h1>
-          <p className="text-slate-light text-sm mt-1">
+          <p className="text-muted-text text-sm mt-1">
             Every activity — including the indoor and virtual workouts that don’t appear on the map.
           </p>
         </div>
@@ -219,7 +219,7 @@ export default function ChartsPage() {
         {/* Shared range + sport filters, plus the type + metric toggles. */}
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3 mb-6">
           <div className="flex items-center gap-2">
-            <span id="chartsTimeLabel" className="text-slate-light text-sm">
+            <span id="chartsTimeLabel" className="text-muted-text text-sm">
               Time:
             </span>
             <Select
@@ -242,7 +242,7 @@ export default function ChartsPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <span id="chartsSportLabel" className="text-slate-light text-sm">
+            <span id="chartsSportLabel" className="text-muted-text text-sm">
               Sport:
             </span>
             <SportFilterPills
@@ -300,7 +300,7 @@ export default function ChartsPage() {
             // count is discrete → integer ticks; distance/time are continuous.
             allowDecimals={metric !== "count"}
           />
-          <p className="mt-3 text-xs text-slate-light">
+          <p className="mt-3 text-xs text-muted-text">
             {geoCount.toLocaleString()} outdoor · {indoorCount.toLocaleString()} indoor / virtual
             {typeFilter !== "all" && chartData.series.length === 0 && (
               <span>

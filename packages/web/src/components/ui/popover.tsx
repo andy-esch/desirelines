@@ -42,7 +42,7 @@ function PopoverContent({
       >
         <BasePopover.Popup
           className={cn(
-            "min-w-[8rem] rounded-md border border-border bg-popover p-4 text-popover-foreground shadow-lg shadow-black/40 outline-none",
+            "min-w-[8rem] rounded-md border border-border bg-popover p-4 text-popover-foreground shadow-lg shadow-scrim/40 outline-none",
             "transition-[transform,opacity] data-[starting-style]:opacity-0 data-[ending-style]:opacity-0",
             className
           )}

@@ -24,6 +24,8 @@ import {
   type DistanceUnit,
 } from "../../utils/units";
 import { formatActivityDate } from "../../utils/formatActivityDate";
+import { resolveThemeColor } from "../../utils/colorTokens";
+import { useTheme } from "../../contexts/ThemeContext";
 
 /**
  * `SOURCE_LAYER` is a backend contract — it MUST be "routes" to match the layer
@@ -428,6 +430,16 @@ export default function RouteMap({
     [colorExpression]
   );
 
+  // Mapbox paint can't take var(), so the dot outline token is resolved to a value. It is
+  // a point-in-time read, so it re-resolves when the theme changes. That dependency is one
+  // the linter can't see, because the theme only changes the DOM the read consults.
+  const { theme } = useTheme();
+  const pointOutlineColor = useMemo(
+    () => resolveThemeColor("--color-map-point-outline", "#0b0f1a"),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [theme.id]
+  );
+
   // Low-zoom density dots (the `route_points` layer). One dot per sport per grid cell,
   // colored by sport (same expression as the lines) and sized by that sport's
   // `activity_count` — radius over √count so a 100-activity cell is ~3× the radius
@@ -437,7 +449,7 @@ export default function RouteMap({
     () => ({
       "circle-color": colorExpression,
       "circle-opacity": 0.85,
-      "circle-stroke-color": "#0b0f1a",
+      "circle-stroke-color": pointOutlineColor,
       "circle-stroke-width": 1,
       "circle-radius": [
         "interpolate",
@@ -449,7 +461,7 @@ export default function RouteMap({
         18,
       ],
     }),
-    [colorExpression]
+    [colorExpression, pointOutlineColor]
   );
 
   // Hover interactivity. The hovered/selected routes are emphasized by a separate,
@@ -738,7 +750,7 @@ export default function RouteMap({
       {/* Density-tier caption: the dots aggregate every activity and don't reflect
           the active filters (the cross-filter applies to the lines once zoomed in). */}
       {dotsView && (
-        <div className="pointer-events-none absolute bottom-20 left-1/2 -translate-x-1/2 rounded-full bg-slate-dark/80 px-3 py-1 text-center text-[0.7rem] text-slate-light backdrop-blur-sm sm:bottom-2">
+        <div className="pointer-events-none absolute bottom-20 left-1/2 -translate-x-1/2 rounded-full bg-surface-raised/80 px-3 py-1 text-center text-[0.7rem] text-muted-text backdrop-blur-sm sm:bottom-2">
           Zoomed-out density — dots show all activities; zoom in to filter
         </div>
       )}
@@ -751,7 +763,7 @@ export default function RouteMap({
           role="status"
           // Sits above the density caption's slot (bottom-20 / sm:bottom-2) so the
           // two don't overlap when zoomed out and tiles fail at the same time.
-          className="absolute bottom-28 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-slate-dark/85 px-3 py-1 text-[0.7rem] text-slate-light backdrop-blur-sm sm:bottom-9"
+          className="absolute bottom-28 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-surface-raised/85 px-3 py-1 text-[0.7rem] text-muted-text backdrop-blur-sm sm:bottom-9"
         >
           <span>Routes couldn’t be loaded.</span>
           <button
@@ -784,7 +796,7 @@ export default function RouteMap({
           <div className="flex max-w-sm flex-col items-center gap-3 text-center">
             {retries < MAX_RETRIES ? (
               <>
-                <p className="text-sm text-slate-light">
+                <p className="text-sm text-muted-text">
                   The map couldn’t be displayed. This can happen if your browser can’t render maps,
                   or the connection stalled.
                 </p>
@@ -793,7 +805,7 @@ export default function RouteMap({
                 </Button>
               </>
             ) : (
-              <p className="text-sm text-slate-light">
+              <p className="text-sm text-muted-text">
                 The map still couldn’t be displayed. Your browser may not support maps, or the
                 connection is unavailable — please try again later.
               </p>
@@ -829,12 +841,12 @@ function RoutePopupCard({
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="-mr-1 -mt-1 inline-flex h-6 w-6 items-center justify-center rounded text-slate-light hover:text-body-text"
+          className="-mr-1 -mt-1 inline-flex h-6 w-6 items-center justify-center rounded text-muted-text hover:text-body-text"
         >
           ✕
         </button>
       </div>
-      <dl className="mt-2 space-y-0.5 text-xs text-slate-light">
+      <dl className="mt-2 space-y-0.5 text-xs text-muted-text">
         {selected.sportLabel && (
           <div className="flex justify-between gap-4">
             <dt>Sport</dt>

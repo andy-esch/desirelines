@@ -25,14 +25,7 @@ import type { Preferences } from "../types/generated/user_config";
 const LargeUserAvatar = () => (
   <div className="relative w-24 h-24 md:w-32 md:h-32 flex-shrink-0">
     <svg width="100%" height="100%" viewBox="0 0 40 40" className="drop-shadow-lg">
-      <circle
-        cx="20"
-        cy="20"
-        r="19"
-        fill="var(--color-slate-dark)"
-        stroke="var(--color-slate)"
-        strokeWidth="1"
-      />
+      <circle cx="20" cy="20" r="19" fill="var(--color-surface-raised)" />
       <path
         d="M12 15 A8 8 0 1 0 28 15"
         fill="none"
@@ -56,8 +49,8 @@ const LargeUserAvatar = () => (
         strokeLinecap="round"
       />
     </svg>
-    <div className="absolute -bottom-1 -right-1 bg-success rounded-full p-1 border-2 border-slate-dark shadow-[0_0_10px_var(--color-success)]">
-      <CheckIcon size={12} className="text-slate-dark" />
+    <div className="absolute -bottom-1 -right-1 bg-success rounded-full p-1 border-2 border-surface-raised shadow-[0_0_10px_var(--color-success)]">
+      <CheckIcon size={12} className="text-surface-raised" />
     </div>
   </div>
 );
@@ -192,15 +185,15 @@ export default function SettingsPage() {
               <LargeUserAvatar />
 
               <div className="flex-grow text-center md:text-left">
-                <div className="mb-1 text-slate-lighter text-sm uppercase tracking-widest font-bold">
+                <div className="mb-1 text-subtle-text text-sm uppercase tracking-widest font-bold">
                   Authenticated Athlete
                 </div>
-                <h2 className="h3 mb-2 text-white font-display neon-gradient-text">
+                <h2 className="h3 mb-2 text-body-text font-display neon-gradient-text">
                   {displayName}
                 </h2>
 
                 <div className="flex flex-col gap-2 mt-4">
-                  <div className="flex items-center justify-center md:justify-start gap-2 text-slate-light text-sm">
+                  <div className="flex items-center justify-center md:justify-start gap-2 text-muted-text text-sm">
                     <span className="w-2 h-2 rounded-full bg-success shadow-[0_0_8px_var(--color-success)]"></span>
                     Connected to Strava
                   </div>
@@ -294,7 +287,7 @@ export default function SettingsPage() {
         <GoalManagementTable />
       </SettingsSection>
 
-      {isSaving && <div className="text-slate-light text-sm text-right">Saving...</div>}
+      {isSaving && <div className="text-muted-text text-sm text-right">Saving...</div>}
     </NarrowPageLayout>
   );
 }

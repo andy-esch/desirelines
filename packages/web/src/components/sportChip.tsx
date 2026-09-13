@@ -16,8 +16,8 @@ import { cn } from "@/lib/utils";
  * Classes for the chip itself. Include `group` — the dot keys off the item's pressed
  * state.
  *
- * Note `data-[pressed]:text-sport-on` rather than `text-bg-body`: the pressed fill is
- * bright in BOTH themes, and `bg-body` is *light* in light mode, which would put light
+ * Note `data-[pressed]:text-on-accent` rather than `text-bg-body`: the pressed fill is
+ * bright in every theme, and `bg-body` is *light* in light themes, which would put light
  * text on a bright fill.
  */
 export const sportChipClass = cn(
@@ -28,7 +28,7 @@ export const sportChipClass = cn(
   // The pressed border is the mark outline, not transparent: a bright fill can sit at
   // ~1:1 against the light ground, so a transparent border let the whole chip melt into
   // the page.
-  "data-[pressed]:border-chart-mark-outline data-[pressed]:bg-[var(--chip)] data-[pressed]:text-sport-on"
+  "data-[pressed]:border-chart-mark-outline data-[pressed]:bg-[var(--chip)] data-[pressed]:text-on-accent"
 );
 
 /**
@@ -44,7 +44,7 @@ export function SportChipDot() {
       className={cn(
         "sport-mark size-2 shrink-0 rounded-full bg-[var(--chip)]",
         "shadow-[0_0_7px_var(--chip),0_0_2px_var(--chip)]",
-        "group-data-[pressed]:bg-sport-on group-data-[pressed]:shadow-none"
+        "group-data-[pressed]:bg-on-accent group-data-[pressed]:shadow-none"
       )}
     />
   );

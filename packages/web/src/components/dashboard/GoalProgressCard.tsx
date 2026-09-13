@@ -28,7 +28,7 @@ export default function GoalProgressCard() {
   if (error) {
     return (
       <div className="glass-panel h-full">
-        <div className="text-center text-slate-light py-6">
+        <div className="text-center text-muted-text py-6">
           <small>Unable to load goal progress</small>
         </div>
       </div>
@@ -38,7 +38,7 @@ export default function GoalProgressCard() {
   return (
     <div className="glass-panel h-full">
       <div className="mb-2">
-        <h6 className="h6 mb-0 text-slate-light">{yearContext.year} Goals</h6>
+        <h6 className="h6 mb-0 text-muted-text">{yearContext.year} Goals</h6>
       </div>
       {isLoading ? (
         <div role="status" aria-label="Loading goal progress">
@@ -56,7 +56,7 @@ export default function GoalProgressCard() {
           ))}
         </div>
       ) : sportData.length === 0 ? (
-        <div className="text-center text-slate-light py-6">
+        <div className="text-center text-muted-text py-6">
           <small>No sports configured</small>
         </div>
       ) : (
@@ -115,7 +115,7 @@ function SportProgressRow({ sport, yearContext }: SportProgressRowProps) {
         >
           {sport.displayName}
         </Link>
-        <span className="text-sm text-slate-light">{statusDisplay}</span>
+        <span className="text-sm text-muted-text">{statusDisplay}</span>
       </div>
 
       <RaceTrack
@@ -126,7 +126,7 @@ function SportProgressRow({ sport, yearContext }: SportProgressRowProps) {
         height={28}
       />
 
-      <div className="text-sm text-slate-light" style={{ fontSize: "0.7rem" }}>
+      <div className="text-sm text-muted-text" style={{ fontSize: "0.7rem" }}>
         {formatMetricDisplayValue(sport.currentValue, sport.metricType, sport.metricUnit)} /{" "}
         {formatMetricDisplayValue(sport.targetGoal, sport.metricType, sport.metricUnit)}
       </div>

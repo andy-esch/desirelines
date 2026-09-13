@@ -186,7 +186,7 @@ export default function SportPageContent({
               style={{
                 backgroundColor: "var(--color-accent-cyan-glow)",
                 border: "1px solid var(--color-accent-cyan-glow)",
-                color: "var(--color-slate-light)",
+                color: "var(--color-muted-text)",
               }}
             >
               <span>

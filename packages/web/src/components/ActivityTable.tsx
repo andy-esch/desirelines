@@ -205,7 +205,7 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                     )}
                   </td>
                   {showImpact && goalTarget > 0 && (
-                    <td className="text-right whitespace-nowrap text-slate-light">
+                    <td className="text-right whitespace-nowrap text-muted-text">
                       {formatImpactPct(
                         isSessionSport
                           ? (1 / goalTarget) * 100
@@ -223,7 +223,7 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                         <button
                           type="button"
                           onClick={() => onViewOnMap(activity.id)}
-                          className="text-slate-light hover:text-accent-cyan motion-safe:transition-colors"
+                          className="text-muted-text hover:text-accent-cyan motion-safe:transition-colors"
                           title="View on map"
                           aria-label="View this activity on the map"
                         >
@@ -234,7 +234,7 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                         href={`https://www.strava.com/activities/${activity.id}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-slate-light"
+                        className="text-muted-text"
                         title="View on Strava"
                       >
                         <ExternalLinkIcon size={14} />
@@ -265,7 +265,7 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
 
         {/* End of results indicator */}
         {!isLoading && !hasMore && activities.length > 0 && (
-          <div className="text-center text-slate-light py-6 border-t">
+          <div className="text-center text-muted-text py-6 border-t">
             <small>Showing all {activities.length} activities</small>
           </div>
         )}

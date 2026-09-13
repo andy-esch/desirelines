@@ -61,7 +61,7 @@ function readThemeTokenNames(themeId: string): string[] {
 function TokenSwatches({ themeId }: { themeId: string }) {
   const [names] = useState(() => readThemeTokenNames(themeId));
   if (names.length === 0) {
-    return <p className="text-sm text-slate-light">No tokens found for this theme.</p>;
+    return <p className="text-sm text-muted-text">No tokens found for this theme.</p>;
   }
   return (
     <ul className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-1.5 text-xs">
@@ -91,8 +91,8 @@ function ThemePanel({ theme }: { theme: ThemeDefinition }) {
     >
       <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h2 className="text-xl font-display">{theme.label}</h2>
-        <code className="text-sm text-slate-light">{theme.id}</code>
-        <span className="text-sm text-slate-light">
+        <code className="text-sm text-muted-text">{theme.id}</code>
+        <span className="text-sm text-muted-text">
           {theme.scheme}
           {theme.hidden ? " · hidden" : ""}
         </span>
@@ -126,7 +126,7 @@ function ThemePanel({ theme }: { theme: ThemeDefinition }) {
         </div>
         <Input placeholder="Input" aria-label={`Sample input, ${theme.label} theme`} />
         <div>
-          <span id={sportsLabelId} className="text-sm text-slate-light">
+          <span id={sportsLabelId} className="text-sm text-muted-text">
             Sport chips
           </span>
           <SportFilterPills
@@ -156,7 +156,7 @@ function ThemePanel({ theme }: { theme: ThemeDefinition }) {
         </div>
         <p className="text-sm">
           Body text with a <a href="#gallery">link</a>,{" "}
-          <span className="text-slate-light">muted</span> and{" "}
+          <span className="text-muted-text">muted</span> and{" "}
           <span className="neon-gradient-text font-medium">neon gradient</span>.
         </p>
       </div>
@@ -169,7 +169,7 @@ export default function ThemeGalleryPage() {
     <div id="gallery" className="px-4 md:px-6 py-6 flex flex-col gap-4">
       <div>
         <h1 className="text-2xl font-display">Theme gallery</h1>
-        <p className="text-sm text-slate-light">
+        <p className="text-sm text-muted-text">
           Dev only. Every theme in the theme list, including hidden ones, rendered side by side.
         </p>
       </div>

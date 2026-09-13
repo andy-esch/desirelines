@@ -27,7 +27,7 @@ function SheetContent({
 
   return (
     <Dialog.Portal>
-      <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/50 transition-opacity duration-200 data-[starting-style]:opacity-0 data-[ending-style]:opacity-0" />
+      <Dialog.Backdrop className="fixed inset-0 z-50 bg-scrim/50 transition-opacity duration-200 data-[starting-style]:opacity-0 data-[ending-style]:opacity-0" />
       <Dialog.Popup
         className={cn(
           "fixed z-50 flex flex-col overflow-y-auto bg-background shadow-xl outline-none transition-transform duration-200",

@@ -58,8 +58,7 @@ export default function Dashboard() {
           <div className="px-4 md:px-6">
             <strong className="text-accent-cyan">Demo Mode</strong>
             <span className="mx-2">—</span>
-            Viewing generated sample data.{" "}
-            <span className="text-slate text-sm">Sign-in is invite-only.</span>
+            Viewing generated sample data. <span className="text-sm">Sign-in is invite-only.</span>
           </div>
         </div>
       )}
@@ -70,7 +69,7 @@ export default function Dashboard() {
           <h1 className="h2 font-display">
             {user ? `Welcome back, ${displayName.split(" ")[0]}!` : "Welcome!"}
           </h1>
-          <p className="text-slate-light">
+          <p className="text-muted-text">
             {user
               ? "Your multi-sport activity dashboard"
               : "Explore the dashboard with demo data, then sign in to see your own activities."}
@@ -110,10 +109,10 @@ export default function Dashboard() {
         {!user && (
           <div className="mt-12 text-center">
             <hr className="my-6" />
-            <p className="text-slate-light">
+            <p className="text-muted-text">
               <strong>Interested in using Desire Lines?</strong>
             </p>
-            <p className="text-slate-light text-sm">
+            <p className="text-muted-text text-sm">
               Sign-in is currently invite-only.
               <br />
               Check back soon or reach out if you'd like early access.

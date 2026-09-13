@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { alpha } from "../utils/colorTokens";
 
 /**
  * RaceTrack - A reusable horizontal track visualization with position markers.
@@ -81,7 +82,7 @@ export default function RaceTrack({
   showPace = pacePosition !== undefined,
   primaryMarker = "🐲",
   paceMarker = "👻",
-  trackColor = "rgba(150, 150, 150, 0.4)",
+  trackColor = alpha("var(--color-chart-neutral)", 40),
   height = 28,
   className,
   style,
@@ -219,12 +220,12 @@ export function RaceTrackLegend({
     <div className={`flex gap-6 ${className ?? ""}`}>
       <span className="flex items-center gap-1">
         <span style={{ fontSize: "0.9rem" }}>{primaryMarker}</span>
-        <small className="text-slate-light">{primaryLabel}</small>
+        <small className="text-muted-text">{primaryLabel}</small>
       </span>
       {showPace && (
         <span className="flex items-center gap-1">
           <span style={{ fontSize: "0.9rem", opacity: 0.5 }}>{paceMarker}</span>
-          <small className="text-slate-light">{paceLabel}</small>
+          <small className="text-muted-text">{paceLabel}</small>
         </span>
       )}
     </div>

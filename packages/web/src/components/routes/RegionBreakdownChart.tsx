@@ -47,7 +47,7 @@ export default function RegionBreakdownChart({
   return (
     <section className="px-4 py-3" aria-label="Region breakdown">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-slate-light">
+        <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-text">
           By region
         </p>
         <ToggleGroup
@@ -69,7 +69,7 @@ export default function RegionBreakdownChart({
       </div>
 
       {rows.length === 0 ? (
-        <p className="text-xs text-slate-light">No region data.</p>
+        <p className="text-xs text-muted-text">No region data.</p>
       ) : (
         <ul className="space-y-1.5">
           {rows.map((row) => {
@@ -93,7 +93,7 @@ export default function RegionBreakdownChart({
                     <span className="truncate text-body-text">
                       {regionNames[row.regionId] ?? `Region ${row.regionId}`}
                     </span>
-                    <span className="shrink-0 tabular-nums text-slate-light">
+                    <span className="shrink-0 tabular-nums text-muted-text">
                       {metric === "distance"
                         ? formatDistance(row.distanceMeters, distanceUnit)
                         : row.count.toLocaleString()}

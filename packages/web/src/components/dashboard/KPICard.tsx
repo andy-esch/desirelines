@@ -29,10 +29,10 @@ export default function KPICard({ title, value, subtitle, indicator }: KPICardPr
   return (
     <div className="glass-panel-kpi h-full">
       <div className="flex flex-col justify-between p-3 md:p-4">
-        <h6 className="mb-1 text-slate-light text-sm">{title}</h6>
+        <h6 className="mb-1 text-muted-text text-sm">{title}</h6>
         <div>
           <div className="kpi-value mb-1">{value}</div>
-          <small className="text-slate-light">
+          <small className="text-muted-text">
             {subtitle}
             {indicator}
           </small>

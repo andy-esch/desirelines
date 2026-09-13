@@ -67,7 +67,7 @@ export default function Header({ scrolled = false }: HeaderProps) {
       <Navigation className="hidden lg:flex ms-4" />
 
       <div className="hidden lg:flex items-center gap-3 ms-auto pe-2">
-        <span className="text-white/50 text-xs whitespace-nowrap">{currentDate}</span>
+        <span className="text-header-ink/50 text-xs whitespace-nowrap">{currentDate}</span>
         <AccountDropdown user={user} loading={loading} onSignIn={signIn} onSignOut={signOut} />
       </div>
 
@@ -98,8 +98,8 @@ export default function Header({ scrolled = false }: HeaderProps) {
       <Sheet open={navOpen} onOpenChange={(open) => !open && setNavOpen(false)}>
         <SheetContent side="left" className="max-w-[280px] w-[80vw] bg-header-bg">
           <div className="flex items-center justify-between p-4">
-            <SheetTitle className="text-white m-0">Navigation</SheetTitle>
-            <SheetClose className="bg-transparent border-0 text-white p-1" aria-label="Close">
+            <SheetTitle className="text-header-ink m-0">Navigation</SheetTitle>
+            <SheetClose className="bg-transparent border-0 text-header-ink p-1" aria-label="Close">
               <CloseIconLg />
             </SheetClose>
           </div>

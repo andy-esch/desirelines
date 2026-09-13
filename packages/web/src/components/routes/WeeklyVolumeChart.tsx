@@ -45,7 +45,7 @@ export default function WeeklyVolumeChart({ activities, distanceUnit }: WeeklyVo
   return (
     <section className="px-4 py-3" aria-label="Weekly volume">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-slate-light">
+        <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-text">
           Weekly volume
         </p>
         <ToggleGroup
@@ -66,7 +66,7 @@ export default function WeeklyVolumeChart({ activities, distanceUnit }: WeeklyVo
         </ToggleGroup>
       </div>
       {data.length === 0 ? (
-        <p className="text-xs text-slate-light">No activities to summarize.</p>
+        <p className="text-xs text-muted-text">No activities to summarize.</p>
       ) : (
         <>
           <div className="h-36" aria-hidden="true">

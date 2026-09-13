@@ -23,7 +23,7 @@ export function Footer() {
 
   return (
     <footer
-      className="py-2 text-center text-slate-light"
+      className="py-2 text-center text-muted-text"
       style={{
         background: `linear-gradient(
           135deg,
@@ -38,7 +38,7 @@ export function Footer() {
       <div className="container mx-auto flex justify-center items-center gap-2 flex-wrap">
         <Link
           to="/origins"
-          className="text-slate-light hover:text-accent-cyan min-h-[44px] inline-flex items-center"
+          className="text-muted-text hover:text-accent-cyan min-h-[44px] inline-flex items-center"
         >
           Origins
         </Link>
@@ -47,7 +47,7 @@ export function Footer() {
           href="https://github.com/andy-esch/desirelines/"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-slate-light hover:text-accent-cyan min-h-[44px] inline-flex items-center"
+          className="text-muted-text hover:text-accent-cyan min-h-[44px] inline-flex items-center"
           style={{ gap: "0.35rem" }}
         >
           <GitHubIcon />

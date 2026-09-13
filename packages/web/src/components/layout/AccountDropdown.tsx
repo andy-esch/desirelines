@@ -237,7 +237,7 @@ export function AccountDropdown({
       <button
         ref={triggerRef}
         type="button"
-        className="bg-transparent border-0 text-white flex items-center gap-0.5 p-1 cursor-pointer"
+        className="bg-transparent border-0 text-header-ink flex items-center gap-0.5 p-1 cursor-pointer"
         onClick={() => setIsOpen(!isOpen)}
         aria-expanded={isOpen}
         aria-haspopup="menu"
@@ -262,7 +262,7 @@ export function AccountDropdown({
             {user ? (
               <>
                 <div
-                  className="text-white text-sm font-medium"
+                  className="text-header-ink text-sm font-medium"
                   style={{
                     overflow: "hidden",
                     textOverflow: "ellipsis",
@@ -282,8 +282,8 @@ export function AccountDropdown({
               </>
             ) : (
               <>
-                <div className="text-white text-sm font-medium">Not logged in</div>
-                <div className="text-white/50" style={{ fontSize: "0.75rem" }}>
+                <div className="text-header-ink text-sm font-medium">Not logged in</div>
+                <div className="text-header-ink/50" style={{ fontSize: "0.75rem" }}>
                   Demo version
                 </div>
               </>
@@ -294,7 +294,7 @@ export function AccountDropdown({
           <Link
             to="/settings"
             role="menuitem"
-            className="transition-colors hover:bg-white/[0.08]"
+            className="transition-colors hover:bg-header-ink/[0.08]"
             style={menuItemStyle}
             onClick={handleSettingsClick}
           >
@@ -335,7 +335,7 @@ export function AccountDropdown({
                     aria-checked={checked}
                     onClick={() => setPreference(value)}
                     aria-label={`${label} theme`}
-                    className="bg-transparent transition-colors hover:bg-white/[0.08]"
+                    className="bg-transparent transition-colors hover:bg-header-ink/[0.08]"
                     style={{
                       ...menuItemStyle,
                       padding: "0.375rem 1rem",
@@ -363,7 +363,7 @@ export function AccountDropdown({
               <button
                 type="button"
                 role="menuitem"
-                className="transition-colors hover:bg-white/[0.08]"
+                className="transition-colors hover:bg-header-ink/[0.08]"
                 style={menuItemStyle}
                 onClick={() => void handleSignOut()}
                 disabled={actionLoading}
@@ -375,7 +375,7 @@ export function AccountDropdown({
               <button
                 type="button"
                 role="menuitem"
-                className="transition-colors hover:bg-white/[0.08]"
+                className="transition-colors hover:bg-header-ink/[0.08]"
                 style={{
                   ...menuItemStyle,
                   color: "var(--color-header-accent)",
