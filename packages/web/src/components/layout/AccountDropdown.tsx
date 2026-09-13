@@ -9,11 +9,10 @@ import {
   SettingsIcon,
   SignOutIcon,
   SignInIcon,
-  SunIcon,
-  MoonIcon,
   MonitorIcon,
 } from "../icons";
 import { useTheme } from "../../contexts/ThemeContext";
+import { VISIBLE_THEMES, type ThemePreference } from "../../themes/registry";
 
 // Focusable menu items for arrow-key navigation: enabled buttons/links and
 // anything explicitly tab-focusable. Shared by the querySelector (first item)
@@ -59,6 +58,41 @@ const UserIcon = () => (
   </svg>
 );
 
+/** Picker preview: the theme's ground with its accent colors as dots. */
+const ThemeSwatch = ({ colors }: { colors: readonly string[] }) => {
+  const [ground, ...accents] = colors;
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "2px",
+        padding: "3px 4px",
+        borderRadius: "3px",
+        background: ground,
+        border: "1px solid var(--color-header-border)",
+      }}
+    >
+      {accents.map((color) => (
+        <span
+          key={color}
+          style={{ width: "5px", height: "5px", borderRadius: "50%", background: color }}
+        />
+      ))}
+    </span>
+  );
+};
+
+const THEME_OPTIONS: readonly { value: ThemePreference; label: string; icon: React.ReactNode }[] = [
+  ...VISIBLE_THEMES.map((t) => ({
+    value: t.id,
+    label: t.label,
+    icon: <ThemeSwatch colors={t.swatches} />,
+  })),
+  { value: "system", label: "System", icon: <MonitorIcon size={13} /> },
+];
+
 /**
  * Account dropdown menu for the header
  *
@@ -72,7 +106,7 @@ export function AccountDropdown({
   onSignIn,
   onSignOut,
 }: AccountDropdownProps) {
-  const { theme, setTheme } = useTheme();
+  const { preference, setPreference } = useTheme();
   const { displayName, loading: profileLoading } = useUserProfile();
   const [isOpen, setIsOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -268,18 +302,18 @@ export function AccountDropdown({
             <span>Settings</span>
           </Link>
 
-          {/* Theme Toggle */}
+          {/* Theme picker */}
           <div
             style={{
               borderTop: "1px solid var(--color-header-border)",
-              padding: "0.375rem 1rem",
+              padding: "0.375rem 0",
             }}
           >
             <div
               style={{
                 fontSize: "0.7rem",
                 color: "var(--color-header-text-muted)",
-                marginBottom: "0.25rem",
+                margin: "0 1rem 0.25rem",
                 fontWeight: 500,
               }}
             >
@@ -287,46 +321,40 @@ export function AccountDropdown({
             </div>
             {/* menuitemradio + aria-checked, not menuitem: these are a single-select
                 group, so the active theme must be exposed programmatically — the
-                border/background treatment below conveys it to sighted users only. */}
-            <div className="flex gap-0.5" role="group" aria-label="Theme">
-              {[
-                { mode: "light" as const, icon: <SunIcon size={13} />, label: "Light" },
-                { mode: "dark" as const, icon: <MoonIcon size={13} />, label: "Dark" },
-                { mode: "system" as const, icon: <MonitorIcon size={13} />, label: "System" },
-              ].map(({ mode, icon, label }) => (
-                <button
-                  key={mode}
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={theme === mode}
-                  onClick={() => setTheme(mode)}
-                  title={label}
-                  aria-label={`${label} theme`}
-                  className="transition-colors"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.25rem",
-                    padding: "0.25rem 0.5rem",
-                    fontSize: "0.75rem",
-                    border: "1px solid",
-                    borderColor:
-                      theme === mode ? "var(--color-header-accent)" : "var(--color-header-border)",
-                    borderRadius: "0.25rem",
-                    // brand-cyan, not accent-cyan-glow: this dropdown lives in the
-                    // header, which is pinned dark, so it must not flip with the theme.
-                    background: theme === mode ? tint("--color-brand-cyan", 15) : "transparent",
-                    color:
-                      theme === mode
+                background/check treatment below conveys it to sighted users only.
+                A vertical list rather than a segmented row, so it scales with the
+                number of released themes. */}
+            <div role="group" aria-label="Theme">
+              {THEME_OPTIONS.map(({ value, label, icon }) => {
+                const checked = preference === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={checked}
+                    onClick={() => setPreference(value)}
+                    aria-label={`${label} theme`}
+                    className="bg-transparent transition-colors hover:bg-white/[0.08]"
+                    style={{
+                      ...menuItemStyle,
+                      padding: "0.375rem 1rem",
+                      fontSize: "0.8125rem",
+                      // Inline only when checked, so the hover class still applies to the
+                      // rest. brand-cyan, not accent-cyan-glow: this dropdown lives in the
+                      // header, which is pinned dark, so it must not flip with the theme.
+                      ...(checked && { background: tint("--color-brand-cyan", 15) }),
+                      color: checked
                         ? "var(--color-header-accent)"
                         : "var(--color-header-text-muted)",
-                    cursor: "pointer",
-                  }}
-                >
-                  {icon}
-                  {label}
-                </button>
-              ))}
+                    }}
+                  >
+                    {icon}
+                    <span className="grow">{label}</span>
+                    {checked && <CheckIcon />}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

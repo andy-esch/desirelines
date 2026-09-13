@@ -108,10 +108,10 @@ export default function RecentActivitiesList({
   const [page, setPage] = useState(0);
 
   // Re-resolved when the theme flips: resolveThemeColor is a point-in-time read of the
-  // DOM, and `resolvedTheme` is the only thing that changes its answer. The linter
+  // DOM, and the active theme id is the only thing that changes its answer. The linter
   // can't see that — the dependency is real but not lexically referenced, and dropping
   // it would freeze the ramp at whichever theme rendered first.
-  const { resolvedTheme } = useTheme();
+  const { theme } = useTheme();
   const impactRamp = useMemo(
     () => ({
       start: parseRgb(resolveThemeColor(IMPACT_START_TOKEN, IMPACT_START_FALLBACK)) ?? {
@@ -126,7 +126,7 @@ export default function RecentActivitiesList({
       },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [resolvedTheme]
+    [theme.id]
   );
 
   // Dynamically measure container height to compute page size

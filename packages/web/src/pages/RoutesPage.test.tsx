@@ -31,9 +31,16 @@ vi.mock("../hooks/useAuthTokenRef", () => ({
   })),
 }));
 
-vi.mock("../contexts/ThemeContext", () => ({
-  useTheme: vi.fn(() => ({ resolvedTheme: "dark", theme: "dark", setTheme: vi.fn() })),
-}));
+vi.mock("../contexts/ThemeContext", async () => {
+  const { getTheme } = await import("../themes/registry");
+  return {
+    useTheme: vi.fn(() => ({
+      preference: "legacy-dark",
+      theme: getTheme("legacy-dark"),
+      setPreference: vi.fn(),
+    })),
+  };
+});
 
 // Cross-filter dataset + user prefs. Mocked here so the page test stays a unit
 // test and doesn't pull the firebase-backed userConfig service at import.
@@ -337,7 +344,7 @@ describe("RoutesPage", () => {
     );
     expect(props.apiBaseUrl).toBe("http://localhost:8084/api/v1");
     expect(props.defaultViewport).toEqual(viewport);
-    expect(props.isDark).toBe(true);
+    expect(props.mapStyle).toBe("mapbox://styles/mapbox/dark-v11");
     // Cross-filter expression is wired through (null here: the mocked dataset is
     // empty, so useRouteFilters yields no filter â map shows all routes).
     expect(props).toHaveProperty("filter");

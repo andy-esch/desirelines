@@ -23,6 +23,7 @@ import { Route as AuthCompleteRouteImport } from "./routes/auth/complete";
 import { Route as AuthErrorRouteImport } from "./routes/auth/error";
 import { Route as DemoIndexRouteImport } from "./routes/demo/index";
 import { Route as DemoSportRouteImport } from "./routes/demo/$sport";
+import { Route as DevThemesRouteImport } from "./routes/dev/themes";
 import { Route as DemoSportIndexRouteImport } from "./routes/demo/$sport.index";
 import { Route as DemoSportYearRouteImport } from "./routes/demo/$sport.$year";
 
@@ -96,6 +97,11 @@ const DemoSportRoute = DemoSportRouteImport.update({
   path: "/demo/$sport",
   getParentRoute: () => rootRouteImport,
 } as any);
+const DevThemesRoute = DevThemesRouteImport.update({
+  id: "/dev/themes",
+  path: "/dev/themes",
+  getParentRoute: () => rootRouteImport,
+} as any);
 const DemoSportIndexRoute = DemoSportIndexRouteImport.update({
   id: "/",
   path: "/",
@@ -120,6 +126,7 @@ export interface FileRoutesByFullPath {
   "/auth/complete": typeof AuthCompleteRoute;
   "/auth/error": typeof AuthErrorRoute;
   "/demo/$sport": typeof DemoSportRouteWithChildren;
+  "/dev/themes": typeof DevThemesRoute;
   "/$sport/": typeof SportIndexRoute;
   "/demo/": typeof DemoIndexRoute;
   "/demo/$sport/$year": typeof DemoSportYearRoute;
@@ -136,6 +143,7 @@ export interface FileRoutesByTo {
   "/$sport/$year": typeof SportYearRoute;
   "/auth/complete": typeof AuthCompleteRoute;
   "/auth/error": typeof AuthErrorRoute;
+  "/dev/themes": typeof DevThemesRoute;
   "/$sport": typeof SportIndexRoute;
   "/demo": typeof DemoIndexRoute;
   "/demo/$sport/$year": typeof DemoSportYearRoute;
@@ -155,6 +163,7 @@ export interface FileRoutesById {
   "/auth/complete": typeof AuthCompleteRoute;
   "/auth/error": typeof AuthErrorRoute;
   "/demo/$sport": typeof DemoSportRouteWithChildren;
+  "/dev/themes": typeof DevThemesRoute;
   "/$sport/": typeof SportIndexRoute;
   "/demo/": typeof DemoIndexRoute;
   "/demo/$sport/$year": typeof DemoSportYearRoute;
@@ -175,6 +184,7 @@ export interface FileRouteTypes {
     | "/auth/complete"
     | "/auth/error"
     | "/demo/$sport"
+    | "/dev/themes"
     | "/$sport/"
     | "/demo/"
     | "/demo/$sport/$year"
@@ -191,6 +201,7 @@ export interface FileRouteTypes {
     | "/$sport/$year"
     | "/auth/complete"
     | "/auth/error"
+    | "/dev/themes"
     | "/$sport"
     | "/demo"
     | "/demo/$sport/$year"
@@ -209,6 +220,7 @@ export interface FileRouteTypes {
     | "/auth/complete"
     | "/auth/error"
     | "/demo/$sport"
+    | "/dev/themes"
     | "/$sport/"
     | "/demo/"
     | "/demo/$sport/$year"
@@ -227,6 +239,7 @@ export interface RootRouteChildren {
   AuthCompleteRoute: typeof AuthCompleteRoute;
   AuthErrorRoute: typeof AuthErrorRoute;
   DemoSportRoute: typeof DemoSportRouteWithChildren;
+  DevThemesRoute: typeof DevThemesRoute;
   DemoIndexRoute: typeof DemoIndexRoute;
 }
 
@@ -330,6 +343,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof DemoSportRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    "/dev/themes": {
+      id: "/dev/themes";
+      path: "/dev/themes";
+      fullPath: "/dev/themes";
+      preLoaderRoute: typeof DevThemesRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     "/demo/$sport/": {
       id: "/demo/$sport/";
       path: "/";
@@ -385,6 +405,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthCompleteRoute: AuthCompleteRoute,
   AuthErrorRoute: AuthErrorRoute,
   DemoSportRoute: DemoSportRouteWithChildren,
+  DevThemesRoute: DevThemesRoute,
   DemoIndexRoute: DemoIndexRoute,
 };
 export const routeTree = rootRouteImport

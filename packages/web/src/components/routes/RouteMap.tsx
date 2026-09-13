@@ -40,9 +40,6 @@ const LAYER_ID = "routes-lines";
 const POINTS_SOURCE_LAYER = "route_points";
 const POINTS_LAYER_ID = "routes-points";
 
-const DARK_STYLE = "mapbox://styles/mapbox/dark-v11";
-const LIGHT_STYLE = "mapbox://styles/mapbox/light-v11";
-
 const FIT_PADDING = 40;
 /** Cap fit zoom so a degenerate (single-point) bbox doesn't zoom to the moon. */
 const MAX_FIT_ZOOM = 14;
@@ -212,7 +209,8 @@ export interface RouteMapProps {
   /** Region framed at mount via `initialViewState` (null → world view). Only the
    *  first frame; later default-region fits arrive through `fitTo` from the parent. */
   defaultViewport: RegionSummary | null;
-  isDark: boolean;
+  /** Mapbox style URL — the active theme's `mapStyle`. */
+  mapStyle: string;
   /** Display unit for the click popover's distance. */
   distanceUnit: DistanceUnit;
   /**
@@ -271,7 +269,7 @@ export default function RouteMap({
   colorExpression,
   filter,
   defaultViewport,
-  isDark,
+  mapStyle,
   distanceUnit,
   getActivity,
   selected,
@@ -624,7 +622,7 @@ export default function RouteMap({
         key={remountKey}
         ref={mapRef}
         mapboxAccessToken={accessToken}
-        mapStyle={isDark ? DARK_STYLE : LIGHT_STYLE}
+        mapStyle={mapStyle}
         projection={MAP_PROJECTION}
         onLoad={onMapLoad}
         onZoom={syncZoomView}

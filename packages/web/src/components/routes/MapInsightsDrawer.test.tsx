@@ -8,7 +8,7 @@ describe("MapInsightsDrawer", () => {
     const user = userEvent.setup();
     const onOpenChange = vi.fn();
     render(
-      <MapInsightsDrawer open={false} onOpenChange={onOpenChange} isDark>
+      <MapInsightsDrawer open={false} onOpenChange={onOpenChange}>
         <div>chart</div>
       </MapInsightsDrawer>
     );
@@ -20,7 +20,7 @@ describe("MapInsightsDrawer", () => {
     const user = userEvent.setup();
     const onOpenChange = vi.fn();
     render(
-      <MapInsightsDrawer open onOpenChange={onOpenChange} isDark>
+      <MapInsightsDrawer open onOpenChange={onOpenChange}>
         <div>chart</div>
       </MapInsightsDrawer>
     );
@@ -30,7 +30,7 @@ describe("MapInsightsDrawer", () => {
 
   it("renders its chart children", () => {
     render(
-      <MapInsightsDrawer open onOpenChange={vi.fn()} isDark>
+      <MapInsightsDrawer open onOpenChange={vi.fn()}>
         <div>my chart</div>
       </MapInsightsDrawer>
     );
@@ -39,7 +39,7 @@ describe("MapInsightsDrawer", () => {
 
   it("reflects open state via aria on the handle", () => {
     render(
-      <MapInsightsDrawer open={false} onOpenChange={vi.fn()} isDark>
+      <MapInsightsDrawer open={false} onOpenChange={vi.fn()}>
         <div>chart</div>
       </MapInsightsDrawer>
     );

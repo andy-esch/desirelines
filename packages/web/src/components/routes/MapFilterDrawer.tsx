@@ -1,23 +1,10 @@
 import { useEffect, useId, useRef } from "react";
-import type { CSSProperties, ReactNode, RefObject } from "react";
+import type { ReactNode, RefObject } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import type { ActivityTotals } from "../../utils/routeFilters";
-
-/**
- * The map chrome uses the vivid in-house **neon** palette in dark mode, not the
- * default azure `accent-cyan` (#00d4ff). Overriding the token locally re-tints
- * everything that resolves through it — the drawer accents AND the Base UI
- * primitives inside (Slider/ToggleGroup paint with `--color-primary` →
- * `accent-cyan`) — to neon cyan, scoped to the map only (those primitives are
- * map-only today). Applied in DARK only: neon cyan (`rgb(0,255,255)`) is great on
- * the dark basemap but illegible on the light theme's pale glass, so light falls
- * back to the theme-tuned readable `accent-cyan`. Magenta accents use the
- * theme-aware `accent-magenta` token (neon `#ff00ff` dark / deeper `#c026d3`
- * light), so they read in both.
- */
-const NEON_CHROME = { "--color-accent-cyan": "var(--color-neon-cyan)" } as CSSProperties;
+import { MAP_CHROME_STYLE } from "./mapChrome";
 import {
   convertDistance,
   getDistanceLabel,
@@ -57,8 +44,6 @@ export interface MapFilterDrawerProps {
   onShowAll: () => void;
   distanceUnit: DistanceUnit;
   elevationUnit: ElevationUnit;
-  /** Dark theme → apply the vivid neon-cyan chrome override (see NEON_CHROME). */
-  isDark: boolean;
   /** Dataset still loading — show a quiet placeholder instead of zeros. */
   isLoading?: boolean;
   /** Dataset failed to load. */
@@ -165,7 +150,6 @@ export default function MapFilterDrawer({
   onShowAll,
   distanceUnit,
   elevationUnit,
-  isDark,
   isLoading = false,
   error = null,
   onRefresh,
@@ -179,8 +163,6 @@ export default function MapFilterDrawer({
   const toggleButtonRef = toggleRef ?? internalToggleRef;
   const panelRef = useRef<HTMLElement>(null);
   const headingId = useId();
-  // Neon-cyan chrome in dark; readable theme default in light (see NEON_CHROME).
-  const neonChrome = isDark ? NEON_CHROME : undefined;
 
   // Esc collapses the drawer. Non-modal: scoped so it ignores key events
   // originating inside an open inner overlay (Popover/Combobox/Select set
@@ -294,7 +276,7 @@ export default function MapFilterDrawer({
         // When open the handle is visually hidden (opacity-0/pointer-events-none) —
         // also drop it from the tab order so keyboard users don't hit a ghost button.
         tabIndex={open || hideToggle ? -1 : undefined}
-        style={neonChrome}
+        style={MAP_CHROME_STYLE}
         className={cn(
           // Restrained glass chrome with square corners (matches the panel + sits
           // cleanly under the nav header). Deep neon styling is deferred to the
@@ -332,7 +314,7 @@ export default function MapFilterDrawer({
         // Programmatically focusable (not in the tab order) so a reset action can park
         // focus on the region instead of dropping it to <body> (see resetAndKeepFocus).
         tabIndex={-1}
-        style={neonChrome}
+        style={MAP_CHROME_STYLE}
         // `inert` (not `aria-hidden`) when closed: removes the offscreen panel from
         // BOTH the a11y tree and the focus/pointer order in one deterministic step,
         // so the collapsed panel can't trap Tab focus or swallow clicks over the map
