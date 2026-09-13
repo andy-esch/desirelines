@@ -117,7 +117,7 @@ A theme is two halves that must agree:
 
 1. **A CSS block** — `[data-theme="<id>"] { … }` in `src/css/tailwind.css`, redefining the
    full set of theme-varying tokens. Every block defines the *same* set: `data-theme` can
-   also theme a subtree, and a block that omitted a token would
+   also theme a subtree (the dev gallery does), and a block that omitted a token would
    silently inherit the outer theme's value there. Tokens derived from another token (a
    `color-mix` of the accent, say) are redefined too, because custom properties resolve
    `var()` where they are declared.
@@ -130,7 +130,9 @@ A theme is two halves that must agree:
 
 1. Add the entry with `hidden: true`, so it stays out of the picker while in progress.
 2. Add the CSS block, copying an existing block's token list and changing the values.
-3. Release it by flipping `hidden` to `false`.
+3. Review it at `/dev/themes` (dev server only), where every theme — hidden ones included —
+   renders side by side.
+4. Release it by flipping `hidden` to `false`.
 
 The checks run with the web tests: `themeCss.test.ts` fails on a theme without a block, a
 block without a theme, blocks with differing token sets, or a `background` that doesn't
@@ -216,6 +218,7 @@ Adding a new effect means adding a utility here, never a literal in a component.
 | `src/css/tailwind.css` | **Source of truth** — primitives, role tokens, theme blocks, component classes |
 | `src/themes/registry.ts` | The theme list — ids, labels, scheme, map style, release state |
 | `src/themes/bootScript.ts` | First-paint theme script, generated into `index.html` at build |
+| `src/pages/dev/ThemeGalleryPage.tsx` | Dev-only side-by-side theme gallery at `/dev/themes` |
 | `src/utils/sportConfig.ts` | `SPORT_COLORS` — per-sport data palette |
 | `src/utils/colorTokens.ts` | `tint` / `alpha` / `resolveThemeColor` helpers |
 | `src/constants/chartColors.ts` | Goal-ladder + data-line colors (distinct from sport colors) |

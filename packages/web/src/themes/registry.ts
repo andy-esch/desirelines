@@ -27,7 +27,7 @@ export interface ThemeDefinition {
   readonly scheme: ThemeScheme;
   /** Mapbox style URL for the routes map. */
   readonly mapStyle: string;
-  /** Unreleased themes stay out of the picker. */
+  /** Unreleased themes stay out of the picker; the dev theme gallery still renders them. */
   readonly hidden: boolean;
   /**
    * Page ground — must equal the block's `--color-bg-body`. Used by the first-paint script

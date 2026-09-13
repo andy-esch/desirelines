@@ -142,7 +142,7 @@
    Theme blocks — one per entry in src/themes/registry.ts.
 
    `data-theme` is set on <html> before first paint (src/themes/bootScript.ts) and can
-   also be set on any element to theme a subtree. So
+   also be set on any element to theme a subtree (the dev theme gallery does this). So
    every block redefines the SAME full set of theme-varying tokens: a nested block that
    left one out would silently inherit the outer theme's value. themeCss.test.ts enforces
    the matching sets, the registry <-> block correspondence, and the ground color.
