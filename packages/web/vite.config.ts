@@ -166,7 +166,12 @@ export default defineConfig(({ mode }) => {
       },
     },
     plugins: [
-      TanStackRouterVite({ quoteStyle: "double", semicolons: true }),
+      TanStackRouterVite({
+        quoteStyle: "double",
+        semicolons: true,
+        // Tests may sit beside the routes they cover; they are not routes themselves.
+        routeFileIgnorePattern: "\\.test\\.tsx?$",
+      }),
       themeBootScript(),
       tailwindcss(),
       react({
@@ -178,6 +183,11 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 3000,
       host: true, // Needed for Docker
+      watch: {
+        // `just web-test` writes an HTML coverage report here; watching it made an open
+        // dev server reload the page once per generated file.
+        ignored: ["**/coverage/**"],
+      },
     },
     build: {
       outDir: "build", // Keep same output dir for compatibility
