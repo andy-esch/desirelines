@@ -278,9 +278,7 @@ export default function MapFilterDrawer({
         tabIndex={open || hideToggle ? -1 : undefined}
         style={MAP_CHROME_STYLE}
         className={cn(
-          // Restrained glass chrome with square corners (matches the panel + sits
-          // cleanly under the nav header). Deep neon styling is deferred to the
-          // separate routes-map-neon-aesthetic-pass task.
+          // Square corners match the panel and sit cleanly under the nav header.
           "absolute z-30 inline-flex items-center gap-2 rounded-md border border-border/70",
           "bg-card/85 px-4 py-2 text-sm font-medium text-body-text shadow-lg backdrop-blur-md",
           "transition-all duration-200 ease-out",
@@ -321,9 +319,7 @@ export default function MapFilterDrawer({
         // (aria-hidden alone leaves children focusable — a keyboard dead-end).
         inert={!open}
         className={cn(
-          // Glass panel with a soft shadow and square corners (rounded corners read
-          // poorly against the nav header). Deep neon styling is deferred to
-          // routes-map-neon-aesthetic-pass; this is functional, restrained chrome.
+          // Square corners: rounded ones read poorly against the nav header.
           "absolute z-20 flex flex-col bg-card/85 shadow-xl backdrop-blur-md",
           "transition-transform duration-300 ease-out motion-reduce:transition-none",
           // Mobile: bottom sheet (safe-area-aware bottom padding for notched devices).

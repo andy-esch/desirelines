@@ -1,10 +1,12 @@
+// Explicit `.ts` extension: vite.config.ts loads this file, and Vite's native config loader
+// requires one.
 import {
   DEFAULT_THEME_PREFERENCE,
   LEGACY_PREFERENCE_ALIASES,
   SYSTEM_THEME_IDS,
   THEME_STORAGE_KEY,
   THEMES,
-} from "./registry";
+} from "./registry.ts";
 
 /** Marker in `index.html` that the Vite plugin replaces with the generated script. */
 export const THEME_BOOT_PLACEHOLDER = "<!-- theme-boot-script -->";
