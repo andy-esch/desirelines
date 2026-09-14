@@ -35,7 +35,7 @@ function ComboboxInput({
   return (
     <BaseCombobox.Input
       className={cn(
-        "min-w-24 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground",
+        "min-w-24 flex-1 bg-transparent text-(length:--control-font-size) leading-[calc(1.25/0.875)] text-foreground outline-none placeholder:text-muted-foreground",
         className
       )}
       {...props}
@@ -50,7 +50,7 @@ function ComboboxChips({
   return (
     <BaseCombobox.Chips
       className={cn(
-        "flex min-h-9 w-full flex-wrap items-center gap-1.5 rounded-md border border-input bg-card px-2 py-1.5",
+        "flex min-h-(--control-height) w-full flex-wrap items-center gap-1.5 rounded-(--control-radius) border border-input bg-card px-2 py-1.5",
         "focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/40",
         className
       )}
