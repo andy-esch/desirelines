@@ -302,6 +302,9 @@ buttons) and `--control-font-size`; `ToggleGroup` reads `--toggle-*`; `Slider` r
   `box-shadow` (`ring-*`), so a pressed shadow hides the ring on the focused item. Use
   background, border or text color for pressed states.
 
+**Selects:** `StyledSelect` (options list plus `onChange`) or the `Select` primitives. There
+is no native `<select>` styling; don't reintroduce `.form-select`.
+
 ## Neon treatments
 
 The vocabulary for "make this feel like the direction". All of these are **decorative**, so

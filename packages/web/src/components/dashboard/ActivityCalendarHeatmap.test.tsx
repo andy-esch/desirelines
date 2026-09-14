@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import ActivityCalendarHeatmap from "./ActivityCalendarHeatmap";
 import {
   mockMinimalSportConfig,
@@ -171,23 +172,25 @@ describe("ActivityCalendarHeatmap", () => {
       render(<ActivityCalendarHeatmap />);
 
       const dropdown = screen.getByRole("combobox", { name: "Select time range" });
-      expect(dropdown).toBeInTheDocument();
-      expect(dropdown).toHaveValue("trailing12");
+      expect(dropdown).toHaveTextContent("Past 12 months");
     });
 
-    it("renders year options in dropdown", () => {
+    it("renders year options in dropdown", async () => {
+      const user = userEvent.setup();
       render(<ActivityCalendarHeatmap />);
 
-      expect(screen.getByRole("option", { name: "Past 12 months" })).toBeInTheDocument();
+      await user.click(screen.getByRole("combobox", { name: "Select time range" }));
+      expect(await screen.findByRole("option", { name: "Past 12 months" })).toBeInTheDocument();
       expect(screen.getByRole("option", { name: "2026" })).toBeInTheDocument();
       expect(screen.getByRole("option", { name: "2025" })).toBeInTheDocument();
     });
 
-    it("updates label when year is selected", () => {
+    it("updates label when year is selected", async () => {
+      const user = userEvent.setup();
       render(<ActivityCalendarHeatmap />);
 
-      const dropdown = screen.getByRole("combobox", { name: "Select time range" });
-      fireEvent.change(dropdown, { target: { value: "2025" } });
+      await user.click(screen.getByRole("combobox", { name: "Select time range" }));
+      await user.click(await screen.findByRole("option", { name: "2025" }));
 
       expect(screen.getByText(/activities in 2025/)).toBeInTheDocument();
     });

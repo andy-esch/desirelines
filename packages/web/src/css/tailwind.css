@@ -1431,7 +1431,6 @@
 
   /* --- Forms --- */
 
-  .form-select,
   .form-control {
     display: block;
     width: 100%;
@@ -1447,16 +1446,11 @@
       border-color 0.15s ease-in-out,
       box-shadow 0.15s ease-in-out;
   }
-  .form-select {
-    appearance: auto;
-  }
-  .form-select-sm,
   .form-control-sm {
     padding: 0.25rem 0.5rem;
     font-size: 0.875rem;
     border-radius: 0.25rem;
   }
-  .form-select:focus,
   .form-control:focus {
     border-color: var(--color-accent-cyan);
     box-shadow: 0 0 0 0.25rem var(--color-accent-cyan-glow);

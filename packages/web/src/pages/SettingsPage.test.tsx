@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import SettingsPage from "./SettingsPage";
 import { renderWithRouter } from "../test/renderWithRouter";
 
@@ -184,6 +185,48 @@ describe("SettingsPage", () => {
     expect(screen.getByText("Distance Unit")).toBeInTheDocument();
     expect(screen.getByText("Elevation Unit")).toBeInTheDocument();
     expect(screen.getByText("Timezone")).toBeInTheDocument();
+  });
+
+  it("labels each display preference and saves the chosen option", async () => {
+    const user = userEvent.setup();
+    const updateData = vi.fn().mockResolvedValue(undefined);
+    mockUseAuth.mockReturnValue({
+      user: null,
+      loading: false,
+      error: null,
+      signIn: vi.fn(),
+      signOut: vi.fn(),
+    });
+    mockUseUserProfile.mockReturnValue({
+      displayName: "Guest",
+      loading: false,
+      profile: null,
+      error: null,
+    });
+    mockUseUserConfig.mockReturnValue({
+      data: null,
+      updateData,
+      loading: false,
+      error: null,
+      isSaving: false,
+      saveError: null,
+      clearSaveError: vi.fn(),
+    });
+
+    await renderWithRouter(<SettingsPage />);
+
+    const distance = screen.getByRole("combobox", { name: "Distance Unit" });
+    expect(distance).toHaveAccessibleDescription("Used for all distance measurements");
+    expect(distance).toHaveTextContent("Miles");
+
+    await user.click(distance);
+    await user.click(await screen.findByRole("option", { name: "Kilometers" }));
+
+    await waitFor(() =>
+      expect(updateData).toHaveBeenCalledWith(
+        expect.objectContaining({ distanceUnit: "kilometers" })
+      )
+    );
   });
 
   it("renders sport visibility and goals sections", async () => {

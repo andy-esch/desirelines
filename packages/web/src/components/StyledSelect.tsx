@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import {
   Select,
   SelectTrigger,
@@ -14,13 +15,19 @@ interface SelectOption {
 interface StyledSelectProps {
   value: string;
   onChange: (value: string) => void;
-  options: SelectOption[];
+  options: readonly SelectOption[];
   disabled?: boolean;
   className?: string;
   /** Associates an external label with this select via htmlFor */
-  id?: string;
+  id?: string | undefined;
   /** Associates an external label with this select for accessibility */
   "aria-labelledby"?: string;
+  /** Names the select when no visible label exists */
+  "aria-label"?: string;
+  /** Points at help text that describes the select */
+  "aria-describedby"?: string | undefined;
+  /** Inline trigger styles, e.g. a fixed width */
+  style?: CSSProperties;
 }
 
 /**
@@ -36,10 +43,20 @@ export default function StyledSelect({
   className = "",
   id,
   "aria-labelledby": ariaLabelledBy,
+  "aria-label": ariaLabel,
+  "aria-describedby": ariaDescribedBy,
+  style,
 }: StyledSelectProps) {
   return (
     <Select value={value} onValueChange={(v) => onChange(v as string)} disabled={disabled}>
-      <SelectTrigger id={id} aria-labelledby={ariaLabelledBy} className={className}>
+      <SelectTrigger
+        id={id}
+        aria-labelledby={ariaLabelledBy}
+        aria-label={ariaLabel}
+        aria-describedby={ariaDescribedBy}
+        className={className}
+        style={style}
+      >
         <SelectValue>
           {(val) => options.find((o) => o.value === val)?.label ?? (val == null ? "" : String(val))}
         </SelectValue>

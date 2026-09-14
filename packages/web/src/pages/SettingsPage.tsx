@@ -9,6 +9,7 @@ import { GoalManagementTable } from "../components/settings/GoalManagementTable"
 import { SportVisibilitySettings } from "../components/settings/SportVisibilitySettings";
 import { CheckIcon } from "../components/icons";
 import NeonSpinner from "../components/NeonSpinner";
+import StyledSelect from "../components/StyledSelect";
 import { InlineAlert } from "../components/InlineAlert";
 import { NarrowPageLayout } from "../components/layout/PageLayout";
 import {
@@ -80,21 +81,15 @@ function PreferenceSelect({
   onPreferenceChange,
 }: PreferenceSelectProps) {
   return (
-    <select
+    <StyledSelect
       id={inputId}
-      className="form-select form-select-sm"
       value={value}
-      onChange={(e) => void onPreferenceChange(field, e.target.value)}
+      onChange={(v) => void onPreferenceChange(field, v)}
+      options={options}
       disabled={disabled}
       aria-describedby={descriptionId}
       style={{ width }}
-    >
-      {options.map((opt) => (
-        <option key={opt.value} value={opt.value}>
-          {opt.label}
-        </option>
-      ))}
-    </select>
+    />
   );
 }
 
