@@ -246,6 +246,28 @@ consumers that read resolved token values would otherwise render one theme behin
 
 ## Components
 
+**Theme components** (`src/components/theme/`) are how new UI should be built. Each reads
+theme slots, role tokens and the theme's structure fields, never the theme id, so a new
+theme changes them through values alone. Structure comes from `useThemeStructure()`: the
+active theme's `structure`, unless a `ThemeStructureProvider` overrides it for a
+`data-theme` subtree (the dev gallery wraps each theme panel this way).
+
+| Component | Reads | Notes |
+|---|---|---|
+| `Panel` | `--panel-*`, `sectionLabelPlacement` | Title in a card header, a label above the frame, or a header bar inside it. `accent` picks one of three frame accents; `emphasis` marks the panel that should stand out. |
+| `SectionLabel` | `--label-*` | Section and panel labels. |
+| `Stat`, `StatRow` | `--stat-*`, `--font-display`, `--display-weight`, `statRowStyle` | A row frames its stats as separate cards, one divided panel, or outline boxes. |
+| `Meter` | `--meter-*`, `--color-meter-*`, `--track-*`, `--color-pace-tick`, `meterPartialCurrent`, `goalTrackStyle` | Segmented (months, weeks) or continuous with an optional pace tick. `indeterminate` animates the segments for loading, and stops under reduced motion. |
+| `StatusSymbol` | `--status-*`, `--color-status-*`, `statusSymbolStyle` | A goal status as an SVG symbol plus text, or the old colored badge where a theme keeps badges. The words always show. |
+
+The component slots and tokens: `--panel-accent-{1,2,3}-ink` (header-bar label color per
+accent), `--stat-label-size`, `--stat-label-tracking`, `--stat-label-case`, `--stat-sub-size`,
+`--stat-sub-color`, `--color-meter-done`, `--color-meter-current`, `--color-meter-todo`,
+`--meter-done-glow`, `--meter-current-glow`, `--color-pace-tick`, `--color-status-good`,
+`--color-status-warn`, `--color-status-bad`, `--status-size`, `--status-tracking` and
+`--status-case`. `/dev/themes` shows every component in every theme, plus a structure
+preview of each structure a theme can choose.
+
 **Buttons:** `.btn-accent` (primary CTA, max one per section), `.btn-outline-slate`
 (secondary), `.btn-ghost-slate` (tertiary), `.btn-time-range` (toggle groups). Also
 available: `.btn-secondary`, `.btn-icon`, `.btn-link`, `.btn-close`, `.btn-sm`,
