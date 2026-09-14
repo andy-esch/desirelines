@@ -207,7 +207,7 @@ function VolumeTooltip({
         borderRadius: "0.625rem",
         padding: "10px 12px",
         boxShadow: "0 2px 12px var(--color-surface-shadow)",
-        fontFamily: '"Space Grotesk", sans-serif',
+        fontFamily: "var(--font-chart)",
         fontSize: "12px",
         minWidth: "160px",
       }}

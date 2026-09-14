@@ -44,7 +44,7 @@ export const CHART_CONFIG = {
   tick: {
     fontSize: 11,
     fill: "var(--color-chart-tick)",
-    fontFamily: '"Space Grotesk", sans-serif',
+    fontFamily: "var(--font-chart)",
   },
 
   /** Y-axis marker styling (only fontSize used; radius/fontWeight use component defaults) */

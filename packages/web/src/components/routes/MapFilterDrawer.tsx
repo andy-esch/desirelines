@@ -280,7 +280,7 @@ export default function MapFilterDrawer({
         className={cn(
           // Square corners match the panel and sit cleanly under the nav header.
           "absolute z-30 inline-flex items-center gap-2 rounded-md border border-border/70",
-          "bg-card/85 px-4 py-2 text-sm font-medium text-body-text shadow-lg backdrop-blur-md",
+          "bg-card/85 px-4 py-2 text-sm font-medium text-body-text shadow-lg backdrop-blur-(--glass-blur)",
           "transition-all duration-200 ease-out",
           "hover:border-accent-cyan/50 hover:text-accent-cyan focus-visible:outline-none",
           "focus-visible:ring-2 focus-visible:ring-accent-cyan/50 motion-reduce:transition-none",
@@ -320,7 +320,7 @@ export default function MapFilterDrawer({
         inert={!open}
         className={cn(
           // Square corners: rounded ones read poorly against the nav header.
-          "absolute z-20 flex flex-col bg-card/85 shadow-xl backdrop-blur-md",
+          "absolute z-20 flex flex-col bg-card/85 shadow-xl backdrop-blur-(--glass-blur)",
           "transition-transform duration-300 ease-out motion-reduce:transition-none",
           // Mobile: bottom sheet (safe-area-aware bottom padding for notched devices).
           "inset-x-0 bottom-0 max-h-[70%] border-t border-border/70",

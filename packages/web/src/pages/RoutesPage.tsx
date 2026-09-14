@@ -582,7 +582,7 @@ export default function RoutesPage() {
           {/* Deep-link focus banner: the map is pinned to one activity. Offers the
               way back to the full map (also clears the ?activity= param). */}
           {focusId != null && (
-            <div className="pill-neon absolute left-1/2 top-2 z-10 flex -translate-x-1/2 items-center gap-2.5 rounded-full border bg-surface-raised/85 px-3.5 py-1.5 text-xs text-muted-text backdrop-blur-sm">
+            <div className="pill-neon absolute left-1/2 top-2 z-10 flex -translate-x-1/2 items-center gap-2.5 rounded-full border bg-surface-raised/85 px-3.5 py-1.5 text-xs text-muted-text backdrop-blur-(--glass-blur-sm)">
               <span
                 aria-hidden="true"
                 className="pill-neon-dot h-1.5 w-1.5 shrink-0 rounded-full"
@@ -624,7 +624,7 @@ export default function RoutesPage() {
             activities.length > 0 &&
             routeFilters.totals.count === 0 && (
               <div className="absolute inset-0 flex items-center justify-center px-4">
-                <div className="pointer-events-auto max-w-xs rounded-lg border border-border/70 bg-card/90 px-4 py-3 text-center shadow-lg backdrop-blur-md">
+                <div className="pointer-events-auto max-w-xs rounded-lg border border-border/70 bg-card/90 px-4 py-3 text-center shadow-lg backdrop-blur-(--glass-blur)">
                   <p className="text-sm font-medium text-body-text">
                     No activities match your filters
                   </p>

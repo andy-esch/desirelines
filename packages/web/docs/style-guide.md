@@ -145,7 +145,72 @@ A theme is two halves that must agree:
 2. **A list entry** — in `src/themes/registry.ts`: `id`, `label`, `scheme` (`dark` / `light`,
    which sets `color-scheme` and decides what "System" resolves to), `mapStyle` (the routes
    map's Mapbox style), `hidden`, `background` (must equal the block's `--color-bg-body`),
-   and picker `swatches`.
+   picker `swatches`, `fonts` (the faces to preload, which must appear in the block's font
+   stacks), and `structure` (the choices that change markup; see "Theme slots").
+
+### Theme slots
+
+Beyond colors, a theme sets **slots**: non-color CSS variables for type, shape, depth and
+decoration, plus a few **structure fields** on its list entry for choices that add or remove
+markup. Components read slots and fields; they never check which theme is active. Every
+block defines every slot. Legacy dark and Legacy light carry today's values, so a slot a
+component doesn't read yet changes nothing. The dev gallery lists each theme's resolved
+slot values.
+
+| Group | Slots | Controls |
+|---|---|---|
+| Type | `--font-body`, `--font-display`, `--font-chart`, `--display-weight` | Faces for UI text, display text (wordmark, titles, big numbers) and chart labels |
+| Page titles | `--page-title-size`, `-color`, `-shadow`, `-case`, `--display-text-gradient` | The page `h1`; the gradient is `none` where titles are solid |
+| Labels | `--kicker-size`, `-tracking`, `-color`; `--label-size`, `-tracking`, `-color`, `-case`; `--data-label-case` | The line above a title, section labels, and the case of sport names in rows |
+| Numbers | `--table-text-size`, `--stat-value-size`, `--stat-value-size-wide`, `--stat-value-shadow` | Table text and big stat numbers (wide = from `md` up) |
+| Wordmark | `--wordmark-font`, `-size`, `-weight`, `-tracking`, `-case`, `-color`, `-color-2`, `-slash-color`, `-slash-size`, `-slash-weight`, `-shadow` | The logo's two words and slash |
+| Header | `--header-height`, `-border`, `-shadow-scrolled`; `--nav-size`, `-tracking`, `-case`, `-active-bg`, `-active-radius`, `-active-underline`, `-active-shadow`; `--avatar-radius`, `-border`, `-glow`; `--demo-rule` | The top bar, nav items, avatar and the demo banner's rule |
+| Backgrounds | `--page-wash-strength`, `--sport-wash-strength`, `--hero-padding`, `--glass-blur`, `--glass-blur-sm`, `--progress-shine` | Page and sport gradient strength (0 turns a wash off), hero padding, frosted-glass blur for map chrome and for small floating pills (0 makes them solid), progress-bar shine |
+| Panels | `--radius`, `--panel-bg`, `-border-width`, `-radius`, `-shadow`, `-shadow-emphasis`, `-padding`, `-header-padding`, `-body-padding`, `-accent-1/2/3`; `--divider-style` | Cards and panels, including the base radius the shadcn scale derives from |
+| Controls | `--control-height`, `-radius`, `-font-size`, `-case`, `-focus-ring`; `--toggle-gap`, `-frame-border`, `-frame-padding`, `-frame-radius`, `-frame-bg`, `-item-border`, `-item-radius`, `-font-size`, `-tracking`, `-case`, `-active-shadow`; `--button-radius`, `-case`, `-tracking`; `--stepper-gap` | Inputs, selects, toggle groups, buttons and steppers |
+| Sliders and chips | `--slider-track-height`, `-track-radius`, `-handle-size`, `-handle-radius`, `-handle-border`; `--chip-radius`, `-border-strength`, `-hover-strength`, `-dot-radius` | Range sliders and sport chips (strengths are how much sport color mixes in) |
+| Tables | `--th-size`, `--th-tracking`, `--th-rule`, `--row-rule`, `--row-padding`, `--row-hover-bg`, `--missing-value-color`, `--sport-mark-radius` | Table headers, row rules and hover, empty cells, sport marks |
+| Goals and meters | `--track-height`, `-bg`, `-border`, `-fill-height`, `-radius`; `--pace-tick-width`, `-height`; `--meter-segment-width`, `-segment-height`, `--meter-gap`, `--meter-radius`; `--cell-empty-border`, `--cell-radius` | Goal tracks and their pace tick, segmented meters, heatmap cells |
+| Charts | `--chart-baseline`, `--chart-tick-size`, `--chart-actual-glow`, `--chart-average-dash`, `--chart-bar-radius`, `--chart-bar-gap`, `--chart-hover-column`, `--tooltip-radius` | Chart chrome beyond the color tokens |
+| Map chrome | `--map-chrome-bg`, `-edge`, `-shadow`; `--popup-radius`, `--popup-border` | The routes-map drawers, toggles and route popup |
+
+Structure fields (`structure` on the list entry):
+
+| Field | Values | Changes |
+|---|---|---|
+| `showPageKicker` | `true` / `false` | Renders the kicker line above page titles |
+| `heroDecoration` | `none`, `sunset`, `grid` | The dashboard hero's decoration, and the Settings preview thumbnail |
+| `sectionLabelPlacement` | `card-header`, `above`, `header-bar` | Where a panel's title goes |
+| `statRowStyle` | `cards`, `divided`, `boxed` | How a row of big numbers is framed |
+| `sliderTrack` | `continuous`, `segmented` | Slider tracks as a bar or a segmented meter |
+| `rowHoverCursor` | `true` / `false` | A cursor glyph on the hovered table row |
+| `sportMarkStyle` | `badge`, `dot`, `swatch` | How a sport is marked in rows and lists |
+| `statusSymbolStyle` | `badge`, `filled`, `outlined` | Goal status as colored badges or an SVG symbol plus text |
+| `goalTrackStyle` | `bar-with-percent`, `track`, `outline-track` | Goal progress drawing |
+| `meterPartialCurrent` | `true` / `false` | Year meters fill the current segment to today |
+| `loaderStyle` | `spinner`, `chaser`, `block` | The loading indicator |
+| `dangerZoneFill` | `wash`, `hatch` | The pacing charts' danger zone |
+| `chartMarkerShape` | `circle`, `square` | Axis marker dots |
+| `chartLegend` | `true` / `false` | A legend row above line charts |
+| `mapDrawerSections` | `flat`, `panels` | Routes-map drawer section framing |
+| `dateFormat` | `short`, `dotted` | `Sep 12, 2026` or `2026.09.12`; integers are never zero-padded |
+
+**Fonts.** `tailwind.css` imports every face a theme can use (Space Grotesk, IBM Plex Mono
+400/500/600, Archivo Black, Michroma). Declaring a face costs nothing: the browser downloads
+it only when rendered text uses it, so a theme that never names Plex Mono never fetches it.
+`themeCss.test.ts` checks that each entry's `fonts` appear in its block's font stacks and
+that every web face a block leads with has an import.
+
+**Derived slot values.** A slot built with `color-mix()` over another token gets a fallback
+from the CSS build for browsers without `color-mix(in lab)` support, and that fallback uses
+the `@theme` default rather than the theme block's own token. Current browsers are
+unaffected. If a theme's derived slot must be exact everywhere, give it a literal value.
+
+The page washes scale by `--page-wash-strength` with a nested mix,
+`color-mix(in srgb, color-mix(in srgb, <color> 18%, transparent) calc(100% * <strength>), transparent)`,
+rather than a `calc()` inside a single mix. The build can resolve the inner literal
+percentage for its fallback; with the `calc()` inline, the fallback lost the percentage and
+rendered the neon at full strength.
 
 ### Adding a theme
 
