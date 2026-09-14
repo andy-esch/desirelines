@@ -165,7 +165,7 @@ slot values.
 | Numbers | `--table-text-size`, `--stat-value-size`, `--stat-value-size-wide`, `--stat-value-shadow` | Table text and big stat numbers (wide = from `md` up) |
 | Wordmark | `--wordmark-font`, `-size`, `-weight`, `-tracking`, `-case`, `-color`, `-color-2`, `-slash-color`, `-slash-size`, `-slash-weight`, `-shadow` | The logo's two words and slash |
 | Header | `--header-height`, `-border`, `-shadow-scrolled`; `--nav-size`, `-tracking`, `-case`, `-active-bg`, `-active-radius`, `-active-underline`, `-active-shadow`; `--avatar-radius`, `-border`, `-glow`; `--demo-rule` | The top bar, nav items, avatar and the demo banner's rule |
-| Backgrounds | `--page-wash-strength`, `--sport-wash-strength`, `--hero-padding`, `--glass-blur`, `--progress-shine` | Page and sport gradient strength (0 turns a wash off), hero padding, frosted-glass blur, progress-bar shine |
+| Backgrounds | `--page-wash-strength`, `--sport-wash-strength`, `--hero-padding`, `--glass-blur`, `--glass-blur-sm`, `--progress-shine` | Page and sport gradient strength (0 turns a wash off), hero padding, frosted-glass blur for map chrome and for small floating pills (0 makes them solid), progress-bar shine |
 | Panels | `--radius`, `--panel-bg`, `-border-width`, `-radius`, `-shadow`, `-shadow-emphasis`, `-padding`, `-header-padding`, `-body-padding`, `-accent-1/2/3`; `--divider-style` | Cards and panels, including the base radius the shadcn scale derives from |
 | Controls | `--control-height`, `-radius`, `-font-size`, `-case`, `-focus-ring`; `--toggle-gap`, `-frame-border`, `-frame-padding`, `-frame-radius`, `-frame-bg`, `-item-border`, `-item-radius`, `-font-size`, `-tracking`, `-case`, `-active-shadow`; `--button-radius`, `-case`, `-tracking`; `--stepper-gap` | Inputs, selects, toggle groups, buttons and steppers |
 | Sliders and chips | `--slider-track-height`, `-track-radius`, `-handle-size`, `-handle-radius`, `-handle-border`; `--chip-radius`, `-border-strength`, `-hover-strength`, `-dot-radius` | Range sliders and sport chips (strengths are how much sport color mixes in) |
@@ -205,6 +205,12 @@ that every web face a block leads with has an import.
 from the CSS build for browsers without `color-mix(in lab)` support, and that fallback uses
 the `@theme` default rather than the theme block's own token. Current browsers are
 unaffected. If a theme's derived slot must be exact everywhere, give it a literal value.
+
+The page washes scale by `--page-wash-strength` with a nested mix,
+`color-mix(in srgb, color-mix(in srgb, <color> 18%, transparent) calc(100% * <strength>), transparent)`,
+rather than a `calc()` inside a single mix. The build can resolve the inner literal
+percentage for its fallback; with the `calc()` inline, the fallback lost the percentage and
+rendered the neon at full strength.
 
 ### Adding a theme
 
