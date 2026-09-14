@@ -3,6 +3,7 @@ import { useWeeklySummary } from "../../hooks/useWeeklySummary";
 import { formatMetricDisplayValue, formatHoursMinutes } from "../../utils/units";
 import { tint } from "../../utils/colorTokens";
 import Skeleton from "../Skeleton";
+import { StatusSymbol, type GoalStatus } from "../theme/StatusSymbol";
 
 /**
  * Compact card showing this-week totals per sport with prorated weekly goal %.
@@ -102,16 +103,16 @@ export default function WeeklySummaryCard() {
                     : "—"}
                 </span>
                 {sport.weeklyTotal > 0 && (
-                  <span
-                    className="badge"
-                    style={{
+                  <StatusSymbol
+                    status={getAchievementStatus(sport.achievementPct)}
+                    label={`${Math.round(sport.achievementPct)}% of goal`}
+                    badgeContent={`${Math.round(sport.achievementPct)}%`}
+                    badgeStyle={{
                       ...getAchievementStyle(sport.achievementPct),
                       fontSize: "0.65rem",
                       minWidth: 42,
                     }}
-                  >
-                    {Math.round(sport.achievementPct)}%
-                  </span>
+                  />
                 )}
               </div>
             </div>
@@ -138,6 +139,14 @@ export default function WeeklySummaryCard() {
       )}
     </div>
   );
+}
+
+/** Weekly progress as a goal status; thresholds match the badge colors below. */
+function getAchievementStatus(pct: number): GoalStatus {
+  if (pct >= 100) return "ahead";
+  if (pct >= 75) return "on-track";
+  if (pct >= 50) return "slightly-behind";
+  return "behind";
 }
 
 /**

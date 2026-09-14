@@ -66,6 +66,8 @@ export interface StatusSymbolProps {
   status: GoalStatus;
   /** The status in words; always shown, so color is never the only cue. */
   label: ReactNode;
+  /** What a badge shows instead of `label`, when a theme renders badges (e.g. a percent). */
+  badgeContent?: ReactNode | undefined;
   /**
    * Badge fill for themes that render statuses as badges (e.g. the goal's own color). Only
    * used when the theme's `statusSymbolStyle` is `badge`.
@@ -78,13 +80,19 @@ export interface StatusSymbolProps {
  * A goal status as a symbol plus text, or as a colored badge where the theme keeps badges.
  * Symbol color follows the status tone through the `--color-status-*` tokens.
  */
-export function StatusSymbol({ status, label, badgeStyle, className }: StatusSymbolProps) {
+export function StatusSymbol({
+  status,
+  label,
+  badgeContent,
+  badgeStyle,
+  className,
+}: StatusSymbolProps) {
   const { statusSymbolStyle } = useThemeStructure();
 
   if (statusSymbolStyle === "badge") {
     return (
       <span className={cn("badge", className)} style={badgeStyle} data-status={status}>
-        {label}
+        {badgeContent ?? label}
       </span>
     );
   }
