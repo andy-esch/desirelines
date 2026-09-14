@@ -254,6 +254,171 @@
   --color-surface-border: rgba(255, 255, 255, 0.08);
   --color-surface-overlay: rgba(0, 0, 0, 0.7);
   --color-surface-shadow: rgba(0, 0, 0, 0.4);
+
+  /* --- Non-color slots. Legacy values reproduce today's look; see "Theme slots" in the
+     style guide for what each controls. --- */
+
+  /* Typography */
+  --font-body:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", Arial,
+    sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-display:
+    "Space Grotesk Variable", "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  --font-chart: "Space Grotesk", sans-serif;
+  --display-weight: 300;
+  --page-title-size: 1em;
+  --page-title-color: var(--color-body-text);
+  --page-title-shadow: none;
+  --page-title-case: none;
+  --display-text-gradient: linear-gradient(
+    135deg,
+    var(--color-neon-magenta),
+    var(--color-neon-cyan),
+    var(--color-neon-green)
+  );
+  --kicker-size: 0.6875rem;
+  --kicker-tracking: 0.3em;
+  --kicker-color: var(--color-muted-text);
+  --label-size: 0.6875rem;
+  --label-tracking: 0.26em;
+  --label-color: var(--color-muted-text);
+  --label-case: none;
+  --data-label-case: none;
+  --table-text-size: 1rem;
+  --stat-value-size: 1.75rem;
+  --stat-value-size-wide: 2.5rem;
+  --stat-value-shadow: 0 0 20px var(--color-neon-accent-glow);
+
+  /* Wordmark */
+  --wordmark-font: var(--font-body);
+  --wordmark-size: 1.5rem;
+  --wordmark-weight: 600;
+  --wordmark-tracking: 0.15em;
+  --wordmark-case: none;
+  --wordmark-color: color-mix(in srgb, var(--color-neon-cyan) 70%, transparent);
+  --wordmark-color-2: color-mix(in srgb, var(--color-neon-magenta) 70%, transparent);
+  --wordmark-slash-color: color-mix(in srgb, var(--color-neon-yellow-pure) 90%, transparent);
+  --wordmark-slash-size: 1.2em;
+  --wordmark-slash-weight: 400;
+  --wordmark-shadow: none;
+
+  /* Header */
+  --header-height: auto;
+  --header-border: none;
+  --header-shadow-scrolled: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --nav-size: 0.875rem;
+  --nav-tracking: normal;
+  --nav-case: none;
+  --nav-active-bg: var(--color-header-border);
+  --nav-active-radius: 0.25rem;
+  --nav-active-underline: none;
+  --nav-active-shadow: none;
+  --avatar-radius: 50%;
+  --avatar-border: none;
+  --avatar-glow: none;
+  --demo-rule: 3px solid var(--color-neon-accent);
+
+  /* Backgrounds and decoration */
+  --page-wash-strength: 1;
+  --sport-wash-strength: 1;
+  --hero-padding: 0;
+  --glass-blur: 12px;
+  --progress-shine: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.3) 0%,
+    rgba(255, 255, 255, 0.1) 45%,
+    transparent 55%,
+    rgba(0, 0, 0, 0.1) 100%
+  );
+
+  /* Panels */
+  --radius: 0.5rem;
+  --panel-bg: transparent;
+  --panel-border-width: 1px;
+  --panel-radius: 0.625rem;
+  --panel-shadow: none;
+  --panel-shadow-emphasis: none;
+  --panel-padding: 0.5rem;
+  --panel-header-padding: 0.75rem 1rem;
+  --panel-body-padding: 1rem;
+  --panel-accent-1: var(--color-panel-border);
+  --panel-accent-2: var(--color-panel-border);
+  --panel-accent-3: var(--color-panel-border);
+  --divider-style: solid;
+
+  /* Controls */
+  --control-height: auto;
+  --control-radius: 0.375rem;
+  --control-font-size: 1rem;
+  --control-case: none;
+  --control-focus-ring: 0 0 0 0.25rem var(--color-accent-cyan-glow);
+  --toggle-gap: 0.25rem;
+  --toggle-frame-border: 1px solid var(--color-surface-border);
+  --toggle-frame-padding: 0.25rem;
+  --toggle-frame-radius: 6px;
+  --toggle-frame-bg: var(--color-surface-raised);
+  --toggle-item-border: none;
+  --toggle-item-radius: 4px;
+  --toggle-font-size: 0.875rem;
+  --toggle-tracking: normal;
+  --toggle-case: none;
+  --toggle-active-shadow: none;
+  --button-radius: 0.375rem;
+  --button-case: none;
+  --button-tracking: normal;
+  --stepper-gap: 0;
+  --slider-track-height: 0.375rem;
+  --slider-track-radius: 9999px;
+  --slider-handle-size: 1rem;
+  --slider-handle-radius: 9999px;
+  --slider-handle-border: 1px solid var(--color-accent-cyan);
+  --chip-radius: 4px;
+  --chip-border-strength: 55%;
+  --chip-hover-strength: 10%;
+  --chip-dot-radius: 9999px;
+
+  /* Tables and lists */
+  --th-size: 1rem;
+  --th-tracking: normal;
+  --th-rule: none;
+  --row-rule: none;
+  --row-padding: 0.25rem;
+  --row-hover-bg: var(--color-surface-hover);
+  --missing-value-color: var(--color-body-text);
+  --sport-mark-radius: 9999px;
+
+  /* Status, goals and meters */
+  --track-height: 20px;
+  --track-bg: rgba(0, 0, 0, 0.2);
+  --track-border: none;
+  --track-fill-height: 20px;
+  --track-radius: 0.25rem;
+  --pace-tick-width: 0;
+  --pace-tick-height: 0;
+  --meter-segment-width: 0.5rem;
+  --meter-segment-height: 0.375rem;
+  --meter-gap: 2px;
+  --meter-radius: 2px;
+  --cell-empty-border: none;
+  --cell-radius: 2px;
+
+  /* Charts */
+  --chart-baseline: var(--color-chart-axis);
+  --chart-tick-size: 11px;
+  --chart-actual-glow: none;
+  --chart-average-dash: 5 5;
+  --chart-bar-radius: 0;
+  --chart-bar-gap: 1px;
+  --chart-hover-column: color-mix(in srgb, var(--color-chart-grid) 25%, transparent);
+  --tooltip-radius: 0.625rem;
+
+  /* Map chrome */
+  --map-chrome-bg: color-mix(in srgb, var(--color-surface-raised) 85%, transparent);
+  --map-chrome-edge: 1px solid color-mix(in srgb, var(--color-surface-border) 70%, transparent);
+  --map-chrome-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --popup-radius: 6px;
+  --popup-border: 1px solid var(--color-surface-border);
 }
 
 [data-theme="legacy-light"] {
@@ -310,6 +475,171 @@
   --color-surface-border: rgba(0, 0, 0, 0.08);
   --color-surface-overlay: rgba(255, 255, 255, 0.9);
   --color-surface-shadow: rgba(0, 0, 0, 0.15);
+
+  /* --- Non-color slots. Legacy values reproduce today's look; see "Theme slots" in the
+     style guide for what each controls. --- */
+
+  /* Typography */
+  --font-body:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", Arial,
+    sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-display:
+    "Space Grotesk Variable", "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  --font-chart: "Space Grotesk", sans-serif;
+  --display-weight: 300;
+  --page-title-size: 1em;
+  --page-title-color: var(--color-body-text);
+  --page-title-shadow: none;
+  --page-title-case: none;
+  --display-text-gradient: linear-gradient(
+    135deg,
+    var(--color-neon-magenta),
+    var(--color-neon-cyan),
+    var(--color-neon-green)
+  );
+  --kicker-size: 0.6875rem;
+  --kicker-tracking: 0.3em;
+  --kicker-color: var(--color-muted-text);
+  --label-size: 0.6875rem;
+  --label-tracking: 0.26em;
+  --label-color: var(--color-muted-text);
+  --label-case: none;
+  --data-label-case: none;
+  --table-text-size: 1rem;
+  --stat-value-size: 1.75rem;
+  --stat-value-size-wide: 2.5rem;
+  --stat-value-shadow: 0 0 20px var(--color-neon-accent-glow);
+
+  /* Wordmark */
+  --wordmark-font: var(--font-body);
+  --wordmark-size: 1.5rem;
+  --wordmark-weight: 600;
+  --wordmark-tracking: 0.15em;
+  --wordmark-case: none;
+  --wordmark-color: color-mix(in srgb, var(--color-neon-cyan) 70%, transparent);
+  --wordmark-color-2: color-mix(in srgb, var(--color-neon-magenta) 70%, transparent);
+  --wordmark-slash-color: color-mix(in srgb, var(--color-neon-yellow-pure) 90%, transparent);
+  --wordmark-slash-size: 1.2em;
+  --wordmark-slash-weight: 400;
+  --wordmark-shadow: none;
+
+  /* Header */
+  --header-height: auto;
+  --header-border: none;
+  --header-shadow-scrolled: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --nav-size: 0.875rem;
+  --nav-tracking: normal;
+  --nav-case: none;
+  --nav-active-bg: var(--color-header-border);
+  --nav-active-radius: 0.25rem;
+  --nav-active-underline: none;
+  --nav-active-shadow: none;
+  --avatar-radius: 50%;
+  --avatar-border: none;
+  --avatar-glow: none;
+  --demo-rule: 3px solid var(--color-neon-accent);
+
+  /* Backgrounds and decoration */
+  --page-wash-strength: 1;
+  --sport-wash-strength: 1;
+  --hero-padding: 0;
+  --glass-blur: 12px;
+  --progress-shine: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.3) 0%,
+    rgba(255, 255, 255, 0.1) 45%,
+    transparent 55%,
+    rgba(0, 0, 0, 0.1) 100%
+  );
+
+  /* Panels */
+  --radius: 0.5rem;
+  --panel-bg: transparent;
+  --panel-border-width: 1px;
+  --panel-radius: 0.625rem;
+  --panel-shadow: none;
+  --panel-shadow-emphasis: none;
+  --panel-padding: 0.5rem;
+  --panel-header-padding: 0.75rem 1rem;
+  --panel-body-padding: 1rem;
+  --panel-accent-1: var(--color-panel-border);
+  --panel-accent-2: var(--color-panel-border);
+  --panel-accent-3: var(--color-panel-border);
+  --divider-style: solid;
+
+  /* Controls */
+  --control-height: auto;
+  --control-radius: 0.375rem;
+  --control-font-size: 1rem;
+  --control-case: none;
+  --control-focus-ring: 0 0 0 0.25rem var(--color-accent-cyan-glow);
+  --toggle-gap: 0.25rem;
+  --toggle-frame-border: 1px solid var(--color-surface-border);
+  --toggle-frame-padding: 0.25rem;
+  --toggle-frame-radius: 6px;
+  --toggle-frame-bg: var(--color-surface-raised);
+  --toggle-item-border: none;
+  --toggle-item-radius: 4px;
+  --toggle-font-size: 0.875rem;
+  --toggle-tracking: normal;
+  --toggle-case: none;
+  --toggle-active-shadow: none;
+  --button-radius: 0.375rem;
+  --button-case: none;
+  --button-tracking: normal;
+  --stepper-gap: 0;
+  --slider-track-height: 0.375rem;
+  --slider-track-radius: 9999px;
+  --slider-handle-size: 1rem;
+  --slider-handle-radius: 9999px;
+  --slider-handle-border: 1px solid var(--color-accent-cyan);
+  --chip-radius: 4px;
+  --chip-border-strength: 55%;
+  --chip-hover-strength: 10%;
+  --chip-dot-radius: 9999px;
+
+  /* Tables and lists */
+  --th-size: 1rem;
+  --th-tracking: normal;
+  --th-rule: none;
+  --row-rule: none;
+  --row-padding: 0.25rem;
+  --row-hover-bg: var(--color-surface-hover);
+  --missing-value-color: var(--color-body-text);
+  --sport-mark-radius: 9999px;
+
+  /* Status, goals and meters */
+  --track-height: 20px;
+  --track-bg: rgba(0, 0, 0, 0.2);
+  --track-border: none;
+  --track-fill-height: 20px;
+  --track-radius: 0.25rem;
+  --pace-tick-width: 0;
+  --pace-tick-height: 0;
+  --meter-segment-width: 0.5rem;
+  --meter-segment-height: 0.375rem;
+  --meter-gap: 2px;
+  --meter-radius: 2px;
+  --cell-empty-border: none;
+  --cell-radius: 2px;
+
+  /* Charts */
+  --chart-baseline: var(--color-chart-axis);
+  --chart-tick-size: 11px;
+  --chart-actual-glow: none;
+  --chart-average-dash: 5 5;
+  --chart-bar-radius: 0;
+  --chart-bar-gap: 1px;
+  --chart-hover-column: color-mix(in srgb, var(--color-chart-grid) 25%, transparent);
+  --tooltip-radius: 0.625rem;
+
+  /* Map chrome */
+  --map-chrome-bg: color-mix(in srgb, var(--color-surface-raised) 85%, transparent);
+  --map-chrome-edge: 1px solid color-mix(in srgb, var(--color-surface-border) 70%, transparent);
+  --map-chrome-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --popup-radius: 6px;
+  --popup-border: 1px solid var(--color-surface-border);
 }
 
 /* ==========================================================================

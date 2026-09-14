@@ -43,6 +43,40 @@ describe("theme CSS blocks", () => {
     }
   });
 
+  it("lists only fonts the block's body or display stack names", () => {
+    for (const theme of THEMES) {
+      const block = blocks.get(theme.id);
+      const stacks = `${block?.get("--font-body") ?? ""} ${block?.get("--font-display") ?? ""}`;
+      for (const font of theme.fonts) {
+        expect(stacks, `${theme.id} lists ${font.family}`).toContain(`"${font.family}"`);
+      }
+    }
+  });
+
+  it("imports the font packages for every family a block names first", () => {
+    const leadFamily = (stack: string | undefined) => stack?.match(/^\s*["']?([^"',]+)/)?.[1];
+    const webFamilies = new Set(
+      [...blocks.values()]
+        .flatMap((decls) => [
+          leadFamily(decls.get("--font-body")),
+          leadFamily(decls.get("--font-display")),
+        ])
+        .filter(
+          (family): family is string =>
+            family !== undefined && !/^(-apple-system|ui-|system-ui)/.test(family)
+        )
+    );
+    for (const family of webFamilies) {
+      const pkg = family
+        .replace(/ Variable$/, "")
+        .toLowerCase()
+        .replace(/\s+/g, "-");
+      expect(css, `an @import for ${family}`).toMatch(
+        new RegExp(`@import "@fontsource[^"]*/${pkg}`)
+      );
+    }
+  });
+
   it("no longer switches themes with the .dark class", () => {
     expect(css).not.toMatch(/:not\(\.dark\)|html\.dark\b/);
   });

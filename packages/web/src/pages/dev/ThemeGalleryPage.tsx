@@ -1,4 +1,4 @@
-import { useId, useState, type CSSProperties } from "react";
+import { Fragment, useCallback, useId, useState, type CSSProperties } from "react";
 import { THEMES, type ThemeDefinition } from "../../themes/registry";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
@@ -58,8 +58,7 @@ function readThemeTokenNames(themeId: string): string[] {
   return [...found];
 }
 
-function TokenSwatches({ themeId }: { themeId: string }) {
-  const [names] = useState(() => readThemeTokenNames(themeId));
+function TokenSwatches({ names }: { names: string[] }) {
   if (names.length === 0) {
     return <p className="text-sm text-muted-text">No tokens found for this theme.</p>;
   }
@@ -79,9 +78,78 @@ function TokenSwatches({ themeId }: { themeId: string }) {
   );
 }
 
+/**
+ * Non-color slots with their resolved values. The values are read from the themed panel
+ * once it is in the document, so they show what that theme's block actually applies.
+ */
+function SlotValues({ names }: { names: string[] }) {
+  const [values, setValues] = useState<Record<string, string>>({});
+  const measure = useCallback(
+    (el: HTMLElement | null) => {
+      if (!el) return;
+      const style = getComputedStyle(el);
+      setValues(
+        Object.fromEntries(names.map((name) => [name, style.getPropertyValue(name).trim()]))
+      );
+    },
+    [names]
+  );
+  return (
+    <dl
+      ref={measure}
+      className="grid grid-cols-[minmax(0,14rem)_minmax(0,1fr)] gap-x-3 gap-y-0.5 text-xs"
+    >
+      {names.map((name) => (
+        <Fragment key={name}>
+          <dt>
+            <code className="truncate block">{name}</code>
+          </dt>
+          <dd className="m-0 min-w-0">
+            <code className="truncate block text-muted-text" title={values[name]}>
+              {values[name] ?? ""}
+            </code>
+          </dd>
+        </Fragment>
+      ))}
+    </dl>
+  );
+}
+
+/** The theme-list half: faces to preload and the structural choices components read. */
+function StructureFields({ theme }: { theme: ThemeDefinition }) {
+  const rows: [string, string][] = [
+    ["fonts", theme.fonts.map((f) => `${f.family} (${f.weights.join(", ")})`).join("; ")],
+    ...Object.entries(theme.structure).map(([key, value]): [string, string] => [
+      key,
+      String(value),
+    ]),
+  ];
+  return (
+    <dl className="grid grid-cols-[minmax(0,14rem)_minmax(0,1fr)] gap-x-3 gap-y-0.5 text-xs">
+      {rows.map(([key, value]) => (
+        <Fragment key={key}>
+          <dt>
+            <code>{key}</code>
+          </dt>
+          <dd className="m-0 min-w-0">
+            <code className="text-muted-text">{value}</code>
+          </dd>
+        </Fragment>
+      ))}
+    </dl>
+  );
+}
+
 function ThemePanel({ theme }: { theme: ThemeDefinition }) {
   const [sports, setSports] = useState<string[]>(["cycling"]);
   const sportsLabelId = useId();
+  const [tokens] = useState(() => {
+    const names = readThemeTokenNames(theme.id);
+    return {
+      colors: names.filter((name) => name.startsWith("--color-")),
+      slots: names.filter((name) => !name.startsWith("--color-")),
+    };
+  });
 
   return (
     <section
@@ -99,9 +167,25 @@ function ThemePanel({ theme }: { theme: ThemeDefinition }) {
       </header>
 
       <div>
-        <h3 className="text-sm font-medium mb-2">Tokens</h3>
-        <TokenSwatches themeId={theme.id} />
+        <h3 className="text-sm font-medium mb-2">Color tokens</h3>
+        <TokenSwatches names={tokens.colors} />
       </div>
+
+      <details>
+        <summary className="text-sm font-medium cursor-pointer">
+          Slots ({tokens.slots.length})
+        </summary>
+        <div className="mt-2">
+          <SlotValues names={tokens.slots} />
+        </div>
+      </details>
+
+      <details>
+        <summary className="text-sm font-medium cursor-pointer">Fonts and structure</summary>
+        <div className="mt-2">
+          <StructureFields theme={theme} />
+        </div>
+      </details>
 
       <div className="flex flex-col gap-3">
         <h3 className="text-sm font-medium">Controls</h3>
