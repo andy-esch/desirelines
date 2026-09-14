@@ -1,5 +1,13 @@
 @import "tailwindcss";
 @import "@fontsource-variable/space-grotesk";
+/* Retro theme faces. Declaring them is free: a browser downloads a face only when rendered
+   text uses it, so a Legacy theme never fetches these. Plex Mono stays at the three weights
+   the retro themes use, with no italics. */
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "@fontsource/ibm-plex-mono/600.css";
+@import "@fontsource/archivo-black";
+@import "@fontsource/michroma";
 
 /*
  * Tailwind Theme — Single source of truth for the Desire Lines color system.
