@@ -18,8 +18,9 @@ import { getSportGradient } from "../constants/sportGradients";
 import { usePublicSportConfig } from "../hooks/usePublicSportConfig";
 import { getSportDisplayName } from "../utils/sportConfig";
 import { DEMO_ROUTE_PREFIX } from "../constants/demoConfig";
-import { Panel } from "./theme/Panel";
 import { PageTitle } from "./theme/PageTitle";
+import { SportMark } from "./theme/SportLabel";
+import { SPORT_COLORS, DEFAULT_SPORT_COLOR } from "../utils/sportConfig";
 import { Alert } from "./ui/alert";
 
 export interface SportPageContentProps {
@@ -182,7 +183,14 @@ export default function SportPageContent({
 
         <div className="grow min-w-0 md:pl-4">
           <div className="flex justify-between flex-wrap md:flex-nowrap items-center pt-6 pb-2 mb-3">
-            <PageTitle kicker={sportKicker(sportCounts[sport], currentYear)}>
+            <PageTitle
+              kicker={sportKicker(sportCounts[sport], currentYear)}
+              className="flex items-center gap-3.5"
+            >
+              <SportMark
+                color={SPORT_COLORS[sport] ?? DEFAULT_SPORT_COLOR}
+                className="size-4 rounded-[min(var(--sport-mark-radius),3px)] [box-shadow:0_0_12px_var(--sport-color)]"
+              />
               {sportDisplayName} {currentYear}
             </PageTitle>
           </div>
@@ -266,44 +274,40 @@ export default function SportPageContent({
           )}
 
           <div className="mb-10">
-            <Panel bodyClassName="p-2">
-              <CumulativeMetricsChart
-                year={currentYear}
-                goals={chartGoals}
-                distanceData={chartData}
-                isLoading={isLoading}
-                error={error}
-                showFullYear={showFullYear}
-                onViewChange={setShowFullYear}
-                showAchievements={showAchievements}
-                onAchievementsChange={setShowAchievements}
-                unit={unit}
-                metric={activeMetric}
-                sport={sport}
-                sportConfig={sportConfig}
-                onRetry={onRetry}
-                priorYearData={priorYearData}
-                showPriorYears={showPriorYears}
-                onPriorYearsChange={onPriorYearsChange}
-              />
-            </Panel>
+            <CumulativeMetricsChart
+              year={currentYear}
+              goals={chartGoals}
+              distanceData={chartData}
+              isLoading={isLoading}
+              error={error}
+              showFullYear={showFullYear}
+              onViewChange={setShowFullYear}
+              showAchievements={showAchievements}
+              onAchievementsChange={setShowAchievements}
+              unit={unit}
+              metric={activeMetric}
+              sport={sport}
+              sportConfig={sportConfig}
+              onRetry={onRetry}
+              priorYearData={priorYearData}
+              showPriorYears={showPriorYears}
+              onPriorYearsChange={onPriorYearsChange}
+            />
           </div>
 
           <div className="mb-12">
-            <Panel bodyClassName="p-2">
-              <PacingMetricsChart
-                year={currentYear}
-                goals={chartGoals}
-                distanceData={chartData}
-                isLoading={isLoading}
-                error={error}
-                showFullYear={showFullYear}
-                unit={unit}
-                metric={activeMetric}
-                sport={sport}
-                onRetry={onRetry}
-              />
-            </Panel>
+            <PacingMetricsChart
+              year={currentYear}
+              goals={chartGoals}
+              distanceData={chartData}
+              isLoading={isLoading}
+              error={error}
+              showFullYear={showFullYear}
+              unit={unit}
+              metric={activeMetric}
+              sport={sport}
+              onRetry={onRetry}
+            />
           </div>
         </div>
       </div>

@@ -10,7 +10,7 @@ import { Meter } from "./Meter";
 import { StatusSymbol } from "./StatusSymbol";
 import { PageTitle } from "./PageTitle";
 import { Section } from "./Section";
-import { SportLabel } from "./SportLabel";
+import { SportLabel, SportMark } from "./SportLabel";
 
 const LEGACY = THEMES[0].structure;
 
@@ -121,6 +121,11 @@ describe("SportLabel", () => {
     const { container } = render(<SportLabel color="#ff00ff">Cycling</SportLabel>);
     expect(screen.getByText("Cycling")).toBeInTheDocument();
     expect(container.querySelector("[data-mark]")).not.toBeInTheDocument();
+  });
+
+  it("draws no standalone mark where the theme uses badges", () => {
+    const { container } = render(<SportMark color="#ff00ff" />);
+    expect(container).toBeEmptyDOMElement();
   });
 
   it.each(["dot", "swatch"] as const)("marks the name with a %s", (style) => {

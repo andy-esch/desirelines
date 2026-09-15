@@ -7,6 +7,8 @@ import { CheckIcon, WarningIcon } from "./icons";
 import { StatusSymbol, type GoalStatus } from "./theme/StatusSymbol";
 import type { YearContext } from "../utils/yearContext";
 import { Panel } from "./theme/Panel";
+import { Meter } from "./theme/Meter";
+import { useThemeStructure } from "./theme/useThemeStructure";
 import { Alert } from "./ui/alert";
 import { Table } from "./ui/table";
 
@@ -31,6 +33,12 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
   isLoading = false,
 }) => {
   const { year, isPastYear, daysElapsed, daysRemaining } = yearContext;
+  const { goalTrackStyle } = useThemeStructure();
+  // Where linear pacing puts you today, as a share of the year: the goal track's pace tick.
+  const paceShare =
+    yearContext.shouldShowPacing && daysElapsed + daysRemaining > 0
+      ? daysElapsed / (daysElapsed + daysRemaining)
+      : undefined;
 
   // Get danger threshold for this sport
   const { getThreshold } = useDangerThresholds();
@@ -156,41 +164,56 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
                     {goal.value.toLocaleString()} {unit}
                   </td>
                   <td>
-                    <div className="relative flex h-(--track-height) min-w-[100px] rounded-(--track-radius) bg-(--track-bg)">
-                      <div
-                        className="flex flex-col justify-center [background-image:var(--progress-shine)] transition-[width] duration-300"
-                        role="progressbar"
-                        aria-label={`${goal.label || "Unnamed"} progress`}
-                        style={{
-                          width: `${Math.min(100, progress)}%`,
-                          backgroundColor: goalColor,
-                          boxShadow: `0 0 ${1 + (progress / 100) * 3}px ${goalColor}`,
-                        }}
-                        aria-valuenow={progress}
-                        aria-valuemin={0}
-                        aria-valuemax={100}
-                      />
-                      {/* Percentage text positioned absolutely for visibility at any width */}
-                      <span
-                        // The % overlays the colored fill *and* the dark track depending
-                        // on progress, so no single text color works for both. A dark
-                        // scrim (`bg-scrim/50`) gives the white text its own consistent
-                        // background → WCAG 1.4.3 passes (~4.8:1+) on every goal fill and
-                        // both themes, regardless of what's behind the bar.
-                        className="text-on-scrim bg-scrim/50 px-1.5 py-0.5 rounded-sm leading-none"
-                        style={{
-                          position: "absolute",
-                          left: "50%",
-                          top: "50%",
-                          transform: "translate(-50%, -50%)",
-                          fontSize: "0.75rem",
-                          fontWeight: 500,
-                          textShadow: "0 0 3px rgba(0, 0, 0, 0.7)",
-                        }}
-                      >
-                        {isLoading ? "--" : `${progress.toFixed(0)}%`}
-                      </span>
-                    </div>
+                    {goalTrackStyle !== "bar-with-percent" ? (
+                      <div className="flex min-w-[140px] items-center gap-3">
+                        <Meter
+                          value={progress / 100}
+                          marker={paceShare}
+                          color={goalColor}
+                          label={`${goal.label || "Unnamed"} progress`}
+                          className="grow"
+                        />
+                        <span className="w-10 shrink-0 text-right tabular-nums">
+                          {isLoading ? "--" : `${progress.toFixed(0)}%`}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="relative flex h-(--track-height) min-w-[100px] rounded-(--track-radius) bg-(--track-bg)">
+                        <div
+                          className="flex flex-col justify-center [background-image:var(--progress-shine)] transition-[width] duration-300"
+                          role="progressbar"
+                          aria-label={`${goal.label || "Unnamed"} progress`}
+                          style={{
+                            width: `${Math.min(100, progress)}%`,
+                            backgroundColor: goalColor,
+                            boxShadow: `0 0 ${1 + (progress / 100) * 3}px ${goalColor}`,
+                          }}
+                          aria-valuenow={progress}
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                        />
+                        {/* Percentage text positioned absolutely for visibility at any width */}
+                        <span
+                          // The % overlays the colored fill *and* the dark track depending
+                          // on progress, so no single text color works for both. A dark
+                          // scrim (`bg-scrim/50`) gives the white text its own consistent
+                          // background → WCAG 1.4.3 passes (~4.8:1+) on every goal fill and
+                          // both themes, regardless of what's behind the bar.
+                          className="text-on-scrim bg-scrim/50 px-1.5 py-0.5 rounded-sm leading-none"
+                          style={{
+                            position: "absolute",
+                            left: "50%",
+                            top: "50%",
+                            transform: "translate(-50%, -50%)",
+                            fontSize: "0.75rem",
+                            fontWeight: 500,
+                            textShadow: "0 0 3px rgba(0, 0, 0, 0.7)",
+                          }}
+                        >
+                          {isLoading ? "--" : `${progress.toFixed(0)}%`}
+                        </span>
+                      </div>
+                    )}
                   </td>
                   <td>{isLoading ? "--" : `${remaining.toFixed(0)} ${unit}`}</td>
                   {yearContext.shouldShowPacing && (

@@ -94,7 +94,8 @@ export function StatRow({ children, className }: { children: ReactNode; classNam
       <div
         data-style={statRowStyle}
         className={cn(
-          "grid grid-cols-2 md:grid-cols-3",
+          // Two across on small screens: a lone third stat takes the full row.
+          "grid grid-cols-2 md:grid-cols-3 [&>:nth-child(3):last-child]:col-span-2 md:[&>:nth-child(3):last-child]:col-span-1",
           statRowStyle === "boxed" ? "gap-5" : "gap-3 md:gap-4",
           className
         )}

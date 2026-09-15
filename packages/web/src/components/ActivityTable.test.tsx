@@ -107,12 +107,12 @@ describe("ActivityTable", () => {
       expect(screen.getByText("Pace/Speed")).toBeInTheDocument();
     });
 
-    it("renders sport badges", () => {
+    it("renders each sport by its display name", () => {
       render(<ActivityTable {...defaultProps} />);
 
-      expect(screen.getByText("cycling")).toBeInTheDocument();
-      expect(screen.getByText("running")).toBeInTheDocument();
-      expect(screen.getByText("yoga")).toBeInTheDocument();
+      expect(screen.getByText("Cycling")).toBeInTheDocument();
+      expect(screen.getByText("Running")).toBeInTheDocument();
+      expect(screen.getByText("Yoga")).toBeInTheDocument();
     });
 
     it("renders Strava links for each activity", () => {

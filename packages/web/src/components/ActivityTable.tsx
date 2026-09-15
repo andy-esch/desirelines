@@ -10,7 +10,7 @@ import {
   type DistanceUnit,
   type ElevationUnit,
 } from "../utils/units";
-import { SPORT_COLORS } from "../utils/sportConfig";
+import { SPORT_COLORS, getSportDisplayName } from "../utils/sportConfig";
 import { formatActivityDate } from "../utils/formatActivityDate";
 import NeonSpinner from "./NeonSpinner";
 import { ExternalLinkIcon } from "./ui/ExternalLinkIcon";
@@ -19,7 +19,7 @@ import { Button } from "./ui/button";
 import { Panel } from "./theme/Panel";
 import { Alert } from "./ui/alert";
 import { Table } from "./ui/table";
-import { SportBadge } from "./SportBadge";
+import { SportLabel } from "./theme/SportLabel";
 
 /** Speed unit label for each supported distance unit (cycling display). */
 const SPEED_LABEL: Record<DistanceUnit, string> = {
@@ -176,9 +176,9 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                   </a>
                 </td>
                 <td>
-                  <SportBadge color={SPORT_COLORS[activity.sport] || "rgb(160, 174, 192)"}>
-                    {activity.sport}
-                  </SportBadge>
+                  <SportLabel color={SPORT_COLORS[activity.sport] || "rgb(160, 174, 192)"} badge>
+                    {getSportDisplayName(activity.sport, null)}
+                  </SportLabel>
                 </td>
                 <td className="text-right whitespace-nowrap">
                   {activity.distanceMeters > 0

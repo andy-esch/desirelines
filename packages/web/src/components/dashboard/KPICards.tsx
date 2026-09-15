@@ -1,5 +1,6 @@
 import React from "react";
 import KPICard from "./KPICard";
+import { StatRow } from "../theme/Stat";
 import type { MetricUnit } from "../../utils/units";
 import type { YearContext } from "../../utils/yearContext";
 import { getMetricDisplayLabel } from "../../config/metricConfig";
@@ -139,7 +140,7 @@ function KPICards({
   };
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 mb-8">
+    <StatRow className="mb-8">
       {/* Current value card */}
       <KPICard
         title={metricTitle}
@@ -154,15 +155,13 @@ function KPICards({
         subtitle={getNextGoalSubtitle()}
       />
 
-      {/* Pace to Goal Card — full width on mobile */}
-      <div className="col-span-2 md:col-span-1">
-        <KPICard
-          title={`Pace to ${nextGoal?.label || "Goal"}`}
-          value={getPaceToGoalValue()}
-          subtitle={getPaceToGoalSubtitle()}
-        />
-      </div>
-    </div>
+      {/* Pace to Goal Card: full width on mobile when the row is two cards wide */}
+      <KPICard
+        title={`Pace to ${nextGoal?.label || "Goal"}`}
+        value={getPaceToGoalValue()}
+        subtitle={getPaceToGoalSubtitle()}
+      />
+    </StatRow>
   );
 }
 
