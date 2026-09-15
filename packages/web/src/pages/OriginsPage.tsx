@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { NarrowPageLayout } from "../components/layout/PageLayout";
+import { PageTitle } from "../components/theme/PageTitle";
 import { buttonVariants } from "../components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -19,7 +20,9 @@ export default function OriginsPage() {
   return (
     <NarrowPageLayout background="origins" maxWidth="720px">
       <div className="text-muted-text">
-        <h1 className="mb-3 font-light text-[2.5rem] neon-gradient-text">Origins</h1>
+        <PageTitle kicker="About" className="mb-3 font-light text-[2.5rem] neon-gradient-text">
+          Origins
+        </PageTitle>
 
         <section className="mb-12">
           <h2 className="mb-3 text-accent-cyan font-normal text-2xl">What is Desirelines?</h2>

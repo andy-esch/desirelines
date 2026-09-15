@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import ActiveFilterPill, { activeFilterLabels } from "./ActiveFilterPill";
+import ActiveFilterPill, { activeFilterLabels, filterSummary } from "./ActiveFilterPill";
 
 const TIME = [
   { value: "2w", label: "2 Weeks" },
@@ -44,6 +44,22 @@ describe("activeFilterLabels", () => {
       "2 Weeks",
       "3 sports",
     ]);
+  });
+});
+
+describe("filterSummary", () => {
+  it("names the range and all sports when no sport is selected, defaults included", () => {
+    expect(filterSummary("ytd", [], TIME, SPORTS)).toBe("Year to Date · All sports");
+  });
+
+  it("names the selected sport", () => {
+    expect(filterSummary("2w", ["cycling"], TIME, SPORTS)).toBe("2 Weeks · Cycling");
+  });
+
+  it("summarizes three or more sports as a count", () => {
+    expect(filterSummary("2w", ["cycling", "running", "yoga"], TIME, SPORTS)).toBe(
+      "2 Weeks · 3 sports"
+    );
   });
 });
 

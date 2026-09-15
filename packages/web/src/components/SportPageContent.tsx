@@ -19,6 +19,7 @@ import { usePublicSportConfig } from "../hooks/usePublicSportConfig";
 import { getSportDisplayName } from "../utils/sportConfig";
 import { DEMO_ROUTE_PREFIX } from "../constants/demoConfig";
 import { Panel } from "./theme/Panel";
+import { PageTitle } from "./theme/PageTitle";
 import { Alert } from "./ui/alert";
 
 export interface SportPageContentProps {
@@ -82,6 +83,12 @@ export interface SportPageContentProps {
   priorYearData?: Record<number, DistanceEntry[]> | undefined;
   showPriorYears?: boolean | undefined;
   onPriorYearsChange?: ((show: boolean) => void) | undefined;
+}
+
+/** The sport page kicker, e.g. `Sport · 84 activities in 2026`, once the count has loaded. */
+function sportKicker(count: number | undefined, year: number): string {
+  if (count == null) return "Sport";
+  return `Sport · ${count.toLocaleString()} ${count === 1 ? "activity" : "activities"} in ${year}`;
 }
 
 export default function SportPageContent({
@@ -175,9 +182,9 @@ export default function SportPageContent({
 
         <div className="grow min-w-0 md:pl-4">
           <div className="flex justify-between flex-wrap md:flex-nowrap items-center pt-6 pb-2 mb-3">
-            <h1 className="font-display">
+            <PageTitle kicker={sportKicker(sportCounts[sport], currentYear)}>
               {sportDisplayName} {currentYear}
-            </h1>
+            </PageTitle>
           </div>
 
           {/* No data banner - show when viewing current year with no activities */}

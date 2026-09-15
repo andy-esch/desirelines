@@ -166,7 +166,7 @@ slot values.
 | Group | Slots | Controls |
 |---|---|---|
 | Type | `--font-body`, `--font-display`, `--font-chart`, `--display-weight` | Faces for UI text, display text (wordmark, titles, big numbers) and chart labels |
-| Page titles | `--page-title-size`, `-color`, `-shadow`, `-case`, `--display-text-gradient` | The page `h1`; the gradient is `none` where titles are solid |
+| Page titles | `--page-title-size`, `-leading`, `-color`, `-shadow`, `-case`; `--display-text-gradient`, `--display-text-fill` | The page `h1`, and `neon-gradient-text`: the gradient is `none` and the fill `currentColor` where display text is solid |
 | Labels | `--kicker-size`, `-tracking`, `-color`; `--label-size`, `-tracking`, `-color`, `-case`; `--data-label-case` | The line above a title, section labels, and the case of sport names in rows |
 | Numbers | `--table-text-size`, `--stat-value-size`, `--stat-value-size-wide`, `--stat-value-shadow` | Table text and big stat numbers (wide = from `md` up) |
 | Wordmark | `--wordmark-font`, `-size`, `-weight`, `-tracking`, `-case`, `-color`, `-color-2`, `-slash-color`, `-slash-size`, `-slash-weight`, `-shadow` | The logo's two words and slash |
@@ -262,6 +262,7 @@ active theme's `structure`, unless a `ThemeStructureProvider` overrides it for a
 |---|---|---|
 | `Panel` | `--panel-*`, `sectionLabelPlacement` | Title in a card header, a label above the frame, or a header bar inside it. `accent` picks one of three frame accents; `emphasis` marks the panel that should stand out. |
 | `SectionLabel` | `--label-*` | Section and panel labels. |
+| `PageTitle` | `--page-title-*`, `--kicker-*`, `--label-case`, `showPageKicker` | A page's `h1`, with an optional kicker line above it where the theme shows kickers. |
 | `Stat`, `StatRow` | `--stat-*`, `--font-display`, `--display-weight`, `statRowStyle` | A row frames its stats as separate cards, one divided panel, or outline boxes. |
 | `Meter` | `--meter-*`, `--color-meter-*`, `--track-*`, `--color-pace-tick`, `meterPartialCurrent`, `goalTrackStyle` | Segmented (months, weeks) or continuous with an optional pace tick. `indeterminate` animates the segments for loading, and stops under reduced motion. |
 | `StatusSymbol` | `--status-*`, `--color-status-*`, `statusSymbolStyle` | A goal status as an SVG symbol plus text, or the old colored badge where a theme keeps badges. The words always show. |

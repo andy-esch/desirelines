@@ -31,6 +31,23 @@ export function activeFilterLabels(
   return labels;
 }
 
+/**
+ * Every filter in words, defaults included, e.g. "4 Weeks · All sports" or
+ * "Year to Date · Cycling". Used as a page kicker, where the view's state is always named.
+ */
+export function filterSummary(
+  range: string,
+  sports: string[],
+  timeOptions: FilterOption[],
+  sportOptions: FilterOption[]
+): string {
+  const rangeLabel = timeOptions.find((o) => o.value === range)?.label ?? range;
+  const sportLabels = sports.length
+    ? activeFilterLabels(range, range, sports, timeOptions, sportOptions)
+    : ["All sports"];
+  return [rangeLabel, ...sportLabels].join(" · ");
+}
+
 interface ActiveFilterPillProps {
   /** Active non-default filter labels (from {@link activeFilterLabels}); empty hides the pill. */
   filters: string[];

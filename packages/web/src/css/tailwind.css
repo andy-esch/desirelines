@@ -273,12 +273,14 @@
   --page-title-color: var(--color-body-text);
   --page-title-shadow: none;
   --page-title-case: none;
+  --page-title-leading: 1.5;
   --display-text-gradient: linear-gradient(
     135deg,
     var(--color-neon-magenta),
     var(--color-neon-cyan),
     var(--color-neon-green)
   );
+  --display-text-fill: transparent;
   --kicker-size: 0.6875rem;
   --kicker-tracking: 0.3em;
   --kicker-color: var(--color-muted-text);
@@ -536,12 +538,14 @@
   --page-title-color: var(--color-body-text);
   --page-title-shadow: none;
   --page-title-case: none;
+  --page-title-leading: 1.5;
   --display-text-gradient: linear-gradient(
     135deg,
     var(--color-neon-magenta),
     var(--color-neon-cyan),
     var(--color-neon-green)
   );
+  --display-text-fill: transparent;
   --kicker-size: 0.6875rem;
   --kicker-tracking: 0.3em;
   --kicker-color: var(--color-muted-text);
@@ -795,7 +799,9 @@
   --page-title-color: #ffffff;
   --page-title-shadow: 0 0 22px rgba(255, 46, 196, 0.6), 2px 2px 0 #00e5ff;
   --page-title-case: uppercase;
+  --page-title-leading: 1;
   --display-text-gradient: none;
+  --display-text-fill: currentColor;
   --kicker-size: 0.6875rem;
   --kicker-tracking: 0.3em;
   --kicker-color: #8b7bb5;
@@ -1181,19 +1187,14 @@
   );
 }
 
-/* Neon gradient text — clip a background gradient to text.
-   Override --neon-gradient to customise the gradient per-page. */
+/* Gradient display text: the theme's --display-text-gradient clipped to the glyphs. A
+   theme without a gradient sets --display-text-fill to currentColor and keeps its text
+   color. */
 @utility neon-gradient-text {
-  --neon-gradient: linear-gradient(
-    135deg,
-    var(--color-neon-magenta),
-    var(--color-neon-cyan),
-    var(--color-neon-green)
-  );
-  background: var(--neon-gradient);
+  background: var(--display-text-gradient);
   -webkit-background-clip: text;
   background-clip: text;
-  -webkit-text-fill-color: transparent;
+  -webkit-text-fill-color: var(--display-text-fill);
 }
 
 /* Neon glow text — solid color + text-shadow glow */
