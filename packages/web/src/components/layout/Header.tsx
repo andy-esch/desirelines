@@ -8,6 +8,7 @@ import Navigation from "./Navigation";
 import { CloseIconLg, SettingsIcon } from "../icons";
 import { useUIState } from "../../contexts/UIStateContext";
 import { formatDisplayDate } from "../../utils/dateUtils";
+import { Button } from "../ui/button";
 
 /** Non-sport first-level routes — anything else is a sport detail page */
 const PAGE_ROUTES = new Set(["", "dashboard", "activities", "routes", "origins", "settings"]);
@@ -73,23 +74,27 @@ export default function Header({ scrolled = false }: HeaderProps) {
 
       {/* Mobile/tablet: hamburger, controls gear, and account dropdown on right */}
       <div className="lg:hidden ms-auto flex items-center">
-        <button
-          className="btn-icon"
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-11 w-11 text-header-ink hover:bg-header-ink/10 hover:text-header-ink"
           type="button"
           onClick={() => setNavOpen(true)}
           aria-label="Toggle navigation"
         >
           <HamburgerIcon />
-        </button>
+        </Button>
         {showControlsToggle && (
-          <button
-            className="btn-icon"
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-11 w-11 text-header-ink hover:bg-header-ink/10 hover:text-header-ink"
             type="button"
             onClick={toggleMobileSidebar}
             aria-label="Toggle controls"
           >
             <SettingsIcon size={22} />
-          </button>
+          </Button>
         )}
         <AccountDropdown user={user} loading={loading} onSignIn={signIn} onSignOut={signOut} />
       </div>

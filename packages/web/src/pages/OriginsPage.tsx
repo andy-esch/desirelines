@@ -1,5 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { NarrowPageLayout } from "../components/layout/PageLayout";
+import { buttonVariants } from "../components/ui/button";
+import { cn } from "@/lib/utils";
 
 const GitHubIcon = () => (
   <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
@@ -56,7 +58,7 @@ export default function OriginsPage() {
             href="https://github.com/andy-esch/desirelines/"
             target="_blank"
             rel="noopener noreferrer"
-            className="btn btn-secondary mt-2 inline-flex items-center gap-2"
+            className={cn(buttonVariants({ variant: "secondary" }), "mt-2")}
           >
             <GitHubIcon />
             View on GitHub

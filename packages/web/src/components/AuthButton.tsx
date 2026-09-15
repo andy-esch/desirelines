@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../hooks/useAuth";
+import { Button } from "./ui/button";
 
 /**
  * Authentication button component
@@ -40,13 +41,14 @@ export default function AuthButton() {
   if (user) {
     return (
       <div>
-        <button
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() => void handleSignOut()}
-          className="btn btn-sm btn-outline-light"
           disabled={actionLoading}
         >
           {actionLoading ? "Signing out..." : "Sign Out"}
-        </button>
+        </Button>
         {error && (
           <div className="text-danger text-sm mt-1" role="alert">
             {error.message}
@@ -59,13 +61,9 @@ export default function AuthButton() {
   // Show Strava connect button for anonymous users
   return (
     <div>
-      <button
-        onClick={() => void handleSignIn()}
-        className="btn btn-sm btn-primary"
-        disabled={actionLoading}
-      >
+      <Button size="sm" onClick={() => void handleSignIn()} disabled={actionLoading}>
         {actionLoading ? "Connecting..." : "Connect with Strava"}
-      </button>
+      </Button>
       {error && (
         <div className="text-danger text-sm mt-1" role="alert">
           {error.message}

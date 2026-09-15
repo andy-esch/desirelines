@@ -14,6 +14,7 @@ import { parseRgb, resolveThemeColor, type Rgb } from "../../utils/colorTokens";
 import { useTheme } from "../../contexts/ThemeContext";
 import { toLocalDateString as toLocal } from "../../utils/dateUtils";
 import { formatActivityDate } from "../../utils/formatActivityDate";
+import { Button } from "../ui/button";
 
 /** Height of the thead row in px */
 const HEADER_HEIGHT = 22;
@@ -395,8 +396,10 @@ export default function RecentActivitiesList({
         className="flex flex-col justify-center ms-2"
         style={{ minWidth: 32, visibility: showPagination ? "visible" : "hidden" }}
       >
-        <button
-          className="btn btn-sm btn-link p-0 text-muted-text min-h-[44px] min-w-[32px] inline-flex items-center justify-center"
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-11 w-8 text-muted-text"
           onClick={() => setPage((p) => p - 1)}
           disabled={!canGoUp}
           style={{ opacity: canGoUp ? 1 : 0.3 }}
@@ -405,15 +408,17 @@ export default function RecentActivitiesList({
           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
             <path d="M8 4l5 6H3l5-6z" />
           </svg>
-        </button>
+        </Button>
         <span
           className="text-muted-text text-center"
           style={{ fontSize: "0.7rem", lineHeight: 1.3 }}
         >
           {page + 1}/{hasMore ? "+" : totalPages}
         </span>
-        <button
-          className="btn btn-sm btn-link p-0 text-muted-text min-h-[44px] min-w-[32px] inline-flex items-center justify-center"
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-11 w-8 text-muted-text"
           onClick={handleNextPage}
           disabled={!canGoDown}
           style={{ opacity: canGoDown ? 1 : 0.3 }}
@@ -422,7 +427,7 @@ export default function RecentActivitiesList({
           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
             <path d="M8 12l5-6H3l5 6z" />
           </svg>
-        </button>
+        </Button>
       </div>
     </div>
   );

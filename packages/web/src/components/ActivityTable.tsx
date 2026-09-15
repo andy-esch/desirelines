@@ -15,6 +15,7 @@ import { formatActivityDate } from "../utils/formatActivityDate";
 import NeonSpinner from "./NeonSpinner";
 import { ExternalLinkIcon } from "./ui/ExternalLinkIcon";
 import { MapPinIcon } from "./ui/MapPinIcon";
+import { Button } from "./ui/button";
 
 /** Speed unit label for each supported distance unit (cycling display). */
 const SPEED_LABEL: Record<DistanceUnit, string> = {
@@ -108,9 +109,9 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
     return (
       <div className="alert alert-danger" role="alert">
         <strong>Error loading activities:</strong> {error.message}
-        <button className="btn btn-outline-danger btn-sm ms-6" onClick={onRetry}>
+        <Button variant="outline-danger" size="sm" className="ms-6" onClick={onRetry}>
           Retry
-        </button>
+        </Button>
       </div>
     );
   }
@@ -257,9 +258,9 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
         {/* Load more button */}
         {!isLoading && hasMore && (
           <div className="text-center py-6 border-t">
-            <button className="btn btn-ghost-slate" onClick={onLoadMore}>
+            <Button variant="ghost" onClick={onLoadMore}>
               Load More
-            </button>
+            </Button>
           </div>
         )}
 

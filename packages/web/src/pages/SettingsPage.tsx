@@ -19,6 +19,7 @@ import {
   ELEVATION_UNIT_OPTIONS,
 } from "../constants/settings";
 import type { Preferences } from "../types/generated/user_config";
+import { Button } from "../components/ui/button";
 
 /**
  * Custom 80s-style avatar icon for the settings page
@@ -203,14 +204,15 @@ export default function SettingsPage() {
               </div>
 
               <div className="flex-shrink-0 self-center md:self-start">
-                <button
+                <Button
                   type="button"
-                  className="btn btn-outline-danger btn-sm"
+                  variant="outline-danger"
+                  size="sm"
                   onClick={() => void handleSignOut()}
                   disabled={signingOut}
                 >
                   {signingOut ? "Signing out..." : "Sign Out"}
-                </button>
+                </Button>
               </div>
             </div>
           </div>

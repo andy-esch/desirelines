@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { Button, buttonVariants } from "./ui/button";
 
 type ErrorFallbackVariant = "page" | "inline" | "full";
 
@@ -59,9 +60,9 @@ export function PageErrorFallback({
         {onReset && (
           <>
             <hr />
-            <button className="btn btn-outline-danger" onClick={onReset}>
+            <Button variant="outline-danger" onClick={onReset}>
               Retry
-            </button>
+            </Button>
           </>
         )}
       </div>
@@ -80,15 +81,15 @@ export function PageErrorFallback({
         </p>
         <div className="flex gap-2">
           {onReset && (
-            <button
-              className="btn btn-outline-danger"
+            <Button
+              variant="outline-danger"
               onClick={onReset}
               aria-label="Try Again: Retry loading this page"
             >
               Try Again
-            </button>
+            </Button>
           )}
-          <Link to="/" className="btn btn-outline-secondary">
+          <Link to="/" className={buttonVariants({ variant: "outline" })}>
             Go to Dashboard
           </Link>
         </div>
