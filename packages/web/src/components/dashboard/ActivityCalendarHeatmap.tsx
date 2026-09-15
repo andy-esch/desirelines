@@ -354,7 +354,7 @@ export default function ActivityCalendarHeatmap({
           </div>
           {/* Time range selector */}
           <StyledSelect
-            className="h-7 w-auto gap-1 px-2 text-xs"
+            className="h-7 w-auto gap-1 px-2 py-0 text-xs"
             value={timeRange === "trailing12" ? "trailing12" : String(timeRange)}
             onChange={handleTimeRangeChange}
             options={timeRangeOptions}
