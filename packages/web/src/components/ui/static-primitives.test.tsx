@@ -27,6 +27,17 @@ describe("Button", () => {
     expect(btn.className).toContain("h-8");
   });
 
+  it.each([
+    ["outline-danger", "text-danger"],
+    ["outline-success", "text-success"],
+    ["outline-warning", "text-warning"],
+  ] as const)("draws the %s variant as an outline in its status color", (variant, text) => {
+    render(<Button variant={variant}>Retry</Button>);
+    const btn = screen.getByRole("button", { name: "Retry" });
+    expect(btn.className).toContain("bg-transparent");
+    expect(btn.className).toContain(text);
+  });
+
   it("does not fire onClick when disabled", async () => {
     const onClick = vi.fn();
     const user = userEvent.setup();

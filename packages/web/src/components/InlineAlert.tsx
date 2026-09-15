@@ -1,4 +1,12 @@
 import type { ReactNode } from "react";
+import { Button } from "./ui/button";
+import { CloseIcon } from "./icons";
+
+const RETRY_VARIANT = {
+  danger: "outline-danger",
+  warning: "outline-warning",
+  info: "outline",
+} as const;
 
 interface InlineAlertProps {
   variant?: "danger" | "warning" | "info" | undefined;
@@ -23,19 +31,23 @@ export function InlineAlert({
     <div className={`alert alert-${variant} ${sizeClasses} ${className}`.trim()} role="alert">
       {children}
       {onDismiss && (
-        <button
+        <Button
           type="button"
-          className="btn-close btn-sm float-right"
+          variant="ghost"
+          size="icon"
+          className="float-right h-6 w-6"
           aria-label="Dismiss"
           onClick={onDismiss}
-        />
+        >
+          <CloseIcon />
+        </Button>
       )}
       {onRetry && (
         <>
           <hr />
-          <button className={`btn btn-outline-${variant}`} onClick={onRetry}>
+          <Button variant={RETRY_VARIANT[variant]} size="sm" onClick={onRetry}>
             Retry
-          </button>
+          </Button>
         </>
       )}
     </div>

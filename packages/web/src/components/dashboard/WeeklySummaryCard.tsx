@@ -43,7 +43,7 @@ export default function WeeklySummaryCard() {
   return (
     <div className="glass-panel h-full">
       <div className="flex justify-between items-center mb-2">
-        <h6 className="h6 mb-0 text-muted-text">This Week</h6>
+        <h6 className="mb-0 text-muted-text">This Week</h6>
         <small className="text-muted-text">{weekLabel}</small>
       </div>
       {isLoading ? (

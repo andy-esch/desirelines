@@ -38,7 +38,7 @@ export default function GoalProgressCard() {
   return (
     <div className="glass-panel h-full">
       <div className="mb-2">
-        <h6 className="h6 mb-0 text-muted-text">{yearContext.year} Goals</h6>
+        <h6 className="mb-0 text-muted-text">{yearContext.year} Goals</h6>
       </div>
       {isLoading ? (
         <div role="status" aria-label="Loading goal progress">

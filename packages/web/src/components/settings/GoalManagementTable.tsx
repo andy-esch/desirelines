@@ -88,7 +88,7 @@ export function GoalManagementTable() {
 
   return (
     <div>
-      <div className="table-responsive">
+      <div className="overflow-x-auto">
         <table className="table table-sm mb-0">
           <thead>
             <tr>

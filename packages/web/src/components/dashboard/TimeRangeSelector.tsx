@@ -1,4 +1,5 @@
 import type { TimeRange } from "../../utils/dataNormalization";
+import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
 
 const TIME_RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
   { value: "2weeks", label: "2W" },
@@ -15,17 +16,18 @@ interface TimeRangeSelectorProps {
 
 export default function TimeRangeSelector({ value, onChange }: TimeRangeSelectorProps) {
   return (
-    <div className="btn-group btn-group-sm" role="group" aria-label="Time range selector">
+    <ToggleGroup
+      value={[value]}
+      // Clicking the selected range would deselect it; a range is always selected.
+      onValueChange={(values) => onChange((values[0] as TimeRange | undefined) ?? value)}
+      aria-label="Time range selector"
+      className="p-0.5"
+    >
       {TIME_RANGE_OPTIONS.map(({ value: rangeValue, label }) => (
-        <button
-          key={rangeValue}
-          type="button"
-          className={`btn ${value === rangeValue ? "btn-time-range-active" : "btn-time-range"}`}
-          onClick={() => onChange(rangeValue)}
-        >
+        <ToggleGroupItem key={rangeValue} value={rangeValue} className="px-2 py-0.5 text-xs">
           {label}
-        </button>
+        </ToggleGroupItem>
       ))}
-    </div>
+    </ToggleGroup>
   );
 }
