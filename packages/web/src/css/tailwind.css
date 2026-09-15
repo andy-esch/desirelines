@@ -694,6 +694,239 @@
   --status-case: none;
 }
 
+/* Miami: the default retro theme (sunset purples, pink and cyan neon, Plex Mono with an
+   Archivo Black display face). Values from the approved design; see the style guide. */
+[data-theme="miami"] {
+  --color-bg-body: #160b2e;
+
+  --color-muted-text: #8b7bb5;
+  --color-subtle-text: #c9b8e0;
+  --color-surface-raised: #1e1040;
+  --color-control-border: rgba(255, 46, 196, 0.3);
+  --color-divider: rgba(201, 184, 224, 0.12);
+  --color-panel-border: rgba(255, 46, 196, 0.22);
+  --color-panel-border-hover: rgba(255, 46, 196, 0.45);
+  --color-fill-muted: #2c1a52;
+  --color-intensity-0: #2c1a52;
+
+  --color-on-accent: #160b2e;
+
+  --color-accent-cyan: #00e5ff;
+  --color-accent-cyan-glow: rgba(0, 229, 255, 0.15);
+  --color-accent-cyan-text: #160b2e;
+
+  --color-neon-accent: #ff2ec4;
+  --color-neon-accent-border: color-mix(in srgb, var(--color-neon-accent) 45%, transparent);
+  --color-neon-accent-glow: color-mix(in srgb, var(--color-neon-accent) 35%, transparent);
+
+  --color-map-chrome-accent: #00e5ff;
+
+  --color-accent-magenta: #ff2ec4;
+  --color-accent-magenta-glow: rgba(255, 46, 196, 0.15);
+
+  --color-body-text: #f2eaff;
+
+  --color-chip-hairline: rgba(201, 184, 224, 0.25);
+
+  --color-chart-grid: rgba(242, 234, 255, 0.07);
+  --color-chart-mark-outline: #1e1040;
+  --color-chart-axis: rgba(242, 234, 255, 0.18);
+  --color-chart-tick: #8b7bb5;
+  --color-chart-actual-line: #ffffff;
+  --color-chart-tooltip-bg: #1b0d36;
+  --color-chart-tooltip-border: rgba(255, 46, 196, 0.55);
+  --color-chart-tooltip-text: #f2eaff;
+  --color-chart-tooltip-muted: #c9b8e0;
+  --color-chart-tooltip-label: #8b7bb5;
+  --color-chart-tooltip-divider: rgba(255, 46, 196, 0.2);
+
+  --color-success: #3dffa8;
+  --color-danger: #ff8a3d;
+  --color-warning: #ffc800;
+
+  --color-header-bg: #0e0620;
+  --color-header-border: rgba(255, 46, 196, 0.35);
+  --color-header-text: #c9b8e0;
+  --color-header-text-muted: #8b7bb5;
+  --color-header-accent: #ff2ec4;
+
+  --color-surface-hover: rgba(255, 46, 196, 0.07);
+  --color-surface-border: rgba(201, 184, 224, 0.12);
+  --color-surface-overlay: rgba(14, 6, 32, 0.8);
+  --color-surface-shadow: rgba(0, 0, 0, 0.45);
+
+  /* --- Non-color slots, from the approved Miami design (see "Theme slots" in the style
+     guide for what each controls). --- */
+
+  /* Typography */
+  --font-body: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --font-display: "Archivo Black", "Arial Black", sans-serif;
+  --font-chart: "IBM Plex Mono", ui-monospace, monospace;
+  --display-weight: 400;
+  --page-title-size: 2.25rem;
+  --page-title-color: #ffffff;
+  --page-title-shadow: 0 0 22px rgba(255, 46, 196, 0.6), 2px 2px 0 #00e5ff;
+  --page-title-case: uppercase;
+  --display-text-gradient: none;
+  --kicker-size: 0.6875rem;
+  --kicker-tracking: 0.3em;
+  --kicker-color: #8b7bb5;
+  --label-size: 0.6875rem;
+  --label-tracking: 0.26em;
+  --label-color: #ff2ec4;
+  --label-case: uppercase;
+  --data-label-case: none;
+  --table-text-size: 0.78125rem;
+  --stat-value-size: 1.75rem;
+  --stat-value-size-wide: 2rem;
+  --stat-value-shadow: 0 0 18px rgba(0, 229, 255, 0.45);
+
+  /* Wordmark */
+  --wordmark-font: "Archivo Black", "Arial Black", sans-serif;
+  --wordmark-size: 1.3125rem;
+  --wordmark-weight: 400;
+  --wordmark-tracking: 0.01em;
+  --wordmark-case: lowercase;
+  --wordmark-color: #ffffff;
+  --wordmark-color-2: #ffffff;
+  --wordmark-slash-color: #ff2ec4;
+  --wordmark-slash-size: 1em;
+  --wordmark-slash-weight: 400;
+  --wordmark-shadow: 0 0 14px rgba(255, 46, 196, 0.6), 1px 1px 0 #00e5ff;
+
+  /* Header */
+  --header-height: 52px;
+  --header-border: 1px solid rgba(255, 46, 196, 0.35);
+  --header-shadow-scrolled: none;
+  --nav-size: 0.75rem;
+  --nav-tracking: 0.14em;
+  --nav-case: uppercase;
+  --nav-active-bg: transparent;
+  --nav-active-radius: 0;
+  --nav-active-underline: 2px solid #ff2ec4;
+  --nav-active-shadow: none;
+  --avatar-radius: 50%;
+  --avatar-border: 1px solid #ff2ec4;
+  --avatar-glow: 0 0 10px rgba(255, 46, 196, 0.45);
+  --demo-rule: 1px solid rgba(0, 229, 255, 0.18);
+
+  /* Backgrounds and decoration */
+  --page-wash-strength: 0;
+  --sport-wash-strength: 0;
+  --hero-padding: 36px 32px 86px;
+  --glass-blur: 0;
+  --glass-blur-sm: 0;
+  --progress-shine: none;
+
+  /* Panels */
+  --radius: 0.375rem;
+  --panel-bg: #1e1040;
+  --panel-border-width: 1px;
+  --panel-radius: 6px;
+  --panel-shadow: none;
+  --panel-shadow-emphasis: none;
+  --panel-padding: 0.875rem;
+  --panel-header-padding: 0.625rem 0.875rem;
+  --panel-body-padding: 0.875rem;
+  --panel-accent-1: rgba(255, 46, 196, 0.22);
+  --panel-accent-2: rgba(255, 46, 196, 0.22);
+  --panel-accent-3: rgba(255, 46, 196, 0.22);
+  --divider-style: solid;
+
+  /* Controls */
+  --control-height: 1.875rem;
+  --control-radius: 4px;
+  --control-font-size: 0.78125rem;
+  --control-case: none;
+  --control-focus-ring: 0 0 0 2px rgba(255, 46, 196, 0.45);
+  --toggle-gap: 2px;
+  --toggle-frame-border-width: 1px;
+  --toggle-frame-padding: 2px;
+  --toggle-frame-radius: 4px;
+  --toggle-item-border-width: 0px;
+  --toggle-item-radius: 3px;
+  --toggle-font-size: 0.6875rem;
+  --toggle-tracking: 0.1em;
+  --toggle-case: uppercase;
+  --button-radius: 4px;
+  --button-case: uppercase;
+  --button-tracking: 0.14em;
+  --stepper-gap: 0;
+  --slider-track-height: 4px;
+  --slider-track-radius: 9999px;
+  --slider-handle-size: 14px;
+  --slider-handle-radius: 3px;
+  --slider-handle-border-width: 2px;
+  --chip-radius: 4px;
+  --chip-border-strength: 55%;
+  --chip-hover-strength: 10%;
+  --chip-dot-radius: 9999px;
+
+  /* Tables and lists */
+  --th-size: 0.625rem;
+  --th-tracking: 0.14em;
+  --th-rule: 1px dashed rgba(201, 184, 224, 0.25);
+  --row-rule: 1px solid rgba(201, 184, 224, 0.08);
+  --row-padding: 0.625rem 0.5rem;
+  --row-hover-bg: rgba(255, 46, 196, 0.07);
+  --missing-value-color: #8b7bb5;
+  --sport-mark-radius: 9999px;
+
+  /* Status, goals and meters */
+  --track-height: 6px;
+  --track-bg: rgba(255, 255, 255, 0.08);
+  --track-border: none;
+  --track-fill-height: 6px;
+  --track-radius: 3px;
+  --pace-tick-width: 2px;
+  --pace-tick-height: 20px;
+  --meter-segment-width: 20px;
+  --meter-segment-height: 6px;
+  --meter-gap: 3px;
+  --meter-radius: 2px;
+  --cell-empty-border: none;
+  --cell-radius: 2px;
+
+  /* Charts */
+  --chart-baseline: rgba(242, 234, 255, 0.18);
+  --chart-tick-size: 10px;
+  --chart-actual-glow: drop-shadow(0 0 5px rgba(255, 46, 196, 0.7));
+  --chart-average-dash: 5 5;
+  --chart-bar-radius: 3px;
+  --chart-bar-gap: 2px;
+  --chart-hover-column: rgba(242, 234, 255, 0.05);
+  --tooltip-radius: 6px;
+
+  /* Map chrome */
+  --map-chrome-bg: #1b0d36;
+  --map-chrome-edge: 1px solid rgba(255, 46, 196, 0.35);
+  --map-chrome-shadow: 8px 0 24px rgba(0, 0, 0, 0.45);
+  --popup-radius: 6px;
+  --popup-border: 1px solid rgba(255, 46, 196, 0.55);
+
+  /* Theme components (src/components/theme). */
+  --panel-accent-1-ink: #ff2ec4;
+  --panel-accent-2-ink: #ff2ec4;
+  --panel-accent-3-ink: #ff2ec4;
+  --stat-label-size: 0.625rem;
+  --stat-label-tracking: 0.22em;
+  --stat-label-case: uppercase;
+  --stat-sub-size: 0.75rem;
+  --stat-sub-color: #8b7bb5;
+  --color-meter-done: #ff2ec4;
+  --color-meter-current: #00e5ff;
+  --color-meter-todo: rgba(255, 255, 255, 0.08);
+  --meter-done-glow: 0 0 6px rgba(255, 46, 196, 0.55);
+  --meter-current-glow: 0 0 8px rgba(0, 229, 255, 0.9);
+  --color-pace-tick: #ffd9f2;
+  --color-status-good: #00e5ff;
+  --color-status-warn: #ffd9f2;
+  --color-status-bad: #ff8a3d;
+  --status-size: 0.6875rem;
+  --status-tracking: 0.12em;
+  --status-case: uppercase;
+}
+
 /* ==========================================================================
    shadcn/ui alias shim — maps shadcn's semantic token names onto the canonical
    Desire Lines tokens above, so shadcn (Base UI) components inherit the active

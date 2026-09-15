@@ -17,6 +17,8 @@
  * so it must stay free of browser globals and CSS imports.
  */
 
+import { RETRO_BASE_MAPS } from "./baseMaps";
+
 export type ThemeScheme = "dark" | "light";
 
 /** A font face a theme renders with; used to preload the theme's faces. */
@@ -130,6 +132,32 @@ export interface ThemeDefinition {
 const MAPBOX_DARK = "mapbox://styles/mapbox/dark-v11";
 const MAPBOX_LIGHT = "mapbox://styles/mapbox/light-v11";
 
+/** Miami's structure, from the approved retro design. */
+const MIAMI_STRUCTURE: ThemeStructure = {
+  showPageKicker: true,
+  heroDecoration: "sunset",
+  sectionLabelPlacement: "above",
+  statRowStyle: "divided",
+  sliderTrack: "continuous",
+  rowHoverCursor: false,
+  sportMarkStyle: "dot",
+  statusSymbolStyle: "filled",
+  goalTrackStyle: "track",
+  meterPartialCurrent: true,
+  loaderStyle: "chaser",
+  dangerZoneFill: "hatch",
+  chartMarkerShape: "circle",
+  chartLegend: true,
+  mapDrawerSections: "flat",
+  dateFormat: "short",
+};
+
+/** Miami's faces: Plex Mono for all UI and data, Archivo Black for display text. */
+const MIAMI_FONTS: readonly ThemeFont[] = [
+  { family: "IBM Plex Mono", weights: [400, 500, 600] },
+  { family: "Archivo Black", weights: [400] },
+];
+
 /** Legacy themes show the stock Mapbox styles. */
 const STOCK_MAP: ThemeMap = { palette: null, labelFont: null };
 
@@ -182,6 +210,18 @@ export const THEMES = [
     swatches: ["#f0f4f8", "#0891b2", "#c026d3"],
     fonts: LEGACY_FONTS,
     structure: LEGACY_STRUCTURE,
+  },
+  {
+    id: "miami",
+    label: "Miami",
+    scheme: "dark",
+    mapStyle: MAPBOX_DARK,
+    map: RETRO_BASE_MAPS.miami,
+    hidden: true,
+    background: "#160b2e",
+    swatches: ["#160b2e", "#ff2ec4", "#00e5ff"],
+    fonts: MIAMI_FONTS,
+    structure: MIAMI_STRUCTURE,
   },
 ] as const satisfies readonly ThemeDefinition[];
 

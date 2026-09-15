@@ -187,7 +187,7 @@ function BaseMapSwatches({ mapStyle, baseMap }: { mapStyle: string; baseMap: The
   );
 }
 
-/** Base-map recolors waiting for their theme entries (see `themes/baseMaps.ts`). */
+/** Base-map recolors not yet used by a theme entry (see `themes/baseMaps.ts`). */
 function RetroBaseMapPreview() {
   return (
     <section aria-labelledby="base-map-preview" className="flex flex-col gap-4">
@@ -201,15 +201,17 @@ function RetroBaseMapPreview() {
         </p>
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
-        {Object.entries(RETRO_BASE_MAPS).map(([name, baseMap]) => (
-          <div
-            key={name}
-            className="flex flex-col gap-3 rounded-lg border border-border p-4 min-w-0"
-          >
-            <h3 className="text-sm font-medium capitalize">{name}</h3>
-            <BaseMapSwatches mapStyle="mapbox://styles/mapbox/dark-v11" baseMap={baseMap} />
-          </div>
-        ))}
+        {Object.entries(RETRO_BASE_MAPS)
+          .filter(([, baseMap]) => !THEMES.some((t) => t.map === baseMap))
+          .map(([name, baseMap]) => (
+            <div
+              key={name}
+              className="flex flex-col gap-3 rounded-lg border border-border p-4 min-w-0"
+            >
+              <h3 className="text-sm font-medium capitalize">{name}</h3>
+              <BaseMapSwatches mapStyle="mapbox://styles/mapbox/dark-v11" baseMap={baseMap} />
+            </div>
+          ))}
       </div>
     </section>
   );
