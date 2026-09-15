@@ -379,7 +379,7 @@ function ThemePanel({ theme }: { theme: ThemeDefinition }) {
             <CardContent className="text-sm">shadcn card surface</CardContent>
           </Card>
         </div>
-        <div className="glass-panel p-3 text-sm">.glass-panel</div>
+        <Panel bodyClassName="p-3 text-sm">Panel with no title</Panel>
         <div className="alert alert-demo text-sm">
           <strong>Demo Mode</strong> — .alert-demo
         </div>

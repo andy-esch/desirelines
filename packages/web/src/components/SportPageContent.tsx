@@ -18,6 +18,7 @@ import { getSportGradient } from "../constants/sportGradients";
 import { usePublicSportConfig } from "../hooks/usePublicSportConfig";
 import { getSportDisplayName } from "../utils/sportConfig";
 import { DEMO_ROUTE_PREFIX } from "../constants/demoConfig";
+import { Panel } from "./theme/Panel";
 
 export interface SportPageContentProps {
   // Core
@@ -257,7 +258,7 @@ export default function SportPageContent({
           )}
 
           <div className="mb-10">
-            <div className="glass-panel">
+            <Panel bodyClassName="p-2">
               <CumulativeMetricsChart
                 year={currentYear}
                 goals={chartGoals}
@@ -277,11 +278,11 @@ export default function SportPageContent({
                 showPriorYears={showPriorYears}
                 onPriorYearsChange={onPriorYearsChange}
               />
-            </div>
+            </Panel>
           </div>
 
           <div className="mb-12">
-            <div className="glass-panel">
+            <Panel bodyClassName="p-2">
               <PacingMetricsChart
                 year={currentYear}
                 goals={chartGoals}
@@ -294,7 +295,7 @@ export default function SportPageContent({
                 sport={sport}
                 onRetry={onRetry}
               />
-            </div>
+            </Panel>
           </div>
         </div>
       </div>

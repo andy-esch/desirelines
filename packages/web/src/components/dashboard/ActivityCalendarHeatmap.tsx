@@ -9,6 +9,7 @@ import NeonSpinner from "../NeonSpinner";
 import StyledSelect from "../StyledSelect";
 import type { TuningParams } from "../../utils/demoDataGenerator";
 import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
+import { Panel } from "../theme/Panel";
 
 interface ActivityCalendarHeatmapProps {
   className?: string | undefined;
@@ -306,9 +307,9 @@ export default function ActivityCalendarHeatmap({
         <div className="flex justify-between items-center mb-2">
           <h2 className="mb-0 text-muted-text">Activity Calendar</h2>
         </div>
-        <div className="glass-panel flex items-center justify-center" style={{ height: 120 }}>
+        <Panel className="h-[120px]" bodyClassName="flex flex-1 items-center justify-center p-2">
           <NeonSpinner size="sm" />
-        </div>
+        </Panel>
       </div>
     );
   }
@@ -362,7 +363,7 @@ export default function ActivityCalendarHeatmap({
         </div>
       </div>
 
-      <div className="glass-panel overflow-auto flex flex-col">
+      <Panel bodyClassName="flex flex-col overflow-auto p-2">
         <div
           style={{
             display: "inline-block",
@@ -500,7 +501,7 @@ export default function ActivityCalendarHeatmap({
           ))}
           <span>More</span>
         </div>
-      </div>
+      </Panel>
     </div>
   );
 }
