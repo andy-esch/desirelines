@@ -2,10 +2,24 @@ import type { ThemeStructure } from "../../themes/registry";
 
 /**
  * Miami's sunset: a flat sky over the top half, then six hard bands with no blending.
- * The stops are shares of the hero's height, so the headline always sits on sky.
+ *
+ * The upper stops are shares of the hero's height, so the headline always sits on sky. The
+ * three brightest bands are too light for the hero's text, so they sit a fixed distance
+ * from the bottom (where a 230px desktop hero puts them), inside the bottom padding that
+ * content never enters. A taller hero on a phone stretches the upper bands instead of
+ * sliding text onto the light ones. `HeroDecoration.test.ts` holds the text contrast.
  */
-const SUNSET_BANDS =
-  "linear-gradient(180deg, #2a0f4d 0 50%, #45125a 50% 60%, #6a1762 60% 69%, #9a1d68 69% 77%, #c2266b 77% 85%, #e54a55 85% 92%, #ff7a3d 92% 100%)";
+export const SUNSET_STOPS = [
+  { color: "#2a0f4d", from: "0", to: "50%", behindText: true },
+  { color: "#45125a", from: "50%", to: "60%", behindText: true },
+  { color: "#6a1762", from: "60%", to: "69%", behindText: true },
+  { color: "#9a1d68", from: "69%", to: "calc(100% - 52px)", behindText: true },
+  { color: "#c2266b", from: "calc(100% - 52px)", to: "calc(100% - 34px)", behindText: false },
+  { color: "#e54a55", from: "calc(100% - 34px)", to: "calc(100% - 18px)", behindText: false },
+  { color: "#ff7a3d", from: "calc(100% - 18px)", to: "100%", behindText: false },
+] as const;
+
+const SUNSET_BANDS = `linear-gradient(180deg, ${SUNSET_STOPS.map((s) => `${s.color} ${s.from} ${s.to}`).join(", ")})`;
 
 /** Blinds across the bottom 58px in the page ground, thickening toward the bottom. */
 const SUNSET_BLINDS = [
@@ -25,7 +39,8 @@ const SUNSET_BLINDS = [
 /**
  * The decoration behind a hero band, per the theme's `heroDecoration`. The recipes are
  * fixed artwork, so they live here rather than in slots. Hero content must clear the
- * bottom of the band, which the theme's `--hero-padding` accounts for.
+ * bottom of the band, which the theme's `--hero-padding` accounts for: the sunset's light
+ * bands and blinds stay within its bottom 58px.
  */
 export function HeroDecoration({ kind }: { kind: ThemeStructure["heroDecoration"] }) {
   if (kind !== "sunset") return null;

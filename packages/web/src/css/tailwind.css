@@ -341,6 +341,7 @@
   --hero-title-color: var(--color-body-text);
   --hero-title-shadow: none;
   --hero-number-size: 2rem;
+  --hero-number-glow: 0px;
   --glass-blur: 12px;
   --glass-blur-sm: 8px;
   --progress-shine: linear-gradient(
@@ -619,6 +620,7 @@
   --hero-title-color: var(--color-body-text);
   --hero-title-shadow: none;
   --hero-number-size: 2rem;
+  --hero-number-glow: 0px;
   --glass-blur: 12px;
   --glass-blur-sm: 8px;
   --progress-shine: linear-gradient(
@@ -883,6 +885,7 @@
   --hero-title-color: #ffffff;
   --hero-title-shadow: 0 0 26px rgba(255, 46, 196, 0.75), 2px 2px 0 #00e5ff;
   --hero-number-size: 2.375rem;
+  --hero-number-glow: 18px;
   --glass-blur: 0;
   --glass-blur-sm: 0;
   --progress-shine: none;
