@@ -270,10 +270,10 @@ accent), `--stat-label-size`, `--stat-label-tracking`, `--stat-label-case`, `--s
 `--status-case`. `/dev/themes` shows every component in every theme, plus a structure
 preview of each structure a theme can choose.
 
-**Buttons:** `.btn-accent` (primary CTA, max one per section), `.btn-outline-slate`
-(secondary), `.btn-ghost-slate` (tertiary), `.btn-time-range` (toggle groups). Also
-available: `.btn-secondary`, `.btn-icon`, `.btn-link`, `.btn-close`, `.btn-sm`,
-`.btn-group`, and `.btn-outline-{danger,success,warning,secondary}`.
+**Buttons:** the shadcn `Button` for new UI. Bootstrap-era classes still in use:
+`.btn-outline-slate` (secondary), `.btn-ghost-slate` (tertiary), `.btn-time-range` (toggle
+groups), `.btn-secondary`, `.btn-icon`, `.btn-link`, `.btn-close`, `.btn-sm`, `.btn-group`,
+and `.btn-outline-{danger,success,warning,secondary}`.
 
 **Links:** cyan, no underline. Hover: magenta underline.
 
