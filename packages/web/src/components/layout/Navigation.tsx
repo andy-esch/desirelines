@@ -1,4 +1,5 @@
 import { Link, useLocation } from "@tanstack/react-router";
+import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -15,6 +16,11 @@ interface NavigationProps {
   /** When true, renders vertical nav (for mobile offcanvas) */
   vertical?: boolean;
 }
+
+const NAV_LINK =
+  "block no-underline transition-colors text-(length:--nav-size) tracking-(--nav-tracking) [text-transform:var(--nav-case)]";
+const NAV_ACTIVE =
+  "rounded-(--nav-active-radius) bg-(--nav-active-bg) text-header-text-hover hover:bg-header-text-muted";
 
 /** The three coordinated views nested under the Activities dropdown. */
 const ACTIVITIES_VIEWS = [
@@ -46,15 +52,21 @@ export default function Navigation({ className = "", vertical = false }: Navigat
   // The Activities group spans the three views nested under its dropdown.
   const isOnActivitiesGroup = ACTIVITIES_VIEWS.some((v) => location.pathname.startsWith(v.to));
 
+  // Link padding differs between the header bar and the mobile drawer; type and the active
+  // pill come from the theme's --nav-* slots.
+  const pad = vertical ? "px-4 py-2" : "px-2.5 py-1";
+  const activeLink = cn(NAV_LINK, pad, NAV_ACTIVE);
+  const inactiveLink = cn(NAV_LINK, pad, "text-header-ink/50");
+
   // Vertical layout for mobile drawer
   if (vertical) {
     return (
-      <nav className={`nav flex-col nav-pills ${className}`}>
+      <nav className={cn("flex flex-col", className)}>
         <Link
           to="/"
           activeOptions={{ exact: true }}
-          activeProps={{ className: "nav-link no-underline active" }}
-          inactiveProps={{ className: "nav-link no-underline text-header-ink/50" }}
+          activeProps={{ className: activeLink }}
+          inactiveProps={{ className: inactiveLink }}
         >
           Dashboard
         </Link>
@@ -71,8 +83,8 @@ export default function Navigation({ className = "", vertical = false }: Navigat
             key={sport.id}
             to="/$sport/$year"
             params={{ sport: sport.id, year: String(currentYear) }}
-            activeProps={{ className: "nav-link no-underline active" }}
-            inactiveProps={{ className: "nav-link no-underline text-header-ink/50" }}
+            activeProps={{ className: activeLink }}
+            inactiveProps={{ className: inactiveLink }}
             style={{ paddingLeft: "1rem" }}
           >
             {sport.label}
@@ -96,8 +108,8 @@ export default function Navigation({ className = "", vertical = false }: Navigat
             // whole current search, which can carry another view's bookmarked
             // params past the strip middlewares (they don't run on initial load).
             search={pickActivitiesGroupSearch}
-            activeProps={{ className: "nav-link no-underline active" }}
-            inactiveProps={{ className: "nav-link no-underline text-header-ink/50" }}
+            activeProps={{ className: activeLink }}
+            inactiveProps={{ className: inactiveLink }}
             style={{ paddingLeft: "1rem" }}
           >
             {v.label}
@@ -109,12 +121,12 @@ export default function Navigation({ className = "", vertical = false }: Navigat
 
   // Horizontal layout with dropdown for desktop
   return (
-    <nav className={`nav nav-pills ${className}`}>
+    <nav className={cn("flex", className)}>
       <Link
         to="/"
         activeOptions={{ exact: true }}
-        activeProps={{ className: "nav-link no-underline active" }}
-        inactiveProps={{ className: "nav-link no-underline text-header-ink/50" }}
+        activeProps={{ className: activeLink }}
+        inactiveProps={{ className: inactiveLink }}
       >
         Dashboard
       </Link>
@@ -122,8 +134,8 @@ export default function Navigation({ className = "", vertical = false }: Navigat
       {/* Goals dropdown */}
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger
-          className={`nav-link ${isOnSportPage ? "active" : "text-header-ink/50"}`}
-          style={{ cursor: "pointer" }}
+          className={cn(isOnSportPage ? activeLink : inactiveLink, "cursor-pointer")}
+          data-active={isOnSportPage || undefined}
         >
           Goals{" "}
           <span aria-hidden="true" style={{ fontSize: "0.65em" }}>
@@ -153,8 +165,8 @@ export default function Navigation({ className = "", vertical = false }: Navigat
           shown for everyone, incl. demo/logged-out. */}
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger
-          className={`nav-link ${isOnActivitiesGroup ? "active" : "text-header-ink/50"}`}
-          style={{ cursor: "pointer" }}
+          className={cn(isOnActivitiesGroup ? activeLink : inactiveLink, "cursor-pointer")}
+          data-active={isOnActivitiesGroup || undefined}
         >
           Activities{" "}
           <span aria-hidden="true" style={{ fontSize: "0.65em" }}>

@@ -1,4 +1,5 @@
 import { useId } from "react";
+import { cn } from "@/lib/utils";
 
 /** Neon colors for random spinner selection */
 const NEON_COLORS = [
@@ -16,7 +17,7 @@ interface NeonSpinnerProps {
 }
 
 /**
- * A Bootstrap spinner with a randomly selected neon color.
+ * A spinning ring in a neon color picked per instance.
  *
  * The color is selected once when the component mounts and remains
  * stable for the lifetime of the component (no flashing on re-renders).
@@ -35,11 +36,13 @@ export default function NeonSpinner({ size = "default", className = "" }: NeonSp
   const hash = Array.from(id).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
   const color = NEON_COLORS[hash % NEON_COLORS.length];
 
-  const sizeClass = size === "sm" ? "spinner-border-sm" : "";
-
   return (
     <div
-      className={`spinner-border ${sizeClass} ${className}`.trim()}
+      className={cn(
+        "inline-block animate-spin rounded-full border-solid border-current border-e-transparent align-text-bottom [animation-duration:0.75s] motion-reduce:animate-none",
+        size === "sm" ? "size-4 border-[0.2em]" : "size-8 border-[0.25em]",
+        className
+      )}
       role="status"
       style={{ color }}
     >
