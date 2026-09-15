@@ -452,6 +452,7 @@ export default function RoutesPage() {
               filter={mapFilter}
               defaultViewport={defaultViewport}
               mapStyle={theme.mapStyle}
+              baseMap={theme.map}
               distanceUnit={distanceUnit}
               getActivity={getActivity}
               selected={selected}
@@ -460,9 +461,9 @@ export default function RoutesPage() {
             />
           </Suspense>
 
-          {/* Non-modal filter/insights drawer over the live map (lazy with the map
-              chunk). Filter controls mount in its children; charts + activity list
-              slot in next. */}
+          {/* Non-modal filter drawer over the live map (lazy with the map chunk): the
+              filter controls, activity list and date range. The charts are in the
+              insights drawer below. */}
           <Suspense fallback={null}>
             <MapFilterDrawer
               open={drawerOpen}

@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, act, screen, fireEvent } from "@testing-library/react";
 import RouteMap from "./RouteMap";
 import type { RegionSummary } from "../../api/map";
+import { RETRO_BASE_MAPS } from "../../themes/baseMaps";
+import type { ThemeMap } from "../../themes/registry";
 
 // Mock react-map-gl: capture the props RouteMap wires into <Map> (transformRequest,
 // onError, initialViewState, mapStyle) and the declarative <Source>/<Layer> props,
@@ -28,6 +30,14 @@ const h = vi.hoisted(() => {
     sources: [] as Record<string, unknown>[],
     layers: [] as Record<string, unknown>[],
     sourceMounts: 0,
+    // The Mapbox map behind `getMap()`: the style layers it reports, and the style
+    // writes, reloads and `style.load` listeners RouteMap sends it.
+    styleDiffing: undefined as unknown,
+    styleLayers: [] as { id: string; type: string; "source-layer"?: string }[],
+    styleLoadListeners: [] as (() => void)[],
+    paintWrites: [] as unknown[][],
+    layoutWrites: [] as unknown[][],
+    setStyleCalls: [] as unknown[][],
   };
   return { captured };
 });
@@ -47,7 +57,17 @@ vi.mock("react-map-gl/mapbox", async () => {
     h.captured.projection = props.projection;
     h.captured.initialViewState = props.initialViewState as Record<string, unknown>;
     h.captured.mapStyle = props.mapStyle as string;
+    h.captured.styleDiffing = props.styleDiffing;
     React.useImperativeHandle(ref, () => ({
+      getMap: () => ({
+        on: (event: string, listener: () => void) => {
+          if (event === "style.load") h.captured.styleLoadListeners.push(listener);
+        },
+        getStyle: () => ({ layers: h.captured.styleLayers }),
+        setPaintProperty: (...args: unknown[]) => h.captured.paintWrites.push(args),
+        setLayoutProperty: (...args: unknown[]) => h.captured.layoutWrites.push(args),
+        setStyle: (...args: unknown[]) => h.captured.setStyleCalls.push(args),
+      }),
       fitBounds: (...args: unknown[]) => h.captured.fitBoundsCalls.push(args),
       queryRenderedFeatures: (...args: unknown[]) => {
         h.captured.queryCalls.push(args);
@@ -106,7 +126,15 @@ function resetCaptured() {
   h.captured.sources.length = 0;
   h.captured.layers.length = 0;
   h.captured.sourceMounts = 0;
+  h.captured.styleDiffing = undefined;
+  h.captured.styleLayers = [];
+  h.captured.styleLoadListeners.length = 0;
+  h.captured.paintWrites.length = 0;
+  h.captured.layoutWrites.length = 0;
+  h.captured.setStyleCalls.length = 0;
 }
+
+const STOCK_MAP: ThemeMap = { palette: null, labelFont: null };
 
 /** Latest render of the base / highlight line layers (the mock accumulates renders). */
 const baseLayer = () => h.captured.layers.filter((l) => l.id === "routes-lines").at(-1);
@@ -124,6 +152,7 @@ function renderMap(overrides: Partial<React.ComponentProps<typeof RouteMap>> = {
     colorExpression: "rgb(0,255,255)",
     defaultViewport: null,
     mapStyle: "mapbox://styles/mapbox/dark-v11",
+    baseMap: STOCK_MAP,
     distanceUnit: "miles" as const,
     selected: null,
     onSelect: vi.fn(),
@@ -530,6 +559,7 @@ describe("RouteMap viewport fitting", () => {
     refreshAuthToken: vi.fn().mockResolvedValue(undefined),
     colorExpression: "rgb(0,255,255)",
     mapStyle: "mapbox://styles/mapbox/dark-v11",
+    baseMap: STOCK_MAP,
     distanceUnit: "miles" as const,
     selected: null,
     onSelect: vi.fn(),
@@ -832,5 +862,86 @@ describe("RouteMap zoom control (touch vs desktop)", () => {
     } finally {
       restore();
     }
+  });
+});
+
+describe("RouteMap base-map recolor", () => {
+  const MIAMI = RETRO_BASE_MAPS.miami;
+  const LAYERS = [
+    { id: "land", type: "background" },
+    { id: "water", type: "fill", "source-layer": "water" },
+    { id: "settlement-major-label", type: "symbol", "source-layer": "place_label" },
+  ];
+
+  beforeEach(() => {
+    resetCaptured();
+    vi.clearAllMocks();
+    h.captured.styleLayers = LAYERS;
+  });
+
+  it("reloads styles in full, so a style change always fires style.load", () => {
+    renderMap();
+    expect(h.captured.styleDiffing).toBe(false);
+  });
+
+  it("leaves the stock style alone for a theme without a recolor", () => {
+    renderMap({ baseMap: STOCK_MAP });
+    act(() => h.captured.onLoad!());
+    h.captured.styleLoadListeners.forEach((listener) => listener());
+
+    expect(h.captured.paintWrites).toEqual([]);
+    expect(h.captured.layoutWrites).toEqual([]);
+  });
+
+  it("recolors the style on load and again on every later style load", () => {
+    renderMap({ baseMap: MIAMI });
+    act(() => h.captured.onLoad!());
+
+    expect(h.captured.paintWrites).toEqual([
+      ["land", "background-color", MIAMI.palette.land],
+      ["water", "fill-color", MIAMI.palette.water],
+      ["settlement-major-label", "text-color", MIAMI.palette.labelStrong],
+      ["settlement-major-label", "text-halo-color", MIAMI.palette.labelHalo],
+    ]);
+    expect(h.captured.layoutWrites).toEqual([
+      ["settlement-major-label", "text-font", ["Roboto Mono Regular", "Arial Unicode MS Regular"]],
+    ]);
+
+    h.captured.paintWrites.length = 0;
+    expect(h.captured.styleLoadListeners).toHaveLength(1);
+    h.captured.styleLoadListeners[0]!();
+    expect(h.captured.paintWrites).toHaveLength(4);
+  });
+
+  it("recolors a reloaded style with the theme active at reload time", () => {
+    const { props, rerender } = renderMap({ baseMap: STOCK_MAP });
+    act(() => h.captured.onLoad!());
+    rerender(<RouteMap {...props} mapStyle="mapbox://styles/mapbox/light-v11" baseMap={MIAMI} />);
+    h.captured.styleLoadListeners[0]!();
+
+    expect(h.captured.paintWrites[0]).toEqual(["land", "background-color", MIAMI.palette.land]);
+  });
+
+  it("reloads the stock style when the recolor changes but the style URL doesn't", () => {
+    const { props, rerender } = renderMap({ baseMap: STOCK_MAP });
+    act(() => h.captured.onLoad!());
+
+    rerender(<RouteMap {...props} baseMap={MIAMI} />);
+    expect(h.captured.setStyleCalls).toEqual([[props.mapStyle, { diff: false }]]);
+
+    // A URL change reloads through the mapStyle prop instead.
+    rerender(
+      <RouteMap {...props} mapStyle="mapbox://styles/mapbox/light-v11" baseMap={STOCK_MAP} />
+    );
+    expect(h.captured.setStyleCalls).toHaveLength(1);
+  });
+
+  it("doesn't reload before the map has loaded; the load applies the current recolor", () => {
+    const { props, rerender } = renderMap({ baseMap: STOCK_MAP });
+    rerender(<RouteMap {...props} baseMap={MIAMI} />);
+    expect(h.captured.setStyleCalls).toEqual([]);
+
+    act(() => h.captured.onLoad!());
+    expect(h.captured.paintWrites).toHaveLength(4);
   });
 });

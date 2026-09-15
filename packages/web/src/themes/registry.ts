@@ -5,7 +5,7 @@
  *   1. a `[data-theme="<id>"]` variable block in `css/tailwind.css`, which carries every
  *      visual value; and
  *   2. an entry here, which carries what CSS cannot: the label, light/dark scheme, the
- *      Mapbox style, whether it is released, the ground color the first-paint script
+ *      Mapbox style and its recolor, whether it is released, the ground color the first-paint script
  *      needs before the stylesheet has loaded, the faces to preload, and the structural
  *      choices components read.
  *
@@ -67,6 +67,41 @@ export interface ThemeStructure {
   readonly dateFormat: "short" | "dotted";
 }
 
+/**
+ * Base-map colors by map feature role. Mapbox paint can't read CSS variables, so these are
+ * literal values applied over the stock style after it loads (see `mapRecolor.ts`).
+ */
+export interface MapPalette {
+  readonly land: string;
+  /** Parks and other land use. */
+  readonly park: string;
+  /** Water bodies and waterways. */
+  readonly water: string;
+  /** Buildings, plus bridges, piers and airport areas. */
+  readonly building: string;
+  /** Paths, steps, rail and streets outside the classes below. */
+  readonly roadMinor: string;
+  /** Primary and secondary roads. */
+  readonly roadPrimary: string;
+  /** Motorways and trunk roads. */
+  readonly roadMotorway: string;
+  readonly tunnel: string;
+  /** Country and state boundaries. */
+  readonly admin: string;
+  /** Road, water, park and point-of-interest labels. */
+  readonly label: string;
+  /** Settlement, state and country labels. */
+  readonly labelStrong: string;
+  readonly labelHalo: string;
+}
+
+/** How a theme changes its Mapbox style. `null` fields keep the style's own values. */
+export interface ThemeMap {
+  readonly palette: MapPalette | null;
+  /** A font Mapbox's font servers host, e.g. `Roboto Mono Regular`, for every map label. */
+  readonly labelFont: string | null;
+}
+
 export interface ThemeDefinition {
   /** Stable id: the `data-theme` attribute value and the stored preference. */
   readonly id: string;
@@ -76,6 +111,8 @@ export interface ThemeDefinition {
   readonly scheme: ThemeScheme;
   /** Mapbox style URL for the routes map. */
   readonly mapStyle: string;
+  /** Recolor and label font applied over `mapStyle`. */
+  readonly map: ThemeMap;
   /** Unreleased themes stay out of the picker; the dev theme gallery still renders them. */
   readonly hidden: boolean;
   /**
@@ -92,6 +129,9 @@ export interface ThemeDefinition {
 
 const MAPBOX_DARK = "mapbox://styles/mapbox/dark-v11";
 const MAPBOX_LIGHT = "mapbox://styles/mapbox/light-v11";
+
+/** Legacy themes show the stock Mapbox styles. */
+const STOCK_MAP: ThemeMap = { palette: null, labelFont: null };
 
 /** Legacy themes keep today's structure until they are deleted. */
 const LEGACY_STRUCTURE: ThemeStructure = {
@@ -124,6 +164,7 @@ export const THEMES = [
     label: "Dark",
     scheme: "dark",
     mapStyle: MAPBOX_DARK,
+    map: STOCK_MAP,
     hidden: false,
     background: "#0f1724",
     swatches: ["#0f1724", "#00d4ff", "#ff00ff"],
@@ -135,6 +176,7 @@ export const THEMES = [
     label: "Light",
     scheme: "light",
     mapStyle: MAPBOX_LIGHT,
+    map: STOCK_MAP,
     hidden: false,
     background: "#f0f4f8",
     swatches: ["#f0f4f8", "#0891b2", "#c026d3"],
