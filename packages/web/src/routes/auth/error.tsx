@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useAuth } from "../../hooks/useAuth";
 import { Button } from "../../components/ui/button";
+import { Panel } from "../../components/theme/Panel";
 
 const ERROR_MESSAGES: Record<string, string> = {
   access_denied: "You declined access to your Strava account.",
@@ -23,13 +24,13 @@ function AuthError() {
 
   return (
     <div className="flex items-center justify-center grow">
-      <div className="glass-panel p-8 max-w-md text-center">
+      <Panel className="max-w-md text-center" bodyClassName="p-8">
         <h1 className="text-xl font-semibold text-body-text mb-4">Sign-In Error</h1>
         <p className="text-muted-text mb-6">{message}</p>
         <Button size="sm" onClick={() => void signIn()}>
           Try Again
         </Button>
-      </div>
+      </Panel>
     </div>
   );
 }

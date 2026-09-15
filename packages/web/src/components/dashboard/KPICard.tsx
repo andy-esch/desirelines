@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Stat } from "../theme/Stat";
 
 export interface KPICardProps {
   /** Card title displayed at the top */
@@ -14,8 +15,8 @@ export interface KPICardProps {
 /**
  * A single KPI (Key Performance Indicator) card with hover effects
  *
- * Displays a metric with title, value, and subtitle in a Bootstrap card.
- * Includes smooth hover animations for visual feedback.
+ * Displays a metric with title, value, and subtitle as a theme `Stat`, which frames it
+ * per the theme.
  *
  * @example
  * <KPICard
@@ -27,17 +28,15 @@ export interface KPICardProps {
  */
 export default function KPICard({ title, value, subtitle, indicator }: KPICardProps) {
   return (
-    <div className="glass-panel-kpi h-full">
-      <div className="flex flex-col justify-between p-3 md:p-4">
-        <h6 className="mb-1 text-muted-text text-sm">{title}</h6>
-        <div>
-          <div className="kpi-value mb-1">{value}</div>
-          <small className="text-muted-text">
-            {subtitle}
-            {indicator}
-          </small>
-        </div>
-      </div>
-    </div>
+    <Stat
+      label={title}
+      value={value}
+      sub={
+        <>
+          {subtitle}
+          {indicator}
+        </>
+      }
+    />
   );
 }

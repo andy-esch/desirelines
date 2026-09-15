@@ -280,7 +280,9 @@ mutually exclusive choices (a time range, a sport filter) is a `ToggleGroup`, no
 
 **Focus:** cyan ring via `--color-accent-cyan`.
 
-**Cards / glass panels:** `--color-panel-border` border, `--color-panel-border-hover` on hover.
+**Panels:** frame content with `Panel` (a title, when there is one, goes in the `title` prop so
+the theme can place it) and big numbers with `Stat`. Both draw their frame from the `--panel-*`
+slots, which carry the panel border and its hover color.
 
 **Neon pills:** `.pill-neon` + `.pill-neon-dot` — the map deep-link pill and the
 active-filter pill. Theme-aware via the decorative tokens; do not add elevation utilities

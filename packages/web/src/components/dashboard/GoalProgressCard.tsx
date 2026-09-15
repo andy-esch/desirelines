@@ -5,6 +5,7 @@ import { formatMetricDisplayValue } from "../../utils/units";
 import type { YearContext } from "../../utils/yearContext";
 import RaceTrack, { RaceTrackLegend } from "../RaceTrack";
 import Skeleton from "../Skeleton";
+import { Panel } from "../theme/Panel";
 
 /**
  * Per-sport goal progress visualization using race track metaphor.
@@ -27,16 +28,16 @@ export default function GoalProgressCard() {
 
   if (error) {
     return (
-      <div className="glass-panel h-full">
+      <Panel className="h-full" bodyClassName="p-2">
         <div className="text-center text-muted-text py-6">
           <small>Unable to load goal progress</small>
         </div>
-      </div>
+      </Panel>
     );
   }
 
   return (
-    <div className="glass-panel h-full">
+    <Panel className="h-full" bodyClassName="p-2">
       <div className="mb-2">
         <h6 className="mb-0 text-muted-text">{yearContext.year} Goals</h6>
       </div>
@@ -69,7 +70,7 @@ export default function GoalProgressCard() {
           <RaceTrackLegend className="pt-2 mt-1" showPace={yearContext.shouldShowPacing} />
         </>
       )}
-    </div>
+    </Panel>
   );
 }
 

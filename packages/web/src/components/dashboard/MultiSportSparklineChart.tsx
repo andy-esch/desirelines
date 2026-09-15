@@ -11,6 +11,8 @@ import { SparklineSkeleton } from "../Skeleton";
 import { useMultiSportChartData } from "../../hooks/useMultiSportChartData";
 import type { TuningParams } from "../../utils/demoDataGenerator";
 import type { TimeRange } from "../../utils/dataNormalization";
+import { Panel } from "../theme/Panel";
+import { cn } from "@/lib/utils";
 
 interface MultiSportSparklineChartProps {
   timeRange: TimeRange;
@@ -225,30 +227,32 @@ export default function MultiSportSparklineChart({
 
   if (isLoading) {
     return (
-      <div
-        className={`glass-panel h-full flex flex-col justify-center gap-2 ${className}`}
-        style={{ minHeight: sparklineContainerHeight }}
-        role="status"
-        aria-label="Loading chart data"
-      >
-        <SparklineSkeleton rowHeight={SPARKLINE_ROW_HEIGHT} />
-        <SparklineSkeleton rowHeight={SPARKLINE_ROW_HEIGHT} />
-        <SparklineSkeleton rowHeight={SPARKLINE_ROW_HEIGHT} />
-        <SparklineSkeleton rowHeight={SPARKLINE_ROW_HEIGHT} />
-      </div>
+      <Panel className={cn("h-full", className)} bodyClassName="flex flex-1 flex-col p-2">
+        <div
+          className="flex flex-1 flex-col justify-center gap-2"
+          style={{ minHeight: sparklineContainerHeight }}
+          role="status"
+          aria-label="Loading chart data"
+        >
+          <SparklineSkeleton rowHeight={SPARKLINE_ROW_HEIGHT} />
+          <SparklineSkeleton rowHeight={SPARKLINE_ROW_HEIGHT} />
+          <SparklineSkeleton rowHeight={SPARKLINE_ROW_HEIGHT} />
+          <SparklineSkeleton rowHeight={SPARKLINE_ROW_HEIGHT} />
+        </div>
+      </Panel>
     );
   }
 
   if (error) {
     return (
-      <div className={`glass-panel ${className} text-center p-6`}>
+      <Panel className={className} bodyClassName="p-6 text-center">
         <p className="text-danger mb-0">Failed to load chart data</p>
-      </div>
+      </Panel>
     );
   }
 
   return (
-    <div className={`glass-panel h-full flex flex-col ${className}`} style={{ minWidth: 0 }}>
+    <Panel className={cn("h-full", className)} bodyClassName="flex flex-1 flex-col p-2">
       {/* Legend with sport links */}
       <SparklineLegend sportMeta={sportMeta} />
 
@@ -296,6 +300,6 @@ export default function MultiSportSparklineChart({
           </LineChart>
         </ResponsiveContainer>
       </div>
-    </div>
+    </Panel>
   );
 }
