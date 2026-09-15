@@ -14,6 +14,8 @@ import type { TuningParams } from "../utils/demoDataGenerator";
 import type { TimeRange } from "../utils/dataNormalization";
 import { Alert } from "../components/ui/alert";
 import { Section } from "../components/theme/Section";
+import { useThemeStructure } from "../components/theme/useThemeStructure";
+import DashboardHero from "../components/dashboard/DashboardHero";
 
 /**
  * Dashboard landing page showing multi-sport overview.
@@ -39,6 +41,7 @@ export default function Dashboard() {
   const { user, loading: authLoading } = useAuth();
   const { displayName, loading: profileLoading } = useUserProfile();
   const [timeRange, setTimeRange] = useState<TimeRange>("2weeks");
+  const { heroDecoration } = useThemeStructure();
 
   const loading = authLoading || (!!user && profileLoading);
 
@@ -65,18 +68,22 @@ export default function Dashboard() {
         </Alert>
       )}
 
+      {/* Themes with a hero decoration open on the year clock instead of a welcome line. */}
+      {heroDecoration !== "none" && <DashboardHero tuningParams={tuningParams} />}
+
       <div className="px-4 md:px-6 py-6 @container">
-        {/* Header Section */}
-        <div className="dashboard-header mb-3">
-          <h1 className="font-display">
-            {user ? `Welcome back, ${displayName.split(" ")[0]}!` : "Welcome!"}
-          </h1>
-          <p className="text-muted-text">
-            {user
-              ? "Your multi-sport activity dashboard"
-              : "Explore the dashboard with demo data, then sign in to see your own activities."}
-          </p>
-        </div>
+        {heroDecoration === "none" && (
+          <div className="dashboard-header mb-3">
+            <h1 className="font-display">
+              {user ? `Welcome back, ${displayName.split(" ")[0]}!` : "Welcome!"}
+            </h1>
+            <p className="text-muted-text">
+              {user
+                ? "Your multi-sport activity dashboard"
+                : "Explore the dashboard with demo data, then sign in to see your own activities."}
+            </p>
+          </div>
+        )}
 
         {/* Recent activity: chart + list under one time range */}
         <Section

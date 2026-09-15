@@ -79,7 +79,7 @@ function Section({
       <div className="mb-2 flex items-center justify-between gap-2">
         <p
           id={htmlId}
-          className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-text"
+          className="text-[0.65rem] font-semibold uppercase tracking-wider text-(color:--label-color)"
         >
           {label}
         </p>

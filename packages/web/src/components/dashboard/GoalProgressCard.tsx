@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useDashboardGoalData, type SportGoalData } from "../../hooks/useDashboardGoalData";
 import { PACE_THRESHOLDS } from "../../utils/goalCalculations";
 import { formatMetricDisplayValue } from "../../utils/units";
-import type { YearContext } from "../../utils/yearContext";
+import { getDaysInYear, type YearContext } from "../../utils/yearContext";
 import RaceTrack, { RaceTrackLegend } from "../RaceTrack";
 import Skeleton from "../Skeleton";
 import { Panel } from "../theme/Panel";
@@ -31,9 +31,8 @@ export default function GoalProgressCard() {
   const { goalTrackStyle } = useThemeStructure();
   const raceTrack = goalTrackStyle === "bar-with-percent";
   const title = `${yearContext.year} Goals`;
-  const totalDays = yearContext.daysElapsed + yearContext.daysRemaining;
   const meta = yearContext.shouldShowPacing
-    ? `Day ${yearContext.daysElapsed} of ${totalDays}`
+    ? `Day ${yearContext.daysElapsed} of ${getDaysInYear(yearContext.year)}`
     : undefined;
 
   if (error) {

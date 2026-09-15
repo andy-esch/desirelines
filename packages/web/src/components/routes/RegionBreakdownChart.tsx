@@ -47,7 +47,7 @@ export default function RegionBreakdownChart({
   return (
     <section className="px-4 py-3" aria-label="Region breakdown">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-text">
+        <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-(color:--label-color)">
           By region
         </p>
         <ToggleGroup

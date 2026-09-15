@@ -59,7 +59,7 @@ export default function SportBreakdownChart({
       <div className="mb-3 flex items-center justify-between gap-2">
         <p
           id="insights-sport-label"
-          className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-text"
+          className="text-[0.65rem] font-semibold uppercase tracking-wider text-(color:--label-color)"
         >
           By sport
         </p>
