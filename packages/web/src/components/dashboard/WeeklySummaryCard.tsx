@@ -5,6 +5,7 @@ import { tint } from "../../utils/colorTokens";
 import Skeleton from "../Skeleton";
 import { StatusSymbol, type GoalStatus } from "../theme/StatusSymbol";
 import { Panel } from "../theme/Panel";
+import { useThemeStructure } from "../theme/useThemeStructure";
 
 /**
  * Compact card showing this-week totals per sport with prorated weekly goal %.
@@ -16,10 +17,11 @@ import { Panel } from "../theme/Panel";
  */
 export default function WeeklySummaryCard() {
   const { sportTotals, weekLabel, isLoading, error } = useWeeklySummary();
+  const { statusSymbolStyle } = useThemeStructure();
 
   if (error) {
     return (
-      <Panel className="h-full" bodyClassName="p-2">
+      <Panel className="h-full" bodyClassName="p-2" title="This Week">
         <div className="text-center text-muted-text py-6">
           <small>Unable to load weekly summary</small>
         </div>
@@ -42,11 +44,7 @@ export default function WeeklySummaryCard() {
   const distanceUnit = distanceSports[0]?.metricUnit ?? "mi";
 
   return (
-    <Panel className="h-full" bodyClassName="p-2">
-      <div className="flex justify-between items-center mb-2">
-        <h6 className="mb-0 text-muted-text">This Week</h6>
-        <small className="text-muted-text">{weekLabel}</small>
-      </div>
+    <Panel className="h-full" bodyClassName="p-2" title="This Week" meta={weekLabel}>
       {isLoading ? (
         <div role="status" aria-label="Loading weekly summary">
           {[0, 1, 2, 3].map((i) => (
@@ -103,6 +101,10 @@ export default function WeeklySummaryCard() {
                       )
                     : "—"}
                 </span>
+                {/* Badges only mark progress; symbols also say when a sport has none. */}
+                {sport.weeklyTotal === 0 && statusSymbolStyle !== "badge" && (
+                  <StatusSymbol status="no-activity" label="No activity" />
+                )}
                 {sport.weeklyTotal > 0 && (
                   <StatusSymbol
                     status={getAchievementStatus(sport.achievementPct)}
