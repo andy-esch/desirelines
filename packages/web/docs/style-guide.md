@@ -301,6 +301,12 @@ buttons) and `--control-font-size`; `ToggleGroup` reads `--toggle-*`; `Slider` r
 - Don't style pressed or selected states with `box-shadow`. The focus ring is a
   `box-shadow` (`ring-*`), so a pressed shadow hides the ring on the focused item. Use
   background, border or text color for pressed states.
+- Popups render in a portal on `<body>`. Select, combobox, popover and tooltip content sits
+  outside the drawer or `data-theme` subtree that opened it, so a token remap on that
+  subtree (`MAP_CHROME_STYLE`, the gallery's theme panels) doesn't reach the popup. Apply
+  the remap to the popup as well where it matters.
+- Raise `--control-height` along with `--control-font-size`. The primitives keep text-sm's
+  line-height ratio, so larger control text needs a taller control.
 
 **Selects:** `StyledSelect` (options list plus `onChange`) or the `Select` primitives. There
 is no native `<select>` styling; don't reintroduce `.form-select`.
