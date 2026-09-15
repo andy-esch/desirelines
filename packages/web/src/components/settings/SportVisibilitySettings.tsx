@@ -56,7 +56,7 @@ function SportTable({
   const actionTitle = actionVariant === "show" ? "Show sport" : "Hide sport";
 
   return (
-    <div className="table-responsive">
+    <div className="overflow-x-auto">
       <table className="table table-sm mb-0">
         <thead>
           <tr>
@@ -350,7 +350,7 @@ export function SportVisibilitySettings() {
         {filterText && (
           <button
             type="button"
-            className="btn btn-link btn-sm absolute top-50 end-0 translate-middle-y text-muted-text p-0 pe-2"
+            className="btn btn-link btn-sm absolute top-1/2 end-0 -translate-y-1/2 text-muted-text p-0 pe-2"
             onClick={() => setFilterText("")}
             aria-label="Clear filter"
             style={{ lineHeight: 1 }}

@@ -165,7 +165,7 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                       href={`https://www.strava.com/activities/${activity.id}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-truncate inline-block"
+                      className="truncate inline-block align-bottom"
                       style={{ maxWidth: "200px" }}
                     >
                       {activity.name}
