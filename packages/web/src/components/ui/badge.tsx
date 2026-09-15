@@ -15,17 +15,24 @@ const badgeVariants = cva(
         secondary: "border-transparent bg-secondary text-secondary-foreground",
         outline: "border-border text-foreground",
         destructive: "border-transparent bg-destructive text-destructive-foreground",
+        // A fill set by the caller (a goal color, a status color) with dark ink.
+        solid: "border-transparent text-on-accent",
+      },
+      size: {
+        default: "",
+        // Small status and count pills in tables and section headings.
+        compact: "rounded-sm px-[0.5em] py-[0.2em] text-[0.7rem] font-semibold leading-none",
       },
     },
-    defaultVariants: { variant: "default" },
+    defaultVariants: { variant: "default", size: "default" },
   }
 );
 
 export interface BadgeProps
   extends React.HTMLAttributes<HTMLSpanElement>, VariantProps<typeof badgeVariants> {}
 
-function Badge({ className, variant, ...props }: BadgeProps) {
-  return <span className={cn(badgeVariants({ variant }), className)} {...props} />;
+function Badge({ className, variant, size, ...props }: BadgeProps) {
+  return <span className={cn(badgeVariants({ variant, size }), className)} {...props} />;
 }
 
 export { Badge, badgeVariants };
