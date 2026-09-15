@@ -301,8 +301,9 @@ active-filter pill. Theme-aware via the decorative tokens; do not add elevation 
 banner is its `demo` variant. Pass `role="alert"` or `role="status"` where the message should
 be announced.
 
-**Tables:** `Table` (cells take `--row-padding`; `hover` highlights rows with `--row-hover-bg`).
-A sport in a row is a `SportBadge`; a status or count pill is `Badge` with `size="compact"`.
+**Tables:** `Table` (cells take `--row-padding`; `hover` highlights rows with `--row-hover-bg`; header
+cells take `--th-size`, `--th-tracking`, `--th-rule` and `--label-case`, and body rows `--row-rule`).
+A sport in a row is a `SportLabel`; a status or count pill is `Badge` with `size="compact"`.
 
 **shadcn/Base UI primitives** (`src/components/ui/`) take colors from the `@theme inline`
 alias block in `tailwind.css` (`bg-card`, `border-input`, `data-[pressed]:bg-primary`) and
