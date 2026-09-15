@@ -173,7 +173,7 @@ export default function SportPageContent({
 
         <div className="grow min-w-0 md:pl-4">
           <div className="flex justify-between flex-wrap md:flex-nowrap items-center pt-6 pb-2 mb-3">
-            <h1 className="h2 font-display">
+            <h1 className="font-display">
               {sportDisplayName} {currentYear}
             </h1>
           </div>

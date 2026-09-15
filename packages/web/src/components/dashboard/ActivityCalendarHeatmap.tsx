@@ -303,7 +303,7 @@ export default function ActivityCalendarHeatmap({
     return (
       <div className={className}>
         <div className="flex justify-between items-center mb-2">
-          <h2 className="h6 mb-0 text-muted-text">Activity Calendar</h2>
+          <h2 className="mb-0 text-muted-text">Activity Calendar</h2>
         </div>
         <div className="glass-panel flex items-center justify-center" style={{ height: 120 }}>
           <NeonSpinner size="sm" />
@@ -323,7 +323,7 @@ export default function ActivityCalendarHeatmap({
   return (
     <div className={className}>
       <div className="flex justify-between items-center mb-2">
-        <h2 className="h6 mb-0 text-muted-text">
+        <h2 className="mb-0 text-muted-text">
           Activity Calendar
           <span className="ms-2 text-sm font-normal">
             {totalActivities} activities in {rangeLabel}

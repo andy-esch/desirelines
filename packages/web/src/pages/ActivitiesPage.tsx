@@ -128,7 +128,7 @@ const ActivitiesPage = () => {
       <div className="px-4 md:px-6 py-6 max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-3">
-          <h1 className="h3 mb-0 font-display">Activities</h1>
+          <h1 className="mb-0 font-display">Activities</h1>
         </div>
 
         {/* Filters */}
