@@ -16,6 +16,7 @@ import { DEFAULT_SPORT_COLOR, SPORT_COLORS } from "../../utils/sportConfig";
 import { ThemeStructureProvider } from "../../components/theme/ThemeStructureProvider";
 import { Panel } from "../../components/theme/Panel";
 import { SectionLabel } from "../../components/theme/SectionLabel";
+import { PageTitle } from "../../components/theme/PageTitle";
 import { Stat, StatRow } from "../../components/theme/Stat";
 import { Meter } from "../../components/theme/Meter";
 import { StatusSymbol, type GoalStatus } from "../../components/theme/StatusSymbol";
@@ -230,6 +231,7 @@ function ComponentSamples() {
   const dayOfYear = 256 / 365;
   return (
     <div className="flex flex-col gap-4">
+      <PageTitle kicker="Sport · 84 activities in 2026">Cycling 2026</PageTitle>
       <StatRow>
         <Stat label="Current distance" value="2,175" unit="mi" sub="8.5 mi/day avg" />
         <Stat label="Conservative" value="62%" sub="1,325 mi to 3,500" accent={2} />

@@ -273,12 +273,14 @@
   --page-title-color: var(--color-body-text);
   --page-title-shadow: none;
   --page-title-case: none;
+  --page-title-leading: 1.5;
   --display-text-gradient: linear-gradient(
     135deg,
     var(--color-neon-magenta),
     var(--color-neon-cyan),
     var(--color-neon-green)
   );
+  --display-text-fill: transparent;
   --kicker-size: 0.6875rem;
   --kicker-tracking: 0.3em;
   --kicker-color: var(--color-muted-text);
@@ -308,6 +310,12 @@
   /* Header */
   --header-height: auto;
   --header-border: none;
+  --header-accent-line: linear-gradient(
+    90deg,
+    var(--color-neon-cyan),
+    var(--color-accent-magenta),
+    var(--color-neon-green)
+  );
   --header-shadow-scrolled: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
   --nav-size: 0.875rem;
   --nav-tracking: normal;
@@ -316,6 +324,9 @@
   --nav-active-radius: 0.25rem;
   --nav-active-underline: none;
   --nav-active-shadow: none;
+  --nav-color: rgb(255 255 255 / 0.5);
+  --nav-active-color: #ffffff;
+  --nav-active-hover-bg: #778899;
   --avatar-radius: 50%;
   --avatar-border: none;
   --avatar-glow: none;
@@ -365,6 +376,11 @@
   --toggle-font-size: 0.875rem;
   --toggle-tracking: normal;
   --toggle-case: none;
+  --toggle-frame-border-color: var(--color-surface-border);
+  --toggle-item-color: var(--color-body-text);
+  /* initial leaves the slot unset, so pressed toggles fall back to the accent at the
+     toggle itself, where the routes-map chrome remaps it. */
+  --color-toggle-pressed: initial;
   --button-radius: 0.375rem;
   --button-case: none;
   --button-tracking: normal;
@@ -522,12 +538,14 @@
   --page-title-color: var(--color-body-text);
   --page-title-shadow: none;
   --page-title-case: none;
+  --page-title-leading: 1.5;
   --display-text-gradient: linear-gradient(
     135deg,
     var(--color-neon-magenta),
     var(--color-neon-cyan),
     var(--color-neon-green)
   );
+  --display-text-fill: transparent;
   --kicker-size: 0.6875rem;
   --kicker-tracking: 0.3em;
   --kicker-color: var(--color-muted-text);
@@ -557,6 +575,12 @@
   /* Header */
   --header-height: auto;
   --header-border: none;
+  --header-accent-line: linear-gradient(
+    90deg,
+    var(--color-neon-cyan),
+    var(--color-accent-magenta),
+    var(--color-neon-green)
+  );
   --header-shadow-scrolled: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
   --nav-size: 0.875rem;
   --nav-tracking: normal;
@@ -565,6 +589,9 @@
   --nav-active-radius: 0.25rem;
   --nav-active-underline: none;
   --nav-active-shadow: none;
+  --nav-color: rgb(255 255 255 / 0.5);
+  --nav-active-color: #ffffff;
+  --nav-active-hover-bg: #778899;
   --avatar-radius: 50%;
   --avatar-border: none;
   --avatar-glow: none;
@@ -614,6 +641,11 @@
   --toggle-font-size: 0.875rem;
   --toggle-tracking: normal;
   --toggle-case: none;
+  --toggle-frame-border-color: var(--color-surface-border);
+  --toggle-item-color: var(--color-body-text);
+  /* initial leaves the slot unset, so pressed toggles fall back to the accent at the
+     toggle itself, where the routes-map chrome remaps it. */
+  --color-toggle-pressed: initial;
   --button-radius: 0.375rem;
   --button-case: none;
   --button-tracking: normal;
@@ -767,7 +799,9 @@
   --page-title-color: #ffffff;
   --page-title-shadow: 0 0 22px rgba(255, 46, 196, 0.6), 2px 2px 0 #00e5ff;
   --page-title-case: uppercase;
+  --page-title-leading: 1;
   --display-text-gradient: none;
+  --display-text-fill: currentColor;
   --kicker-size: 0.6875rem;
   --kicker-tracking: 0.3em;
   --kicker-color: #8b7bb5;
@@ -797,6 +831,7 @@
   /* Header */
   --header-height: 52px;
   --header-border: 1px solid rgba(255, 46, 196, 0.35);
+  --header-accent-line: none;
   --header-shadow-scrolled: none;
   --nav-size: 0.75rem;
   --nav-tracking: 0.14em;
@@ -805,6 +840,9 @@
   --nav-active-radius: 0;
   --nav-active-underline: 2px solid #ff2ec4;
   --nav-active-shadow: none;
+  --nav-color: #c9b8e0;
+  --nav-active-color: #ff2ec4;
+  --nav-active-hover-bg: transparent;
   --avatar-radius: 50%;
   --avatar-border: 1px solid #ff2ec4;
   --avatar-glow: 0 0 10px rgba(255, 46, 196, 0.45);
@@ -848,6 +886,9 @@
   --toggle-font-size: 0.6875rem;
   --toggle-tracking: 0.1em;
   --toggle-case: uppercase;
+  --toggle-frame-border-color: rgba(255, 46, 196, 0.3);
+  --toggle-item-color: #c9b8e0;
+  --color-toggle-pressed: #ff2ec4;
   --button-radius: 4px;
   --button-case: uppercase;
   --button-tracking: 0.14em;
@@ -1146,19 +1187,14 @@
   );
 }
 
-/* Neon gradient text — clip a background gradient to text.
-   Override --neon-gradient to customise the gradient per-page. */
+/* Gradient display text: the theme's --display-text-gradient clipped to the glyphs. A
+   theme without a gradient sets --display-text-fill to currentColor and keeps its text
+   color. */
 @utility neon-gradient-text {
-  --neon-gradient: linear-gradient(
-    135deg,
-    var(--color-neon-magenta),
-    var(--color-neon-cyan),
-    var(--color-neon-green)
-  );
-  background: var(--neon-gradient);
+  background: var(--display-text-gradient);
   -webkit-background-clip: text;
   background-clip: text;
-  -webkit-text-fill-color: transparent;
+  -webkit-text-fill-color: var(--display-text-fill);
 }
 
 /* Neon glow text — solid color + text-shadow glow */
@@ -1278,12 +1314,7 @@
     left: 0;
     right: 0;
     height: 2px;
-    background: linear-gradient(
-      90deg,
-      var(--color-neon-cyan),
-      var(--color-accent-magenta),
-      var(--color-neon-green)
-    );
+    background: var(--header-accent-line);
   }
 } /* end @layer components: component base styles */
 

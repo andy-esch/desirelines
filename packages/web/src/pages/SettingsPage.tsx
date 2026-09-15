@@ -21,6 +21,7 @@ import {
 import type { Preferences } from "../types/generated/user_config";
 import { Button } from "../components/ui/button";
 import { Panel } from "../components/theme/Panel";
+import { PageTitle } from "../components/theme/PageTitle";
 
 /**
  * Custom 80s-style avatar icon for the settings page
@@ -164,7 +165,9 @@ export default function SettingsPage() {
 
   return (
     <NarrowPageLayout background="settings">
-      <h1 className="mb-3 font-display">Settings</h1>
+      <PageTitle kicker="Account · Preferences" className="mb-3">
+        Settings
+      </PageTitle>
 
       {saveError && (
         <InlineAlert className="mb-6" onDismiss={clearSaveError}>

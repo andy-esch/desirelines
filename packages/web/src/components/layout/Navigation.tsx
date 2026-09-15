@@ -20,7 +20,7 @@ interface NavigationProps {
 const NAV_LINK =
   "block no-underline transition-colors text-(length:--nav-size) tracking-(--nav-tracking) [text-transform:var(--nav-case)]";
 const NAV_ACTIVE =
-  "rounded-(--nav-active-radius) bg-(--nav-active-bg) text-header-text-hover hover:bg-header-text-muted";
+  "rounded-(--nav-active-radius) bg-(--nav-active-bg) text-(color:--nav-active-color) [text-shadow:var(--nav-active-shadow)] hover:bg-(--nav-active-hover-bg)";
 
 /** The three coordinated views nested under the Activities dropdown. */
 const ACTIVITIES_VIEWS = [
@@ -52,11 +52,17 @@ export default function Navigation({ className = "", vertical = false }: Navigat
   // The Activities group spans the three views nested under its dropdown.
   const isOnActivitiesGroup = ACTIVITIES_VIEWS.some((v) => location.pathname.startsWith(v.to));
 
-  // Link padding differs between the header bar and the mobile drawer; type and the active
-  // pill come from the theme's --nav-* slots.
+  // Link padding differs between the header bar and the mobile drawer; type, colors and the
+  // active pill come from the theme's --nav-* slots. Only the header bar underlines the
+  // active link, since an underline under each item of a vertical list reads as dividers.
   const pad = vertical ? "px-4 py-2" : "px-2.5 py-1";
-  const activeLink = cn(NAV_LINK, pad, NAV_ACTIVE);
-  const inactiveLink = cn(NAV_LINK, pad, "text-header-ink/50");
+  const activeLink = cn(
+    NAV_LINK,
+    pad,
+    NAV_ACTIVE,
+    !vertical && "[border-bottom:var(--nav-active-underline)]"
+  );
+  const inactiveLink = cn(NAV_LINK, pad, "text-(color:--nav-color)");
 
   // Vertical layout for mobile drawer
   if (vertical) {

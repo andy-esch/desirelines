@@ -8,6 +8,7 @@ import { Panel } from "./Panel";
 import { Stat, StatRow } from "./Stat";
 import { Meter } from "./Meter";
 import { StatusSymbol } from "./StatusSymbol";
+import { PageTitle } from "./PageTitle";
 
 const LEGACY = THEMES[0].structure;
 
@@ -175,6 +176,21 @@ describe("Meter", () => {
       <Meter value={0.62} label="Conservative progress" />
     );
     expect(screen.queryByText("62%")).not.toBeInTheDocument();
+  });
+});
+
+describe("PageTitle", () => {
+  it("renders only the heading where the theme hides kickers", () => {
+    withStructure({ showPageKicker: false }, <PageTitle kicker="About">Origins</PageTitle>);
+    expect(screen.getByRole("heading", { level: 1, name: "Origins" })).toBeInTheDocument();
+    expect(screen.queryByText("About")).not.toBeInTheDocument();
+  });
+
+  it("renders the kicker above the heading where the theme shows kickers", () => {
+    withStructure({ showPageKicker: true }, <PageTitle kicker="About">Origins</PageTitle>);
+    const heading = screen.getByRole("heading", { level: 1, name: "Origins" });
+    const kicker = screen.getByText("About");
+    expect(kicker.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 
