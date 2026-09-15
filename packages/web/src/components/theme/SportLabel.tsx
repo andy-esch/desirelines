@@ -21,6 +21,26 @@ export interface SportLabelProps {
  * or square swatch before the name (shaped by `--sport-mark-radius`), or a badge. The name's
  * case comes from `--data-label-case`.
  */
+/**
+ * The mark alone, e.g. beside a page title: a dot or swatch per `sportMarkStyle`, and
+ * nothing where the theme marks sports with badges.
+ */
+export function SportMark({ color, className }: { color: string; className?: string | undefined }) {
+  const { sportMarkStyle } = useThemeStructure();
+  if (sportMarkStyle === "badge") return null;
+  return (
+    <span
+      aria-hidden="true"
+      data-mark={sportMarkStyle}
+      className={cn(
+        "size-[7px] flex-none rounded-(--sport-mark-radius) bg-(--sport-color) [box-shadow:0_0_6px_var(--sport-color)]",
+        className
+      )}
+      style={{ "--sport-color": color } as CSSProperties}
+    />
+  );
+}
+
 export function SportLabel({ color, children, badge = false, className }: SportLabelProps) {
   const { sportMarkStyle } = useThemeStructure();
 

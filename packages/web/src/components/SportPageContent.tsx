@@ -19,6 +19,8 @@ import { usePublicSportConfig } from "../hooks/usePublicSportConfig";
 import { getSportDisplayName } from "../utils/sportConfig";
 import { DEMO_ROUTE_PREFIX } from "../constants/demoConfig";
 import { PageTitle } from "./theme/PageTitle";
+import { SportMark } from "./theme/SportLabel";
+import { SPORT_COLORS, DEFAULT_SPORT_COLOR } from "../utils/sportConfig";
 import { Alert } from "./ui/alert";
 
 export interface SportPageContentProps {
@@ -181,7 +183,14 @@ export default function SportPageContent({
 
         <div className="grow min-w-0 md:pl-4">
           <div className="flex justify-between flex-wrap md:flex-nowrap items-center pt-6 pb-2 mb-3">
-            <PageTitle kicker={sportKicker(sportCounts[sport], currentYear)}>
+            <PageTitle
+              kicker={sportKicker(sportCounts[sport], currentYear)}
+              className="flex items-center gap-3.5"
+            >
+              <SportMark
+                color={SPORT_COLORS[sport] ?? DEFAULT_SPORT_COLOR}
+                className="size-4 rounded-[min(var(--sport-mark-radius),3px)] [box-shadow:0_0_12px_var(--sport-color)]"
+              />
               {sportDisplayName} {currentYear}
             </PageTitle>
           </div>
