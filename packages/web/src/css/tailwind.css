@@ -767,59 +767,6 @@
    ========================================================================== */
 
 @layer components {
-  /* --- Glass Panels: transparent container system --- */
-
-  .glass-panel,
-  .glass-panel-kpi {
-    background: transparent;
-    border: 1px solid var(--color-panel-border);
-    border-radius: 0.625rem;
-    padding: 0.5rem;
-  }
-
-  .glass-panel {
-    transition: border-color 0.2s ease;
-  }
-  .glass-panel:hover {
-    border-color: var(--color-panel-border-hover);
-  }
-
-  .glass-panel-flush {
-    background: transparent;
-    border: none;
-    border-right: 1px solid var(--color-surface-border);
-    border-radius: 0;
-    padding: 0;
-  }
-
-  .glass-panel-kpi {
-    transition: border-color 0.2s ease;
-  }
-  .glass-panel-kpi:hover {
-    border-color: var(--color-panel-border-hover);
-  }
-
-  .glass-panel-kpi h2,
-  .glass-panel-kpi .h2 {
-    font-variant-numeric: tabular-nums;
-  }
-
-  /* KPI card large value display */
-  .kpi-value {
-    font-family: var(--font-display);
-    font-size: 1.75rem;
-    font-weight: 300;
-    font-variant-numeric: tabular-nums;
-    line-height: 1.2;
-    /* Was a fixed 0.15-alpha cyan, which vanished on the light ground. */
-    text-shadow: 0 0 20px var(--color-neon-accent-glow);
-  }
-  @media (min-width: 768px) {
-    .kpi-value {
-      font-size: 2.5rem;
-    }
-  }
-
   /* --- Progress Bars: NEON gradient shine --- */
 
   .progress-neon {
@@ -1205,27 +1152,6 @@
   }
   .table-hover tbody tr:hover {
     background-color: var(--color-surface-hover);
-  }
-
-  /* --- Cards --- */
-
-  .card {
-    background: transparent;
-    border: 1px solid var(--color-panel-border);
-    border-radius: 0.625rem;
-    transition: border-color 0.2s ease;
-  }
-  .card:hover {
-    border-color: var(--color-panel-border-hover);
-  }
-  .card-header {
-    padding: 0.75rem 1rem;
-    background: transparent;
-    border-bottom: 1px solid var(--color-divider);
-  }
-  .card-body {
-    padding: 1rem;
-    background: transparent;
   }
 
   /* --- Navigation --- */
