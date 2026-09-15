@@ -1159,6 +1159,23 @@
     background-color: var(--color-surface-hover);
   }
 
+  /* --- Data tables: the Table component (ui/table.tsx) ---
+     Cell rules sit in this layer so a utility on a th or td still wins. */
+
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    color: var(--color-body-text);
+    font-variant-numeric: tabular-nums;
+  }
+  .data-table :is(th, td) {
+    padding: var(--row-padding);
+    vertical-align: top;
+  }
+  .data-table[data-hover] tbody tr:hover {
+    background-color: var(--row-hover-bg);
+  }
+
   /* --- Navigation --- */
 
   .nav {
