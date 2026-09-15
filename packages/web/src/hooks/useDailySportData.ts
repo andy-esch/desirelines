@@ -76,6 +76,8 @@ const DEFAULT_SPORTS = ["cycling", "running", "yoga"];
  * Week card, then show the same generated activities instead of two random draws.
  */
 const demoDataCache = new Map<string, MultiSportData>();
+/** Enough for every range a demo session realistically opens; the oldest entry goes first. */
+const DEMO_CACHE_LIMIT = 24;
 
 export function useDailySportData(options: UseDailySportDataOptions): DailySportDataResult {
   const { user, loading: authLoading } = useAuth();
@@ -108,6 +110,10 @@ export function useDailySportData(options: UseDailySportDataOptions): DailySport
       });
     }
 
+    if (demoDataCache.size >= DEMO_CACHE_LIMIT) {
+      const oldest = demoDataCache.keys().next().value;
+      if (oldest !== undefined) demoDataCache.delete(oldest);
+    }
     demoDataCache.set(cacheKey, result);
     return result;
   }, [user, sports, from, to, tuningParams]);

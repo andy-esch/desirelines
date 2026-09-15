@@ -4,6 +4,8 @@ import GoalSummaryTable from "./GoalSummaryTable";
 import type { Goals } from "../utils/goalCalculations";
 import { testGoal, testGoals } from "../utils/goalTestFixtures";
 import { createYearContext } from "../utils/yearContext";
+import { THEMES } from "../themes/registry";
+import { ThemeStructureProvider } from "./theme/ThemeStructureProvider";
 
 // useDangerThresholds pulls from useUserConfig/useAuth at runtime, which require
 // app context. The threshold values themselves are exercised in this file's
@@ -547,6 +549,31 @@ describe("GoalSummaryTable", () => {
       // Should not crash, renders with 0 values
       const tbody = container.querySelector("tbody");
       expect(tbody).toHaveTextContent("0 miles");
+    });
+  });
+
+  describe("Goal track", () => {
+    it("draws a track with today's pace tick where the theme doesn't use the percent bar", () => {
+      const { container } = render(
+        <ThemeStructureProvider structure={{ ...THEMES[0].structure, goalTrackStyle: "track" }}>
+          <GoalSummaryTable
+            goals={baseGoals}
+            currentValue={500}
+            yearContext={createYearContext(2025)}
+            unit="miles"
+            sport="cycling"
+          />
+        </ThemeStructureProvider>
+      );
+
+      const bar = screen.getByRole("progressbar", { name: "Conservative progress" });
+      expect(bar).toHaveAttribute("data-meter", "continuous");
+      expect(bar).toHaveAttribute("aria-valuenow", "50");
+      // June 15 is day 166: the tick sits about 45% of the way along.
+      const tick = bar.querySelector<HTMLElement>("[data-marker]");
+      expect(parseFloat(tick?.style.left ?? "")).toBeGreaterThan(45);
+      expect(parseFloat(tick?.style.left ?? "")).toBeLessThan(46);
+      expect(container.querySelector("tbody")).toHaveTextContent("50%");
     });
   });
 });
