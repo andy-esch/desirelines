@@ -242,6 +242,16 @@
   --color-chart-tooltip-label: #aaaaaa;
   --color-chart-tooltip-divider: rgba(0, 212, 255, 0.2);
 
+  --color-success: #00ff80;
+  --color-danger: #dc3545;
+  --color-warning: #ffc107;
+
+  --color-header-bg: #2d3748;
+  --color-header-border: #4a5568;
+  --color-header-text: #e2e8f0;
+  --color-header-text-muted: #778899;
+  --color-header-accent: #00d4ff;
+
   --color-surface-hover: rgba(255, 255, 255, 0.06);
   --color-surface-border: rgba(255, 255, 255, 0.08);
   --color-surface-overlay: rgba(0, 0, 0, 0.7);
@@ -481,6 +491,16 @@
   --color-chart-tooltip-label: #94a3b8;
   --color-chart-tooltip-divider: rgba(8, 145, 178, 0.2);
 
+  --color-success: #00ff80;
+  --color-danger: #dc3545;
+  --color-warning: #ffc107;
+
+  --color-header-bg: #2d3748;
+  --color-header-border: #4a5568;
+  --color-header-text: #e2e8f0;
+  --color-header-text-muted: #778899;
+  --color-header-accent: #00d4ff;
+
   --color-surface-hover: rgba(0, 0, 0, 0.04);
   --color-surface-border: rgba(0, 0, 0, 0.08);
   --color-surface-overlay: rgba(255, 255, 255, 0.9);
@@ -718,6 +738,7 @@
   body {
     background-color: var(--color-bg-body);
     color: var(--color-body-text);
+    font-family: var(--font-body);
   }
 
   h1,
