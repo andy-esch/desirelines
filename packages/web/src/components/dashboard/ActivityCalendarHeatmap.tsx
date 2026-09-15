@@ -8,6 +8,7 @@ import { toLocalDateString } from "../../utils/dateUtils";
 import NeonSpinner from "../NeonSpinner";
 import StyledSelect from "../StyledSelect";
 import type { TuningParams } from "../../utils/demoDataGenerator";
+import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
 
 interface ActivityCalendarHeatmapProps {
   className?: string | undefined;
@@ -331,27 +332,25 @@ export default function ActivityCalendarHeatmap({
         </h2>
         <div className="flex items-center gap-2">
           {/* Sport filter toggle */}
-          <div className="btn-group btn-group-sm" role="group" aria-label="Sport filter">
-            <button
-              type="button"
-              className={`btn btn-outline-secondary py-0 px-2 ${sportFilter === "all" ? "active" : ""}`}
-              style={{ fontSize: "0.7rem" }}
-              onClick={() => setSportFilter("all")}
-              aria-pressed={sportFilter === "all"}
-            >
+          <ToggleGroup
+            value={[sportFilter]}
+            onValueChange={(values) =>
+              setSportFilter((values[0] as SportFilterMode | undefined) ?? sportFilter)
+            }
+            aria-label="Sport filter"
+            className="p-0.5"
+          >
+            <ToggleGroupItem value="all" className="px-2 py-0.5 text-xs">
               All
-            </button>
-            <button
-              type="button"
-              className={`btn btn-outline-secondary py-0 px-2 ${sportFilter === "visible" ? "active" : ""}`}
-              style={{ fontSize: "0.7rem" }}
-              onClick={() => setSportFilter("visible")}
-              aria-pressed={sportFilter === "visible"}
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value="visible"
+              className="px-2 py-0.5 text-xs"
               title={`Show only: ${validVisibleSports.join(", ")}`}
             >
               Visible
-            </button>
-          </div>
+            </ToggleGroupItem>
+          </ToggleGroup>
           {/* Time range selector */}
           <StyledSelect
             className="h-7 w-auto gap-1 px-2 py-0 text-xs"
