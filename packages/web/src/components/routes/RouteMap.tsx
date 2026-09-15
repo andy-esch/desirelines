@@ -872,7 +872,7 @@ function RoutePopupCard({
     { maximumFractionDigits: 1 }
   )} ${getDistanceLabel(distanceUnit)}`;
   return (
-    <div className="min-w-44 max-w-64 rounded-md border border-border bg-card p-3 text-body-text shadow-xl">
+    <div className="min-w-44 max-w-64 rounded-(--popup-radius) [border:var(--popup-border)] bg-card p-3 text-body-text [box-shadow:var(--popup-shadow)]">
       <div className="flex items-start justify-between gap-2">
         <p className="text-sm font-semibold leading-tight">{selected.name}</p>
         <button

@@ -47,7 +47,7 @@ export default function CumulativeDistanceChart({
 
   return (
     <section className="px-4 py-3" aria-label="Cumulative distance">
-      <p className="mb-2 text-[0.65rem] font-semibold uppercase tracking-wider text-muted-text">
+      <p className="mb-2 text-[0.65rem] font-semibold uppercase tracking-wider text-(color:--label-color)">
         Cumulative distance
       </p>
       {data.length === 0 ? (

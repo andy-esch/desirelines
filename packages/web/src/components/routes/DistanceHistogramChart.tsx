@@ -44,7 +44,7 @@ export default function DistanceHistogramChart({
 
   return (
     <section className="px-4 py-3" aria-label="Distance histogram">
-      <p className="mb-2 text-[0.65rem] font-semibold uppercase tracking-wider text-muted-text">
+      <p className="mb-2 text-[0.65rem] font-semibold uppercase tracking-wider text-(color:--label-color)">
         Distance ({unit})
       </p>
       {data.length === 0 ? (
