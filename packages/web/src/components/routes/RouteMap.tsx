@@ -25,6 +25,8 @@ import {
 } from "../../utils/units";
 import { formatActivityDate } from "../../utils/formatActivityDate";
 import { resolveThemeColor } from "../../utils/colorTokens";
+import type { ThemeMap } from "../../themes/registry";
+import { applyBaseMap } from "./mapRecolor";
 import { useTheme } from "../../contexts/ThemeContext";
 
 /**
@@ -213,6 +215,8 @@ export interface RouteMapProps {
   defaultViewport: RegionSummary | null;
   /** Mapbox style URL — the active theme's `mapStyle`. */
   mapStyle: string;
+  /** The active theme's recolor and label font for `mapStyle` (its `map` field). */
+  baseMap: ThemeMap;
   /** Display unit for the click popover's distance. */
   distanceUnit: DistanceUnit;
   /**
@@ -272,6 +276,7 @@ export default function RouteMap({
   filter,
   defaultViewport,
   mapStyle,
+  baseMap,
   distanceUnit,
   getActivity,
   selected,
@@ -482,10 +487,24 @@ export default function RouteMap({
     setDotsView((prev) => (prev === low ? prev : low));
   }, [tileMeta.lineMinZoom]);
 
-  // On load: force a resize — iOS WebKit can size the GL canvas before the
-  // `fixed` map container settles, leaving a 0/stale drawing buffer (grey) until
-  // something nudges it — then clear the loading state and sync the zoom tier.
+  // Read inside the `style.load` listener, which is attached once per map instance.
+  const baseMapRef = useRef(baseMap);
+  useEffect(() => {
+    baseMapRef.current = baseMap;
+  });
+
+  // On load: apply the theme's base-map recolor, and re-apply it whenever a new style
+  // loads (a theme switch starts from the stock colors again). The first style has
+  // already loaded by the time `load` fires, and the loading overlay is still up, so
+  // the stock colors never show. Then force a resize — iOS WebKit can size the GL
+  // canvas before the `fixed` map container settles, leaving a 0/stale drawing buffer
+  // (grey) until something nudges it — clear the loading state and sync the zoom tier.
   const onMapLoad = useCallback(() => {
+    const map = mapRef.current?.getMap();
+    if (map) {
+      applyBaseMap(map, baseMapRef.current);
+      map.on("style.load", () => applyBaseMap(map, baseMapRef.current));
+    }
     mapRef.current?.resize();
     setStatus("ready");
     // A genuine load clears the retry budget so a later transient failure in the
@@ -496,6 +515,22 @@ export default function RouteMap({
     setTilesUnavailable(false);
     syncZoomView();
   }, [syncZoomView]);
+
+  // A theme switch that keeps the style URL (two themes recoloring the same Mapbox style)
+  // doesn't reload the style by itself, and a recolor can't be undone in place, so reload
+  // the stock style here and let the `style.load` listener recolor it. A URL change
+  // already reloads through the `mapStyle` prop.
+  const shownStyleRef = useRef({ mapStyle, baseMap });
+  useEffect(() => {
+    const shown = shownStyleRef.current;
+    shownStyleRef.current = { mapStyle, baseMap };
+    if (shown.mapStyle !== mapStyle || shown.baseMap === baseMap) return;
+    const map = mapRef.current?.getMap();
+    // Cast: mapbox-gl's types mark the font options required, though setStyle doesn't.
+    if (status === "ready" && map) {
+      map.setStyle(mapStyle, { diff: false } as Parameters<typeof map.setStyle>[1]);
+    }
+  }, [mapStyle, baseMap, status]);
 
   // Guard against an indefinite grey canvas: if `load` never arrives within the
   // timeout, surface the retryable error overlay. Re-armed on each (re)mount via
@@ -635,6 +670,9 @@ export default function RouteMap({
         ref={mapRef}
         mapboxAccessToken={accessToken}
         mapStyle={mapStyle}
+        // Reload styles in full: a diffed swap fires no `style.load`, so the base-map
+        // recolor wouldn't run on the new style.
+        styleDiffing={false}
         projection={MAP_PROJECTION}
         onLoad={onMapLoad}
         onZoom={syncZoomView}

@@ -144,7 +144,9 @@ A theme is two halves that must agree:
    `var()` where they are declared.
 2. **A list entry** — in `src/themes/registry.ts`: `id`, `label`, `scheme` (`dark` / `light`,
    which sets `color-scheme` and decides what "System" resolves to), `mapStyle` (the routes
-   map's Mapbox style), `hidden`, `background` (must equal the block's `--color-bg-body`),
+   map's Mapbox style), `map` (a base-map palette and label font applied over that style;
+   `null` fields keep the stock style), `hidden`, `background` (must equal the block's
+   `--color-bg-body`),
    picker `swatches`, `fonts` (the faces to preload, which must appear in the block's font
    stacks), and `structure` (the choices that change markup; see "Theme slots").
 
@@ -223,7 +225,7 @@ rendered the neon at full strength.
 The checks run with the web tests: `themeCss.test.ts` fails on a theme without a block, a
 block without a theme, blocks with differing token sets, or a `background` that doesn't
 match `--color-bg-body`; `sportConfig.test.ts` holds `SPORT_COLORS` to 3:1 against every
-dark theme's background; `bootScript.test.ts` keeps the first-paint script in step with
+dark theme's background and every base-map palette's land, park and water; `bootScript.test.ts` keeps the first-paint script in step with
 `ThemeProvider`.
 
 ### Retiring a theme

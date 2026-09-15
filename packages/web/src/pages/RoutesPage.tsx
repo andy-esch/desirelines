@@ -452,6 +452,7 @@ export default function RoutesPage() {
               filter={mapFilter}
               defaultViewport={defaultViewport}
               mapStyle={theme.mapStyle}
+              baseMap={theme.map}
               distanceUnit={distanceUnit}
               getActivity={getActivity}
               selected={selected}
