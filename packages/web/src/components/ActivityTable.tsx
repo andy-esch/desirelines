@@ -17,6 +17,9 @@ import { ExternalLinkIcon } from "./ui/ExternalLinkIcon";
 import { MapPinIcon } from "./ui/MapPinIcon";
 import { Button } from "./ui/button";
 import { Panel } from "./theme/Panel";
+import { Alert } from "./ui/alert";
+import { Table } from "./ui/table";
+import { SportBadge } from "./SportBadge";
 
 /** Speed unit label for each supported distance unit (cycling display). */
 const SPEED_LABEL: Record<DistanceUnit, string> = {
@@ -108,27 +111,27 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
   const showImpact = goalTarget != null && goalTarget > 0;
   if (error) {
     return (
-      <div className="alert alert-danger" role="alert">
+      <Alert variant="danger" role="alert">
         <strong>Error loading activities:</strong> {error.message}
         <Button variant="outline-danger" size="sm" className="ms-6" onClick={onRetry}>
           Retry
         </Button>
-      </div>
+      </Alert>
     );
   }
 
   if (!isLoading && activities.length === 0) {
     return (
-      <div className="alert alert-info" role="alert">
+      <Alert variant="info" role="alert">
         No activities found for the selected filters.
-      </div>
+      </Alert>
     );
   }
 
   return (
     <Panel bodyClassName="p-0">
       <div className="overflow-x-auto">
-        <table className="table table-hover table-sm table-dark-transparent mb-0">
+        <Table hover>
           <thead>
             <tr>
               <th>Date</th>
@@ -173,16 +176,9 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                   </a>
                 </td>
                 <td>
-                  <span
-                    className="badge badge-sport"
-                    style={
-                      {
-                        "--sport-color": SPORT_COLORS[activity.sport] || "rgb(160, 174, 192)",
-                      } as React.CSSProperties
-                    }
-                  >
+                  <SportBadge color={SPORT_COLORS[activity.sport] || "rgb(160, 174, 192)"}>
                     {activity.sport}
-                  </span>
+                  </SportBadge>
                 </td>
                 <td className="text-right whitespace-nowrap">
                   {activity.distanceMeters > 0
@@ -244,7 +240,7 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
               </tr>
             ))}
           </tbody>
-        </table>
+        </Table>
       </div>
 
       {/* Loading indicator */}

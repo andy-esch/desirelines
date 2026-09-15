@@ -13,19 +13,19 @@ describe("InlineAlert", () => {
   it("defaults to danger variant", () => {
     render(<InlineAlert>Error</InlineAlert>);
 
-    expect(screen.getByRole("alert")).toHaveClass("alert-danger");
+    expect(screen.getByRole("alert")).toHaveClass("text-danger");
   });
 
   it("renders warning variant", () => {
     render(<InlineAlert variant="warning">Warning text</InlineAlert>);
 
-    expect(screen.getByRole("alert")).toHaveClass("alert-warning");
+    expect(screen.getByRole("alert")).toHaveClass("text-warning");
   });
 
   it("renders info variant", () => {
     render(<InlineAlert variant="info">Info text</InlineAlert>);
 
-    expect(screen.getByRole("alert")).toHaveClass("alert-info");
+    expect(screen.getByRole("alert")).toHaveClass("text-body-text");
   });
 
   it("applies small size classes", () => {

@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { useThemeStructure } from "./useThemeStructure";
+import { Badge } from "../ui/badge";
 
 export type GoalStatus =
   | "achieved"
@@ -91,9 +92,15 @@ export function StatusSymbol({
 
   if (statusSymbolStyle === "badge") {
     return (
-      <span className={cn("badge", className)} style={badgeStyle} data-status={status}>
+      <Badge
+        variant="solid"
+        size="compact"
+        className={cn("inline-block whitespace-nowrap", className)}
+        style={badgeStyle}
+        data-status={status}
+      >
         {badgeContent ?? label}
-      </span>
+      </Badge>
     );
   }
 

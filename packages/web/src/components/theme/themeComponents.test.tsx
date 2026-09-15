@@ -188,7 +188,7 @@ describe("StatusSymbol", () => {
       />
     );
     const badge = screen.getByText("Behind");
-    expect(badge).toHaveClass("badge");
+    expect(badge).toHaveAttribute("data-status", "behind");
     expect(badge).toHaveStyle({ backgroundColor: "rgb(255, 0, 255)" });
     expect(badge.querySelector("svg")).toBeNull();
   });
@@ -197,7 +197,7 @@ describe("StatusSymbol", () => {
     const { unmount } = render(
       <StatusSymbol status="ahead" label="145% of goal" badgeContent="145%" />
     );
-    expect(screen.getByText("145%")).toHaveClass("badge");
+    expect(screen.getByText("145%")).toHaveAttribute("data-status", "ahead");
     unmount();
     withStructure(
       { statusSymbolStyle: "filled" },
@@ -216,7 +216,7 @@ describe("StatusSymbol", () => {
       const status = container.querySelector('[data-status="slightly-behind"]');
       expect(status).toHaveTextContent("Slightly behind");
       expect(status?.querySelector("svg")).not.toBeNull();
-      expect(status).not.toHaveClass("badge");
+      expect(status).not.toHaveClass("text-on-accent");
     }
   );
 

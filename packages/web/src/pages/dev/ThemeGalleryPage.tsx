@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useId, useState, type CSSProperties } from "react";
+import { Fragment, useCallback, useId, useState } from "react";
 import {
   THEMES,
   type MapPalette,
@@ -12,13 +12,15 @@ import { Input } from "../../components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import KPICard from "../../components/dashboard/KPICard";
 import SportFilterPills from "../../components/SportFilterPills";
-import { SPORT_COLORS } from "../../utils/sportConfig";
+import { DEFAULT_SPORT_COLOR, SPORT_COLORS } from "../../utils/sportConfig";
 import { ThemeStructureProvider } from "../../components/theme/ThemeStructureProvider";
 import { Panel } from "../../components/theme/Panel";
 import { SectionLabel } from "../../components/theme/SectionLabel";
 import { Stat, StatRow } from "../../components/theme/Stat";
 import { Meter } from "../../components/theme/Meter";
 import { StatusSymbol, type GoalStatus } from "../../components/theme/StatusSymbol";
+import { Alert } from "../../components/ui/alert";
+import { SportBadge } from "../../components/SportBadge";
 
 /**
  * Dev-only theme gallery: every theme in the list — hidden ones included — rendered side
@@ -411,12 +413,7 @@ function ThemePanel({ theme }: { theme: ThemeDefinition }) {
           <Badge>Default</Badge>
           <Badge variant="secondary">Secondary</Badge>
           <Badge variant="outline">Outline</Badge>
-          <span
-            className="badge badge-sport"
-            style={{ "--sport-color": SPORT_COLORS.cycling } as CSSProperties}
-          >
-            Cycling
-          </span>
+          <SportBadge color={SPORT_COLORS.cycling ?? DEFAULT_SPORT_COLOR}>Cycling</SportBadge>
         </div>
         <Input placeholder="Input" aria-label={`Sample input, ${theme.label} theme`} />
         <div>
@@ -452,9 +449,9 @@ function ThemePanel({ theme }: { theme: ThemeDefinition }) {
           </Card>
         </div>
         <Panel bodyClassName="p-3 text-sm">Panel with no title</Panel>
-        <div className="alert alert-demo text-sm">
-          <strong>Demo Mode</strong> — .alert-demo
-        </div>
+        <Alert variant="demo" className="text-sm">
+          <strong>Demo Mode</strong> — Alert, demo variant
+        </Alert>
         <p className="text-sm">
           Body text with a <a href="#gallery">link</a>,{" "}
           <span className="text-muted-text">muted</span> and{" "}

@@ -7,6 +7,8 @@ import { CheckIcon, WarningIcon } from "./icons";
 import { StatusSymbol, type GoalStatus } from "./theme/StatusSymbol";
 import type { YearContext } from "../utils/yearContext";
 import { Panel } from "./theme/Panel";
+import { Alert } from "./ui/alert";
+import { Table } from "./ui/table";
 
 interface GoalSummaryTableProps {
   goals: Goals;
@@ -108,7 +110,7 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
   return (
     <Panel title="Goal Achievability Summary" className="mb-8">
       <div className="overflow-x-auto">
-        <table className="table table-hover table-sm table-dark-transparent">
+        <Table hover className="mb-4">
           <caption className="sr-only">Goal achievability summary</caption>
           <thead>
             <tr>
@@ -136,7 +138,10 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
               const goalColor = GOAL_COLORS[originalIndex % GOAL_COLORS.length];
 
               return (
-                <tr key={goal.id} className={isDangerous ? "table-row-danger" : ""}>
+                <tr
+                  key={goal.id}
+                  className={isDangerous ? "bg-danger/8 hover:bg-danger/12" : undefined}
+                >
                   <td
                     style={{
                       borderLeft: `4px solid ${goalColor}`,
@@ -151,12 +156,9 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
                     {goal.value.toLocaleString()} {unit}
                   </td>
                   <td>
-                    <div
-                      className="progress progress-neon"
-                      style={{ height: "20px", minWidth: "100px", position: "relative" }}
-                    >
+                    <div className="relative flex h-(--track-height) min-w-[100px] rounded-(--track-radius) bg-(--track-bg)">
                       <div
-                        className="progress-bar progress-bar-neon"
+                        className="flex flex-col justify-center [background-image:var(--progress-shine)] transition-[width] duration-300"
                         role="progressbar"
                         aria-label={`${goal.label || "Unnamed"} progress`}
                         style={{
@@ -231,12 +233,12 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
               );
             })}
           </tbody>
-        </table>
+        </Table>
       </div>
 
       {/* Warning banner - only if dangerous goals exist and data is loaded */}
       {hasDangerousGoals && (
-        <div className="alert alert-warning mt-6 mb-0" role="alert">
+        <Alert variant="warning" role="alert" className="mt-6">
           <small>
             <strong>
               <WarningIcon size={12} className="inline mr-1" aria-hidden="true" />
@@ -253,7 +255,7 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
             </strong>
             , which may be unsustainable. Consider adjusting your targets.
           </small>
-        </div>
+        </Alert>
       )}
 
       {yearContext.shouldShowPacing && (
