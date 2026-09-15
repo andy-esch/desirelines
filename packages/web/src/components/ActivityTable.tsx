@@ -11,6 +11,7 @@ import {
   type ElevationUnit,
 } from "../utils/units";
 import { SPORT_COLORS, getSportDisplayName } from "../utils/sportConfig";
+import { useSportConfig } from "../hooks/useSportConfig";
 import { formatActivityDate } from "../utils/formatActivityDate";
 import NeonSpinner from "./NeonSpinner";
 import { ExternalLinkIcon } from "./ui/ExternalLinkIcon";
@@ -108,6 +109,7 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
   isSessionSport = false,
   goalLabel,
 }) => {
+  const { sportConfig } = useSportConfig();
   const showImpact = goalTarget != null && goalTarget > 0;
   if (error) {
     return (
@@ -177,7 +179,7 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                 </td>
                 <td>
                   <SportLabel color={SPORT_COLORS[activity.sport] || "rgb(160, 174, 192)"} badge>
-                    {getSportDisplayName(activity.sport, null)}
+                    {getSportDisplayName(activity.sport, sportConfig)}
                   </SportLabel>
                 </td>
                 <td className="text-right whitespace-nowrap">

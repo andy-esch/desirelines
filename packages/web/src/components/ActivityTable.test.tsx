@@ -2,7 +2,15 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ActivityTable from "./ActivityTable";
-import type { ActivitySummary } from "../api/activities";
+import type { ActivitySummary, SportConfig } from "../api/activities";
+
+vi.mock("../hooks/useSportConfig", () => ({
+  useSportConfig: () => ({
+    sportConfig: {
+      sportCategories: { ebike: { displayName: "E-Bike" } },
+    } as unknown as SportConfig,
+  }),
+}));
 
 describe("ActivityTable", () => {
   const mockActivities: ActivitySummary[] = [
@@ -105,6 +113,13 @@ describe("ActivityTable", () => {
       expect(screen.getByText("Time")).toBeInTheDocument();
       expect(screen.getByText("Elevation")).toBeInTheDocument();
       expect(screen.getByText("Pace/Speed")).toBeInTheDocument();
+    });
+
+    it("uses the configured display name where the sport list has one", () => {
+      const ebike = { ...mockActivities[0]!, id: "1", sport: "ebike" };
+      render(<ActivityTable {...defaultProps} activities={[ebike]} />);
+
+      expect(screen.getByText("E-Bike")).toBeInTheDocument();
     });
 
     it("renders each sport by its display name", () => {
