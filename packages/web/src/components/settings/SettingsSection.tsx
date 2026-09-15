@@ -65,7 +65,7 @@ export function SettingsSection({
         tabIndex={0}
         aria-expanded={expanded}
         aria-controls={panelId}
-        className="card-header cursor-pointer select-none d-flex align-items-start justify-content-between"
+        className="card-header cursor-pointer select-none flex items-start justify-between"
         onClick={toggle}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
@@ -74,12 +74,12 @@ export function SettingsSection({
           }
         }}
       >
-        <div className="flex-fill">
+        <div className="flex-1">
           <h5 className="mb-0 text-body-text">{title}</h5>
           {description && <p className="text-muted-text text-sm mb-0 mt-1">{description}</p>}
         </div>
         <span
-          className="d-inline-flex align-items-center mt-1 ms-3"
+          className="inline-flex items-center mt-1 ms-3"
           aria-hidden="true"
           style={{
             transform: expanded ? "rotate(0deg)" : "rotate(-90deg)",
