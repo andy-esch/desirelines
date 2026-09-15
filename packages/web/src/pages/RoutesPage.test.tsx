@@ -345,6 +345,8 @@ describe("RoutesPage", () => {
     expect(props.apiBaseUrl).toBe("http://localhost:8084/api/v1");
     expect(props.defaultViewport).toEqual(viewport);
     expect(props.mapStyle).toBe("mapbox://styles/mapbox/dark-v11");
+    // Legacy themes show the stock map: no recolor, no label font.
+    expect(props.baseMap).toEqual({ palette: null, labelFont: null });
     // Cross-filter expression is wired through (null here: the mocked dataset is
     // empty, so useRouteFilters yields no filter, so the map shows all routes).
     expect(props).toHaveProperty("filter");
