@@ -248,6 +248,18 @@ describe("PageTitle", () => {
     expect(screen.queryByText("About")).not.toBeInTheDocument();
   });
 
+  it("tints the glow with the color a caller passes", () => {
+    render(<PageTitle glowColor="rgb(255, 0, 255)">Cycling 2026</PageTitle>);
+    const heading = screen.getByRole("heading", { level: 1, name: "Cycling 2026" });
+    expect(heading.style.textShadow).toContain("rgb(255, 0, 255)");
+    expect(heading.style.textShadow).toContain("var(--page-title-glow-size)");
+  });
+
+  it("leaves the theme's own glow alone without a color", () => {
+    render(<PageTitle>Activities</PageTitle>);
+    expect(screen.getByRole("heading", { level: 1 }).style.textShadow).toBe("");
+  });
+
   it("renders the kicker above the heading where the theme shows kickers", () => {
     withStructure({ showPageKicker: true }, <PageTitle kicker="About">Origins</PageTitle>);
     const heading = screen.getByRole("heading", { level: 1, name: "Origins" });

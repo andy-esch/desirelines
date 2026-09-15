@@ -47,6 +47,8 @@ export interface ThemeStructure {
   readonly sliderTrack: "continuous" | "segmented";
   /** A cursor glyph at the left edge of the hovered table row. */
   readonly rowHoverCursor: boolean;
+  /** Paging a list: stacked arrows beside it, or a labelled row under it. */
+  readonly pagerStyle: "arrows" | "labelled";
   /** How a sport is marked in rows and lists. */
   readonly sportMarkStyle: "badge" | "dot" | "swatch";
   /** Goal status: colored badges, or an SVG symbol plus text. */
@@ -140,6 +142,7 @@ const MIAMI_STRUCTURE: ThemeStructure = {
   statRowStyle: "divided",
   sliderTrack: "continuous",
   rowHoverCursor: false,
+  pagerStyle: "labelled",
   sportMarkStyle: "dot",
   statusSymbolStyle: "filled",
   goalTrackStyle: "track",
@@ -169,6 +172,7 @@ const LEGACY_STRUCTURE: ThemeStructure = {
   statRowStyle: "cards",
   sliderTrack: "continuous",
   rowHoverCursor: false,
+  pagerStyle: "arrows",
   sportMarkStyle: "badge",
   statusSymbolStyle: "badge",
   goalTrackStyle: "bar-with-percent",

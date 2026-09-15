@@ -62,7 +62,7 @@ export default function MapTimeRangeFilter({
     <section className="px-4 py-3" aria-label="Date range">
       <p
         id="filter-daterange-label"
-        className="mb-2 text-[0.65rem] font-semibold uppercase tracking-wider text-(color:--label-color)"
+        className="mb-2 text-(length:--label-size) font-(weight:--label-weight) tracking-(--label-tracking) [text-transform:var(--label-case)] text-(color:--label-color)"
       >
         Date range
       </p>

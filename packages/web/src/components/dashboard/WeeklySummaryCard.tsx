@@ -73,7 +73,7 @@ export default function WeeklySummaryCard() {
           {sportTotals.map((sport) => (
             <div
               key={sport.sport}
-              className="flex items-center justify-between py-1"
+              className="flex items-center justify-between py-(--row-padding)"
               style={{ borderBottom: "1px solid var(--color-surface-border)" }}
             >
               <div className="flex items-center">
@@ -122,9 +122,11 @@ export default function WeeklySummaryCard() {
           ))}
 
           {/* Footer totals */}
-          <div className="pt-2 mt-1">
+          <div className="flex items-baseline justify-between gap-4 pt-2 mt-1">
+            <span className="text-(length:--label-size) font-(weight:--label-weight) tracking-(--label-tracking) [text-transform:var(--label-case)] text-(color:--color-muted-text)">
+              Total
+            </span>
             <small className="text-muted-text">
-              Total:{" "}
               {totalDistance > 0 && (
                 <span>{formatMetricDisplayValue(totalDistance, "distance", distanceUnit)}</span>
               )}
