@@ -4,6 +4,7 @@ import { useFullUserConfig } from "../../hooks/useUserConfig";
 import { DEMO_SPORT_LABELS, type DemoSport } from "../../constants/demoConfig";
 import NeonSpinner from "../NeonSpinner";
 import { InlineAlert } from "../InlineAlert";
+import { Table } from "../ui/table";
 
 /** Flattened goal row for display */
 interface GoalRow {
@@ -89,7 +90,7 @@ export function GoalManagementTable() {
   return (
     <div>
       <div className="overflow-x-auto">
-        <table className="table table-sm mb-0">
+        <Table>
           <thead>
             <tr>
               <th style={{ width: "80px" }}>Year</th>
@@ -116,7 +117,7 @@ export function GoalManagementTable() {
               );
             })}
           </tbody>
-        </table>
+        </Table>
       </div>
 
       <p className="text-muted-text text-sm mt-6 mb-0">Edit goals directly on each sport page.</p>

@@ -19,7 +19,7 @@ describe("ErrorChart", () => {
 
     const alert = screen.getByRole("alert");
     expect(alert).toBeInTheDocument();
-    expect(alert).toHaveClass("alert", "alert-danger");
+    expect(alert).toHaveClass("text-danger");
   });
 
   it("shows retry button when onRetry provided", () => {

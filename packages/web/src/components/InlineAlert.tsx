@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { Button } from "./ui/button";
 import { CloseIcon } from "./icons";
+import { Alert } from "./ui/alert";
+import { cn } from "@/lib/utils";
 
 const RETRY_VARIANT = {
   danger: "outline-danger",
@@ -25,10 +27,12 @@ export function InlineAlert({
   className = "",
   children,
 }: InlineAlertProps) {
-  const sizeClasses = size === "sm" ? "py-1 px-2 text-sm" : "";
-
   return (
-    <div className={`alert alert-${variant} ${sizeClasses} ${className}`.trim()} role="alert">
+    <Alert
+      variant={variant}
+      role="alert"
+      className={cn(size === "sm" && "px-2 py-1 text-sm", className)}
+    >
       {children}
       {onDismiss && (
         <Button
@@ -50,6 +54,6 @@ export function InlineAlert({
           </Button>
         </>
       )}
-    </div>
+    </Alert>
   );
 }
