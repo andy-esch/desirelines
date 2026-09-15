@@ -336,6 +336,11 @@
   --page-wash-strength: 1;
   --sport-wash-strength: 1;
   --hero-padding: 0;
+  --hero-ink: var(--color-subtle-text);
+  --hero-title-size: 2.25rem;
+  --hero-title-color: var(--color-body-text);
+  --hero-title-shadow: none;
+  --hero-number-size: 2rem;
   --glass-blur: 12px;
   --glass-blur-sm: 8px;
   --progress-shine: linear-gradient(
@@ -604,6 +609,11 @@
   --page-wash-strength: 1;
   --sport-wash-strength: 1;
   --hero-padding: 0;
+  --hero-ink: var(--color-subtle-text);
+  --hero-title-size: 2.25rem;
+  --hero-title-color: var(--color-body-text);
+  --hero-title-shadow: none;
+  --hero-number-size: 2rem;
   --glass-blur: 12px;
   --glass-blur-sm: 8px;
   --progress-shine: linear-gradient(
@@ -858,6 +868,11 @@
   --page-wash-strength: 0;
   --sport-wash-strength: 0;
   --hero-padding: 36px 32px 86px;
+  --hero-ink: #ffd9f2;
+  --hero-title-size: 3.25rem;
+  --hero-title-color: #ffffff;
+  --hero-title-shadow: 0 0 26px rgba(255, 46, 196, 0.75), 2px 2px 0 #00e5ff;
+  --hero-number-size: 2.375rem;
   --glass-blur: 0;
   --glass-blur-sm: 0;
   --progress-shine: none;
