@@ -18,7 +18,6 @@ import { getSportGradient } from "../constants/sportGradients";
 import { usePublicSportConfig } from "../hooks/usePublicSportConfig";
 import { getSportDisplayName } from "../utils/sportConfig";
 import { DEMO_ROUTE_PREFIX } from "../constants/demoConfig";
-import { Panel } from "./theme/Panel";
 import { PageTitle } from "./theme/PageTitle";
 import { Alert } from "./ui/alert";
 
@@ -266,44 +265,40 @@ export default function SportPageContent({
           )}
 
           <div className="mb-10">
-            <Panel bodyClassName="p-2">
-              <CumulativeMetricsChart
-                year={currentYear}
-                goals={chartGoals}
-                distanceData={chartData}
-                isLoading={isLoading}
-                error={error}
-                showFullYear={showFullYear}
-                onViewChange={setShowFullYear}
-                showAchievements={showAchievements}
-                onAchievementsChange={setShowAchievements}
-                unit={unit}
-                metric={activeMetric}
-                sport={sport}
-                sportConfig={sportConfig}
-                onRetry={onRetry}
-                priorYearData={priorYearData}
-                showPriorYears={showPriorYears}
-                onPriorYearsChange={onPriorYearsChange}
-              />
-            </Panel>
+            <CumulativeMetricsChart
+              year={currentYear}
+              goals={chartGoals}
+              distanceData={chartData}
+              isLoading={isLoading}
+              error={error}
+              showFullYear={showFullYear}
+              onViewChange={setShowFullYear}
+              showAchievements={showAchievements}
+              onAchievementsChange={setShowAchievements}
+              unit={unit}
+              metric={activeMetric}
+              sport={sport}
+              sportConfig={sportConfig}
+              onRetry={onRetry}
+              priorYearData={priorYearData}
+              showPriorYears={showPriorYears}
+              onPriorYearsChange={onPriorYearsChange}
+            />
           </div>
 
           <div className="mb-12">
-            <Panel bodyClassName="p-2">
-              <PacingMetricsChart
-                year={currentYear}
-                goals={chartGoals}
-                distanceData={chartData}
-                isLoading={isLoading}
-                error={error}
-                showFullYear={showFullYear}
-                unit={unit}
-                metric={activeMetric}
-                sport={sport}
-                onRetry={onRetry}
-              />
-            </Panel>
+            <PacingMetricsChart
+              year={currentYear}
+              goals={chartGoals}
+              distanceData={chartData}
+              isLoading={isLoading}
+              error={error}
+              showFullYear={showFullYear}
+              unit={unit}
+              metric={activeMetric}
+              sport={sport}
+              onRetry={onRetry}
+            />
           </div>
         </div>
       </div>

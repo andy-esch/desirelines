@@ -395,6 +395,7 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
       hideHeader={hideHeader}
       onRetry={onRetry}
       headerControls={headerControls}
+      framed
       emptyStateConfig={{ sport, year, unit, message: "No chart data available" }}
       infoTooltip="Y-axis labels show where each line currently sits — your actual progress vs. where goal trajectories are today. This shows the 'race' between your progress and your goals."
     >
