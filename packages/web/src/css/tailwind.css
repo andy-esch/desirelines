@@ -289,7 +289,7 @@
   --label-color: var(--color-muted-text);
   --label-case: none;
   --data-label-case: none;
-  --table-text-size: 1rem;
+  --table-text-size: 1em;
   --stat-value-size: 1.75rem;
   --stat-value-size-wide: 2.5rem;
   --stat-value-shadow: 0 0 20px var(--color-neon-accent-glow);
@@ -397,6 +397,8 @@
 
   /* Tables and lists */
   --th-size: 1em;
+  --th-weight: bold;
+  --th-color: currentColor;
   --th-tracking: normal;
   --th-rule: none;
   --row-rule: none;
@@ -410,6 +412,7 @@
   --track-bg: rgba(0, 0, 0, 0.2);
   --track-border: none;
   --track-fill-height: 20px;
+  --track-fill-glow: 0px;
   --track-radius: 0.25rem;
   --pace-tick-width: 0;
   --pace-tick-height: 0;
@@ -554,7 +557,7 @@
   --label-color: var(--color-muted-text);
   --label-case: none;
   --data-label-case: none;
-  --table-text-size: 1rem;
+  --table-text-size: 1em;
   --stat-value-size: 1.75rem;
   --stat-value-size-wide: 2.5rem;
   --stat-value-shadow: 0 0 20px var(--color-neon-accent-glow);
@@ -662,6 +665,8 @@
 
   /* Tables and lists */
   --th-size: 1em;
+  --th-weight: bold;
+  --th-color: currentColor;
   --th-tracking: normal;
   --th-rule: none;
   --row-rule: none;
@@ -675,6 +680,7 @@
   --track-bg: rgba(0, 0, 0, 0.2);
   --track-border: none;
   --track-fill-height: 20px;
+  --track-fill-glow: 0px;
   --track-radius: 0.25rem;
   --pace-tick-width: 0;
   --pace-tick-height: 0;
@@ -905,6 +911,8 @@
 
   /* Tables and lists */
   --th-size: 0.625rem;
+  --th-weight: 400;
+  --th-color: #8b7bb5;
   --th-tracking: 0.14em;
   --th-rule: 1px dashed rgba(201, 184, 224, 0.25);
   --row-rule: 1px solid rgba(201, 184, 224, 0.08);
@@ -918,6 +926,7 @@
   --track-bg: rgba(255, 255, 255, 0.08);
   --track-border: none;
   --track-fill-height: 6px;
+  --track-fill-glow: 10px;
   --track-radius: 3px;
   --pace-tick-width: 2px;
   --pace-tick-height: 20px;
@@ -1267,6 +1276,7 @@
   .data-table {
     width: 100%;
     border-collapse: collapse;
+    font-size: var(--table-text-size);
     color: var(--color-body-text);
     font-variant-numeric: tabular-nums;
   }
@@ -1276,6 +1286,8 @@
   }
   .data-table thead th {
     font-size: var(--th-size);
+    font-weight: var(--th-weight);
+    color: var(--th-color);
     letter-spacing: var(--th-tracking);
     text-transform: var(--label-case);
     border-bottom: var(--th-rule);

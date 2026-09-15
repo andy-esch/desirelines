@@ -111,6 +111,7 @@ export function Meter({
   const fillStyle: CSSProperties = {
     width: `${pct}%`,
     ...(color ? { backgroundColor: color } : {}),
+    boxShadow: `0 0 var(--track-fill-glow) ${color ?? "var(--color-meter-done)"}`,
   };
   return (
     <div

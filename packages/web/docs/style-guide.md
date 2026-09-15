@@ -175,8 +175,8 @@ slot values.
 | Panels | `--radius`, `--panel-bg`, `-border-width`, `-radius`, `-shadow`, `-shadow-emphasis`, `-padding`, `-header-padding`, `-body-padding`, `-accent-1/2/3`; `--divider-style` | Cards and panels, including the base radius the shadcn scale derives from |
 | Controls | `--control-height`, `-radius`, `-font-size`, `-case`, `-focus-ring`; `--toggle-gap`, `-frame-border-width`, `-frame-border-color`, `-frame-padding`, `-frame-radius`, `-item-border-width`, `-item-radius`, `-item-color`, `-font-size`, `-tracking`, `-case`; `--color-toggle-pressed`; `--button-radius`, `-case`, `-tracking`; `--stepper-gap` | Inputs, selects, toggle groups, buttons and steppers (height and font size are the default size; `sm` and `lg` buttons and caller overrides keep fixed sizes) |
 | Sliders and chips | `--slider-track-height`, `-track-radius`, `-handle-size`, `-handle-radius`, `-handle-border-width`; `--chip-radius`, `-border-strength`, `-hover-strength`, `-dot-radius` | Range sliders and sport chips (strengths are how much sport color mixes in) |
-| Tables | `--th-size`, `--th-tracking`, `--th-rule`, `--row-rule`, `--row-padding`, `--row-hover-bg`, `--missing-value-color`, `--sport-mark-radius` | Table headers, row rules and hover, empty cells, sport marks |
-| Goals and meters | `--track-height`, `-bg`, `-border`, `-fill-height`, `-radius`; `--pace-tick-width`, `-height`; `--meter-segment-width`, `-segment-height`, `--meter-gap`, `--meter-radius`; `--cell-empty-border`, `--cell-radius` | Goal tracks and their pace tick, segmented meters, heatmap cells |
+| Tables | `--th-size`, `--th-weight`, `--th-color`, `--th-tracking`, `--th-rule`, `--row-rule`, `--row-padding`, `--row-hover-bg`, `--missing-value-color`, `--sport-mark-radius` | Table headers, row rules and hover, empty cells, sport marks |
+| Goals and meters | `--track-height`, `-bg`, `-border`, `-fill-height`, `-fill-glow`, `-radius`; `--pace-tick-width`, `-height`; `--meter-segment-width`, `-segment-height`, `--meter-gap`, `--meter-radius`; `--cell-empty-border`, `--cell-radius` | Goal tracks (the fill glows in its own color by `--track-fill-glow`) and their pace tick, segmented meters, heatmap cells |
 | Charts | `--chart-baseline`, `--chart-tick-size`, `--chart-actual-glow`, `--chart-average-dash`, `--chart-bar-radius`, `--chart-bar-gap`, `--chart-hover-column`, `--tooltip-radius` | Chart chrome beyond the color tokens |
 | Map chrome | `--map-chrome-bg`, `-edge`, `-shadow`; `--popup-radius`, `--popup-border` | The routes-map drawers, toggles and route popup |
 
@@ -302,7 +302,8 @@ banner is its `demo` variant. Pass `role="alert"` or `role="status"` where the m
 be announced.
 
 **Tables:** `Table` (cells take `--row-padding`; `hover` highlights rows with `--row-hover-bg`; header
-cells take `--th-size`, `--th-tracking`, `--th-rule` and `--label-case`, and body rows `--row-rule`).
+cells take `--th-size`, `--th-weight`, `--th-color`, `--th-tracking`, `--th-rule` and `--label-case`, body
+rows `--row-rule`, and the table `--table-text-size`).
 A sport in a row is a `SportLabel`; a status or count pill is `Badge` with `size="compact"`.
 
 **shadcn/Base UI primitives** (`src/components/ui/`) take colors from the `@theme inline`
