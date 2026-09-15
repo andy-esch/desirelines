@@ -22,6 +22,13 @@ const buttonVariants = cva(
           "border border-input bg-card text-foreground hover:bg-accent hover:text-accent-foreground",
         ghost: "text-foreground hover:bg-accent hover:text-accent-foreground",
         destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+        // Outlined status buttons: a retry inside an error, a show-sport action, a reset.
+        "outline-danger":
+          "border border-danger bg-transparent text-danger hover:bg-danger hover:text-destructive-foreground",
+        "outline-success":
+          "border border-success bg-transparent text-success hover:bg-success hover:text-bg-body",
+        "outline-warning":
+          "border border-warning bg-transparent text-warning hover:bg-warning hover:text-on-accent",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
