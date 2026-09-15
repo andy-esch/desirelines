@@ -54,7 +54,7 @@ export default function Header({ scrolled = false }: HeaderProps) {
 
   return (
     <header
-      className={`sticky top-0 flex items-center flex-nowrap px-2 py-2 transition-shadow duration-200 ${scrolled ? "shadow-lg" : ""}`}
+      className={`sticky top-0 flex items-center flex-nowrap px-2 py-2 h-(--header-height) [border-bottom:var(--header-border)] transition-shadow duration-200 ${scrolled ? "[box-shadow:var(--header-shadow-scrolled)]" : ""}`}
       style={{
         backgroundColor: "var(--color-header-bg)",
         zIndex: 40,
