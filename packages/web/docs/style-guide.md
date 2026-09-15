@@ -51,10 +51,10 @@ black panel borders with grey muted text, say):
 | --- | --- |
 | `--color-muted-text` / `--color-subtle-text` | Secondary copy; subtle reads one step stronger |
 | `--color-surface-raised` | Cards, popovers and pills lifted off the page ground |
-| `--color-control-bg` / `--color-control-border` (+ `-hover`) | Form fields and outlined controls |
+| `--color-control-border` | Form fields and outlined controls |
 | `--color-divider` | Rules inside a surface |
 | `--color-panel-border` (+ `-hover`) | The outline of a panel or card |
-| `--color-fill-muted` (+ `-hover`) | Neutral fills: secondary buttons, the active toggle |
+| `--color-fill-muted` | Neutral fills: secondary buttons, the active toggle |
 | `--color-intensity-0` | The calendar heatmap's "no activity" cell |
 
 Two groups stay fixed across themes: the header chrome, whose brightest ink
