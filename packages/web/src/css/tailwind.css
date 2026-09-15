@@ -420,6 +420,29 @@
   --map-chrome-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
   --popup-radius: 6px;
   --popup-border: 1px solid var(--color-surface-border);
+
+  /* Theme components (src/components/theme). Legacy renders its old structure, so most of
+     these only take effect in themes whose structure uses them. */
+  --panel-accent-1-ink: var(--color-body-text);
+  --panel-accent-2-ink: var(--color-body-text);
+  --panel-accent-3-ink: var(--color-body-text);
+  --stat-label-size: 0.875rem;
+  --stat-label-tracking: normal;
+  --stat-label-case: none;
+  --stat-sub-size: 0.875em;
+  --stat-sub-color: var(--color-muted-text);
+  --color-meter-done: var(--color-accent-cyan);
+  --color-meter-current: var(--color-accent-magenta);
+  --color-meter-todo: var(--color-surface-hover);
+  --meter-done-glow: none;
+  --meter-current-glow: none;
+  --color-pace-tick: var(--color-body-text);
+  --color-status-good: var(--color-success);
+  --color-status-warn: var(--color-warning);
+  --color-status-bad: var(--color-danger);
+  --status-size: 0.7rem;
+  --status-tracking: normal;
+  --status-case: none;
 }
 
 [data-theme="legacy-light"] {
@@ -642,6 +665,29 @@
   --map-chrome-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
   --popup-radius: 6px;
   --popup-border: 1px solid var(--color-surface-border);
+
+  /* Theme components (src/components/theme). Legacy renders its old structure, so most of
+     these only take effect in themes whose structure uses them. */
+  --panel-accent-1-ink: var(--color-body-text);
+  --panel-accent-2-ink: var(--color-body-text);
+  --panel-accent-3-ink: var(--color-body-text);
+  --stat-label-size: 0.875rem;
+  --stat-label-tracking: normal;
+  --stat-label-case: none;
+  --stat-sub-size: 0.875em;
+  --stat-sub-color: var(--color-muted-text);
+  --color-meter-done: var(--color-accent-cyan);
+  --color-meter-current: var(--color-accent-magenta);
+  --color-meter-todo: var(--color-surface-hover);
+  --meter-done-glow: none;
+  --meter-current-glow: none;
+  --color-pace-tick: var(--color-body-text);
+  --color-status-good: var(--color-success);
+  --color-status-warn: var(--color-warning);
+  --color-status-bad: var(--color-danger);
+  --status-size: 0.7rem;
+  --status-tracking: normal;
+  --status-case: none;
 }
 
 /* ==========================================================================
@@ -1600,6 +1646,17 @@
     );
   }
 } /* end @layer components — Standalone Component Base Styles */
+
+/* Indeterminate Meter: each segment lights in turn (see src/components/theme/Meter.tsx). */
+@keyframes meter-chase {
+  0%,
+  100% {
+    background-color: var(--color-meter-todo);
+  }
+  25% {
+    background-color: var(--color-meter-done);
+  }
+}
 
 /* ==========================================================================
    Routes-map click popover

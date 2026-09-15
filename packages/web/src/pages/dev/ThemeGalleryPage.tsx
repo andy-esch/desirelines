@@ -7,6 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/ca
 import KPICard from "../../components/dashboard/KPICard";
 import SportFilterPills from "../../components/SportFilterPills";
 import { SPORT_COLORS } from "../../utils/sportConfig";
+import { ThemeStructureProvider } from "../../components/theme/ThemeStructureProvider";
+import { Panel } from "../../components/theme/Panel";
+import { SectionLabel } from "../../components/theme/SectionLabel";
+import { Stat, StatRow } from "../../components/theme/Stat";
+import { Meter } from "../../components/theme/Meter";
+import { StatusSymbol, type GoalStatus } from "../../components/theme/StatusSymbol";
 
 /**
  * Dev-only theme gallery: every theme in the list — hidden ones included — rendered side
@@ -140,6 +146,138 @@ function StructureFields({ theme }: { theme: ThemeDefinition }) {
   );
 }
 
+const SAMPLE_STATUSES: [GoalStatus, string][] = [
+  ["ahead", "Ahead"],
+  ["slightly-behind", "Slightly behind"],
+  ["behind", "Behind"],
+  ["achieved", "Achieved"],
+  ["no-activity", "No activity"],
+];
+
+/** Example content for the theme components; the numbers are samples, not real data. */
+function ComponentSamples() {
+  const dayOfYear = 256 / 365;
+  return (
+    <div className="flex flex-col gap-4">
+      <StatRow>
+        <Stat label="Current distance" value="2,175" unit="mi" sub="8.5 mi/day avg" />
+        <Stat label="Conservative" value="62%" sub="1,325 mi to 3,500" accent={2} />
+        <Stat
+          label="Pace to conservative"
+          value="12.0"
+          unit="mi/day"
+          sub="110 days left"
+          accent={3}
+          emphasis
+        />
+      </StatRow>
+      <Panel title="Goal achievability" meta="110 days left" accent={3} emphasis>
+        <div className="flex flex-col gap-3 text-sm">
+          <div className="flex items-center gap-3">
+            <span className="w-28 shrink-0">Conservative</span>
+            <Meter
+              value={0.62}
+              marker={dayOfYear}
+              color={SPORT_COLORS.running}
+              label="Conservative progress"
+              className="grow"
+            />
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="w-28 shrink-0">Stretch</span>
+            <Meter
+              value={0.44}
+              marker={dayOfYear}
+              color={SPORT_COLORS.cycling}
+              label="Stretch progress"
+              className="grow"
+            />
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-2">
+            {SAMPLE_STATUSES.map(([status, label]) => (
+              <StatusSymbol
+                key={status}
+                status={status}
+                label={label}
+                badgeStyle={{ backgroundColor: SPORT_COLORS.hiking }}
+              />
+            ))}
+          </div>
+        </div>
+      </Panel>
+      <Panel title="Year" meta="Day 256 of 365">
+        <div className="flex flex-col gap-3">
+          <Meter value={dayOfYear} segments={12} label="Year progress by month" />
+          <Meter value={dayOfYear} segments={52} label="Year progress by week" />
+          <Meter value={0} segments={8} label="Loading example" indeterminate />
+        </div>
+      </Panel>
+      <div className="flex items-center gap-3">
+        <SectionLabel>Section label</SectionLabel>
+        <Panel className="grow">A panel with no title</Panel>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Every structure the theme components support, drawn with the surrounding theme's
+ * values. Lets retro structures be reviewed before any theme uses them.
+ */
+function StructurePreview() {
+  const base = THEMES[0].structure;
+  const variants: { name: string; structure: ThemeDefinition["structure"] }[] = [
+    { name: "Legacy (card headers, cards, badges, bar with percent)", structure: base },
+    {
+      name: "Labels above, divided stats, filled symbols, tracks, partial month",
+      structure: {
+        ...base,
+        sectionLabelPlacement: "above",
+        statRowStyle: "divided",
+        statusSymbolStyle: "filled",
+        goalTrackStyle: "track",
+        meterPartialCurrent: true,
+      },
+    },
+    {
+      name: "Header bars, boxed stats, outlined symbols, outline tracks",
+      structure: {
+        ...base,
+        sectionLabelPlacement: "header-bar",
+        statRowStyle: "boxed",
+        statusSymbolStyle: "outlined",
+        goalTrackStyle: "outline-track",
+      },
+    },
+  ];
+  return (
+    <section aria-labelledby="structure-preview" className="flex flex-col gap-4">
+      <div>
+        <h2 id="structure-preview" className="text-xl font-display">
+          Structure preview
+        </h2>
+        <p className="text-sm text-muted-text">
+          The same components in each structure a theme can choose, drawn with the page theme&apos;s
+          values.
+        </p>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-3">
+        {variants.map((variant) => (
+          <div
+            key={variant.name}
+            className="flex flex-col gap-3 rounded-lg border border-border p-4 min-w-0"
+          >
+            <h3 className="text-sm font-medium">{variant.name}</h3>
+            <ThemeStructureProvider structure={variant.structure}>
+              <ComponentSamples />
+            </ThemeStructureProvider>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function ThemePanel({ theme }: { theme: ThemeDefinition }) {
   const [sports, setSports] = useState<string[]>(["cycling"]);
   const sportsLabelId = useId();
@@ -224,6 +362,13 @@ function ThemePanel({ theme }: { theme: ThemeDefinition }) {
       </div>
 
       <div className="flex flex-col gap-3">
+        <h3 className="text-sm font-medium">Theme components</h3>
+        <ThemeStructureProvider structure={theme.structure}>
+          <ComponentSamples />
+        </ThemeStructureProvider>
+      </div>
+
+      <div className="flex flex-col gap-3">
         <h3 className="text-sm font-medium">Surfaces</h3>
         <div className="grid gap-3 sm:grid-cols-2">
           <KPICard title="Current Distance" value="2,450 mi" subtitle="8.3 mi / day avg" />
@@ -262,6 +407,7 @@ export default function ThemeGalleryPage() {
           <ThemePanel key={theme.id} theme={theme} />
         ))}
       </div>
+      <StructurePreview />
     </div>
   );
 }
