@@ -9,7 +9,7 @@ export function SectionLabel({ className, ...props }: ComponentPropsWithoutRef<"
   return (
     <span
       className={cn(
-        "text-(length:--label-size) leading-tight tracking-(--label-tracking) text-(color:--label-color) [text-transform:var(--label-case)]",
+        "text-(length:--label-size) leading-tight font-(weight:--label-weight) tracking-(--label-tracking) text-(color:--label-color) [text-transform:var(--label-case)]",
         className
       )}
       {...props}

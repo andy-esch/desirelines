@@ -15,7 +15,7 @@ const alertVariants = cva("rounded-md border px-4 py-3", {
       info: "border-surface-border bg-surface-hover text-body-text",
       // The demo-mode banner is decorative, so it takes the neon accent rather than the
       // interactive one.
-      demo: "border-neon-accent/30 border-l-[3px] border-l-neon-accent bg-neon-accent/8 text-subtle-text",
+      demo: "bg-(--demo-bg) [border:var(--demo-border)] [border-left:var(--demo-rule)] text-subtle-text",
     },
   },
   defaultVariants: { variant: "info" },

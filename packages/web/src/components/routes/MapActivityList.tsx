@@ -100,7 +100,7 @@ export default function MapActivityList({
           onClick={() => setCollapsed((c) => !c)}
           aria-expanded={!collapsed}
           aria-controls="map-activity-list"
-          className="flex items-center gap-1 text-[0.65rem] font-semibold uppercase tracking-wider text-muted-text hover:text-body-text"
+          className="flex items-center gap-1 text-(length:--label-size) font-(weight:--label-weight) tracking-(--label-tracking) [text-transform:var(--label-case)] text-(color:--label-color) hover:text-body-text"
         >
           <span
             className={cn(
