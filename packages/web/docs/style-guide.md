@@ -57,10 +57,14 @@ black panel borders with grey muted text, say):
 | `--color-fill-muted` | Neutral fills: secondary buttons, the active toggle |
 | `--color-intensity-0` | The calendar heatmap's "no activity" cell |
 
-Two groups stay fixed across themes: the header chrome, whose brightest ink
-`--color-header-ink` is used at partial alpha (`text-header-ink/50`, `bg-header-ink/10`),
-and `--color-scrim` / `--color-on-scrim`, the darkening layer for modal backdrops, menu
-shadows and a label drawn over a bright fill (`bg-scrim/50`, `shadow-scrim/40`).
+Each theme also sets the status colors (`--color-success`, `--color-danger`,
+`--color-warning`) and the header chrome (`--color-header-bg`, `-border`, `-text`,
+`-text-muted`, `-accent`). Two tokens stay fixed across themes: the header's brightest ink
+`--color-header-ink`, used at partial alpha (`text-header-ink/50`, `bg-header-ink/10`), and
+`--color-scrim` / `--color-on-scrim`, the darkening layer for modal backdrops, menu shadows and
+a label drawn over a bright fill (`bg-scrim/50`, `shadow-scrim/40`).
+
+**Fonts:** `body` takes the theme's `--font-body`, and `h1` to `h3` take `--font-display`.
 
 **3. Components** consume roles only. **No component may name a raw color value, and no
 component may use Tailwind's built-in palette utilities** (`text-white`, `bg-black/50`,

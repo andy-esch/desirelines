@@ -1,8 +1,8 @@
 import type { ThemeMap } from "./registry";
 
 /**
- * Base-map recolors for the retro themes, for their theme entries' `map` field once those
- * entries exist. Both recolor the stock `dark-v11` style. Every `SPORT_COLORS` entry must
+ * Base-map recolors for the retro themes, used as their theme entries' `map` field. Both
+ * recolor the stock `dark-v11` style. Every `SPORT_COLORS` entry must
  * clear 3:1 against land, park and water (`sportConfig.test.ts`); the tightest is
  * watersports, at about 3.1:1 in both.
  */
