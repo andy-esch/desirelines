@@ -50,7 +50,7 @@ export function Panel({
   const { sectionLabelPlacement } = useThemeStructure();
   const hasHeader = title != null || meta != null || actions != null;
   const actionsNode = actions != null && (
-    <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>
+    <div className="flex min-w-0 flex-wrap items-center gap-2">{actions}</div>
   );
 
   const frame = cn(
@@ -97,7 +97,7 @@ export function Panel({
       <section className={cn(frame, className)} data-placement="header-bar">
         <div
           className={cn(
-            "flex items-center justify-between gap-4 px-3.5 py-2.5 border-b border-solid border-(length:--panel-border-width)",
+            "flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3.5 py-2.5 border-b border-solid border-(length:--panel-border-width)",
             PANEL_ACCENT_BORDER[accent]
           )}
         >
@@ -117,7 +117,8 @@ export function Panel({
       {hasHeader && (
         <div
           className={cn(
-            "flex justify-between gap-4 p-(--panel-header-padding) border-b border-divider",
+            // Wraps so a panel's controls drop below its title on narrow screens.
+            "flex flex-wrap justify-between gap-x-4 gap-y-2 p-(--panel-header-padding) border-b border-divider",
             actions != null ? "items-center" : "items-baseline"
           )}
         >

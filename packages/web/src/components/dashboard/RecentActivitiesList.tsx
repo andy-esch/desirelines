@@ -16,6 +16,7 @@ import { toLocalDateString as toLocal } from "../../utils/dateUtils";
 import { formatActivityDate } from "../../utils/formatActivityDate";
 import { Button } from "../ui/button";
 import { Table } from "../ui/table";
+import { useSportConfig } from "../../hooks/useSportConfig";
 import { SportLabel } from "../theme/SportLabel";
 import { SPORT_COLORS, DEFAULT_SPORT_COLOR, getSportDisplayName } from "../../utils/sportConfig";
 
@@ -105,6 +106,7 @@ export default function RecentActivitiesList({
   pageSize: fallbackPageSize,
 }: RecentActivitiesListProps) {
   const { user } = useAuth();
+  const { sportConfig } = useSportConfig();
   const navigate = useNavigate();
   const [page, setPage] = useState(0);
 
@@ -353,7 +355,7 @@ export default function RecentActivitiesList({
                     style={{ whiteSpace: "nowrap", textTransform: "capitalize" }}
                   >
                     <SportLabel color={SPORT_COLORS[activity.sport] ?? DEFAULT_SPORT_COLOR}>
-                      {getSportDisplayName(activity.sport, null)}
+                      {getSportDisplayName(activity.sport, sportConfig)}
                     </SportLabel>
                   </td>
                   <td

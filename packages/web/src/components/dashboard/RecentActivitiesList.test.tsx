@@ -14,6 +14,7 @@ vi.mock("../../contexts/ThemeContext", async () => {
   return { useTheme: () => ({ theme: THEMES.find((t) => t.id === "legacy-dark") }) };
 });
 vi.mock("../../hooks/useActivities", () => ({ useActivities: vi.fn() }));
+vi.mock("../../hooks/useSportConfig", () => ({ useSportConfig: () => ({ sportConfig: null }) }));
 
 import { useActivities } from "../../hooks/useActivities";
 const mockUseActivities = vi.mocked(useActivities);

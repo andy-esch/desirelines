@@ -46,12 +46,12 @@ function HeroNumber({
   return (
     // The label comes first for assistive tech; the number shows above it.
     <div className="flex flex-col gap-1.5">
-      <dt className="text-[0.625rem] tracking-[0.22em] text-(color:--hero-ink) [text-transform:var(--label-case)]">
+      <dt className="text-(length:--stat-label-size) tracking-(--stat-label-tracking) text-(color:--hero-ink) [text-transform:var(--stat-label-case)]">
         {label}
       </dt>
       <dd
         className={cn(
-          "m-0 order-first font-display font-normal leading-none tabular-nums text-(length:--hero-number-size) [text-shadow:0_0_18px_color-mix(in_srgb,currentColor_60%,transparent)]",
+          "m-0 order-first font-display font-normal leading-none tabular-nums text-(length:--hero-number-size) [text-shadow:0_0_var(--hero-number-glow)_color-mix(in_srgb,currentColor_60%,transparent)]",
           className
         )}
       >
