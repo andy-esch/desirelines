@@ -396,7 +396,7 @@
   --chip-dot-radius: 9999px;
 
   /* Tables and lists */
-  --th-size: 1rem;
+  --th-size: 1em;
   --th-tracking: normal;
   --th-rule: none;
   --row-rule: none;
@@ -661,7 +661,7 @@
   --chip-dot-radius: 9999px;
 
   /* Tables and lists */
-  --th-size: 1rem;
+  --th-size: 1em;
   --th-tracking: normal;
   --th-rule: none;
   --row-rule: none;
@@ -1273,6 +1273,15 @@
   .data-table :is(th, td) {
     padding: var(--row-padding);
     vertical-align: top;
+  }
+  .data-table thead th {
+    font-size: var(--th-size);
+    letter-spacing: var(--th-tracking);
+    text-transform: var(--label-case);
+    border-bottom: var(--th-rule);
+  }
+  .data-table tbody tr {
+    border-bottom: var(--row-rule);
   }
   .data-table[data-hover] tbody tr:hover {
     background-color: var(--row-hover-bg);

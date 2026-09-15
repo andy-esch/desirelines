@@ -304,10 +304,10 @@ export default function ActivityCalendarHeatmap({
   if (isLoading) {
     return (
       <div className={className}>
-        <div className="flex justify-between items-center mb-2">
-          <h2 className="mb-0 text-muted-text">Activity Calendar</h2>
-        </div>
-        <Panel className="h-[120px]" bodyClassName="flex flex-1 items-center justify-center p-2">
+        <Panel
+          title="Activity Calendar"
+          bodyClassName="flex h-[120px] items-center justify-center p-2"
+        >
           <NeonSpinner size="sm" />
         </Panel>
       </div>
@@ -324,46 +324,43 @@ export default function ActivityCalendarHeatmap({
 
   return (
     <div className={className}>
-      <div className="flex justify-between items-center mb-2">
-        <h2 className="mb-0 text-muted-text">
-          Activity Calendar
-          <span className="ms-2 text-sm font-normal">
-            {totalActivities} activities in {rangeLabel}
-          </span>
-        </h2>
-        <div className="flex items-center gap-2">
-          {/* Sport filter toggle */}
-          <ToggleGroup
-            value={[sportFilter]}
-            onValueChange={(values) =>
-              setSportFilter((values[0] as SportFilterMode | undefined) ?? sportFilter)
-            }
-            aria-label="Sport filter"
-            className="p-0.5"
-          >
-            <ToggleGroupItem value="all" className="px-2 py-0.5 text-xs">
-              All
-            </ToggleGroupItem>
-            <ToggleGroupItem
-              value="visible"
-              className="px-2 py-0.5 text-xs"
-              title={`Show only: ${validVisibleSports.join(", ")}`}
+      <Panel
+        title="Activity Calendar"
+        meta={`${totalActivities} activities in ${rangeLabel}`}
+        bodyClassName="flex flex-col overflow-auto p-2"
+        actions={
+          <>
+            {/* Sport filter toggle */}
+            <ToggleGroup
+              value={[sportFilter]}
+              onValueChange={(values) =>
+                setSportFilter((values[0] as SportFilterMode | undefined) ?? sportFilter)
+              }
+              aria-label="Sport filter"
+              className="p-0.5"
             >
-              Visible
-            </ToggleGroupItem>
-          </ToggleGroup>
-          {/* Time range selector */}
-          <StyledSelect
-            className="h-7 w-auto gap-1 px-2 py-0 text-xs"
-            value={timeRange === "trailing12" ? "trailing12" : String(timeRange)}
-            onChange={handleTimeRangeChange}
-            options={timeRangeOptions}
-            aria-label="Select time range"
-          />
-        </div>
-      </div>
-
-      <Panel bodyClassName="flex flex-col overflow-auto p-2">
+              <ToggleGroupItem value="all" className="px-2 py-0.5 text-xs">
+                All
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                value="visible"
+                className="px-2 py-0.5 text-xs"
+                title={`Show only: ${validVisibleSports.join(", ")}`}
+              >
+                Visible
+              </ToggleGroupItem>
+            </ToggleGroup>
+            {/* Time range selector */}
+            <StyledSelect
+              className="h-7 w-auto gap-1 px-2 py-0 text-xs"
+              value={timeRange === "trailing12" ? "trailing12" : String(timeRange)}
+              onChange={handleTimeRangeChange}
+              options={timeRangeOptions}
+              aria-label="Select time range"
+            />
+          </>
+        }
+      >
         <div
           style={{
             display: "inline-block",
@@ -471,7 +468,8 @@ export default function ActivityCalendarHeatmap({
                         width: CELL_SIZE,
                         height: CELL_SIZE,
                         background: color,
-                        borderRadius: 2,
+                        border: count === 0 ? "var(--cell-empty-border)" : undefined,
+                        borderRadius: "var(--cell-radius)",
                         cursor: "default",
                       }}
                     />
@@ -495,7 +493,8 @@ export default function ActivityCalendarHeatmap({
                 width: CELL_SIZE,
                 height: CELL_SIZE,
                 background: color,
-                borderRadius: 2,
+                border: i === 0 ? "var(--cell-empty-border)" : undefined,
+                borderRadius: "var(--cell-radius)",
               }}
             />
           ))}

@@ -9,9 +9,10 @@ vi.mock("../../hooks/useAuth", () => ({ useAuth: () => ({ user: { uid: "u1" } })
 vi.mock("../../hooks/useDashboardGoalData", () => ({
   useDashboardGoalData: () => ({ sportData: [], distanceUnit: "kilometers" }),
 }));
-vi.mock("../../contexts/ThemeContext", () => ({
-  useTheme: () => ({ theme: { id: "legacy-dark" } }),
-}));
+vi.mock("../../contexts/ThemeContext", async () => {
+  const { THEMES } = await import("../../themes/registry");
+  return { useTheme: () => ({ theme: THEMES.find((t) => t.id === "legacy-dark") }) };
+});
 vi.mock("../../hooks/useActivities", () => ({ useActivities: vi.fn() }));
 
 import { useActivities } from "../../hooks/useActivities";

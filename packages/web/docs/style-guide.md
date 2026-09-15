@@ -260,8 +260,10 @@ active theme's `structure`, unless a `ThemeStructureProvider` overrides it for a
 
 | Component | Reads | Notes |
 |---|---|---|
-| `Panel` | `--panel-*`, `sectionLabelPlacement` | Title in a card header, a label above the frame, or a header bar inside it. `accent` picks one of three frame accents; `emphasis` marks the panel that should stand out. |
+| `Panel` | `--panel-*`, `sectionLabelPlacement` | Title in a card header, a label above the frame, or a header bar inside it. `meta` and `actions` (a panel's own controls) share the title row. `accent` picks one of three frame accents; `emphasis` marks the panel that should stand out. |
+| `Section` | `--label-*`, `sectionLabelPlacement` | A heading, meta and actions over content that spans several panels. A single panel takes its title through `Panel`. |
 | `SectionLabel` | `--label-*` | Section and panel labels. |
+| `SportLabel` | `--sport-mark-radius`, `--data-label-case`, `sportMarkStyle` | A sport's name in a row: a glowing dot or swatch before it, or a `SportBadge` (with `badge`) where the theme keeps badges. |
 | `PageTitle` | `--page-title-*`, `--kicker-*`, `--label-case`, `showPageKicker` | A page's `h1`, with an optional kicker line above it where the theme shows kickers. |
 | `Stat`, `StatRow` | `--stat-*`, `--font-display`, `--display-weight`, `statRowStyle` | A row frames its stats as separate cards, one divided panel, or outline boxes. |
 | `Meter` | `--meter-*`, `--color-meter-*`, `--track-*`, `--color-pace-tick`, `meterPartialCurrent`, `goalTrackStyle` | Segmented (months, weeks) or continuous with an optional pace tick. `indeterminate` animates the segments for loading, and stops under reduced motion. |
@@ -299,8 +301,9 @@ active-filter pill. Theme-aware via the decorative tokens; do not add elevation 
 banner is its `demo` variant. Pass `role="alert"` or `role="status"` where the message should
 be announced.
 
-**Tables:** `Table` (cells take `--row-padding`; `hover` highlights rows with `--row-hover-bg`).
-A sport in a row is a `SportBadge`; a status or count pill is `Badge` with `size="compact"`.
+**Tables:** `Table` (cells take `--row-padding`; `hover` highlights rows with `--row-hover-bg`; header
+cells take `--th-size`, `--th-tracking`, `--th-rule` and `--label-case`, and body rows `--row-rule`).
+A sport in a row is a `SportLabel`; a status or count pill is `Badge` with `size="compact"`.
 
 **shadcn/Base UI primitives** (`src/components/ui/`) take colors from the `@theme inline`
 alias block in `tailwind.css` (`bg-card`, `border-input`, `data-[pressed]:bg-primary`) and

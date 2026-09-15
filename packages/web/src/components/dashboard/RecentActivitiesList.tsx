@@ -16,6 +16,8 @@ import { toLocalDateString as toLocal } from "../../utils/dateUtils";
 import { formatActivityDate } from "../../utils/formatActivityDate";
 import { Button } from "../ui/button";
 import { Table } from "../ui/table";
+import { SportLabel } from "../theme/SportLabel";
+import { SPORT_COLORS, DEFAULT_SPORT_COLOR, getSportDisplayName } from "../../utils/sportConfig";
 
 /** Height of the thead row in px */
 const HEADER_HEIGHT = 22;
@@ -264,8 +266,9 @@ export default function RecentActivitiesList({
               <th
                 className="text-right px-1 py-0 text-muted-text font-normal align-middle"
                 style={{ fontSize: "0.7rem" }}
+                title="Share of the sport's goal"
               >
-                Goal Impact
+                Impact
               </th>
               <th
                 className="text-right px-1 py-0 text-muted-text font-normal align-middle"
@@ -349,7 +352,9 @@ export default function RecentActivitiesList({
                     className="text-muted-text text-left px-1 py-0 align-middle"
                     style={{ whiteSpace: "nowrap", textTransform: "capitalize" }}
                   >
-                    {activity.sport}
+                    <SportLabel color={SPORT_COLORS[activity.sport] ?? DEFAULT_SPORT_COLOR}>
+                      {getSportDisplayName(activity.sport, null)}
+                    </SportLabel>
                   </td>
                   <td
                     className={`${impactPct == null ? "text-muted-text " : ""}text-end px-1 py-0 align-middle`}

@@ -13,6 +13,7 @@ import { PageLayout } from "../components/layout/PageLayout";
 import type { TuningParams } from "../utils/demoDataGenerator";
 import type { TimeRange } from "../utils/dataNormalization";
 import { Alert } from "../components/ui/alert";
+import { Section } from "../components/theme/Section";
 
 /**
  * Dashboard landing page showing multi-sport overview.
@@ -77,21 +78,21 @@ export default function Dashboard() {
           </p>
         </div>
 
-        {/* Recent Activity Header with Time Selector */}
-        <div className="flex justify-between items-center mb-3">
-          <h2 className="mb-0">Recent Activity</h2>
-          <TimeRangeSelector value={timeRange} onChange={setTimeRange} />
-        </div>
-
-        {/* Main Activity Row: Chart + List */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <ChartErrorBoundary>
-            <MultiSportSparklineChart timeRange={timeRange} tuningParams={tuningParams} />
-          </ChartErrorBoundary>
-          <ChartErrorBoundary>
-            <RecentActivitiesListCard timeRange={timeRange} />
-          </ChartErrorBoundary>
-        </div>
+        {/* Recent activity: chart + list under one time range */}
+        <Section
+          title="Recent Activity"
+          actions={<TimeRangeSelector value={timeRange} onChange={setTimeRange} />}
+          className="mb-8"
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <ChartErrorBoundary>
+              <MultiSportSparklineChart timeRange={timeRange} tuningParams={tuningParams} />
+            </ChartErrorBoundary>
+            <ChartErrorBoundary>
+              <RecentActivitiesListCard timeRange={timeRange} />
+            </ChartErrorBoundary>
+          </div>
+        </Section>
 
         {/* Weekly Summary + Goal Progress row */}
         <div className="grid grid-cols-1 @md:grid-cols-2 gap-6 mb-8">
