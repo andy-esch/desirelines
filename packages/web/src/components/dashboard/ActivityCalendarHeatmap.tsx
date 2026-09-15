@@ -6,6 +6,7 @@ import { useSportConfig } from "../../hooks/useSportConfig";
 import { filterValidSports } from "../../utils/sportConfig";
 import { toLocalDateString } from "../../utils/dateUtils";
 import NeonSpinner from "../NeonSpinner";
+import StyledSelect from "../StyledSelect";
 import type { TuningParams } from "../../utils/demoDataGenerator";
 
 interface ActivityCalendarHeatmapProps {
@@ -211,7 +212,13 @@ export default function ActivityCalendarHeatmap({
   const [timeRange, setTimeRange] = useState<TimeRangeOption>("trailing12");
   const [sportFilter, setSportFilter] = useState<SportFilterMode>("all");
   const currentYear = useCurrentYear();
-  const yearOptions = useMemo(() => getYearOptions(currentYear), [currentYear]);
+  const timeRangeOptions = useMemo(
+    () => [
+      { value: "trailing12", label: "Past 12 months" },
+      ...getYearOptions(currentYear).map((year) => ({ value: String(year), label: String(year) })),
+    ],
+    [currentYear]
+  );
 
   // Get user's visible sports and sport config
   const { visibleSports, isLoading: prefsLoading } = useVisibleSports();
@@ -284,8 +291,7 @@ export default function ActivityCalendarHeatmap({
   const rangeLabel = timeRange === "trailing12" ? "past 12 months" : String(timeRange);
 
   // Dropdown handler
-  const handleTimeRangeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value;
+  const handleTimeRangeChange = (value: string) => {
     if (value === "trailing12") {
       setTimeRange("trailing12");
     } else {
@@ -347,20 +353,13 @@ export default function ActivityCalendarHeatmap({
             </button>
           </div>
           {/* Time range selector */}
-          <select
-            className="form-select form-select-sm"
-            style={{ width: "auto", fontSize: "0.75rem" }}
+          <StyledSelect
+            className="h-7 w-auto gap-1 px-2 py-0 text-xs"
             value={timeRange === "trailing12" ? "trailing12" : String(timeRange)}
             onChange={handleTimeRangeChange}
+            options={timeRangeOptions}
             aria-label="Select time range"
-          >
-            <option value="trailing12">Past 12 months</option>
-            {yearOptions.map((year) => (
-              <option key={year} value={year}>
-                {year}
-              </option>
-            ))}
-          </select>
+          />
         </div>
       </div>
 

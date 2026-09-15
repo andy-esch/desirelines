@@ -41,15 +41,15 @@ function Slider({
       {...props}
     >
       <BaseSlider.Control className="flex w-full items-center py-2">
-        <BaseSlider.Track className="relative h-1.5 w-full rounded-full bg-muted">
-          <BaseSlider.Indicator className="rounded-full bg-primary" />
+        <BaseSlider.Track className="relative h-(--slider-track-height) w-full rounded-(--slider-track-radius) bg-muted">
+          <BaseSlider.Indicator className="rounded-(--slider-track-radius) bg-primary" />
           {thumbValues.map((_, i) => (
             <BaseSlider.Thumb
               key={i}
               index={i}
               getAriaValueText={getAriaValueText}
               className={cn(
-                "size-4 rounded-full border border-primary bg-card shadow-sm outline-none",
+                "size-(--slider-handle-size) rounded-(--slider-handle-radius) border-(length:--slider-handle-border-width) border-primary bg-card shadow-sm outline-none",
                 "transition-colors focus-visible:ring-2 focus-visible:ring-ring/40",
                 "data-[dragging]:border-primary data-[disabled]:opacity-50"
               )}

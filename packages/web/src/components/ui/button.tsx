@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
  */
 const buttonVariants = cva(
   cn(
-    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium",
+    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-(--button-radius) text-(length:--control-font-size) leading-[calc(1.25/0.875)] font-medium tracking-(--button-tracking) [text-transform:var(--button-case)]",
     "transition-colors outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40",
     "disabled:pointer-events-none disabled:opacity-50"
   ),
@@ -25,10 +25,10 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-9 px-4 py-2",
-        sm: "h-8 rounded-md px-3 text-xs",
-        lg: "h-10 rounded-md px-6",
-        icon: "h-9 w-9",
+        default: "h-(--control-height) px-4 py-2",
+        sm: "h-8 px-3 text-xs",
+        lg: "h-10 px-6",
+        icon: "h-(--control-height) w-(--control-height)",
       },
     },
     defaultVariants: { variant: "default", size: "default" },

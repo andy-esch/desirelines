@@ -167,8 +167,8 @@ slot values.
 | Header | `--header-height`, `-border`, `-shadow-scrolled`; `--nav-size`, `-tracking`, `-case`, `-active-bg`, `-active-radius`, `-active-underline`, `-active-shadow`; `--avatar-radius`, `-border`, `-glow`; `--demo-rule` | The top bar, nav items, avatar and the demo banner's rule |
 | Backgrounds | `--page-wash-strength`, `--sport-wash-strength`, `--hero-padding`, `--glass-blur`, `--glass-blur-sm`, `--progress-shine` | Page and sport gradient strength (0 turns a wash off), hero padding, frosted-glass blur for map chrome and for small floating pills (0 makes them solid), progress-bar shine |
 | Panels | `--radius`, `--panel-bg`, `-border-width`, `-radius`, `-shadow`, `-shadow-emphasis`, `-padding`, `-header-padding`, `-body-padding`, `-accent-1/2/3`; `--divider-style` | Cards and panels, including the base radius the shadcn scale derives from |
-| Controls | `--control-height`, `-radius`, `-font-size`, `-case`, `-focus-ring`; `--toggle-gap`, `-frame-border`, `-frame-padding`, `-frame-radius`, `-frame-bg`, `-item-border`, `-item-radius`, `-font-size`, `-tracking`, `-case`, `-active-shadow`; `--button-radius`, `-case`, `-tracking`; `--stepper-gap` | Inputs, selects, toggle groups, buttons and steppers |
-| Sliders and chips | `--slider-track-height`, `-track-radius`, `-handle-size`, `-handle-radius`, `-handle-border`; `--chip-radius`, `-border-strength`, `-hover-strength`, `-dot-radius` | Range sliders and sport chips (strengths are how much sport color mixes in) |
+| Controls | `--control-height`, `-radius`, `-font-size`, `-case`, `-focus-ring`; `--toggle-gap`, `-frame-border-width`, `-frame-padding`, `-frame-radius`, `-item-border-width`, `-item-radius`, `-font-size`, `-tracking`, `-case`; `--button-radius`, `-case`, `-tracking`; `--stepper-gap` | Inputs, selects, toggle groups, buttons and steppers (height and font size are the default size; `sm` and `lg` buttons and caller overrides keep fixed sizes) |
+| Sliders and chips | `--slider-track-height`, `-track-radius`, `-handle-size`, `-handle-radius`, `-handle-border-width`; `--chip-radius`, `-border-strength`, `-hover-strength`, `-dot-radius` | Range sliders and sport chips (strengths are how much sport color mixes in) |
 | Tables | `--th-size`, `--th-tracking`, `--th-rule`, `--row-rule`, `--row-padding`, `--row-hover-bg`, `--missing-value-color`, `--sport-mark-radius` | Table headers, row rules and hover, empty cells, sport marks |
 | Goals and meters | `--track-height`, `-bg`, `-border`, `-fill-height`, `-radius`; `--pace-tick-width`, `-height`; `--meter-segment-width`, `-segment-height`, `--meter-gap`, `--meter-radius`; `--cell-empty-border`, `--cell-radius` | Goal tracks and their pace tick, segmented meters, heatmap cells |
 | Charts | `--chart-baseline`, `--chart-tick-size`, `--chart-actual-glow`, `--chart-average-dash`, `--chart-bar-radius`, `--chart-bar-gap`, `--chart-hover-column`, `--tooltip-radius` | Chart chrome beyond the color tokens |
@@ -287,9 +287,29 @@ active-filter pill. Theme-aware via the decorative tokens; do not add elevation 
 
 **Demo banner:** `.alert-demo`.
 
-**shadcn/Base UI primitives** ship modern-neutral and are themed onto our tokens via the
-`@theme inline` alias block in `tailwind.css`. New primitives need that mapping, not their
-own palette.
+**shadcn/Base UI primitives** (`src/components/ui/`) take colors from the `@theme inline`
+alias block in `tailwind.css` (`bg-card`, `border-input`, `data-[pressed]:bg-primary`) and
+geometry and type from the control slots: `Button`, `Input`, `SelectTrigger` and the
+`Combobox` chips box read `--control-height`, `--control-radius` (`--button-radius` for
+buttons) and `--control-font-size`; `ToggleGroup` reads `--toggle-*`; `Slider` reads
+`--slider-*`. New primitives follow the same split. Two things to watch:
+
+- Keep color in utilities, not slots. A slot whose value is `var(--color-…)` resolves where
+  the theme block defines it, so a subtree that remaps a color token (the routes-map chrome
+  does) never sees the remap. Slots hold widths, sizes, radii and case; the color stays a
+  utility on the element.
+- Don't style pressed or selected states with `box-shadow`. The focus ring is a
+  `box-shadow` (`ring-*`), so a pressed shadow hides the ring on the focused item. Use
+  background, border or text color for pressed states.
+- Popups render in a portal on `<body>`. Select, combobox, popover and tooltip content sits
+  outside the drawer or `data-theme` subtree that opened it, so a token remap on that
+  subtree (`MAP_CHROME_STYLE`, the gallery's theme panels) doesn't reach the popup. Apply
+  the remap to the popup as well where it matters.
+- Raise `--control-height` along with `--control-font-size`. The primitives keep text-sm's
+  line-height ratio, so larger control text needs a taller control.
+
+**Selects:** `StyledSelect` (options list plus `onChange`) or the `Select` primitives. There
+is no native `<select>` styling; don't reintroduce `.form-select`.
 
 ## Neon treatments
 
