@@ -54,10 +54,15 @@ interface ChartContainerProps {
   framed?: boolean | undefined;
 }
 
-/** The "?" badge that explains a chart, next to its title. */
+/**
+ * The "?" badge that explains a chart, next to its title. Its explanation is a hover title
+ * only, so the glyph stays out of the accessibility tree rather than reading as part of a
+ * heading ("Cumulative Distance ?").
+ */
 function InfoBadge({ text }: { text: string }) {
   return (
     <span
+      aria-hidden="true"
       style={{
         cursor: "help",
         color: "var(--color-muted-text)",
