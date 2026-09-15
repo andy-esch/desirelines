@@ -90,7 +90,7 @@ export default function Sidebar({
   return (
     <>
       {/* Desktop: sticky sidebar */}
-      <div className="sidebar glass-panel-flush hidden md:block md:w-60 shrink-0">
+      <div className="sidebar hidden md:block md:w-60 shrink-0 border-e border-surface-border">
         <div className="flex flex-col p-0 pt-4 overflow-y-auto h-full">{sidebarContent}</div>
       </div>
 

@@ -1,4 +1,5 @@
 import Skeleton from "./Skeleton";
+import { Panel } from "./theme/Panel";
 
 /**
  * Full-page loading state for lazy-loaded routes.
@@ -16,18 +17,18 @@ export default function PageLoader() {
       {/* Content area placeholders */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         {[0, 1, 2].map((i) => (
-          <div key={i} className="glass-panel-kpi p-4">
+          <Panel key={i} bodyClassName="p-4">
             <Skeleton width={80} height={12} />
             <div className="mt-2">
               <Skeleton width={120} height={32} />
             </div>
-          </div>
+          </Panel>
         ))}
       </div>
 
-      <div className="glass-panel p-4">
+      <Panel bodyClassName="p-4">
         <Skeleton width="100%" height={300} borderRadius={8} />
-      </div>
+      </Panel>
     </div>
   );
 }

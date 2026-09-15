@@ -4,6 +4,7 @@ import { formatMetricDisplayValue, formatHoursMinutes } from "../../utils/units"
 import { tint } from "../../utils/colorTokens";
 import Skeleton from "../Skeleton";
 import { StatusSymbol, type GoalStatus } from "../theme/StatusSymbol";
+import { Panel } from "../theme/Panel";
 
 /**
  * Compact card showing this-week totals per sport with prorated weekly goal %.
@@ -18,11 +19,11 @@ export default function WeeklySummaryCard() {
 
   if (error) {
     return (
-      <div className="glass-panel h-full">
+      <Panel className="h-full" bodyClassName="p-2">
         <div className="text-center text-muted-text py-6">
           <small>Unable to load weekly summary</small>
         </div>
-      </div>
+      </Panel>
     );
   }
 
@@ -41,7 +42,7 @@ export default function WeeklySummaryCard() {
   const distanceUnit = distanceSports[0]?.metricUnit ?? "mi";
 
   return (
-    <div className="glass-panel h-full">
+    <Panel className="h-full" bodyClassName="p-2">
       <div className="flex justify-between items-center mb-2">
         <h6 className="mb-0 text-muted-text">This Week</h6>
         <small className="text-muted-text">{weekLabel}</small>
@@ -137,7 +138,7 @@ export default function WeeklySummaryCard() {
           </div>
         </>
       )}
-    </div>
+    </Panel>
   );
 }
 
