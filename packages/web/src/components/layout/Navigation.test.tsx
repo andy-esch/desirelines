@@ -46,18 +46,21 @@ describe("Navigation", () => {
 
     it("highlights Dashboard when on root route", async () => {
       await renderNav(<Navigation />, { route: "/" });
-      expect(screen.getByRole("link", { name: "Dashboard" })).toHaveClass("active");
+      expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute(
+        "data-status",
+        "active"
+      );
     });
 
     it("highlights Goals dropdown when on sport route", async () => {
       const currentYear = new Date().getFullYear();
       await renderNav(<Navigation />, { route: `/cycling/${currentYear}` });
-      expect(screen.getByRole("button", { name: /Goals/ })).toHaveClass("active");
+      expect(screen.getByRole("button", { name: /Goals/ })).toHaveAttribute("data-active");
     });
 
     it("does not highlight Goals dropdown when on dashboard", async () => {
       await renderNav(<Navigation />, { route: "/" });
-      expect(screen.getByRole("button", { name: /Goals/ })).not.toHaveClass("active");
+      expect(screen.getByRole("button", { name: /Goals/ })).not.toHaveAttribute("data-active");
     });
 
     // Activities is a dropdown (Routes/Charts/List), shown for everyone incl. demo.
@@ -102,7 +105,7 @@ describe("Navigation", () => {
 
     it("highlights the Activities dropdown when on one of its views", async () => {
       await renderNav(<Navigation />, { route: "/charts" });
-      expect(screen.getByRole("button", { name: /Activities/ })).toHaveClass("active");
+      expect(screen.getByRole("button", { name: /Activities/ })).toHaveAttribute("data-active");
     });
   });
 
@@ -128,7 +131,7 @@ describe("Navigation", () => {
       const currentYear = new Date().getFullYear();
       await renderNav(<Navigation vertical />, { route: `/running/${currentYear}` });
       const runningLinks = screen.getAllByRole("link", { name: /Running/ });
-      expect(runningLinks.find((link) => link.classList.contains("active"))).toBeTruthy();
+      expect(runningLinks.find((link) => link.dataset.status === "active")).toBeTruthy();
     });
 
     it("renders the Activities section with its three views", async () => {

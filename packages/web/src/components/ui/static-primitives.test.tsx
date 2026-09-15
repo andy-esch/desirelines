@@ -5,6 +5,9 @@ import { Button } from "./button";
 import { Badge } from "./badge";
 import { Input } from "./input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "./card";
+import { Alert } from "./alert";
+import { Table } from "./table";
+import { SportBadge } from "../SportBadge";
 
 describe("Button", () => {
   it("renders children and fires onClick", async () => {
@@ -100,5 +103,74 @@ describe("Card", () => {
     expect(screen.getByText("This year")).toBeInTheDocument();
     expect(screen.getByText("1,234 km")).toBeInTheDocument();
     expect(screen.getByText("footer")).toBeInTheDocument();
+  });
+});
+
+describe("Alert", () => {
+  it.each([
+    ["danger", "text-danger"],
+    ["warning", "text-warning"],
+    ["success", "text-success"],
+    ["info", "text-body-text"],
+    ["demo", "text-subtle-text"],
+  ] as const)("tints the %s variant", (variant, text) => {
+    render(
+      <Alert variant={variant} role="alert">
+        Message
+      </Alert>
+    );
+    expect(screen.getByRole("alert")).toHaveClass(text);
+  });
+
+  it("leaves the role to the caller", () => {
+    render(<Alert>Quiet note</Alert>);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
+
+describe("Table", () => {
+  it("marks hover tables so rows highlight", () => {
+    const { container, rerender } = render(
+      <Table hover>
+        <tbody>
+          <tr>
+            <td>Row</td>
+          </tr>
+        </tbody>
+      </Table>
+    );
+    expect(container.querySelector("table")).toHaveAttribute("data-hover");
+    rerender(
+      <Table>
+        <tbody>
+          <tr>
+            <td>Row</td>
+          </tr>
+        </tbody>
+      </Table>
+    );
+    expect(container.querySelector("table")).not.toHaveAttribute("data-hover");
+  });
+});
+
+describe("SportBadge", () => {
+  it("shows the label and carries the sport color for its dot and hairline", () => {
+    render(<SportBadge color="rgb(0, 255, 255)">cycling</SportBadge>);
+    const badge = screen.getByText("cycling");
+    expect(badge.style.getPropertyValue("--sport-color")).toBe("rgb(0, 255, 255)");
+    expect(badge.querySelector('[aria-hidden="true"]')).not.toBeNull();
+  });
+});
+
+describe("Badge compact size", () => {
+  it("draws a small solid pill in the caller's fill", () => {
+    render(
+      <Badge variant="solid" size="compact" style={{ backgroundColor: "rgb(255, 0, 255)" }}>
+        Behind
+      </Badge>
+    );
+    const badge = screen.getByText("Behind");
+    expect(badge).toHaveClass("text-on-accent", "rounded-sm");
+    expect(badge).toHaveStyle({ backgroundColor: "rgb(255, 0, 255)" });
   });
 });

@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Button, buttonVariants } from "./ui/button";
+import { Alert } from "./ui/alert";
 
 type ErrorFallbackVariant = "page" | "inline" | "full";
 
@@ -54,8 +55,8 @@ export function PageErrorFallback({
   // Inline: compact alert for component-level errors
   if (variant === "inline") {
     return (
-      <div className="alert alert-danger" role="alert">
-        <h4 className="alert-heading">{title}</h4>
+      <Alert variant="danger" role="alert">
+        <h4>{title}</h4>
         <p>{error.message}</p>
         {onReset && (
           <>
@@ -65,15 +66,15 @@ export function PageErrorFallback({
             </Button>
           </>
         )}
-      </div>
+      </Alert>
     );
   }
 
   // Page (default): container-width card for route-level errors
   return (
     <div className="container py-12" style={{ maxWidth: "600px" }}>
-      <div className="alert alert-danger" role="alert">
-        <h4 className="alert-heading">{title}</h4>
+      <Alert variant="danger" role="alert">
+        <h4>{title}</h4>
         <p>This page encountered an unexpected error.</p>
         <hr />
         <p className="mb-6">
@@ -93,7 +94,7 @@ export function PageErrorFallback({
             Go to Dashboard
           </Link>
         </div>
-      </div>
+      </Alert>
     </div>
   );
 }

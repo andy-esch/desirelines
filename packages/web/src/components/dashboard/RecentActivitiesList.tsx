@@ -15,6 +15,7 @@ import { useTheme } from "../../contexts/ThemeContext";
 import { toLocalDateString as toLocal } from "../../utils/dateUtils";
 import { formatActivityDate } from "../../utils/formatActivityDate";
 import { Button } from "../ui/button";
+import { Table } from "../ui/table";
 
 /** Height of the thead row in px */
 const HEADER_HEIGHT = 22;
@@ -237,10 +238,7 @@ export default function RecentActivitiesList({
     <div ref={containerRef} className="flex h-full">
       {/* Activities table — horizontally scrollable on narrow viewports */}
       <div className="grow" style={{ overflowX: "auto", minWidth: 0 }}>
-        <table
-          className="table table-sm table-borderless table-dark-transparent mb-0"
-          style={{ fontSize: "0.8rem", lineHeight: 1.2, tableLayout: "fixed", minWidth: 420 }}
-        >
+        <Table style={{ fontSize: "0.8rem", lineHeight: 1.2, tableLayout: "fixed", minWidth: 420 }}>
           <colgroup>
             <col />
             <col style={{ width: 70 }} />
@@ -388,7 +386,7 @@ export default function RecentActivitiesList({
               );
             })}
           </tbody>
-        </table>
+        </Table>
       </div>
 
       {/* Pagination controls - vertically centered */}

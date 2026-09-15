@@ -20,6 +20,7 @@ import {
 } from "../constants/settings";
 import type { Preferences } from "../types/generated/user_config";
 import { Button } from "../components/ui/button";
+import { Panel } from "../components/theme/Panel";
 
 /**
  * Custom 80s-style avatar icon for the settings page
@@ -172,51 +173,47 @@ export default function SettingsPage() {
       )}
 
       {user && (
-        <div className="card mb-8 overflow-hidden neon-backdrop">
-          <div className="card-body p-6 md:p-8">
-            <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
-              <LargeUserAvatar />
+        <Panel className="mb-8 overflow-hidden neon-backdrop" bodyClassName="p-6 md:p-8">
+          <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
+            <LargeUserAvatar />
 
-              <div className="flex-grow text-center md:text-left">
-                <div className="mb-1 text-subtle-text text-sm uppercase tracking-widest font-bold">
-                  Authenticated Athlete
-                </div>
-                <h2 className="mb-2 text-body-text font-display neon-gradient-text">
-                  {displayName}
-                </h2>
-
-                <div className="flex flex-col gap-2 mt-4">
-                  <div className="flex items-center justify-center md:justify-start gap-2 text-muted-text text-sm">
-                    <span className="w-2 h-2 rounded-full bg-success shadow-[0_0_8px_var(--color-success)]"></span>
-                    Connected to Strava
-                  </div>
-
-                  <a
-                    href={`https://www.strava.com/athletes/${user.uid}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center md:justify-start gap-1 text-accent-cyan hover:underline text-sm font-medium"
-                  >
-                    View Strava Profile
-                    <span className="text-xs">↗</span>
-                  </a>
-                </div>
+            <div className="flex-grow text-center md:text-left">
+              <div className="mb-1 text-subtle-text text-sm uppercase tracking-widest font-bold">
+                Authenticated Athlete
               </div>
+              <h2 className="mb-2 text-body-text font-display neon-gradient-text">{displayName}</h2>
 
-              <div className="flex-shrink-0 self-center md:self-start">
-                <Button
-                  type="button"
-                  variant="outline-danger"
-                  size="sm"
-                  onClick={() => void handleSignOut()}
-                  disabled={signingOut}
+              <div className="flex flex-col gap-2 mt-4">
+                <div className="flex items-center justify-center md:justify-start gap-2 text-muted-text text-sm">
+                  <span className="w-2 h-2 rounded-full bg-success shadow-[0_0_8px_var(--color-success)]"></span>
+                  Connected to Strava
+                </div>
+
+                <a
+                  href={`https://www.strava.com/athletes/${user.uid}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center md:justify-start gap-1 text-accent-cyan hover:underline text-sm font-medium"
                 >
-                  {signingOut ? "Signing out..." : "Sign Out"}
-                </Button>
+                  View Strava Profile
+                  <span className="text-xs">↗</span>
+                </a>
               </div>
             </div>
+
+            <div className="flex-shrink-0 self-center md:self-start">
+              <Button
+                type="button"
+                variant="outline-danger"
+                size="sm"
+                onClick={() => void handleSignOut()}
+                disabled={signingOut}
+              >
+                {signingOut ? "Signing out..." : "Sign Out"}
+              </Button>
+            </div>
           </div>
-        </div>
+        </Panel>
       )}
 
       <SettingsSection

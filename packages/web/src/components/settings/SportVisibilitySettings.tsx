@@ -8,6 +8,9 @@ import { InlineAlert } from "../InlineAlert";
 import { logger } from "../../lib/logger";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
+import { Alert } from "../ui/alert";
+import { Table } from "../ui/table";
+import { Badge } from "../ui/badge";
 
 /** Duration to show "Saved" indicator */
 const SAVE_SUCCESS_DURATION = 2000;
@@ -59,7 +62,7 @@ function SportTable({
 
   return (
     <div className="overflow-x-auto">
-      <table className="table table-sm mb-0">
+      <Table>
         <thead>
           <tr>
             <th style={{ width: "130px" }}>Sport</th>
@@ -123,7 +126,7 @@ function SportTable({
             );
           })}
         </tbody>
-      </table>
+      </Table>
     </div>
   );
 }
@@ -328,9 +331,9 @@ export function SportVisibilitySettings() {
   // Error state
   if (configError) {
     return (
-      <div className="alert alert-danger" role="alert">
+      <Alert variant="danger" role="alert">
         Failed to load sport configuration: {configError.message}
-      </div>
+      </Alert>
     );
   }
 
@@ -376,7 +379,9 @@ export function SportVisibilitySettings() {
           >
             <h6 className="mb-2 flex items-center gap-2">
               <span style={{ color: "var(--color-success)" }}>Visible</span>
-              <span className="badge bg-success">{localSelection.size}</span>
+              <Badge variant="solid" size="compact" className="bg-success">
+                {localSelection.size}
+              </Badge>
             </h6>
             <SportTable
               sports={visibleFiltered}
@@ -394,9 +399,9 @@ export function SportVisibilitySettings() {
           >
             <h6 className="mb-2 flex items-center gap-2">
               <span className="text-muted-text">Hidden</span>
-              <span className="badge bg-secondary">
+              <Badge variant="secondary" size="compact">
                 {sportEntries.length - localSelection.size}
-              </span>
+              </Badge>
             </h6>
             <SportTable
               sports={hiddenFiltered}

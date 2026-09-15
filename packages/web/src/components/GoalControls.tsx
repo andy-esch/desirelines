@@ -8,6 +8,7 @@ import { useGoalManager } from "../hooks/useGoalManager";
 import { InlineAlert } from "./InlineAlert";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { Alert } from "./ui/alert";
 
 interface GoalControlsProps {
   goals: Goals;
@@ -99,11 +100,11 @@ const GoalControls: React.FC<GoalControlsProps> = ({
       )}
       {!validation.valid && <InlineAlert size="sm">{validation.error}</InlineAlert>}
 
-      <div className="list-group list-group-flush mb-2">
+      <div className="mb-2 flex flex-col divide-y divide-surface-border border-y border-surface-border">
         {goals.map((goal, index) => (
           <div
             key={goal.id}
-            className="list-group-item px-2 py-2"
+            className="px-2 py-2"
             style={{ borderLeft: `4px solid ${GOAL_COLORS[index % GOAL_COLORS.length]}` }}
           >
             <div className="flex justify-between items-center mb-1">
@@ -188,13 +189,14 @@ const GoalControls: React.FC<GoalControlsProps> = ({
               </Button>
             </div>
             {editingId === goal.id && editValidationError && (
-              <div
+              <Alert
+                variant="danger"
                 id={`goal-error-${goal.id}`}
-                className="alert alert-danger py-1 px-2 text-sm mt-1"
+                className="mt-1 px-2 py-1 text-sm"
                 role="alert"
               >
                 {editValidationError}
-              </div>
+              </Alert>
             )}
           </div>
         ))}

@@ -24,7 +24,7 @@
      grey, which a single shared neutral could not express.
        muted-text / subtle-text   secondary copy; subtle reads one step stronger
        surface-raised             cards, popovers, pills lifted off the page ground
-       control-bg / -border       form fields and outlined controls (+ hover border)
+       control-border             form fields and outlined controls
        divider                    rules inside a surface (e.g. under a card header)
        panel-border               the outline of a panel or card (+ hover)
        fill-muted                 neutral fills: secondary buttons, the active toggle
@@ -33,14 +33,11 @@
   --color-muted-text: #778899;
   --color-subtle-text: #a0aec0;
   --color-surface-raised: #2d3748;
-  --color-control-bg: #2d3748;
   --color-control-border: #4a5568;
-  --color-control-border-hover: #a0aec0;
   --color-divider: #4a5568;
   --color-panel-border: #778899;
   --color-panel-border-hover: #a0aec0;
   --color-fill-muted: #4a5568;
-  --color-fill-muted-hover: #778899;
   --color-intensity-0: #778899;
 
   /* === Accent: Cyan — primary interactive color ===
@@ -51,7 +48,6 @@
      should adapt to the theme references the accent. */
   --color-brand-cyan: #00d4ff;
   --color-accent-cyan: var(--color-brand-cyan);
-  --color-accent-cyan-hover: #00b8e6;
   --color-accent-cyan-glow: rgba(0, 212, 255, 0.15);
   --color-accent-cyan-text: #1a202c;
 
@@ -208,20 +204,16 @@
   --color-muted-text: #778899;
   --color-subtle-text: #a0aec0;
   --color-surface-raised: #2d3748;
-  --color-control-bg: #2d3748;
   --color-control-border: #4a5568;
-  --color-control-border-hover: #a0aec0;
   --color-divider: #4a5568;
   --color-panel-border: #778899;
   --color-panel-border-hover: #a0aec0;
   --color-fill-muted: #4a5568;
-  --color-fill-muted-hover: #778899;
   --color-intensity-0: #778899;
 
   --color-on-accent: #0b1120;
 
   --color-accent-cyan: var(--color-brand-cyan);
-  --color-accent-cyan-hover: #00b8e6;
   --color-accent-cyan-glow: rgba(0, 212, 255, 0.15);
   --color-accent-cyan-text: #1a202c;
 
@@ -449,20 +441,16 @@
   --color-muted-text: #64748b;
   --color-subtle-text: #475569;
   --color-surface-raised: #e2e8f0;
-  --color-control-bg: #e2e8f0;
   --color-control-border: #cbd5e1;
-  --color-control-border-hover: #475569;
   --color-divider: #cbd5e1;
   --color-panel-border: #64748b;
   --color-panel-border-hover: #475569;
   --color-fill-muted: #cbd5e1;
-  --color-fill-muted-hover: #64748b;
   --color-intensity-0: #64748b;
 
   --color-on-accent: #0b1120;
 
   --color-accent-cyan: #0891b2;
-  --color-accent-cyan-hover: #0e7490;
   --color-accent-cyan-glow: rgba(8, 145, 178, 0.15);
   --color-accent-cyan-text: #ffffff;
 
@@ -767,77 +755,6 @@
    ========================================================================== */
 
 @layer components {
-  /* --- Glass Panels: transparent container system --- */
-
-  .glass-panel,
-  .glass-panel-kpi {
-    background: transparent;
-    border: 1px solid var(--color-panel-border);
-    border-radius: 0.625rem;
-    padding: 0.5rem;
-  }
-
-  .glass-panel {
-    transition: border-color 0.2s ease;
-  }
-  .glass-panel:hover {
-    border-color: var(--color-panel-border-hover);
-  }
-
-  .glass-panel-flush {
-    background: transparent;
-    border: none;
-    border-right: 1px solid var(--color-surface-border);
-    border-radius: 0;
-    padding: 0;
-  }
-
-  .glass-panel-kpi {
-    transition: border-color 0.2s ease;
-  }
-  .glass-panel-kpi:hover {
-    border-color: var(--color-panel-border-hover);
-  }
-
-  .glass-panel-kpi h2,
-  .glass-panel-kpi .h2 {
-    font-variant-numeric: tabular-nums;
-  }
-
-  /* KPI card large value display */
-  .kpi-value {
-    font-family: var(--font-display);
-    font-size: 1.75rem;
-    font-weight: 300;
-    font-variant-numeric: tabular-nums;
-    line-height: 1.2;
-    /* Was a fixed 0.15-alpha cyan, which vanished on the light ground. */
-    text-shadow: 0 0 20px var(--color-neon-accent-glow);
-  }
-  @media (min-width: 768px) {
-    .kpi-value {
-      font-size: 2.5rem;
-    }
-  }
-
-  /* --- Progress Bars: NEON gradient shine --- */
-
-  .progress-neon {
-    overflow: visible;
-    background-color: rgba(0, 0, 0, 0.2);
-  }
-  .progress-bar-neon {
-    background-image: linear-gradient(
-      to bottom,
-      rgba(255, 255, 255, 0.3) 0%,
-      rgba(255, 255, 255, 0.1) 45%,
-      transparent 55%,
-      rgba(0, 0, 0, 0.1) 100%
-    );
-    font-weight: 600;
-    text-shadow: 0 0 2px rgba(255, 255, 255, 0.8);
-  }
-
   /* --- Sport marks: light-mode boundary ---
      A neon fill on the light ground can sit at ~1:1 contrast (golf and racket_sports
      are literally invisible), so any mark painted in a sport colour needs a boundary.
@@ -860,37 +777,6 @@
   .pill-neon-dot {
     background-color: var(--color-neon-accent);
     box-shadow: 0 0 6px var(--color-neon-accent);
-  }
-
-  /* --- Demo Mode Banner --- */
-
-  /* Decorative, so it uses the neon accent rather than the muted interactive one — the
-     left rule previously went teal in light while the tint beside it stayed bright cyan. */
-  .alert-demo {
-    background-color: color-mix(in srgb, var(--color-neon-accent) 8%, transparent);
-    border: 1px solid color-mix(in srgb, var(--color-neon-accent) 30%, transparent);
-    border-left: 3px solid var(--color-neon-accent);
-    color: var(--color-subtle-text);
-  }
-
-  /* --- Tables: transparent background --- */
-
-  .table-dark-transparent {
-    background-color: transparent;
-  }
-  .table-dark-transparent tbody tr:hover {
-    background-color: var(--color-surface-hover);
-  }
-  .table-dark-transparent tbody tr.table-row-danger {
-    background-color: rgba(255, 50, 50, 0.08);
-  }
-  .table-dark-transparent tbody tr.table-row-danger:hover {
-    background-color: rgba(255, 50, 50, 0.12);
-  }
-
-  .table td,
-  .table th {
-    font-variant-numeric: tabular-nums;
   }
 }
 
@@ -1077,7 +963,7 @@
 }
 
 /* ==========================================================================
-   Standalone Component Base Styles — replaces Bootstrap component CSS
+   Component base styles: data tables, page transition, reduced motion, header accent
 
    IMPORTANT: These MUST be inside @layer components so that Tailwind
    utilities (hidden, flex, etc.) can override them. Unlayered styles
@@ -1085,239 +971,21 @@
    ========================================================================== */
 
 @layer components {
-  /* --- List Groups: goal control lists --- */
+  /* --- Data tables: the Table component (ui/table.tsx) ---
+     Cell rules sit in this layer so a utility on a th or td still wins. */
 
-  .list-group {
-    display: flex;
-    flex-direction: column;
-    padding: 0;
-    margin: 0;
-    list-style: none;
-  }
-  .list-group-flush > .list-group-item {
-    border-left: 0;
-    border-right: 0;
-    border-radius: 0;
-  }
-  .list-group-item {
-    padding: 0.5rem 0.75rem;
-    background: transparent;
-    border: 1px solid var(--color-surface-border);
-  }
-  .list-group-item + .list-group-item {
-    border-top: 0;
-  }
-
-  /* --- Badges: status pills --- */
-
-  .badge {
-    display: inline-block;
-    padding: 0.2em 0.5em;
-    font-size: 0.7rem;
-    font-weight: 600;
-    line-height: 1;
-    border-radius: 0.25rem;
-    color: #000;
-    white-space: nowrap;
-  }
-  /* --sport-color is set via inline style on the badge element (see ActivityTable.tsx).
-     Same treatment as the sport chips: the neon is a glowing dot + tinted hairline, and
-     the label is a neutral token — as the sport color it sat under 3:1 on the light
-     ground for 14 of the 16 sports. */
-  .badge-sport {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45em;
-    color: var(--color-body-text);
-    background-color: color-mix(in srgb, var(--sport-color) 15%, transparent);
-    border: 1px solid color-mix(in srgb, var(--sport-color) 55%, var(--color-chip-hairline));
-  }
-  .badge-sport::before {
-    content: "";
-    flex: none;
-    width: 0.5em;
-    height: 0.5em;
-    border-radius: 50%;
-    background-color: var(--sport-color);
-    /* Ring first, then the glow — the neon fill needs a boundary on the light ground. */
-    box-shadow:
-      0 0 0 1px var(--color-chart-mark-outline),
-      0 0 7px var(--sport-color),
-      0 0 2px var(--sport-color);
-  }
-
-  /* --- Alerts --- */
-
-  .alert {
-    padding: 0.75rem 1rem;
-    border-radius: 0.375rem;
-    border: 1px solid transparent;
-  }
-  .alert-warning {
-    background-color: color-mix(in srgb, var(--color-warning) 10%, transparent);
-    border-color: color-mix(in srgb, var(--color-warning) 25%, transparent);
-    color: var(--color-warning);
-  }
-  .alert-danger {
-    background-color: color-mix(in srgb, var(--color-danger) 10%, transparent);
-    border-color: color-mix(in srgb, var(--color-danger) 25%, transparent);
-    color: var(--color-danger);
-  }
-  .alert-success {
-    background-color: color-mix(in srgb, var(--color-success) 10%, transparent);
-    border-color: color-mix(in srgb, var(--color-success) 25%, transparent);
-    color: var(--color-success);
-  }
-
-  /* --- Progress bars --- */
-
-  .progress {
-    display: flex;
-    overflow: hidden;
-    background-color: var(--color-surface-hover);
-    border-radius: 0.25rem;
-  }
-  .progress-bar {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    text-align: center;
-    white-space: nowrap;
-    transition: width 0.3s ease;
-  }
-
-  /* --- Tables --- */
-
-  .table {
+  .data-table {
     width: 100%;
-    margin-bottom: 1rem;
-    color: var(--color-body-text);
     border-collapse: collapse;
-  }
-  .table th,
-  .table td {
-    padding: 0.5rem;
-    vertical-align: top;
+    color: var(--color-body-text);
     font-variant-numeric: tabular-nums;
   }
-  .table-sm th,
-  .table-sm td {
-    padding: 0.25rem;
+  .data-table :is(th, td) {
+    padding: var(--row-padding);
+    vertical-align: top;
   }
-  .table-borderless th,
-  .table-borderless td {
-    border: 0;
-  }
-  .table-hover tbody tr:hover {
-    background-color: var(--color-surface-hover);
-  }
-
-  /* --- Cards --- */
-
-  .card {
-    background: transparent;
-    border: 1px solid var(--color-panel-border);
-    border-radius: 0.625rem;
-    transition: border-color 0.2s ease;
-  }
-  .card:hover {
-    border-color: var(--color-panel-border-hover);
-  }
-  .card-header {
-    padding: 0.75rem 1rem;
-    background: transparent;
-    border-bottom: 1px solid var(--color-divider);
-  }
-  .card-body {
-    padding: 1rem;
-    background: transparent;
-  }
-
-  /* --- Navigation --- */
-
-  .nav {
-    display: flex;
-    list-style: none;
-    padding: 0;
-    margin: 0;
-  }
-  .nav-link {
-    display: block;
-    padding: 0.5rem 1rem;
-    color: var(--color-muted-text);
-    text-decoration: none;
-    transition: color 0.15s ease-in-out;
-    font-size: 0.875rem;
-  }
-  .nav-link:hover {
-    color: #fff;
-  }
-
-  /* Compact nav links inside the top header bar — uses header-specific
-     variables that don't change with theme */
-  header .nav-link {
-    padding: 0.25rem 0.625rem;
-    color: var(--color-header-text-muted);
-  }
-  header .nav-link:hover {
-    color: var(--color-header-text-hover);
-  }
-  header .nav-link.active {
-    color: var(--color-header-accent);
-  }
-
-  .nav-pills .nav-link.active,
-  .nav-pills .show > .nav-link {
-    background-color: var(--color-header-border);
-    color: var(--color-header-text-hover);
-    border-radius: 0.25rem;
-  }
-  .nav-pills .nav-link.active:hover {
-    background-color: var(--color-header-text-muted);
-  }
-
-  /* --- Spinner --- */
-
-  .spinner-border {
-    display: inline-block;
-    width: 2rem;
-    height: 2rem;
-    vertical-align: text-bottom;
-    border: 0.25em solid currentColor;
-    border-right-color: transparent;
-    border-radius: 50%;
-    animation: spinner-border 0.75s linear infinite;
-  }
-  .spinner-border-sm {
-    width: 1rem;
-    height: 1rem;
-    border-width: 0.2em;
-  }
-  @keyframes spinner-border {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  /* --- Sidebar --- */
-
-  @media (min-width: 768px) {
-    .sidebar {
-      position: sticky;
-      top: 48px;
-      height: calc(100vh - 48px);
-      overflow-y: auto;
-    }
-  }
-  .sidebar .nav-link {
-    font-size: 0.875rem;
-    font-weight: 500;
-  }
-  .sidebar .nav-link.active {
-    color: var(--color-accent-cyan);
-  }
-  .sidebar-heading {
-    font-size: 0.75rem;
+  .data-table[data-hover] tbody tr:hover {
+    background-color: var(--row-hover-bg);
   }
 
   /* --- Page transition fade-in --- */
@@ -1334,8 +1002,7 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .page-transition,
-    .spinner-border {
+    .page-transition {
       animation: none;
     }
     .react-loading-skeleton::after {
@@ -1364,7 +1031,7 @@
       var(--color-neon-green)
     );
   }
-} /* end @layer components — Standalone Component Base Styles */
+} /* end @layer components: component base styles */
 
 /* Indeterminate Meter: each segment lights in turn (see src/components/theme/Meter.tsx). */
 @keyframes meter-chase {

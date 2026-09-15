@@ -1,4 +1,5 @@
 import Skeleton from "../Skeleton";
+import { Panel } from "../theme/Panel";
 
 /**
  * Skeleton loading screen for sport detail pages.
@@ -15,12 +16,12 @@ export default function SportPageSkeleton() {
       {/* KPI Cards — 3 across */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         {[0, 1, 2].map((i) => (
-          <div key={i} className="glass-panel-kpi p-4">
+          <Panel key={i} bodyClassName="p-4">
             <Skeleton width={80} height={12} />
             <div className="mt-2">
               <Skeleton width={120} height={32} />
             </div>
-          </div>
+          </Panel>
         ))}
       </div>
 
@@ -30,21 +31,21 @@ export default function SportPageSkeleton() {
       </div>
 
       {/* Chart area 1 */}
-      <div className="glass-panel mb-10 p-4">
+      <Panel className="mb-10" bodyClassName="p-4">
         <div className="flex justify-between items-center mb-4">
           <Skeleton width={160} height={16} />
           <Skeleton width={200} height={28} />
         </div>
         <Skeleton width="100%" height={300} borderRadius={8} />
-      </div>
+      </Panel>
 
       {/* Chart area 2 */}
-      <div className="glass-panel mb-12 p-4">
+      <Panel className="mb-12" bodyClassName="p-4">
         <div className="mb-4">
           <Skeleton width={180} height={16} />
         </div>
         <Skeleton width="100%" height={300} borderRadius={8} />
-      </div>
+      </Panel>
     </div>
   );
 }

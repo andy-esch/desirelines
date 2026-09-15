@@ -12,6 +12,7 @@ import ChartErrorBoundary from "../components/charts/ChartErrorBoundary";
 import { PageLayout } from "../components/layout/PageLayout";
 import type { TuningParams } from "../utils/demoDataGenerator";
 import type { TimeRange } from "../utils/dataNormalization";
+import { Alert } from "../components/ui/alert";
 
 /**
  * Dashboard landing page showing multi-sport overview.
@@ -54,13 +55,13 @@ export default function Dashboard() {
     <PageLayout background="dashboard">
       {/* Demo mode banner for unauthenticated users */}
       {!user && (
-        <div className="alert alert-demo mb-0 rounded-none py-3" role="alert">
+        <Alert variant="demo" className="rounded-none py-3" role="alert">
           <div className="px-4 md:px-6">
             <strong className="text-accent-cyan">Demo Mode</strong>
             <span className="mx-2">—</span>
             Viewing generated sample data. <span className="text-sm">Sign-in is invite-only.</span>
           </div>
-        </div>
+        </Alert>
       )}
 
       <div className="px-4 md:px-6 py-6 @container">

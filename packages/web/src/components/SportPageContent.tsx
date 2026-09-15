@@ -18,6 +18,8 @@ import { getSportGradient } from "../constants/sportGradients";
 import { usePublicSportConfig } from "../hooks/usePublicSportConfig";
 import { getSportDisplayName } from "../utils/sportConfig";
 import { DEMO_ROUTE_PREFIX } from "../constants/demoConfig";
+import { Panel } from "./theme/Panel";
+import { Alert } from "./ui/alert";
 
 export interface SportPageContentProps {
   // Core
@@ -180,8 +182,8 @@ export default function SportPageContent({
 
           {/* No data banner - show when viewing current year with no activities */}
           {!isLoading && currentValue === 0 && isCurrentYear && (
-            <div
-              className="alert flex items-center mb-6"
+            <Alert
+              className="mb-6 flex items-center"
               role="alert"
               style={{
                 backgroundColor: "var(--color-accent-cyan-glow)",
@@ -209,7 +211,7 @@ export default function SportPageContent({
                   </Link>
                 )}
               </span>
-            </div>
+            </Alert>
           )}
 
           <KPICards
@@ -257,7 +259,7 @@ export default function SportPageContent({
           )}
 
           <div className="mb-10">
-            <div className="glass-panel">
+            <Panel bodyClassName="p-2">
               <CumulativeMetricsChart
                 year={currentYear}
                 goals={chartGoals}
@@ -277,11 +279,11 @@ export default function SportPageContent({
                 showPriorYears={showPriorYears}
                 onPriorYearsChange={onPriorYearsChange}
               />
-            </div>
+            </Panel>
           </div>
 
           <div className="mb-12">
-            <div className="glass-panel">
+            <Panel bodyClassName="p-2">
               <PacingMetricsChart
                 year={currentYear}
                 goals={chartGoals}
@@ -294,7 +296,7 @@ export default function SportPageContent({
                 sport={sport}
                 onRetry={onRetry}
               />
-            </div>
+            </Panel>
           </div>
         </div>
       </div>

@@ -51,10 +51,10 @@ black panel borders with grey muted text, say):
 | --- | --- |
 | `--color-muted-text` / `--color-subtle-text` | Secondary copy; subtle reads one step stronger |
 | `--color-surface-raised` | Cards, popovers and pills lifted off the page ground |
-| `--color-control-bg` / `--color-control-border` (+ `-hover`) | Form fields and outlined controls |
+| `--color-control-border` | Form fields and outlined controls |
 | `--color-divider` | Rules inside a surface |
 | `--color-panel-border` (+ `-hover`) | The outline of a panel or card |
-| `--color-fill-muted` (+ `-hover`) | Neutral fills: secondary buttons, the active toggle |
+| `--color-fill-muted` | Neutral fills: secondary buttons, the active toggle |
 | `--color-intensity-0` | The calendar heatmap's "no activity" cell |
 
 Two groups stay fixed across themes: the header chrome, whose brightest ink
@@ -280,7 +280,9 @@ mutually exclusive choices (a time range, a sport filter) is a `ToggleGroup`, no
 
 **Focus:** cyan ring via `--color-accent-cyan`.
 
-**Cards / glass panels:** `--color-panel-border` border, `--color-panel-border-hover` on hover.
+**Panels:** frame content with `Panel` (a title, when there is one, goes in the `title` prop so
+the theme can place it) and big numbers with `Stat`. Both draw their frame from the `--panel-*`
+slots, which carry the panel border and its hover color.
 
 **Neon pills:** `.pill-neon` + `.pill-neon-dot` — the map deep-link pill and the
 active-filter pill. Theme-aware via the decorative tokens; do not add elevation utilities
@@ -288,7 +290,12 @@ active-filter pill. Theme-aware via the decorative tokens; do not add elevation 
 
 **Sport chips:** `sportChipClass` + `<SportChipDot />` from `src/components/sportChip.tsx`.
 
-**Demo banner:** `.alert-demo`.
+**Messages:** `Alert` with a `danger`, `warning`, `success` or `info` variant; the demo-mode
+banner is its `demo` variant. Pass `role="alert"` or `role="status"` where the message should
+be announced.
+
+**Tables:** `Table` (cells take `--row-padding`; `hover` highlights rows with `--row-hover-bg`).
+A sport in a row is a `SportBadge`; a status or count pill is `Badge` with `size="compact"`.
 
 **shadcn/Base UI primitives** (`src/components/ui/`) take colors from the `@theme inline`
 alias block in `tailwind.css` (`bg-card`, `border-input`, `data-[pressed]:bg-primary`) and
