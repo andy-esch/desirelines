@@ -9,6 +9,8 @@ import { Stat, StatRow } from "./Stat";
 import { Meter } from "./Meter";
 import { StatusSymbol } from "./StatusSymbol";
 import { PageTitle } from "./PageTitle";
+import { Section } from "./Section";
+import { SportLabel } from "./SportLabel";
 
 const LEGACY = THEMES[0].structure;
 
@@ -72,6 +74,61 @@ describe("Panel", () => {
   it("renders no header without a title or meta", () => {
     const { container } = render(<Panel>body</Panel>);
     expect(container.querySelector("section")).toHaveAttribute("data-placement", "none");
+  });
+
+  it.each(["card-header", "above", "header-bar"] as const)(
+    "keeps actions in the title row outside the body for the %s placement",
+    (placement) => {
+      withStructure(
+        { sectionLabelPlacement: placement },
+        <Panel title="Activity calendar" meta="227 activities" actions={<button>All</button>}>
+          body
+        </Panel>
+      );
+      const button = screen.getByRole("button", { name: "All" });
+      const body = screen.getByText("body");
+      expect(body).not.toContainElement(button);
+      expect(screen.getByText("227 activities")).toBeInTheDocument();
+    }
+  );
+});
+
+describe("Section", () => {
+  it("titles the section with a heading and shows its actions", () => {
+    render(
+      <Section title="Recent activity" actions={<button>2W</button>}>
+        <p>content</p>
+      </Section>
+    );
+    expect(screen.getByRole("heading", { level: 2, name: "Recent activity" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "2W" })).toBeInTheDocument();
+  });
+
+  it("keeps the heading for label placements, with the meta inside it", () => {
+    withStructure(
+      { sectionLabelPlacement: "above" },
+      <Section title="Activity calendar" meta="227 activities">
+        <p>content</p>
+      </Section>
+    );
+    const heading = screen.getByRole("heading", { level: 2, name: /Activity calendar/ });
+    expect(heading).toContainElement(screen.getByText("227 activities"));
+  });
+});
+
+describe("SportLabel", () => {
+  it("shows the plain name where the theme uses badges and no badge is asked for", () => {
+    const { container } = render(<SportLabel color="#ff00ff">Cycling</SportLabel>);
+    expect(screen.getByText("Cycling")).toBeInTheDocument();
+    expect(container.querySelector("[data-mark]")).not.toBeInTheDocument();
+  });
+
+  it.each(["dot", "swatch"] as const)("marks the name with a %s", (style) => {
+    const { container } = withStructure(
+      { sportMarkStyle: style },
+      <SportLabel color="#ff00ff">Cycling</SportLabel>
+    );
+    expect(container.querySelector(`[data-mark="${style}"]`)).toHaveTextContent("Cycling");
   });
 });
 
