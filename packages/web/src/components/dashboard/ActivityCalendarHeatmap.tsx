@@ -5,6 +5,7 @@ import { useVisibleSports } from "../../hooks/useVisibleSports";
 import { useSportConfig } from "../../hooks/useSportConfig";
 import { filterValidSports } from "../../utils/sportConfig";
 import { toLocalDateString } from "../../utils/dateUtils";
+import { getCalendarRange, type TimeRangeOption } from "../../utils/calendarRange";
 import NeonSpinner from "../NeonSpinner";
 import StyledSelect from "../StyledSelect";
 import type { TuningParams } from "../../utils/demoDataGenerator";
@@ -17,7 +18,6 @@ interface ActivityCalendarHeatmapProps {
 }
 
 /** Time range option for the heatmap */
-type TimeRangeOption = "trailing12" | number; // "trailing12" or a specific year
 
 /** Sport filter mode for the heatmap */
 type SportFilterMode = "all" | "visible";
@@ -155,42 +155,6 @@ function getMonthLabels(
 }
 
 /**
- * Calculate date range for a time range option.
- * For specific years, always returns full year (Jan 1 - Dec 31) for stable layout.
- * Data beyond today will just show as 0 activities.
- */
-function getDateRange(option: TimeRangeOption): {
-  startDate: Date;
-  endDate: Date;
-  from: string;
-  to: string;
-} {
-  const today = new Date();
-  let startDate: Date;
-  let endDate: Date;
-
-  if (option === "trailing12") {
-    // Trailing 12 months from today
-    endDate = today;
-    startDate = new Date(today);
-    startDate.setFullYear(startDate.getFullYear() - 1);
-    startDate.setDate(startDate.getDate() + 1); // Start day after same date last year
-  } else {
-    // Specific year - always show full year for stable layout
-    const year = option;
-    startDate = new Date(year, 0, 1);
-    endDate = new Date(year, 11, 31);
-  }
-
-  return {
-    startDate,
-    endDate,
-    from: toLocalDateString(startDate),
-    to: toLocalDateString(endDate),
-  };
-}
-
-/**
  * Get available year options for the dropdown.
  * Returns current year back to 2020 (or earlier if needed).
  */
@@ -242,7 +206,7 @@ export default function ActivityCalendarHeatmap({
   const activeSports = sportFilter === "all" ? allSports : validVisibleSports;
 
   // Calculate date range based on selected option
-  const { startDate, endDate, from, to } = useMemo(() => getDateRange(timeRange), [timeRange]);
+  const { startDate, endDate, from, to } = useMemo(() => getCalendarRange(timeRange), [timeRange]);
 
   // Fetch daily data for selected sports
   // Note: year param is used for URL path, but from/to params filter the actual data
