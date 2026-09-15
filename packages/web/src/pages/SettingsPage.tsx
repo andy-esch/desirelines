@@ -63,7 +63,6 @@ interface PreferenceSelectProps {
   field: keyof Preferences;
   options: readonly { value: string; label: string }[];
   width: string;
-  disabled: boolean;
   onPreferenceChange: (field: keyof Preferences, value: string | number) => Promise<void>;
 }
 
@@ -77,7 +76,6 @@ function PreferenceSelect({
   field,
   options,
   width,
-  disabled,
   onPreferenceChange,
 }: PreferenceSelectProps) {
   return (
@@ -86,7 +84,6 @@ function PreferenceSelect({
       value={value}
       onChange={(v) => void onPreferenceChange(field, v)}
       options={options}
-      disabled={disabled}
       aria-describedby={descriptionId}
       style={{ width }}
     />
@@ -233,7 +230,6 @@ export default function SettingsPage() {
               field="distanceUnit"
               options={DISTANCE_UNIT_OPTIONS}
               width="150px"
-              disabled={isSaving}
               onPreferenceChange={handlePreferenceChange}
             />
           )}
@@ -248,7 +244,6 @@ export default function SettingsPage() {
               field="elevationUnit"
               options={ELEVATION_UNIT_OPTIONS}
               width="150px"
-              disabled={isSaving}
               onPreferenceChange={handlePreferenceChange}
             />
           )}
@@ -263,7 +258,6 @@ export default function SettingsPage() {
               field="timezone"
               options={COMMON_TIMEZONES}
               width="200px"
-              disabled={isSaving}
               onPreferenceChange={handlePreferenceChange}
             />
           )}
@@ -282,7 +276,11 @@ export default function SettingsPage() {
         <GoalManagementTable />
       </SettingsSection>
 
-      {isSaving && <div className="text-muted-text text-sm text-right">Saving...</div>}
+      {/* The dropdowns stay enabled while saving: disabling the focused one would drop
+          keyboard focus to the page. */}
+      <div role="status" className="text-muted-text text-sm text-right">
+        {isSaving ? "Saving..." : ""}
+      </div>
     </NarrowPageLayout>
   );
 }

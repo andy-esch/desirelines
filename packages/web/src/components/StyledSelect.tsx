@@ -7,6 +7,14 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 
+/**
+ * Base UI treats `""` as no selection and marks the trigger as a placeholder, so an option
+ * whose value is `""` (e.g. "Browser Default") uses this stand-in inside the select.
+ */
+const EMPTY_VALUE = "__styled-select-empty__";
+const toSelectValue = (value: string) => (value === "" ? EMPTY_VALUE : value);
+const fromSelectValue = (value: string) => (value === EMPTY_VALUE ? "" : value);
+
 interface SelectOption {
   value: string;
   label: string;
@@ -48,7 +56,11 @@ export default function StyledSelect({
   style,
 }: StyledSelectProps) {
   return (
-    <Select value={value} onValueChange={(v) => onChange(v as string)} disabled={disabled}>
+    <Select
+      value={toSelectValue(value)}
+      onValueChange={(v) => onChange(fromSelectValue(v as string))}
+      disabled={disabled}
+    >
       <SelectTrigger
         id={id}
         aria-labelledby={ariaLabelledBy}
@@ -58,12 +70,15 @@ export default function StyledSelect({
         style={style}
       >
         <SelectValue>
-          {(val) => options.find((o) => o.value === val)?.label ?? (val == null ? "" : String(val))}
+          {(val) =>
+            options.find((o) => toSelectValue(o.value) === val)?.label ??
+            (val == null ? "" : String(val))
+          }
         </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {options.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
+          <SelectItem key={option.value} value={toSelectValue(option.value)}>
             {option.label}
           </SelectItem>
         ))}

@@ -3,6 +3,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import SettingsPage from "./SettingsPage";
 import { renderWithRouter } from "../test/renderWithRouter";
+import { DEFAULT_PREFERENCES } from "../constants/settings";
 
 // Mock hooks
 vi.mock("../hooks/useAuth", () => ({
@@ -227,6 +228,115 @@ describe("SettingsPage", () => {
         expect.objectContaining({ distanceUnit: "kilometers" })
       )
     );
+  });
+
+  it("switches the timezone back to the browser default, whose option value is empty", async () => {
+    const user = userEvent.setup();
+    const updateData = vi.fn().mockResolvedValue(undefined);
+    mockUseAuth.mockReturnValue({
+      user: null,
+      loading: false,
+      error: null,
+      signIn: vi.fn(),
+      signOut: vi.fn(),
+    });
+    mockUseUserProfile.mockReturnValue({
+      displayName: "Guest",
+      loading: false,
+      profile: null,
+      error: null,
+    });
+    mockUseUserConfig.mockReturnValue({
+      data: { ...DEFAULT_PREFERENCES, timezone: "America/New_York" },
+      updateData,
+      loading: false,
+      error: null,
+      isSaving: false,
+      saveError: null,
+      clearSaveError: vi.fn(),
+    });
+
+    await renderWithRouter(<SettingsPage />);
+
+    const timezone = screen.getByRole("combobox", { name: "Timezone" });
+    expect(timezone).toHaveTextContent("Eastern Time (US)");
+
+    await user.click(timezone);
+    await user.click(await screen.findByRole("option", { name: "Browser Default" }));
+
+    await waitFor(() =>
+      expect(updateData).toHaveBeenCalledWith(expect.objectContaining({ timezone: "" }))
+    );
+  });
+
+  it("shows the browser default as the selected timezone when none is set", async () => {
+    const user = userEvent.setup();
+    mockUseAuth.mockReturnValue({
+      user: null,
+      loading: false,
+      error: null,
+      signIn: vi.fn(),
+      signOut: vi.fn(),
+    });
+    mockUseUserProfile.mockReturnValue({
+      displayName: "Guest",
+      loading: false,
+      profile: null,
+      error: null,
+    });
+    mockUseUserConfig.mockReturnValue({
+      data: { ...DEFAULT_PREFERENCES, timezone: "" },
+      updateData: vi.fn(),
+      loading: false,
+      error: null,
+      isSaving: false,
+      saveError: null,
+      clearSaveError: vi.fn(),
+    });
+
+    await renderWithRouter(<SettingsPage />);
+
+    const timezone = screen.getByRole("combobox", { name: "Timezone" });
+    expect(timezone).toHaveTextContent("Browser Default");
+    expect(timezone).not.toHaveAttribute("data-placeholder");
+
+    await user.click(timezone);
+    expect(await screen.findByRole("option", { name: "Browser Default" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+  });
+
+  it("keeps the display dropdowns enabled while saving and announces the save", async () => {
+    mockUseAuth.mockReturnValue({
+      user: null,
+      loading: false,
+      error: null,
+      signIn: vi.fn(),
+      signOut: vi.fn(),
+    });
+    mockUseUserProfile.mockReturnValue({
+      displayName: "Guest",
+      loading: false,
+      profile: null,
+      error: null,
+    });
+    mockUseUserConfig.mockReturnValue({
+      data: null,
+      updateData: vi.fn(),
+      loading: false,
+      error: null,
+      isSaving: true,
+      saveError: null,
+      clearSaveError: vi.fn(),
+    });
+
+    await renderWithRouter(<SettingsPage />);
+
+    for (const name of ["Distance Unit", "Elevation Unit", "Timezone"]) {
+      expect(screen.getByRole("combobox", { name })).toBeEnabled();
+    }
+    expect(screen.getByText("Saving...")).toHaveAttribute("role", "status");
   });
 
   it("renders sport visibility and goals sections", async () => {
