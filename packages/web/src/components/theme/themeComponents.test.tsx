@@ -193,6 +193,19 @@ describe("StatusSymbol", () => {
     expect(badge.querySelector("svg")).toBeNull();
   });
 
+  it("shows badge content in badges and the label with symbols", () => {
+    const { unmount } = render(
+      <StatusSymbol status="ahead" label="145% of goal" badgeContent="145%" />
+    );
+    expect(screen.getByText("145%")).toHaveClass("badge");
+    unmount();
+    withStructure(
+      { statusSymbolStyle: "filled" },
+      <StatusSymbol status="ahead" label="145% of goal" badgeContent="145%" />
+    );
+    expect(screen.getByText("145% of goal")).toBeInTheDocument();
+  });
+
   it.each(["filled", "outlined"] as const)(
     "renders a symbol plus text in the %s style",
     (style) => {

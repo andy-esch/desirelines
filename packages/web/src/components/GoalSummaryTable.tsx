@@ -4,6 +4,7 @@ import { GOAL_COLORS } from "../constants/chartColors";
 import type { MetricUnit } from "../utils/units";
 import { useDangerThresholds } from "../hooks/useDangerThresholds";
 import { CheckIcon, WarningIcon } from "./icons";
+import { StatusSymbol, type GoalStatus } from "./theme/StatusSymbol";
 import type { YearContext } from "../utils/yearContext";
 
 interface GoalSummaryTableProps {
@@ -68,18 +69,13 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
     return currentValue / proratedGoal;
   };
 
-  const getStatusContent = (goalValue: number): React.ReactNode => {
+  const getStatus = (goalValue: number): { status: GoalStatus; label: string } => {
     const progress = calculateProgress(goalValue);
-
-    const achieved = (
-      <>
-        Achieved <CheckIcon size={12} className="ml-1 inline" aria-hidden="true" />
-      </>
-    );
+    const achieved = { status: "achieved", label: "Achieved" } as const;
 
     // Past tense labels for historical years - binary: achieved or not
     if (isPastYear) {
-      return progress >= 100 ? achieved : "Not Met";
+      return progress >= 100 ? achieved : { status: "not-met", label: "Not Met" };
     }
 
     // Already achieved the full year goal
@@ -88,11 +84,13 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
     // For current/future years, compare against prorated goal (where you should be now)
     const paceRatio = calculatePaceRatio(goalValue);
 
-    if (paceRatio >= PACE_THRESHOLDS.AHEAD) return "Ahead";
-    if (paceRatio >= PACE_THRESHOLDS.ON_TRACK) return "On Track";
-    if (paceRatio >= PACE_THRESHOLDS.SLIGHTLY_BEHIND) return "Slightly Behind";
-    if (paceRatio >= PACE_THRESHOLDS.BEHIND) return "Behind";
-    return "Far Behind";
+    if (paceRatio >= PACE_THRESHOLDS.AHEAD) return { status: "ahead", label: "Ahead" };
+    if (paceRatio >= PACE_THRESHOLDS.ON_TRACK) return { status: "on-track", label: "On Track" };
+    if (paceRatio >= PACE_THRESHOLDS.SLIGHTLY_BEHIND) {
+      return { status: "slightly-behind", label: "Slightly Behind" };
+    }
+    if (paceRatio >= PACE_THRESHOLDS.BEHIND) return { status: "behind", label: "Behind" };
+    return { status: "far-behind", label: "Far Behind" };
   };
 
   // Sort goals by value for display
@@ -131,7 +129,9 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
                 const progress = isLoading ? 0 : calculateProgress(goal.value);
                 const remaining = isLoading ? 0 : Math.max(0, goal.value - currentValue);
                 const paceNeeded = isLoading ? 0 : calculateDailyPaceNeeded(goal.value);
-                const status = isLoading ? "Loading..." : getStatusContent(goal.value);
+                const status = isLoading
+                  ? ({ status: "no-activity", label: "Loading..." } as const)
+                  : getStatus(goal.value);
                 const isDangerous = dangerousGoalIds.has(goal.id);
 
                 // Find the original index in the unsorted goals array to get the correct color
@@ -216,9 +216,19 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
                       </td>
                     )}
                     <td>
-                      <span className="badge" style={{ backgroundColor: goalColor }}>
-                        {status}
-                      </span>
+                      <StatusSymbol
+                        status={status.status}
+                        label={status.label}
+                        badgeStyle={{ backgroundColor: goalColor }}
+                        badgeContent={
+                          status.status === "achieved" ? (
+                            <>
+                              Achieved{" "}
+                              <CheckIcon size={12} className="ml-1 inline" aria-hidden="true" />
+                            </>
+                          ) : undefined
+                        }
+                      />
                     </td>
                   </tr>
                 );
