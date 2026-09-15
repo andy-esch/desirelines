@@ -11,6 +11,7 @@ import {
 } from "./sportConfig";
 import { parseRgb } from "./colorTokens";
 import { THEMES } from "../themes/registry";
+import { RETRO_BASE_MAPS } from "../themes/baseMaps";
 
 /** Minimal sport config fixture for testing */
 const mockSportConfig: SportConfig = {
@@ -285,20 +286,40 @@ describe("SPORT_COLORS palette invariants", () => {
     expect(failures, `pairs below 12 dE: ${failures.join(", ")}`).toEqual([]);
   });
 
+  const belowThreeToOne = (color: string) => {
+    const ground = parseRgb(color);
+    if (!ground) throw new Error(`unparseable ground ${color}`);
+    return Object.entries(SPORT_COLORS)
+      .map(([s, c]) => [s, contrast(parse(c), [ground.r, ground.g, ground.b])] as const)
+      .filter(([, r]) => r < 3)
+      .map(([s, r]) => `${s} = ${r.toFixed(2)}:1`);
+  };
+
   // Light themes can fall back to --color-chart-mark-outline; dark themes cannot, because
   // that token resolves to the page ground there. So the floor binds on every dark theme.
   it.each(THEMES.filter((t) => t.scheme === "dark").map((t) => [t.id, t.background] as const))(
     "clears 3:1 against the %s background",
     (_id, background) => {
-      const ground = parseRgb(background);
-      if (!ground) throw new Error(`unparseable background ${background}`);
-      const failures = Object.entries(SPORT_COLORS)
-        .map(([s, c]) => [s, contrast(parse(c), [ground.r, ground.g, ground.b])] as const)
-        .filter(([, r]) => r < 3)
-        .map(([s, r]) => `${s} = ${r.toFixed(2)}:1`);
+      const failures = belowThreeToOne(background);
       expect(failures, `below 3:1 on ${background}: ${failures.join(", ")}`).toEqual([]);
     }
   );
+
+  // Route lines and density dots draw straight on the base map, so the same floor holds
+  // against every recolor's land, park and water: the ones theme entries use and the
+  // retro ones waiting for their entries.
+  const basePalettes = [
+    ...THEMES.flatMap((t) => (t.map.palette ? [[t.id, t.map.palette] as const] : [])),
+    ...Object.entries(RETRO_BASE_MAPS).map(([name, m]) => [name, m.palette] as const),
+  ];
+  it.each(
+    basePalettes.flatMap(([name, palette]) =>
+      (["land", "park", "water"] as const).map((role) => [name, role, palette[role]] as const)
+    )
+  )("clears 3:1 against the %s base map's %s", (_name, _role, color) => {
+    const failures = belowThreeToOne(color);
+    expect(failures, `below 3:1 on ${color}: ${failures.join(", ")}`).toEqual([]);
+  });
 });
 
 describe("normalizeSports", () => {

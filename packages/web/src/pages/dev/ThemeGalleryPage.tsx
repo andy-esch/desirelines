@@ -1,5 +1,11 @@
 import { Fragment, useCallback, useId, useState, type CSSProperties } from "react";
-import { THEMES, type ThemeDefinition } from "../../themes/registry";
+import {
+  THEMES,
+  type MapPalette,
+  type ThemeDefinition,
+  type ThemeMap,
+} from "../../themes/registry";
+import { RETRO_BASE_MAPS } from "../../themes/baseMaps";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { Input } from "../../components/ui/input";
@@ -143,6 +149,67 @@ function StructureFields({ theme }: { theme: ThemeDefinition }) {
         </Fragment>
       ))}
     </dl>
+  );
+}
+
+function PaletteSwatches({ palette }: { palette: MapPalette }) {
+  return (
+    <ul className="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-1.5">
+      {(Object.keys(palette) as (keyof MapPalette)[]).map((role) => (
+        <li key={role} className="flex items-center gap-2 min-w-0">
+          <span
+            aria-hidden="true"
+            className="size-4 shrink-0 rounded-sm border border-border"
+            style={{ background: palette[role] }}
+          />
+          <code className="truncate">
+            {role} <span className="text-muted-text">{palette[role]}</span>
+          </code>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** A theme's base-map recolor: palette swatches and label font, or the stock style. */
+function BaseMapSwatches({ mapStyle, baseMap }: { mapStyle: string; baseMap: ThemeMap }) {
+  return (
+    <div className="flex flex-col gap-2 text-xs">
+      <p className="m-0 text-muted-text">
+        <code>{mapStyle}</code>
+        {baseMap.palette ? ", recolored" : ", stock colors"}
+        {baseMap.labelFont ? `, labels in ${baseMap.labelFont}` : ""}
+      </p>
+      {baseMap.palette && <PaletteSwatches palette={baseMap.palette} />}
+    </div>
+  );
+}
+
+/** Base-map recolors waiting for their theme entries (see `themes/baseMaps.ts`). */
+function RetroBaseMapPreview() {
+  return (
+    <section aria-labelledby="base-map-preview" className="flex flex-col gap-4">
+      <div>
+        <h2 id="base-map-preview" className="text-xl font-display">
+          Base map preview
+        </h2>
+        <p className="text-sm text-muted-text">
+          Recolors for themes whose entries aren&apos;t in the theme list yet. The routes map
+          applies them over the stock style.
+        </p>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-2">
+        {Object.entries(RETRO_BASE_MAPS).map(([name, baseMap]) => (
+          <div
+            key={name}
+            className="flex flex-col gap-3 rounded-lg border border-border p-4 min-w-0"
+          >
+            <h3 className="text-sm font-medium capitalize">{name}</h3>
+            <BaseMapSwatches mapStyle="mapbox://styles/mapbox/dark-v11" baseMap={baseMap} />
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -325,6 +392,11 @@ function ThemePanel({ theme }: { theme: ThemeDefinition }) {
         </div>
       </details>
 
+      <div>
+        <h3 className="text-sm font-medium mb-2">Base map</h3>
+        <BaseMapSwatches mapStyle={theme.mapStyle} baseMap={theme.map} />
+      </div>
+
       <div className="flex flex-col gap-3">
         <h3 className="text-sm font-medium">Controls</h3>
         <div className="flex flex-wrap gap-2">
@@ -408,6 +480,7 @@ export default function ThemeGalleryPage() {
         ))}
       </div>
       <StructurePreview />
+      <RetroBaseMapPreview />
     </div>
   );
 }

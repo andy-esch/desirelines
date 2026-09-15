@@ -55,7 +55,8 @@ export interface MapFilterDrawerProps {
   /** Ref to the collapsed-state Filters toggle, so a parent (the on-map "Show all"
    *  banner) can return keyboard focus to it after clearing the filters. */
   toggleRef?: RefObject<HTMLButtonElement | null>;
-  /** Filter controls / charts / activity list slot in here (later steps). */
+  /** The scrolling body below the summary (the routes page puts its filter controls,
+   *  activity list and date range here). */
   children?: ReactNode;
 }
 
@@ -134,9 +135,9 @@ function Stat({ label, value }: { label: string; value: string }) {
  * Mapbox canvas (see design spec). This panel renders inline in the map
  * container, so the map stays fully interactive alongside it.
  *
- * Step 1 ships the shell + the live cross-filter **summary** (filtered totals
- * react to the filter state in lockstep with the map). Filter controls, charts,
- * and the activity list slot into `children` in later steps.
+ * The header shows the live cross-filter **summary**: filtered totals that follow
+ * the filter state in lockstep with the map. `children` render in the scrolling
+ * body below it. The charts live in `MapInsightsDrawer`, not here.
  */
 export default function MapFilterDrawer({
   open,
@@ -448,8 +449,8 @@ export default function MapFilterDrawer({
           )}
         </div>
 
-        {/* Filter controls, charts, and the activity list mount here (later steps).
-            `overscroll-contain` stops scroll-chaining into the map/page behind it. */}
+        {/* Scrolling body for `children`. `overscroll-contain` stops scroll-chaining
+            into the map/page behind it. */}
         <div className="flex-1 overflow-y-auto overscroll-contain">{children}</div>
       </aside>
     </>

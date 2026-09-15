@@ -1110,6 +1110,11 @@
     border-color: color-mix(in srgb, var(--color-danger) 25%, transparent);
     color: var(--color-danger);
   }
+  .alert-success {
+    background-color: color-mix(in srgb, var(--color-success) 10%, transparent);
+    border-color: color-mix(in srgb, var(--color-success) 25%, transparent);
+    color: var(--color-success);
+  }
 
   /* --- Progress bars --- */
 
