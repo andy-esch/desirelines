@@ -290,7 +290,12 @@ active-filter pill. Theme-aware via the decorative tokens; do not add elevation 
 
 **Sport chips:** `sportChipClass` + `<SportChipDot />` from `src/components/sportChip.tsx`.
 
-**Demo banner:** `.alert-demo`.
+**Messages:** `Alert` with a `danger`, `warning`, `success` or `info` variant; the demo-mode
+banner is its `demo` variant. Pass `role="alert"` or `role="status"` where the message should
+be announced.
+
+**Tables:** `Table` (cells take `--row-padding`; `hover` highlights rows with `--row-hover-bg`).
+A sport in a row is a `SportBadge`; a status or count pill is `Badge` with `size="compact"`.
 
 **shadcn/Base UI primitives** (`src/components/ui/`) take colors from the `@theme inline`
 alias block in `tailwind.css` (`bg-card`, `border-input`, `data-[pressed]:bg-primary`) and
