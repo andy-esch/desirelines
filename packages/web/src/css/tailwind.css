@@ -767,24 +767,6 @@
    ========================================================================== */
 
 @layer components {
-  /* --- Progress Bars: NEON gradient shine --- */
-
-  .progress-neon {
-    overflow: visible;
-    background-color: rgba(0, 0, 0, 0.2);
-  }
-  .progress-bar-neon {
-    background-image: linear-gradient(
-      to bottom,
-      rgba(255, 255, 255, 0.3) 0%,
-      rgba(255, 255, 255, 0.1) 45%,
-      transparent 55%,
-      rgba(0, 0, 0, 0.1) 100%
-    );
-    font-weight: 600;
-    text-shadow: 0 0 2px rgba(255, 255, 255, 0.8);
-  }
-
   /* --- Sport marks: light-mode boundary ---
      A neon fill on the light ground can sit at ~1:1 contrast (golf and racket_sports
      are literally invisible), so any mark painted in a sport colour needs a boundary.
@@ -807,37 +789,6 @@
   .pill-neon-dot {
     background-color: var(--color-neon-accent);
     box-shadow: 0 0 6px var(--color-neon-accent);
-  }
-
-  /* --- Demo Mode Banner --- */
-
-  /* Decorative, so it uses the neon accent rather than the muted interactive one — the
-     left rule previously went teal in light while the tint beside it stayed bright cyan. */
-  .alert-demo {
-    background-color: color-mix(in srgb, var(--color-neon-accent) 8%, transparent);
-    border: 1px solid color-mix(in srgb, var(--color-neon-accent) 30%, transparent);
-    border-left: 3px solid var(--color-neon-accent);
-    color: var(--color-subtle-text);
-  }
-
-  /* --- Tables: transparent background --- */
-
-  .table-dark-transparent {
-    background-color: transparent;
-  }
-  .table-dark-transparent tbody tr:hover {
-    background-color: var(--color-surface-hover);
-  }
-  .table-dark-transparent tbody tr.table-row-danger {
-    background-color: rgba(255, 50, 50, 0.08);
-  }
-  .table-dark-transparent tbody tr.table-row-danger:hover {
-    background-color: rgba(255, 50, 50, 0.12);
-  }
-
-  .table td,
-  .table th {
-    font-variant-numeric: tabular-nums;
   }
 }
 
@@ -1032,133 +983,6 @@
    ========================================================================== */
 
 @layer components {
-  /* --- List Groups: goal control lists --- */
-
-  .list-group {
-    display: flex;
-    flex-direction: column;
-    padding: 0;
-    margin: 0;
-    list-style: none;
-  }
-  .list-group-flush > .list-group-item {
-    border-left: 0;
-    border-right: 0;
-    border-radius: 0;
-  }
-  .list-group-item {
-    padding: 0.5rem 0.75rem;
-    background: transparent;
-    border: 1px solid var(--color-surface-border);
-  }
-  .list-group-item + .list-group-item {
-    border-top: 0;
-  }
-
-  /* --- Badges: status pills --- */
-
-  .badge {
-    display: inline-block;
-    padding: 0.2em 0.5em;
-    font-size: 0.7rem;
-    font-weight: 600;
-    line-height: 1;
-    border-radius: 0.25rem;
-    color: #000;
-    white-space: nowrap;
-  }
-  /* --sport-color is set via inline style on the badge element (see ActivityTable.tsx).
-     Same treatment as the sport chips: the neon is a glowing dot + tinted hairline, and
-     the label is a neutral token — as the sport color it sat under 3:1 on the light
-     ground for 14 of the 16 sports. */
-  .badge-sport {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45em;
-    color: var(--color-body-text);
-    background-color: color-mix(in srgb, var(--sport-color) 15%, transparent);
-    border: 1px solid color-mix(in srgb, var(--sport-color) 55%, var(--color-chip-hairline));
-  }
-  .badge-sport::before {
-    content: "";
-    flex: none;
-    width: 0.5em;
-    height: 0.5em;
-    border-radius: 50%;
-    background-color: var(--sport-color);
-    /* Ring first, then the glow — the neon fill needs a boundary on the light ground. */
-    box-shadow:
-      0 0 0 1px var(--color-chart-mark-outline),
-      0 0 7px var(--sport-color),
-      0 0 2px var(--sport-color);
-  }
-
-  /* --- Alerts --- */
-
-  .alert {
-    padding: 0.75rem 1rem;
-    border-radius: 0.375rem;
-    border: 1px solid transparent;
-  }
-  .alert-warning {
-    background-color: color-mix(in srgb, var(--color-warning) 10%, transparent);
-    border-color: color-mix(in srgb, var(--color-warning) 25%, transparent);
-    color: var(--color-warning);
-  }
-  .alert-danger {
-    background-color: color-mix(in srgb, var(--color-danger) 10%, transparent);
-    border-color: color-mix(in srgb, var(--color-danger) 25%, transparent);
-    color: var(--color-danger);
-  }
-  .alert-success {
-    background-color: color-mix(in srgb, var(--color-success) 10%, transparent);
-    border-color: color-mix(in srgb, var(--color-success) 25%, transparent);
-    color: var(--color-success);
-  }
-
-  /* --- Progress bars --- */
-
-  .progress {
-    display: flex;
-    overflow: hidden;
-    background-color: var(--color-surface-hover);
-    border-radius: 0.25rem;
-  }
-  .progress-bar {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    text-align: center;
-    white-space: nowrap;
-    transition: width 0.3s ease;
-  }
-
-  /* --- Tables --- */
-
-  .table {
-    width: 100%;
-    margin-bottom: 1rem;
-    color: var(--color-body-text);
-    border-collapse: collapse;
-  }
-  .table th,
-  .table td {
-    padding: 0.5rem;
-    vertical-align: top;
-    font-variant-numeric: tabular-nums;
-  }
-  .table-sm th,
-  .table-sm td {
-    padding: 0.25rem;
-  }
-  .table-borderless th,
-  .table-borderless td {
-    border: 0;
-  }
-  .table-hover tbody tr:hover {
-    background-color: var(--color-surface-hover);
-  }
-
   /* --- Data tables: the Table component (ui/table.tsx) ---
      Cell rules sit in this layer so a utility on a th or td still wins. */
 
