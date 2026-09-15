@@ -66,7 +66,7 @@ export default function Dashboard() {
       <div className="px-4 md:px-6 py-6 @container">
         {/* Header Section */}
         <div className="dashboard-header mb-3">
-          <h1 className="h2 font-display">
+          <h1 className="font-display">
             {user ? `Welcome back, ${displayName.split(" ")[0]}!` : "Welcome!"}
           </h1>
           <p className="text-muted-text">
@@ -78,7 +78,7 @@ export default function Dashboard() {
 
         {/* Recent Activity Header with Time Selector */}
         <div className="flex justify-between items-center mb-3">
-          <h2 className="h5 mb-0">Recent Activity</h2>
+          <h2 className="mb-0">Recent Activity</h2>
           <TimeRangeSelector value={timeRange} onChange={setTimeRange} />
         </div>
 

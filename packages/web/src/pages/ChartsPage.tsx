@@ -210,7 +210,7 @@ export default function ChartsPage() {
       <ActiveFilterPill filters={activeFilters} onClear={clearFilters} />
       <div className="px-4 md:px-6 py-6 max-w-6xl mx-auto">
         <div className="mb-3">
-          <h1 className="h3 mb-0 font-display">Charts</h1>
+          <h1 className="mb-0 font-display">Charts</h1>
           <p className="text-muted-text text-sm mt-1">
             Every activity — including the indoor and virtual workouts that don’t appear on the map.
           </p>
