@@ -272,6 +272,8 @@
   --page-title-size: 1em;
   --page-title-color: var(--color-body-text);
   --page-title-shadow: none;
+  --page-title-glow-size: 0px;
+  --page-title-offset-shadow: 0 0 0 transparent;
   --page-title-case: none;
   --page-title-leading: 1.5;
   --display-text-gradient: linear-gradient(
@@ -551,6 +553,8 @@
   --page-title-size: 1em;
   --page-title-color: var(--color-body-text);
   --page-title-shadow: none;
+  --page-title-glow-size: 0px;
+  --page-title-offset-shadow: 0 0 0 transparent;
   --page-title-case: none;
   --page-title-leading: 1.5;
   --display-text-gradient: linear-gradient(
@@ -826,6 +830,8 @@
   --page-title-size: 2.25rem;
   --page-title-color: #ffffff;
   --page-title-shadow: 0 0 22px rgba(255, 46, 196, 0.6), 2px 2px 0 #00e5ff;
+  --page-title-glow-size: 22px;
+  --page-title-offset-shadow: 2px 2px 0 #00e5ff;
   --page-title-case: uppercase;
   --page-title-leading: 1;
   --display-text-gradient: none;

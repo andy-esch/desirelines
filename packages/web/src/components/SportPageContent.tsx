@@ -185,6 +185,7 @@ export default function SportPageContent({
           <div className="flex justify-between flex-wrap md:flex-nowrap items-center pt-6 pb-2 mb-3">
             <PageTitle
               kicker={sportKicker(sportCounts[sport], currentYear)}
+              glowColor={SPORT_COLORS[sport] ?? DEFAULT_SPORT_COLOR}
               className="flex items-center gap-3.5"
             >
               <SportMark
