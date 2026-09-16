@@ -216,16 +216,23 @@ func setup(
 		shutdownFuncs = nil
 		return err
 	}
-	// Use a fresh context for the failure-path cleanup: if setup failed because
-	// the startup ctx was canceled/timed out, reusing it could skip
-	// flushing/teardown of the already-constructed providers.
+	// Use a fresh context with a bounded timeout for the failure-path cleanup:
+	// if setup failed because the startup ctx was canceled/timed out, reusing it
+	// could skip flushing/teardown of the already-constructed providers. A 5s
+	// ceiling prevents an unresponsive network endpoint from hanging boot.
 	handleErr := func(cause error) error { //nolint:contextcheck // cleanup deliberately runs on a fresh context, not the (possibly canceled) startup ctx
-		return errors.Join(cause, shutdown(context.Background()))
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return errors.Join(cause, shutdown(cleanupCtx))
 	}
 
 	attrs := []attribute.KeyValue{semconv.ServiceName(serviceName)}
-	if projectID := os.Getenv("GCP_PROJECT_ID"); projectID != "" {
-		attrs = append(attrs, attribute.String("gcp.project_id", projectID))
+	projectID := os.Getenv("GCP_PROJECT_ID")
+	if projectID == "" {
+		projectID = os.Getenv("GOOGLE_CLOUD_PROJECT")
+	}
+	if projectID != "" {
+		attrs = append(attrs, attribute.String("gcp.project_id", projectID), semconv.CloudAccountID(projectID))
 	}
 
 	res, err := resource.New(ctx,
@@ -301,11 +308,18 @@ func setup(
 	}, shutdown, nil
 }
 
-// credentialsLoader loads the gRPC PerRPCCredentials for Google Cloud OTLP endpoints.
-// Defaults to oauth.NewApplicationDefault; can be overridden in unit tests to exercise
-// the GCP endpoint construction path without real GCP credentials.
-var credentialsLoader = func(ctx context.Context) (credentials.PerRPCCredentials, error) {
-	return oauth.NewApplicationDefault(ctx)
+// credentialsLoaderFunc loads the gRPC PerRPCCredentials for Google Cloud OTLP endpoints.
+type credentialsLoaderFunc func(ctx context.Context) (credentials.PerRPCCredentials, error)
+
+// defaultCredentialsLoader loads Application Default Credentials with the cloud-platform scope.
+// The cloud-platform scope is required for User Application Default Credentials (e.g. gcloud auth
+// application-default login) while remaining fully compatible with Cloud Run service accounts.
+func defaultCredentialsLoader(ctx context.Context) (credentials.PerRPCCredentials, error) {
+	creds, err := oauth.NewApplicationDefault(ctx, "https://www.googleapis.com/auth/cloud-platform")
+	if err != nil {
+		return nil, fmt.Errorf("load application default credentials: %w", err)
+	}
+	return creds, nil
 }
 
 // newMetricReader builds the production metric Reader: a PeriodicReader
@@ -317,6 +331,10 @@ var credentialsLoader = func(ctx context.Context) (credentials.PerRPCCredentials
 // to Google Cloud's native OTLP telemetry endpoint (telemetry.googleapis.com)
 // authenticated with Application Default Credentials (ADC).
 func newMetricReader(ctx context.Context) (sdkmetric.Reader, error) {
+	return newMetricReaderWithLoader(ctx, defaultCredentialsLoader)
+}
+
+func newMetricReaderWithLoader(ctx context.Context, loader credentialsLoaderFunc) (sdkmetric.Reader, error) {
 	if os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") != "" ||
 		os.Getenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT") != "" {
 		metricExp, err := otlpmetricgrpc.New(ctx)
@@ -325,7 +343,7 @@ func newMetricReader(ctx context.Context) (sdkmetric.Reader, error) {
 		}
 		return sdkmetric.NewPeriodicReader(metricExp, sdkmetric.WithInterval(exportInterval)), nil
 	}
-	creds, err := credentialsLoader(ctx)
+	creds, err := loader(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("load application default credentials for metric exporter: %w", err)
 	}
@@ -349,6 +367,10 @@ func newMetricReader(ctx context.Context) (sdkmetric.Reader, error) {
 // at a local Collector or Jaeger to inspect spans off-process. Production
 // deploys leave the env vars unset and export to Cloud Trace via telemetry.googleapis.com.
 func newTraceExporter(ctx context.Context) (sdktrace.SpanExporter, error) {
+	return newTraceExporterWithLoader(ctx, defaultCredentialsLoader)
+}
+
+func newTraceExporterWithLoader(ctx context.Context, loader credentialsLoaderFunc) (sdktrace.SpanExporter, error) {
 	if os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") != "" ||
 		os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") != "" {
 		exp, err := otlptracegrpc.New(ctx)
@@ -357,7 +379,7 @@ func newTraceExporter(ctx context.Context) (sdktrace.SpanExporter, error) {
 		}
 		return exp, nil
 	}
-	creds, err := credentialsLoader(ctx)
+	creds, err := loader(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("load application default credentials for trace exporter: %w", err)
 	}

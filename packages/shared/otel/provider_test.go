@@ -493,7 +493,7 @@ func TestCredentialsLoader_RealDefaultFailsWithoutValidCredentials(t *testing.T)
 	// Point to a non-existent credentials path so oauth.NewApplicationDefault
 	// is forced down its file-lookup error branch deterministically.
 	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", "/nonexistent/credentials.json")
-	creds, err := credentialsLoader(context.Background())
+	creds, err := defaultCredentialsLoader(context.Background())
 	if err == nil {
 		t.Fatal("expected error loading application default credentials from nonexistent file, got nil")
 	}
@@ -502,18 +502,20 @@ func TestCredentialsLoader_RealDefaultFailsWithoutValidCredentials(t *testing.T)
 	}
 }
 
-func testGCPBranchSuccess(t *testing.T, envVar string, construct func(context.Context) (interface{ Shutdown(context.Context) error }, error)) {
+func mockCredentialsLoader(creds credentials.PerRPCCredentials, err error) credentialsLoaderFunc {
+	return func(context.Context) (credentials.PerRPCCredentials, error) {
+		return creds, err
+	}
+}
+
+func testGCPBranchSuccess(t *testing.T, envVar string, construct func(context.Context, credentialsLoaderFunc) (interface{ Shutdown(context.Context) error }, error)) {
 	t.Helper()
 	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
 	t.Setenv(envVar, "")
 
-	origLoader := credentialsLoader
-	credentialsLoader = func(context.Context) (credentials.PerRPCCredentials, error) {
-		return fakePerRPCCredentials{}, nil
-	}
-	t.Cleanup(func() { credentialsLoader = origLoader })
+	loader := mockCredentialsLoader(fakePerRPCCredentials{}, nil)
 
-	c, err := construct(context.Background())
+	c, err := construct(context.Background(), loader)
 	if err != nil {
 		t.Fatalf("constructor failed with GCP credentials: %v", err)
 	}
@@ -527,19 +529,15 @@ func testGCPBranchSuccess(t *testing.T, envVar string, construct func(context.Co
 	})
 }
 
-func testGCPBranchCredentialsError(t *testing.T, envVar string, construct func(context.Context) (any, error)) {
+func testGCPBranchCredentialsError(t *testing.T, envVar string, construct func(context.Context, credentialsLoaderFunc) (any, error)) {
 	t.Helper()
 	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
 	t.Setenv(envVar, "")
 
-	origLoader := credentialsLoader
 	wantErr := errors.New("cannot load adc")
-	credentialsLoader = func(context.Context) (credentials.PerRPCCredentials, error) {
-		return nil, wantErr
-	}
-	t.Cleanup(func() { credentialsLoader = origLoader })
+	loader := mockCredentialsLoader(nil, wantErr)
 
-	c, err := construct(context.Background())
+	c, err := construct(context.Background(), loader)
 	if err == nil {
 		t.Fatal("expected error when credentialsLoader fails, got nil")
 	}
@@ -552,26 +550,26 @@ func testGCPBranchCredentialsError(t *testing.T, envVar string, construct func(c
 }
 
 func TestNewMetricReader_GCPBranchWithValidCredentials(t *testing.T) {
-	testGCPBranchSuccess(t, "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", func(ctx context.Context) (interface{ Shutdown(context.Context) error }, error) {
-		return newMetricReader(ctx)
+	testGCPBranchSuccess(t, "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", func(ctx context.Context, loader credentialsLoaderFunc) (interface{ Shutdown(context.Context) error }, error) {
+		return newMetricReaderWithLoader(ctx, loader)
 	})
 }
 
 func TestNewMetricReader_GCPBranchCredentialsError(t *testing.T) {
-	testGCPBranchCredentialsError(t, "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", func(ctx context.Context) (any, error) {
-		return newMetricReader(ctx)
+	testGCPBranchCredentialsError(t, "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", func(ctx context.Context, loader credentialsLoaderFunc) (any, error) {
+		return newMetricReaderWithLoader(ctx, loader)
 	})
 }
 
 func TestNewTraceExporter_GCPBranchWithValidCredentials(t *testing.T) {
-	testGCPBranchSuccess(t, "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", func(ctx context.Context) (interface{ Shutdown(context.Context) error }, error) {
-		return newTraceExporter(ctx)
+	testGCPBranchSuccess(t, "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", func(ctx context.Context, loader credentialsLoaderFunc) (interface{ Shutdown(context.Context) error }, error) {
+		return newTraceExporterWithLoader(ctx, loader)
 	})
 }
 
 func TestNewTraceExporter_GCPBranchCredentialsError(t *testing.T) {
-	testGCPBranchCredentialsError(t, "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", func(ctx context.Context) (any, error) {
-		return newTraceExporter(ctx)
+	testGCPBranchCredentialsError(t, "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", func(ctx context.Context, loader credentialsLoaderFunc) (any, error) {
+		return newTraceExporterWithLoader(ctx, loader)
 	})
 }
 
@@ -610,15 +608,21 @@ func TestSetup_GCPCredentialsError(t *testing.T) {
 	t.Setenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "")
 	t.Setenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "")
 
-	origLoader := credentialsLoader
 	wantErr := errors.New("credentials failed")
-	credentialsLoader = func(context.Context) (credentials.PerRPCCredentials, error) {
-		return nil, wantErr
-	}
-	t.Cleanup(func() { credentialsLoader = origLoader })
+	failingLoader := mockCredentialsLoader(nil, wantErr)
 
 	logger := slog.New(slog.DiscardHandler)
-	providers, shutdown, err := Setup(context.Background(), logger, "test-service")
+	providers, shutdown, err := setup(
+		context.Background(),
+		logger,
+		"test-service",
+		func(ctx context.Context) (sdkmetric.Reader, error) {
+			return newMetricReaderWithLoader(ctx, failingLoader)
+		},
+		func(ctx context.Context) (sdktrace.SpanExporter, error) {
+			return newTraceExporterWithLoader(ctx, failingLoader)
+		},
+	)
 	if err == nil {
 		t.Fatal("expected Setup to fail when credentials cannot be loaded, got nil")
 	}

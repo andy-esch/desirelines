@@ -31,6 +31,20 @@ func TestCloudTraceOneWayPropagator_Extract(t *testing.T) {
 			wantValid:   true,
 		},
 		{
+			name:        "valid header sampled with bitmask (o=3)",
+			header:      "105445aa7843bc8bf206b12000100000/1;o=3",
+			wantTraceID: "105445aa7843bc8bf206b12000100000",
+			wantSampled: true,
+			wantValid:   true,
+		},
+		{
+			name:        "valid header unsampled with bitmask (o=2)",
+			header:      "105445aa7843bc8bf206b12000100000/1;o=2",
+			wantTraceID: "105445aa7843bc8bf206b12000100000",
+			wantSampled: false,
+			wantValid:   true,
+		},
+		{
 			name:        "valid header without flags",
 			header:      "105445aa7843bc8bf206b12000100000/123456789",
 			wantTraceID: "105445aa7843bc8bf206b12000100000",

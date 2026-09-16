@@ -92,8 +92,10 @@ func spanContextFromXCTC(header string) (trace.SpanContext, error) {
 	sid := trace.SpanID(sidBytes)
 
 	flags := trace.TraceFlags(0x00)
-	if traceFlagsStr == "1" {
-		flags = trace.FlagsSampled
+	if traceFlagsStr != "" {
+		if f, parseErr := strconv.ParseUint(traceFlagsStr, 10, 8); parseErr == nil && (f&1) != 0 {
+			flags = trace.FlagsSampled
+		}
 	}
 
 	return trace.NewSpanContext(trace.SpanContextConfig{

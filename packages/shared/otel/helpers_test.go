@@ -159,3 +159,12 @@ func TestStartSpan_Error(t *testing.T) {
 		t.Error("expected span exception/error event recorded")
 	}
 }
+
+func TestStartSpan_NilTracer(t *testing.T) {
+	ctx, done := StartSpan(context.Background(), nil, "nil.tracer")
+	if ctx == nil {
+		t.Fatal("expected non-nil context")
+	}
+	done(nil)
+	done(errors.New("error with nil tracer"))
+}
