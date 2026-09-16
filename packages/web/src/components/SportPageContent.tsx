@@ -18,6 +18,10 @@ import { getSportGradient } from "../constants/sportGradients";
 import { usePublicSportConfig } from "../hooks/usePublicSportConfig";
 import { getSportDisplayName } from "../utils/sportConfig";
 import { DEMO_ROUTE_PREFIX } from "../constants/demoConfig";
+import { PageTitle } from "./theme/PageTitle";
+import { SportMark } from "./theme/SportLabel";
+import { SPORT_COLORS, DEFAULT_SPORT_COLOR } from "../utils/sportConfig";
+import { Alert } from "./ui/alert";
 
 export interface SportPageContentProps {
   // Core
@@ -80,6 +84,12 @@ export interface SportPageContentProps {
   priorYearData?: Record<number, DistanceEntry[]> | undefined;
   showPriorYears?: boolean | undefined;
   onPriorYearsChange?: ((show: boolean) => void) | undefined;
+}
+
+/** The sport page kicker, e.g. `Sport · 84 activities in 2026`, once the count has loaded. */
+function sportKicker(count: number | undefined, year: number): string {
+  if (count == null) return "Sport";
+  return `Sport · ${count.toLocaleString()} ${count === 1 ? "activity" : "activities"} in ${year}`;
 }
 
 export default function SportPageContent({
@@ -173,15 +183,23 @@ export default function SportPageContent({
 
         <div className="grow min-w-0 md:pl-4">
           <div className="flex justify-between flex-wrap md:flex-nowrap items-center pt-6 pb-2 mb-3">
-            <h1 className="h2 font-display">
+            <PageTitle
+              kicker={sportKicker(sportCounts[sport], currentYear)}
+              glowColor={SPORT_COLORS[sport] ?? DEFAULT_SPORT_COLOR}
+              className="flex items-center gap-3.5"
+            >
+              <SportMark
+                color={SPORT_COLORS[sport] ?? DEFAULT_SPORT_COLOR}
+                className="size-4 rounded-[min(var(--sport-mark-radius),3px)] [box-shadow:0_0_12px_var(--sport-color)]"
+              />
               {sportDisplayName} {currentYear}
-            </h1>
+            </PageTitle>
           </div>
 
           {/* No data banner - show when viewing current year with no activities */}
           {!isLoading && currentValue === 0 && isCurrentYear && (
-            <div
-              className="alert flex items-center mb-6"
+            <Alert
+              className="mb-6 flex items-center"
               role="alert"
               style={{
                 backgroundColor: "var(--color-accent-cyan-glow)",
@@ -209,7 +227,7 @@ export default function SportPageContent({
                   </Link>
                 )}
               </span>
-            </div>
+            </Alert>
           )}
 
           <KPICards
@@ -257,44 +275,40 @@ export default function SportPageContent({
           )}
 
           <div className="mb-10">
-            <div className="glass-panel">
-              <CumulativeMetricsChart
-                year={currentYear}
-                goals={chartGoals}
-                distanceData={chartData}
-                isLoading={isLoading}
-                error={error}
-                showFullYear={showFullYear}
-                onViewChange={setShowFullYear}
-                showAchievements={showAchievements}
-                onAchievementsChange={setShowAchievements}
-                unit={unit}
-                metric={activeMetric}
-                sport={sport}
-                sportConfig={sportConfig}
-                onRetry={onRetry}
-                priorYearData={priorYearData}
-                showPriorYears={showPriorYears}
-                onPriorYearsChange={onPriorYearsChange}
-              />
-            </div>
+            <CumulativeMetricsChart
+              year={currentYear}
+              goals={chartGoals}
+              distanceData={chartData}
+              isLoading={isLoading}
+              error={error}
+              showFullYear={showFullYear}
+              onViewChange={setShowFullYear}
+              showAchievements={showAchievements}
+              onAchievementsChange={setShowAchievements}
+              unit={unit}
+              metric={activeMetric}
+              sport={sport}
+              sportConfig={sportConfig}
+              onRetry={onRetry}
+              priorYearData={priorYearData}
+              showPriorYears={showPriorYears}
+              onPriorYearsChange={onPriorYearsChange}
+            />
           </div>
 
           <div className="mb-12">
-            <div className="glass-panel">
-              <PacingMetricsChart
-                year={currentYear}
-                goals={chartGoals}
-                distanceData={chartData}
-                isLoading={isLoading}
-                error={error}
-                showFullYear={showFullYear}
-                unit={unit}
-                metric={activeMetric}
-                sport={sport}
-                onRetry={onRetry}
-              />
-            </div>
+            <PacingMetricsChart
+              year={currentYear}
+              goals={chartGoals}
+              distanceData={chartData}
+              isLoading={isLoading}
+              error={error}
+              showFullYear={showFullYear}
+              unit={unit}
+              metric={activeMetric}
+              sport={sport}
+              onRetry={onRetry}
+            />
           </div>
         </div>
       </div>

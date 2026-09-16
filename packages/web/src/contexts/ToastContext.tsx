@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect } from "react";
+import { Alert } from "../components/ui/alert";
 
 type ToastVariant = "success" | "warning" | "danger";
 
@@ -59,12 +60,13 @@ function ToastItem({ toast, onDone }: { toast: Toast; onDone: (id: number) => vo
   }, [toast.id, onDone]);
 
   return (
-    <div
+    <Alert
       role="alert"
-      className={`alert alert-${toast.variant} px-5 py-3 shadow-lg transition-opacity duration-300 ${exiting ? "opacity-0" : "opacity-100"}`}
+      variant={toast.variant}
+      className={`px-5 py-3 shadow-lg transition-opacity duration-300 ${exiting ? "opacity-0" : "opacity-100"}`}
     >
       {toast.message}
-    </div>
+    </Alert>
   );
 }
 

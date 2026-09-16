@@ -21,6 +21,8 @@ import { useCumulativeChartData } from "../../hooks/useCumulativeChartData";
 import { useReducedMotion } from "../../hooks/useReducedMotion";
 import ChartContainer from "./ChartContainer";
 import CumulativeChartPresenter from "./CumulativeChartPresenter";
+import { Button } from "../ui/button";
+import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
 
 // ============================================================================
 // Helpers
@@ -119,46 +121,53 @@ function HeaderControls({
   return (
     <>
       {/* Unified range selector */}
-      <div className="btn-group btn-group-sm" role="group">
+      <ToggleGroup
+        // A zoomed view matches no preset, so nothing shows as selected until Reset.
+        value={isZoomed ? [] : [activeRange]}
+        onValueChange={(values) =>
+          onRangeChange((values[0] as RangePreset | undefined) ?? activeRange)
+        }
+        aria-label="Chart range"
+        className="p-0.5"
+      >
         {presets.map(({ key, label }) => (
-          <button
-            key={key}
-            type="button"
-            className={`btn ${activeRange === key && !isZoomed ? "btn-secondary" : "btn-outline-secondary"}`}
-            onClick={() => onRangeChange(key)}
-          >
+          <ToggleGroupItem key={key} value={key} className="px-2 py-0.5 text-xs">
             {label}
-          </button>
+          </ToggleGroupItem>
         ))}
-        {isZoomed && (
-          <button type="button" className="btn btn-outline-warning" onClick={onResetZoom}>
-            Reset
-          </button>
-        )}
-      </div>
+      </ToggleGroup>
+      {isZoomed && (
+        <Button type="button" variant="outline-warning" size="sm" onClick={onResetZoom}>
+          Reset
+        </Button>
+      )}
 
       {/* Achievement toggle */}
       {onAchievementsChange && achievementCount > 0 && (
-        <button
+        <Button
           type="button"
-          className={`btn btn-sm ${showAchievements ? "btn-outline-warning" : "btn-outline-secondary"}`}
+          variant={showAchievements ? "outline-warning" : "outline"}
+          size="sm"
           onClick={() => onAchievementsChange(!showAchievements)}
           title={showAchievements ? "Hide achievement markers" : "Show achievement markers"}
+          aria-pressed={showAchievements}
         >
           {showAchievements ? "★" : "☆"} {achievementCount}
-        </button>
+        </Button>
       )}
 
       {/* Prior years toggle */}
       {onPriorYearsChange && (
-        <button
+        <Button
           type="button"
-          className={`btn btn-sm ${showPriorYears ? "btn-outline-info" : "btn-outline-secondary"}`}
+          variant={showPriorYears ? "secondary" : "outline"}
+          size="sm"
           onClick={() => onPriorYearsChange(!showPriorYears)}
           title={showPriorYears ? "Hide prior year lines" : "Show prior year lines"}
+          aria-pressed={showPriorYears}
         >
           Prior Years
-        </button>
+        </Button>
       )}
     </>
   );
@@ -386,6 +395,7 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
       hideHeader={hideHeader}
       onRetry={onRetry}
       headerControls={headerControls}
+      framed
       emptyStateConfig={{ sport, year, unit, message: "No chart data available" }}
       infoTooltip="Y-axis labels show where each line currently sits — your actual progress vs. where goal trajectories are today. This shows the 'race' between your progress and your goals."
     >

@@ -41,17 +41,18 @@ function Slider({
       {...props}
     >
       <BaseSlider.Control className="flex w-full items-center py-2">
-        <BaseSlider.Track className="relative h-1.5 w-full rounded-full bg-muted">
-          <BaseSlider.Indicator className="rounded-full bg-primary" />
+        {/* A theme may give sliders their own fill color; otherwise they take the accent. */}
+        <BaseSlider.Track className="relative h-(--slider-track-height) w-full rounded-(--slider-track-radius) bg-(--slider-track-bg)">
+          <BaseSlider.Indicator className="rounded-(--slider-track-radius) bg-[color:var(--color-slider-fill,var(--color-accent-cyan))] [box-shadow:var(--slider-fill-glow)]" />
           {thumbValues.map((_, i) => (
             <BaseSlider.Thumb
               key={i}
               index={i}
               getAriaValueText={getAriaValueText}
               className={cn(
-                "size-4 rounded-full border border-primary bg-card shadow-sm outline-none",
+                "size-(--slider-handle-size) rounded-(--slider-handle-radius) border-(length:--slider-handle-border-width) border-[color:var(--color-slider-fill,var(--color-accent-cyan))] bg-card shadow-sm outline-none",
                 "transition-colors focus-visible:ring-2 focus-visible:ring-ring/40",
-                "data-[dragging]:border-primary data-[disabled]:opacity-50"
+                "data-[disabled]:opacity-50"
               )}
             />
           ))}

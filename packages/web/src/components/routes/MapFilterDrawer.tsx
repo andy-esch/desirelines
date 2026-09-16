@@ -55,7 +55,8 @@ export interface MapFilterDrawerProps {
   /** Ref to the collapsed-state Filters toggle, so a parent (the on-map "Show all"
    *  banner) can return keyboard focus to it after clearing the filters. */
   toggleRef?: RefObject<HTMLButtonElement | null>;
-  /** Filter controls / charts / activity list slot in here (later steps). */
+  /** The scrolling body below the summary (the routes page puts its filter controls,
+   *  activity list and date range here). */
   children?: ReactNode;
 }
 
@@ -122,7 +123,9 @@ function Stat({ label, value }: { label: string; value: string }) {
       <div className="truncate font-semibold tabular-nums text-body-text" title={value}>
         {value}
       </div>
-      <div className="text-[0.65rem] uppercase tracking-wider text-muted-text">{label}</div>
+      <div className="text-(length:--label-size) font-(weight:--label-weight) tracking-(--label-tracking) [text-transform:var(--label-case)] text-(color:--label-color)">
+        {label}
+      </div>
     </div>
   );
 }
@@ -134,9 +137,9 @@ function Stat({ label, value }: { label: string; value: string }) {
  * Mapbox canvas (see design spec). This panel renders inline in the map
  * container, so the map stays fully interactive alongside it.
  *
- * Step 1 ships the shell + the live cross-filter **summary** (filtered totals
- * react to the filter state in lockstep with the map). Filter controls, charts,
- * and the activity list slot into `children` in later steps.
+ * The header shows the live cross-filter **summary**: filtered totals that follow
+ * the filter state in lockstep with the map. `children` render in the scrolling
+ * body below it. The charts live in `MapInsightsDrawer`, not here.
  */
 export default function MapFilterDrawer({
   open,
@@ -278,11 +281,9 @@ export default function MapFilterDrawer({
         tabIndex={open || hideToggle ? -1 : undefined}
         style={MAP_CHROME_STYLE}
         className={cn(
-          // Restrained glass chrome with square corners (matches the panel + sits
-          // cleanly under the nav header). Deep neon styling is deferred to the
-          // separate routes-map-neon-aesthetic-pass task.
-          "absolute z-30 inline-flex items-center gap-2 rounded-md border border-border/70",
-          "bg-card/85 px-4 py-2 text-sm font-medium text-body-text shadow-lg backdrop-blur-md",
+          // Square corners match the panel and sit cleanly under the nav header.
+          "absolute z-30 inline-flex items-center gap-2 rounded-md [border:var(--map-chrome-edge)]",
+          "bg-(--map-chrome-bg) px-4 py-2 text-sm font-medium text-body-text shadow-lg backdrop-blur-(--glass-blur)",
           "transition-all duration-200 ease-out",
           "hover:border-accent-cyan/50 hover:text-accent-cyan focus-visible:outline-none",
           "focus-visible:ring-2 focus-visible:ring-accent-cyan/50 motion-reduce:transition-none",
@@ -321,17 +322,15 @@ export default function MapFilterDrawer({
         // (aria-hidden alone leaves children focusable — a keyboard dead-end).
         inert={!open}
         className={cn(
-          // Glass panel with a soft shadow and square corners (rounded corners read
-          // poorly against the nav header). Deep neon styling is deferred to
-          // routes-map-neon-aesthetic-pass; this is functional, restrained chrome.
-          "absolute z-20 flex flex-col bg-card/85 shadow-xl backdrop-blur-md",
+          // Square corners: rounded ones read poorly against the nav header.
+          "absolute z-20 flex flex-col bg-(--map-chrome-bg) [box-shadow:var(--map-chrome-shadow)] backdrop-blur-(--glass-blur)",
           "transition-transform duration-300 ease-out motion-reduce:transition-none",
           // Mobile: bottom sheet (safe-area-aware bottom padding for notched devices).
-          "inset-x-0 bottom-0 max-h-[70%] border-t border-border/70",
+          "inset-x-0 bottom-0 max-h-[70%] [border-top:var(--map-chrome-edge)]",
           "pb-[env(safe-area-inset-bottom)]",
-          // Desktop: full-height left panel.
+          // Desktop: full-height left panel, edged on the map side.
           "sm:inset-y-0 sm:bottom-auto sm:right-auto sm:left-0 sm:h-full sm:w-80 sm:max-h-none",
-          "sm:border-t-0 sm:border-r sm:border-border/70 sm:pb-0",
+          "sm:[border-top:0] sm:[border-right:var(--map-chrome-edge)] sm:pb-0",
           open
             ? "translate-y-0 sm:translate-x-0"
             : "translate-y-full sm:translate-y-0 sm:-translate-x-[120%]"
@@ -417,7 +416,7 @@ export default function MapFilterDrawer({
                   announced equivalent). Interactive controls stay OUTSIDE this. */}
               <div aria-hidden="true">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-bold tabular-nums text-accent-cyan">
+                  <span className="font-display font-(weight:--display-weight) text-3xl tabular-nums text-accent-cyan [text-shadow:var(--stat-value-shadow)]">
                     {stats.count}
                   </span>
                   <span className="text-sm text-muted-text">
@@ -452,8 +451,8 @@ export default function MapFilterDrawer({
           )}
         </div>
 
-        {/* Filter controls, charts, and the activity list mount here (later steps).
-            `overscroll-contain` stops scroll-chaining into the map/page behind it. */}
+        {/* Scrolling body for `children`. `overscroll-contain` stops scroll-chaining
+            into the map/page behind it. */}
         <div className="flex-1 overflow-y-auto overscroll-contain">{children}</div>
       </aside>
     </>

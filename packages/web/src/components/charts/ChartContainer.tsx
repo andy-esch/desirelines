@@ -13,6 +13,7 @@ import type { MetricUnit } from "../../utils/units";
 import LoadingChart from "./LoadingChart";
 import ErrorChart from "./ErrorChart";
 import EmptyState from "../EmptyState";
+import { Panel } from "../theme/Panel";
 
 /** Configuration for the empty state display */
 interface EmptyStateConfig {
@@ -46,6 +47,40 @@ interface ChartContainerProps {
   emptyStateConfig?: EmptyStateConfig | undefined;
   /** Optional info tooltip content shown next to title */
   infoTooltip?: string | undefined;
+  /**
+   * Frame the chart in a theme `Panel`, which places the title and controls per the theme.
+   * Without it the chart draws its own header row and the caller provides any frame.
+   */
+  framed?: boolean | undefined;
+}
+
+/**
+ * The "?" badge that explains a chart, next to its title. Its explanation is a hover title
+ * only, so the glyph stays out of the accessibility tree rather than reading as part of a
+ * heading ("Cumulative Distance ?").
+ */
+function InfoBadge({ text }: { text: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        cursor: "help",
+        color: "var(--color-muted-text)",
+        fontSize: "12px",
+        borderRadius: "50%",
+        width: "16px",
+        height: "16px",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        border: "1px solid var(--color-muted-text)",
+        letterSpacing: "normal",
+      }}
+      title={text}
+    >
+      ?
+    </span>
+  );
 }
 
 /**
@@ -79,25 +114,7 @@ function ChartHeader({
         <h3 className="text-muted-text mb-0" style={{ fontSize: "1rem", fontWeight: "500" }}>
           {title}
         </h3>
-        {infoTooltip && (
-          <span
-            style={{
-              cursor: "help",
-              color: "var(--color-muted-text)",
-              fontSize: "12px",
-              borderRadius: "50%",
-              width: "16px",
-              height: "16px",
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              border: "1px solid var(--color-muted-text)",
-            }}
-            title={infoTooltip}
-          >
-            ?
-          </span>
-        )}
+        {infoTooltip && <InfoBadge text={infoTooltip} />}
       </div>
       {controls && <div className="flex gap-2">{controls}</div>}
     </div>
@@ -135,7 +152,48 @@ export function ChartContainer({
   children,
   emptyStateConfig,
   infoTooltip,
+  framed = false,
 }: ChartContainerProps) {
+  const ready = !isLoading && !error && !isEmpty;
+
+  // Framed: the Panel owns the title row, with the controls only once the chart can use them.
+  if (framed) {
+    const panelTitle = hideHeader ? undefined : (
+      <span className="inline-flex items-center gap-2">
+        {title}
+        {ready && infoTooltip && <InfoBadge text={infoTooltip} />}
+      </span>
+    );
+    return (
+      <Panel
+        title={panelTitle}
+        actions={ready && !hideHeader ? headerControls : undefined}
+        className={className}
+        bodyClassName="p-2"
+      >
+        {isLoading ? (
+          <LoadingChart />
+        ) : error ? (
+          <ErrorChart error={error} onRetry={onRetry} />
+        ) : isEmpty ? (
+          <EmptyState
+            sport={emptyStateConfig?.sport}
+            year={emptyStateConfig?.year}
+            unit={emptyStateConfig?.unit}
+            message={emptyStateConfig?.message}
+            suggestedYear={emptyStateConfig?.suggestedYear}
+          />
+        ) : (
+          <ErrorBoundary
+            fallbackRender={({ error }) => <ErrorChart error={error as Error} onRetry={onRetry} />}
+          >
+            {children}
+          </ErrorBoundary>
+        )}
+      </Panel>
+    );
+  }
+
   // Loading state
   if (isLoading) {
     return (

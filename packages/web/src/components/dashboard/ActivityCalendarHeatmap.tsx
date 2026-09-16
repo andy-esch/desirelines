@@ -5,8 +5,12 @@ import { useVisibleSports } from "../../hooks/useVisibleSports";
 import { useSportConfig } from "../../hooks/useSportConfig";
 import { filterValidSports } from "../../utils/sportConfig";
 import { toLocalDateString } from "../../utils/dateUtils";
+import { getCalendarRange, type TimeRangeOption } from "../../utils/calendarRange";
 import NeonSpinner from "../NeonSpinner";
+import StyledSelect from "../StyledSelect";
 import type { TuningParams } from "../../utils/demoDataGenerator";
+import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
+import { Panel } from "../theme/Panel";
 
 interface ActivityCalendarHeatmapProps {
   className?: string | undefined;
@@ -14,7 +18,6 @@ interface ActivityCalendarHeatmapProps {
 }
 
 /** Time range option for the heatmap */
-type TimeRangeOption = "trailing12" | number; // "trailing12" or a specific year
 
 /** Sport filter mode for the heatmap */
 type SportFilterMode = "all" | "visible";
@@ -152,42 +155,6 @@ function getMonthLabels(
 }
 
 /**
- * Calculate date range for a time range option.
- * For specific years, always returns full year (Jan 1 - Dec 31) for stable layout.
- * Data beyond today will just show as 0 activities.
- */
-function getDateRange(option: TimeRangeOption): {
-  startDate: Date;
-  endDate: Date;
-  from: string;
-  to: string;
-} {
-  const today = new Date();
-  let startDate: Date;
-  let endDate: Date;
-
-  if (option === "trailing12") {
-    // Trailing 12 months from today
-    endDate = today;
-    startDate = new Date(today);
-    startDate.setFullYear(startDate.getFullYear() - 1);
-    startDate.setDate(startDate.getDate() + 1); // Start day after same date last year
-  } else {
-    // Specific year - always show full year for stable layout
-    const year = option;
-    startDate = new Date(year, 0, 1);
-    endDate = new Date(year, 11, 31);
-  }
-
-  return {
-    startDate,
-    endDate,
-    from: toLocalDateString(startDate),
-    to: toLocalDateString(endDate),
-  };
-}
-
-/**
  * Get available year options for the dropdown.
  * Returns current year back to 2020 (or earlier if needed).
  */
@@ -211,7 +178,13 @@ export default function ActivityCalendarHeatmap({
   const [timeRange, setTimeRange] = useState<TimeRangeOption>("trailing12");
   const [sportFilter, setSportFilter] = useState<SportFilterMode>("all");
   const currentYear = useCurrentYear();
-  const yearOptions = useMemo(() => getYearOptions(currentYear), [currentYear]);
+  const timeRangeOptions = useMemo(
+    () => [
+      { value: "trailing12", label: "Past 12 months" },
+      ...getYearOptions(currentYear).map((year) => ({ value: String(year), label: String(year) })),
+    ],
+    [currentYear]
+  );
 
   // Get user's visible sports and sport config
   const { visibleSports, isLoading: prefsLoading } = useVisibleSports();
@@ -233,7 +206,7 @@ export default function ActivityCalendarHeatmap({
   const activeSports = sportFilter === "all" ? allSports : validVisibleSports;
 
   // Calculate date range based on selected option
-  const { startDate, endDate, from, to } = useMemo(() => getDateRange(timeRange), [timeRange]);
+  const { startDate, endDate, from, to } = useMemo(() => getCalendarRange(timeRange), [timeRange]);
 
   // Fetch daily data for selected sports
   // Note: year param is used for URL path, but from/to params filter the actual data
@@ -284,8 +257,7 @@ export default function ActivityCalendarHeatmap({
   const rangeLabel = timeRange === "trailing12" ? "past 12 months" : String(timeRange);
 
   // Dropdown handler
-  const handleTimeRangeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value;
+  const handleTimeRangeChange = (value: string) => {
     if (value === "trailing12") {
       setTimeRange("trailing12");
     } else {
@@ -296,12 +268,12 @@ export default function ActivityCalendarHeatmap({
   if (isLoading) {
     return (
       <div className={className}>
-        <div className="flex justify-between items-center mb-2">
-          <h2 className="h6 mb-0 text-muted-text">Activity Calendar</h2>
-        </div>
-        <div className="glass-panel flex items-center justify-center" style={{ height: 120 }}>
+        <Panel
+          title="Activity Calendar"
+          bodyClassName="flex h-[120px] items-center justify-center p-2"
+        >
           <NeonSpinner size="sm" />
-        </div>
+        </Panel>
       </div>
     );
   }
@@ -316,55 +288,43 @@ export default function ActivityCalendarHeatmap({
 
   return (
     <div className={className}>
-      <div className="flex justify-between items-center mb-2">
-        <h2 className="h6 mb-0 text-muted-text">
-          Activity Calendar
-          <span className="ms-2 text-sm font-normal">
-            {totalActivities} activities in {rangeLabel}
-          </span>
-        </h2>
-        <div className="flex items-center gap-2">
-          {/* Sport filter toggle */}
-          <div className="btn-group btn-group-sm" role="group" aria-label="Sport filter">
-            <button
-              type="button"
-              className={`btn btn-outline-secondary py-0 px-2 ${sportFilter === "all" ? "active" : ""}`}
-              style={{ fontSize: "0.7rem" }}
-              onClick={() => setSportFilter("all")}
-              aria-pressed={sportFilter === "all"}
+      <Panel
+        title="Activity Calendar"
+        meta={`${totalActivities} activities in ${rangeLabel}`}
+        bodyClassName="flex flex-col overflow-auto p-2"
+        actions={
+          <>
+            {/* Sport filter toggle */}
+            <ToggleGroup
+              value={[sportFilter]}
+              onValueChange={(values) =>
+                setSportFilter((values[0] as SportFilterMode | undefined) ?? sportFilter)
+              }
+              aria-label="Sport filter"
+              className="p-0.5"
             >
-              All
-            </button>
-            <button
-              type="button"
-              className={`btn btn-outline-secondary py-0 px-2 ${sportFilter === "visible" ? "active" : ""}`}
-              style={{ fontSize: "0.7rem" }}
-              onClick={() => setSportFilter("visible")}
-              aria-pressed={sportFilter === "visible"}
-              title={`Show only: ${validVisibleSports.join(", ")}`}
-            >
-              Visible
-            </button>
-          </div>
-          {/* Time range selector */}
-          <select
-            className="form-select form-select-sm"
-            style={{ width: "auto", fontSize: "0.75rem" }}
-            value={timeRange === "trailing12" ? "trailing12" : String(timeRange)}
-            onChange={handleTimeRangeChange}
-            aria-label="Select time range"
-          >
-            <option value="trailing12">Past 12 months</option>
-            {yearOptions.map((year) => (
-              <option key={year} value={year}>
-                {year}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div className="glass-panel overflow-auto flex flex-col">
+              <ToggleGroupItem value="all" className="px-2 py-0.5 text-xs">
+                All
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                value="visible"
+                className="px-2 py-0.5 text-xs"
+                title={`Show only: ${validVisibleSports.join(", ")}`}
+              >
+                Visible
+              </ToggleGroupItem>
+            </ToggleGroup>
+            {/* Time range selector */}
+            <StyledSelect
+              className="h-7 w-auto gap-1 px-2 py-0 text-xs"
+              value={timeRange === "trailing12" ? "trailing12" : String(timeRange)}
+              onChange={handleTimeRangeChange}
+              options={timeRangeOptions}
+              aria-label="Select time range"
+            />
+          </>
+        }
+      >
         <div
           style={{
             display: "inline-block",
@@ -472,7 +432,8 @@ export default function ActivityCalendarHeatmap({
                         width: CELL_SIZE,
                         height: CELL_SIZE,
                         background: color,
-                        borderRadius: 2,
+                        border: count === 0 ? "var(--cell-empty-border)" : undefined,
+                        borderRadius: "var(--cell-radius)",
                         cursor: "default",
                       }}
                     />
@@ -496,13 +457,14 @@ export default function ActivityCalendarHeatmap({
                 width: CELL_SIZE,
                 height: CELL_SIZE,
                 background: color,
-                borderRadius: 2,
+                border: i === 0 ? "var(--cell-empty-border)" : undefined,
+                borderRadius: "var(--cell-radius)",
               }}
             />
           ))}
           <span>More</span>
         </div>
-      </div>
+      </Panel>
     </div>
   );
 }

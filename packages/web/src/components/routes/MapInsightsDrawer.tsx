@@ -114,8 +114,8 @@ export default function MapInsightsDrawer({
         tabIndex={open || hideToggle ? -1 : undefined}
         style={MAP_CHROME_STYLE}
         className={cn(
-          "absolute z-30 inline-flex items-center justify-center rounded-md border border-border/70",
-          "bg-card/85 text-body-text shadow-lg backdrop-blur-md",
+          "absolute z-30 inline-flex items-center justify-center rounded-md [border:var(--map-chrome-edge)]",
+          "bg-(--map-chrome-bg) text-body-text shadow-lg backdrop-blur-(--glass-blur)",
           "transition-all duration-200 ease-out hover:border-accent-cyan/50 hover:text-accent-cyan",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-cyan/50",
           "motion-reduce:transition-none",
@@ -143,13 +143,13 @@ export default function MapInsightsDrawer({
         inert={!open}
         style={MAP_CHROME_STYLE}
         className={cn(
-          "absolute z-20 flex flex-col bg-card/85 shadow-xl backdrop-blur-md",
+          "absolute z-20 flex flex-col bg-(--map-chrome-bg) [box-shadow:var(--map-chrome-shadow)] backdrop-blur-(--glass-blur)",
           "transition-transform duration-300 ease-out motion-reduce:transition-none",
           // Mobile: bottom sheet (safe-area-aware), mirroring the filter drawer.
-          "inset-x-0 bottom-0 max-h-[70%] border-t border-border/70 pb-[env(safe-area-inset-bottom)]",
-          // Desktop: full-height right panel.
+          "inset-x-0 bottom-0 max-h-[70%] [border-top:var(--map-chrome-edge)] pb-[env(safe-area-inset-bottom)]",
+          // Desktop: full-height right panel, edged on the map side.
           "sm:inset-y-0 sm:bottom-auto sm:left-auto sm:right-0 sm:h-full sm:w-80 sm:max-h-none sm:max-w-[85%]",
-          "sm:border-t-0 sm:border-l sm:pb-0",
+          "sm:[border-top:0] sm:[border-left:var(--map-chrome-edge)] sm:pb-0",
           open
             ? "translate-y-0 sm:translate-x-0"
             : "translate-y-full sm:translate-y-0 sm:translate-x-[110%]"

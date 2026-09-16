@@ -44,7 +44,7 @@ func RecordDuration(ctx context.Context, h metric.Float64Histogram, attrs ...att
 		all := make([]attribute.KeyValue, 0, len(attrs)+1)
 		all = append(all, attrs...)
 		all = append(all, attribute.String("result", result))
-		h.Record(ctx, elapsed, metric.WithAttributes(all...))
+		h.Record(context.WithoutCancel(ctx), elapsed, metric.WithAttributes(all...))
 	}
 }
 
@@ -59,6 +59,9 @@ func RecordDuration(ctx context.Context, h metric.Float64Histogram, attrs ...att
 //	result, err := store.GetTokens(ctx, id)
 //	done(err)
 func StartSpan(ctx context.Context, t trace.Tracer, name string, attrs ...attribute.KeyValue) (context.Context, func(error)) {
+	if t == nil {
+		return ctx, func(error) {}
+	}
 	ctx, span := t.Start(ctx, name, trace.WithAttributes(attrs...))
 	return ctx, func(err error) {
 		if err != nil {

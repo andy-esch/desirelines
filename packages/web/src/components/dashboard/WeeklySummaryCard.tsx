@@ -3,6 +3,9 @@ import { useWeeklySummary } from "../../hooks/useWeeklySummary";
 import { formatMetricDisplayValue, formatHoursMinutes } from "../../utils/units";
 import { tint } from "../../utils/colorTokens";
 import Skeleton from "../Skeleton";
+import { StatusSymbol, type GoalStatus } from "../theme/StatusSymbol";
+import { Panel } from "../theme/Panel";
+import { useThemeStructure } from "../theme/useThemeStructure";
 
 /**
  * Compact card showing this-week totals per sport with prorated weekly goal %.
@@ -14,14 +17,15 @@ import Skeleton from "../Skeleton";
  */
 export default function WeeklySummaryCard() {
   const { sportTotals, weekLabel, isLoading, error } = useWeeklySummary();
+  const { statusSymbolStyle } = useThemeStructure();
 
   if (error) {
     return (
-      <div className="glass-panel h-full">
+      <Panel className="h-full" bodyClassName="p-2" title="This Week">
         <div className="text-center text-muted-text py-6">
           <small>Unable to load weekly summary</small>
         </div>
-      </div>
+      </Panel>
     );
   }
 
@@ -40,11 +44,7 @@ export default function WeeklySummaryCard() {
   const distanceUnit = distanceSports[0]?.metricUnit ?? "mi";
 
   return (
-    <div className="glass-panel h-full">
-      <div className="flex justify-between items-center mb-2">
-        <h6 className="h6 mb-0 text-muted-text">This Week</h6>
-        <small className="text-muted-text">{weekLabel}</small>
-      </div>
+    <Panel className="h-full" bodyClassName="p-2" title="This Week" meta={weekLabel}>
       {isLoading ? (
         <div role="status" aria-label="Loading weekly summary">
           {[0, 1, 2, 3].map((i) => (
@@ -73,7 +73,7 @@ export default function WeeklySummaryCard() {
           {sportTotals.map((sport) => (
             <div
               key={sport.sport}
-              className="flex items-center justify-between py-1"
+              className="flex items-center justify-between py-(--row-padding)"
               style={{ borderBottom: "1px solid var(--color-surface-border)" }}
             >
               <div className="flex items-center">
@@ -101,26 +101,32 @@ export default function WeeklySummaryCard() {
                       )
                     : "—"}
                 </span>
+                {/* Badges only mark progress; symbols also say when a sport has none. */}
+                {sport.weeklyTotal === 0 && statusSymbolStyle !== "badge" && (
+                  <StatusSymbol status="no-activity" label="No activity" />
+                )}
                 {sport.weeklyTotal > 0 && (
-                  <span
-                    className="badge"
-                    style={{
+                  <StatusSymbol
+                    status={getAchievementStatus(sport.achievementPct)}
+                    label={`${Math.round(sport.achievementPct)}% of goal`}
+                    badgeContent={`${Math.round(sport.achievementPct)}%`}
+                    badgeStyle={{
                       ...getAchievementStyle(sport.achievementPct),
                       fontSize: "0.65rem",
                       minWidth: 42,
                     }}
-                  >
-                    {Math.round(sport.achievementPct)}%
-                  </span>
+                  />
                 )}
               </div>
             </div>
           ))}
 
           {/* Footer totals */}
-          <div className="pt-2 mt-1">
+          <div className="flex items-baseline justify-between gap-4 pt-2 mt-1">
+            <span className="text-(length:--label-size) font-(weight:--label-weight) tracking-(--label-tracking) [text-transform:var(--label-case)] text-(color:--color-muted-text)">
+              Total
+            </span>
             <small className="text-muted-text">
-              Total:{" "}
               {totalDistance > 0 && (
                 <span>{formatMetricDisplayValue(totalDistance, "distance", distanceUnit)}</span>
               )}
@@ -136,8 +142,16 @@ export default function WeeklySummaryCard() {
           </div>
         </>
       )}
-    </div>
+    </Panel>
   );
+}
+
+/** Weekly progress as a goal status; thresholds match the badge colors below. */
+function getAchievementStatus(pct: number): GoalStatus {
+  if (pct >= 100) return "ahead";
+  if (pct >= 75) return "on-track";
+  if (pct >= 50) return "slightly-behind";
+  return "behind";
 }
 
 /**

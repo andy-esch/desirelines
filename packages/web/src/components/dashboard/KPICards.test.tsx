@@ -43,7 +43,7 @@ describe("KPICards", () => {
     render(<KPICards {...getDefaultProps()} />);
 
     // Value and unit are in separate elements for visual styling
-    const currentCard = screen.getByText("Current Distance").closest(".glass-panel-kpi");
+    const currentCard = screen.getByText("Current Distance").closest("[data-frame]");
     expect(currentCard?.textContent).toContain("2450");
     expect(currentCard?.textContent).toContain("miles");
     expect(screen.getByText(/8.3 miles \/ day avg/)).toBeInTheDocument();
@@ -162,7 +162,7 @@ describe("KPICards", () => {
       render(<KPICards {...getDefaultProps()} unit="sessions" currentValue={100} />);
 
       expect(screen.getByText("Current # Sessions")).toBeInTheDocument();
-      const sessionsCard = screen.getByText("Current # Sessions").closest(".glass-panel-kpi");
+      const sessionsCard = screen.getByText("Current # Sessions").closest("[data-frame]");
       expect(sessionsCard?.textContent).toContain("100");
       expect(sessionsCard?.textContent).toContain("sessions");
       expect(screen.getByText(/sessions \/ day avg/)).toBeInTheDocument();

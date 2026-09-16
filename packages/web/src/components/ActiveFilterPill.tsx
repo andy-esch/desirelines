@@ -31,6 +31,23 @@ export function activeFilterLabels(
   return labels;
 }
 
+/**
+ * Every filter in words, defaults included, e.g. "4 Weeks · All sports" or
+ * "Year to Date · Cycling". Used as a page kicker, where the view's state is always named.
+ */
+export function filterSummary(
+  range: string,
+  sports: string[],
+  timeOptions: FilterOption[],
+  sportOptions: FilterOption[]
+): string {
+  const rangeLabel = timeOptions.find((o) => o.value === range)?.label ?? range;
+  const sportLabels = sports.length
+    ? activeFilterLabels(range, range, sports, timeOptions, sportOptions)
+    : ["All sports"];
+  return [rangeLabel, ...sportLabels].join(" · ");
+}
+
 interface ActiveFilterPillProps {
   /** Active non-default filter labels (from {@link activeFilterLabels}); empty hides the pill. */
   filters: string[];
@@ -52,7 +69,7 @@ export default function ActiveFilterPill({ filters, onClear }: ActiveFilterPillP
     // so it silently replaced the neon glow with a generic drop shadow — this pill had
     // no glow at all. The glow plus the blurred surface carry the elevation, which is
     // also what the map pill this mirrors does.
-    <div className="pill-neon fixed left-1/2 top-14 z-40 flex -translate-x-1/2 items-center gap-2.5 rounded-full border bg-surface-raised/85 px-3.5 py-1.5 text-xs text-muted-text backdrop-blur-sm">
+    <div className="pill-neon fixed left-1/2 top-14 z-40 flex -translate-x-1/2 items-center gap-2.5 rounded-full border bg-surface-raised/85 px-3.5 py-1.5 text-xs text-muted-text backdrop-blur-(--glass-blur-sm)">
       <span aria-hidden="true" className="pill-neon-dot h-1.5 w-1.5 shrink-0 rounded-full" />
       <span>
         <span className="text-subtle-text">Filtered:</span> {filters.join(" · ")}

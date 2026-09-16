@@ -243,7 +243,9 @@ export function AccountDropdown({
         aria-haspopup="menu"
         aria-label={user ? `Account menu for ${displayName}` : "Account menu"}
       >
-        <UserIcon />
+        <span className="inline-flex rounded-(--avatar-radius) [border:var(--avatar-border)] [box-shadow:var(--avatar-glow)]">
+          <UserIcon />
+        </span>
         <ChevronDownIcon size={10} className="opacity-60" />
       </button>
 

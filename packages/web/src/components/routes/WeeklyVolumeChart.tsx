@@ -45,7 +45,7 @@ export default function WeeklyVolumeChart({ activities, distanceUnit }: WeeklyVo
   return (
     <section className="px-4 py-3" aria-label="Weekly volume">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-text">
+        <p className="text-(length:--label-size) font-(weight:--label-weight) tracking-(--label-tracking) [text-transform:var(--label-case)] text-(color:--label-color)">
           Weekly volume
         </p>
         <ToggleGroup

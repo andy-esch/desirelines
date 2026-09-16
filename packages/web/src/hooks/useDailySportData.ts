@@ -70,6 +70,15 @@ export interface UseDailySportDataOptions {
 /** Default sports for backwards compatibility */
 const DEFAULT_SPORTS = ["cycling", "running", "yoga"];
 
+/**
+ * Generated demo days per request (sports, range and tuning), kept for the page's lifetime.
+ * Cards that ask the same question, such as the dashboard hero's week total and the This
+ * Week card, then show the same generated activities instead of two random draws.
+ */
+const demoDataCache = new Map<string, MultiSportData>();
+/** Enough for every range a demo session realistically opens; the oldest entry goes first. */
+const DEMO_CACHE_LIMIT = 24;
+
 export function useDailySportData(options: UseDailySportDataOptions): DailySportDataResult {
   const { user, loading: authLoading } = useAuth();
   const { data: prefs } = useUserConfig("preferences");
@@ -84,6 +93,10 @@ export function useDailySportData(options: UseDailySportDataOptions): DailySport
   const demoData = useMemo(() => {
     if (user) return {};
 
+    const cacheKey = JSON.stringify([[...sports].sort(), from, to, tuningParams ?? null]);
+    const cached = demoDataCache.get(cacheKey);
+    if (cached) return cached;
+
     // Get coordinated fill levels for all requested sports
     const fillLevels = getSessionFillLevels(sports);
     const result: MultiSportData = {};
@@ -97,6 +110,11 @@ export function useDailySportData(options: UseDailySportDataOptions): DailySport
       });
     }
 
+    if (demoDataCache.size >= DEMO_CACHE_LIMIT) {
+      const oldest = demoDataCache.keys().next().value;
+      if (oldest !== undefined) demoDataCache.delete(oldest);
+    }
+    demoDataCache.set(cacheKey, result);
     return result;
   }, [user, sports, from, to, tuningParams]);
 

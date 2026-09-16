@@ -14,6 +14,12 @@ import { parseRgb, resolveThemeColor, type Rgb } from "../../utils/colorTokens";
 import { useTheme } from "../../contexts/ThemeContext";
 import { toLocalDateString as toLocal } from "../../utils/dateUtils";
 import { formatActivityDate } from "../../utils/formatActivityDate";
+import { Button } from "../ui/button";
+import { Table } from "../ui/table";
+import { useSportConfig } from "../../hooks/useSportConfig";
+import { SportLabel } from "../theme/SportLabel";
+import { useThemeStructure } from "../theme/useThemeStructure";
+import { SPORT_COLORS, DEFAULT_SPORT_COLOR, getSportDisplayName } from "../../utils/sportConfig";
 
 /** Height of the thead row in px */
 const HEADER_HEIGHT = 22;
@@ -21,6 +27,8 @@ const HEADER_HEIGHT = 22;
 const ROW_HEIGHT = 28;
 /** Minimum rows to show */
 const MIN_ROWS = 3;
+/** Height of the labelled pager row in px, which sits under the table rather than beside it */
+const PAGER_HEIGHT = 28;
 
 function getDateRangeFromTimeRange(timeRange: TimeRange): { from: string; to: string } {
   const now = new Date();
@@ -101,6 +109,7 @@ export default function RecentActivitiesList({
   pageSize: fallbackPageSize,
 }: RecentActivitiesListProps) {
   const { user } = useAuth();
+  const { sportConfig } = useSportConfig();
   const navigate = useNavigate();
   const [page, setPage] = useState(0);
 
@@ -145,9 +154,11 @@ export default function RecentActivitiesList({
     return () => observer.disconnect();
   }, [handleResize]);
 
+  const { pagerStyle } = useThemeStructure();
+  const chromeHeight = HEADER_HEIGHT + (pagerStyle === "labelled" ? PAGER_HEIGHT : 0);
   const pageSize =
     containerHeight > 0
-      ? Math.max(MIN_ROWS, Math.floor((containerHeight - HEADER_HEIGHT) / ROW_HEIGHT))
+      ? Math.max(MIN_ROWS, Math.floor((containerHeight - chromeHeight) / ROW_HEIGHT))
       : fallbackPageSize;
 
   // Goal data for impact % column + distance unit preference
@@ -232,14 +243,13 @@ export default function RecentActivitiesList({
 
   const showPagination = totalPages > 1 || hasMore;
 
+  const labelledPager = pagerStyle === "labelled";
+
   return (
-    <div ref={containerRef} className="flex h-full">
+    <div ref={containerRef} className={labelledPager ? "flex h-full flex-col" : "flex h-full"}>
       {/* Activities table — horizontally scrollable on narrow viewports */}
       <div className="grow" style={{ overflowX: "auto", minWidth: 0 }}>
-        <table
-          className="table table-sm table-borderless table-dark-transparent mb-0"
-          style={{ fontSize: "0.8rem", lineHeight: 1.2, tableLayout: "fixed", minWidth: 420 }}
-        >
+        <Table style={{ fontSize: "0.8rem", lineHeight: 1.2, tableLayout: "fixed", minWidth: 420 }}>
           <colgroup>
             <col />
             <col style={{ width: 70 }} />
@@ -265,8 +275,9 @@ export default function RecentActivitiesList({
               <th
                 className="text-right px-1 py-0 text-muted-text font-normal align-middle"
                 style={{ fontSize: "0.7rem" }}
+                title="Share of the sport's goal"
               >
-                Goal Impact
+                Impact
               </th>
               <th
                 className="text-right px-1 py-0 text-muted-text font-normal align-middle"
@@ -350,7 +361,9 @@ export default function RecentActivitiesList({
                     className="text-muted-text text-left px-1 py-0 align-middle"
                     style={{ whiteSpace: "nowrap", textTransform: "capitalize" }}
                   >
-                    {activity.sport}
+                    <SportLabel color={SPORT_COLORS[activity.sport] ?? DEFAULT_SPORT_COLOR}>
+                      {getSportDisplayName(activity.sport, sportConfig)}
+                    </SportLabel>
                   </td>
                   <td
                     className={`${impactPct == null ? "text-muted-text " : ""}text-end px-1 py-0 align-middle`}
@@ -387,43 +400,78 @@ export default function RecentActivitiesList({
               );
             })}
           </tbody>
-        </table>
+        </Table>
       </div>
 
-      {/* Pagination controls - vertically centered */}
-      <div
-        className="flex flex-col justify-center ms-2"
-        style={{ minWidth: 32, visibility: showPagination ? "visible" : "hidden" }}
-      >
-        <button
-          className="btn btn-sm btn-link p-0 text-muted-text min-h-[44px] min-w-[32px] inline-flex items-center justify-center"
-          onClick={() => setPage((p) => p - 1)}
-          disabled={!canGoUp}
-          style={{ opacity: canGoUp ? 1 : 0.3 }}
-          aria-label="Newer activities"
+      {/* Pagination: a labelled row under the table, or arrows centered beside it */}
+      {labelledPager ? (
+        <div
+          className="flex shrink-0 items-center justify-end gap-2.5 pt-2.5 text-(length:--label-size) tracking-(--label-tracking) [text-transform:var(--label-case)]"
+          style={{ visibility: showPagination ? "visible" : "hidden" }}
         >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M8 4l5 6H3l5-6z" />
-          </svg>
-        </button>
-        <span
-          className="text-muted-text text-center"
-          style={{ fontSize: "0.7rem", lineHeight: 1.3 }}
+          <Button
+            variant="link"
+            size="sm"
+            className="h-auto p-0 text-(length:--label-size) tracking-(--label-tracking) text-muted-text no-underline disabled:opacity-40"
+            onClick={() => setPage((p) => p - 1)}
+            disabled={!canGoUp}
+            aria-label="Newer activities"
+          >
+            Prev
+          </Button>
+          <span className="text-body-text tabular-nums">
+            {page + 1} / {hasMore ? "+" : totalPages}
+          </span>
+          <Button
+            variant="link"
+            size="sm"
+            className="h-auto p-0 text-(length:--label-size) tracking-(--label-tracking) no-underline disabled:opacity-40"
+            onClick={handleNextPage}
+            disabled={!canGoDown}
+            aria-label="Older activities"
+          >
+            Next
+          </Button>
+        </div>
+      ) : (
+        <div
+          className="flex flex-col justify-center ms-2"
+          style={{ minWidth: 32, visibility: showPagination ? "visible" : "hidden" }}
         >
-          {page + 1}/{hasMore ? "+" : totalPages}
-        </span>
-        <button
-          className="btn btn-sm btn-link p-0 text-muted-text min-h-[44px] min-w-[32px] inline-flex items-center justify-center"
-          onClick={handleNextPage}
-          disabled={!canGoDown}
-          style={{ opacity: canGoDown ? 1 : 0.3 }}
-          aria-label="Older activities"
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M8 12l5-6H3l5 6z" />
-          </svg>
-        </button>
-      </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-11 w-8 text-muted-text"
+            onClick={() => setPage((p) => p - 1)}
+            disabled={!canGoUp}
+            style={{ opacity: canGoUp ? 1 : 0.3 }}
+            aria-label="Newer activities"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 4l5 6H3l5-6z" />
+            </svg>
+          </Button>
+          <span
+            className="text-muted-text text-center"
+            style={{ fontSize: "0.7rem", lineHeight: 1.3 }}
+          >
+            {page + 1}/{hasMore ? "+" : totalPages}
+          </span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-11 w-8 text-muted-text"
+            onClick={handleNextPage}
+            disabled={!canGoDown}
+            style={{ opacity: canGoDown ? 1 : 0.3 }}
+            aria-label="Older activities"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 12l5-6H3l5 6z" />
+            </svg>
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

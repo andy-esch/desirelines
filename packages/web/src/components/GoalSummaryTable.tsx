@@ -4,7 +4,13 @@ import { GOAL_COLORS } from "../constants/chartColors";
 import type { MetricUnit } from "../utils/units";
 import { useDangerThresholds } from "../hooks/useDangerThresholds";
 import { CheckIcon, WarningIcon } from "./icons";
+import { StatusSymbol, type GoalStatus } from "./theme/StatusSymbol";
 import type { YearContext } from "../utils/yearContext";
+import { Panel } from "./theme/Panel";
+import { Meter } from "./theme/Meter";
+import { useThemeStructure } from "./theme/useThemeStructure";
+import { Alert } from "./ui/alert";
+import { Table } from "./ui/table";
 
 interface GoalSummaryTableProps {
   goals: Goals;
@@ -27,6 +33,12 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
   isLoading = false,
 }) => {
   const { year, isPastYear, daysElapsed, daysRemaining } = yearContext;
+  const { goalTrackStyle } = useThemeStructure();
+  // Where linear pacing puts you today, as a share of the year: the goal track's pace tick.
+  const paceShare =
+    yearContext.shouldShowPacing && daysElapsed + daysRemaining > 0
+      ? daysElapsed / (daysElapsed + daysRemaining)
+      : undefined;
 
   // Get danger threshold for this sport
   const { getThreshold } = useDangerThresholds();
@@ -68,18 +80,13 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
     return currentValue / proratedGoal;
   };
 
-  const getStatusContent = (goalValue: number): React.ReactNode => {
+  const getStatus = (goalValue: number): { status: GoalStatus; label: string } => {
     const progress = calculateProgress(goalValue);
-
-    const achieved = (
-      <>
-        Achieved <CheckIcon size={12} className="ml-1 inline" aria-hidden="true" />
-      </>
-    );
+    const achieved = { status: "achieved", label: "Achieved" } as const;
 
     // Past tense labels for historical years - binary: achieved or not
     if (isPastYear) {
-      return progress >= 100 ? achieved : "Not Met";
+      return progress >= 100 ? achieved : { status: "not-met", label: "Not Met" };
     }
 
     // Already achieved the full year goal
@@ -88,11 +95,13 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
     // For current/future years, compare against prorated goal (where you should be now)
     const paceRatio = calculatePaceRatio(goalValue);
 
-    if (paceRatio >= PACE_THRESHOLDS.AHEAD) return "Ahead";
-    if (paceRatio >= PACE_THRESHOLDS.ON_TRACK) return "On Track";
-    if (paceRatio >= PACE_THRESHOLDS.SLIGHTLY_BEHIND) return "Slightly Behind";
-    if (paceRatio >= PACE_THRESHOLDS.BEHIND) return "Behind";
-    return "Far Behind";
+    if (paceRatio >= PACE_THRESHOLDS.AHEAD) return { status: "ahead", label: "Ahead" };
+    if (paceRatio >= PACE_THRESHOLDS.ON_TRACK) return { status: "on-track", label: "On Track" };
+    if (paceRatio >= PACE_THRESHOLDS.SLIGHTLY_BEHIND) {
+      return { status: "slightly-behind", label: "Slightly Behind" };
+    }
+    if (paceRatio >= PACE_THRESHOLDS.BEHIND) return { status: "behind", label: "Behind" };
+    return { status: "far-behind", label: "Far Behind" };
   };
 
   // Sort goals by value for display
@@ -107,59 +116,71 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
   const hasDangerousGoals = dangerousGoals.length > 0;
 
   return (
-    <div className="card glass-panel mb-8">
-      <div className="card-header">
-        <h5>Goal Achievability Summary</h5>
-      </div>
-      <div className="card-body">
-        <div className="overflow-x-auto">
-          <table className="table table-hover table-sm table-dark-transparent">
-            <caption className="sr-only">Goal achievability summary</caption>
-            <thead>
-              <tr>
-                <th style={{ width: "10px" }}></th>
-                <th>Goal</th>
-                <th>Target</th>
-                <th>Progress</th>
-                <th>Remaining</th>
-                {yearContext.shouldShowPacing && <th>Daily Pace Needed</th>}
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedGoals.map((goal) => {
-                const progress = isLoading ? 0 : calculateProgress(goal.value);
-                const remaining = isLoading ? 0 : Math.max(0, goal.value - currentValue);
-                const paceNeeded = isLoading ? 0 : calculateDailyPaceNeeded(goal.value);
-                const status = isLoading ? "Loading..." : getStatusContent(goal.value);
-                const isDangerous = dangerousGoalIds.has(goal.id);
+    <Panel title="Goal Achievability Summary" className="mb-8">
+      <div className="overflow-x-auto">
+        <Table hover className="mb-4">
+          <caption className="sr-only">Goal achievability summary</caption>
+          <thead>
+            <tr>
+              <th style={{ width: "10px" }}></th>
+              <th>Goal</th>
+              <th>Target</th>
+              <th>Progress</th>
+              <th>Remaining</th>
+              {yearContext.shouldShowPacing && <th>Daily Pace Needed</th>}
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedGoals.map((goal) => {
+              const progress = isLoading ? 0 : calculateProgress(goal.value);
+              const remaining = isLoading ? 0 : Math.max(0, goal.value - currentValue);
+              const paceNeeded = isLoading ? 0 : calculateDailyPaceNeeded(goal.value);
+              const status = isLoading
+                ? ({ status: "no-activity", label: "Loading..." } as const)
+                : getStatus(goal.value);
+              const isDangerous = dangerousGoalIds.has(goal.id);
 
-                // Find the original index in the unsorted goals array to get the correct color
-                const originalIndex = goals.findIndex((g) => g.id === goal.id);
-                const goalColor = GOAL_COLORS[originalIndex % GOAL_COLORS.length];
+              // Find the original index in the unsorted goals array to get the correct color
+              const originalIndex = goals.findIndex((g) => g.id === goal.id);
+              const goalColor = GOAL_COLORS[originalIndex % GOAL_COLORS.length];
 
-                return (
-                  <tr key={goal.id} className={isDangerous ? "table-row-danger" : ""}>
-                    <td
-                      style={{
-                        borderLeft: `4px solid ${goalColor}`,
-                        padding: "0",
-                        width: "10px",
-                      }}
-                    ></td>
-                    <td>
-                      <strong>{goal.label || "Unnamed"}</strong>
-                    </td>
-                    <td>
-                      {goal.value.toLocaleString()} {unit}
-                    </td>
-                    <td>
-                      <div
-                        className="progress progress-neon"
-                        style={{ height: "20px", minWidth: "100px", position: "relative" }}
-                      >
+              return (
+                <tr
+                  key={goal.id}
+                  className={isDangerous ? "bg-danger/8 hover:bg-danger/12" : undefined}
+                >
+                  <td
+                    style={{
+                      borderLeft: `4px solid ${goalColor}`,
+                      padding: "0",
+                      width: "10px",
+                    }}
+                  ></td>
+                  <td>
+                    <strong>{goal.label || "Unnamed"}</strong>
+                  </td>
+                  <td>
+                    {goal.value.toLocaleString()} {unit}
+                  </td>
+                  <td>
+                    {goalTrackStyle !== "bar-with-percent" ? (
+                      <div className="flex min-w-[140px] items-center gap-3">
+                        <Meter
+                          value={progress / 100}
+                          marker={paceShare}
+                          color={goalColor}
+                          label={`${goal.label || "Unnamed"} progress`}
+                          className="grow"
+                        />
+                        <span className="w-10 shrink-0 text-right tabular-nums">
+                          {isLoading ? "--" : `${progress.toFixed(0)}%`}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="relative flex h-(--track-height) min-w-[100px] rounded-(--track-radius) bg-(--track-bg)">
                         <div
-                          className="progress-bar progress-bar-neon"
+                          className="flex flex-col justify-center [background-image:var(--progress-shine)] transition-[width] duration-300"
                           role="progressbar"
                           aria-label={`${goal.label || "Unnamed"} progress`}
                           style={{
@@ -192,79 +213,92 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
                           {isLoading ? "--" : `${progress.toFixed(0)}%`}
                         </span>
                       </div>
-                    </td>
-                    <td>{isLoading ? "--" : `${remaining.toFixed(0)} ${unit}`}</td>
-                    {yearContext.shouldShowPacing && (
-                      <td>
-                        {isLoading ? (
-                          "--"
-                        ) : (
-                          <span className={isDangerous ? "font-bold text-danger" : ""}>
-                            {paceNeeded.toFixed(1)} {unit}/day
-                            {isDangerous && (
-                              <span
-                                className="ml-2 inline-flex items-center text-danger"
-                                title="This pace exceeds sustainable limits"
-                                style={{ cursor: "help" }}
-                              >
-                                <WarningIcon size={14} aria-hidden="true" />
-                                <span className="sr-only">Warning: unsustainable pace</span>
-                              </span>
-                            )}
-                          </span>
-                        )}
-                      </td>
                     )}
+                  </td>
+                  <td>{isLoading ? "--" : `${remaining.toFixed(0)} ${unit}`}</td>
+                  {yearContext.shouldShowPacing && (
                     <td>
-                      <span className="badge" style={{ backgroundColor: goalColor }}>
-                        {status}
-                      </span>
+                      {isLoading ? (
+                        "--"
+                      ) : (
+                        <span className={isDangerous ? "font-bold text-danger" : ""}>
+                          {paceNeeded.toFixed(1)} {unit}/day
+                          {isDangerous && (
+                            <span
+                              className="ml-2 inline-flex items-center text-danger"
+                              title="This pace exceeds sustainable limits"
+                              style={{ cursor: "help" }}
+                            >
+                              <WarningIcon size={14} aria-hidden="true" />
+                              <span className="sr-only">Warning: unsustainable pace</span>
+                            </span>
+                          )}
+                        </span>
+                      )}
                     </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Warning banner - only if dangerous goals exist and data is loaded */}
-        {hasDangerousGoals && (
-          <div className="alert alert-warning mt-6 mb-0" role="alert">
-            <small>
-              <strong>
-                <WarningIcon size={12} className="inline mr-1" aria-hidden="true" />
-                Warning:
-              </strong>{" "}
-              Goals marked with{" "}
-              <WarningIcon size={12} className="inline mx-0.5" aria-hidden="true" /> require a pace
-              exceeding{" "}
-              <strong>
-                {dangerThreshold} {unit}/day
-              </strong>
-              , which may be unsustainable. Consider adjusting your targets.
-            </small>
-          </div>
-        )}
-
-        {yearContext.shouldShowPacing && (
-          <p className="text-muted-text mt-2 mb-0">
-            <small>
-              {yearContext.daysRemaining} days remaining in {year}
-            </small>
-          </p>
-        )}
-        {isPastYear && (
-          <p className="text-muted-text mt-2 mb-0">
-            <small>Historical year - {year} complete</small>
-          </p>
-        )}
-        {yearContext.isFutureYear && (
-          <p className="text-muted-text mt-2 mb-0">
-            <small>Future year - planning mode</small>
-          </p>
-        )}
+                  )}
+                  <td>
+                    <StatusSymbol
+                      status={status.status}
+                      label={status.label}
+                      badgeStyle={{ backgroundColor: goalColor }}
+                      badgeContent={
+                        status.status === "achieved" ? (
+                          <>
+                            Achieved{" "}
+                            <CheckIcon size={12} className="ml-1 inline" aria-hidden="true" />
+                          </>
+                        ) : undefined
+                      }
+                    />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </Table>
       </div>
-    </div>
+
+      {/* Warning banner - only if dangerous goals exist and data is loaded */}
+      {hasDangerousGoals && (
+        <Alert variant="warning" role="alert" className="mt-6">
+          <small>
+            <strong>
+              <WarningIcon size={12} className="inline mr-1" aria-hidden="true" />
+              Warning:
+            </strong>{" "}
+            Goals marked with <WarningIcon
+              size={12}
+              className="inline mx-0.5"
+              aria-hidden="true"
+            />{" "}
+            require a pace exceeding{" "}
+            <strong>
+              {dangerThreshold} {unit}/day
+            </strong>
+            , which may be unsustainable. Consider adjusting your targets.
+          </small>
+        </Alert>
+      )}
+
+      {yearContext.shouldShowPacing && (
+        <p className="text-muted-text mt-2 mb-0">
+          <small>
+            {yearContext.daysRemaining} days remaining in {year}
+          </small>
+        </p>
+      )}
+      {isPastYear && (
+        <p className="text-muted-text mt-2 mb-0">
+          <small>Historical year - {year} complete</small>
+        </p>
+      )}
+      {yearContext.isFutureYear && (
+        <p className="text-muted-text mt-2 mb-0">
+          <small>Future year - planning mode</small>
+        </p>
+      )}
+    </Panel>
   );
 };
 

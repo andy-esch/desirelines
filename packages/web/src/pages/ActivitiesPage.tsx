@@ -8,7 +8,11 @@ import { useSportOptions } from "../hooks/useSportOptions";
 import { useVisibleSports } from "../hooks/useVisibleSports";
 import { useDashboardGoalData } from "../hooks/useDashboardGoalData";
 import { PageLayout } from "../components/layout/PageLayout";
-import ActiveFilterPill, { activeFilterLabels } from "../components/ActiveFilterPill";
+import ActiveFilterPill, {
+  activeFilterLabels,
+  filterSummary,
+} from "../components/ActiveFilterPill";
+import { PageTitle } from "../components/theme/PageTitle";
 import SportFilterPills from "../components/SportFilterPills";
 import {
   Select,
@@ -128,7 +132,11 @@ const ActivitiesPage = () => {
       <div className="px-4 md:px-6 py-6 max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-3">
-          <h1 className="h3 mb-0 font-display">Activities</h1>
+          <PageTitle
+            kicker={filterSummary(selectedRange, selectedSports, TIME_RANGE_OPTIONS, sportOptions)}
+          >
+            Activities
+          </PageTitle>
         </div>
 
         {/* Filters */}

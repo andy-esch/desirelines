@@ -13,6 +13,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/shared/otel"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -63,6 +64,7 @@ func (emptyRows) Scan(_ ...any) error                          { return nil }
 func (emptyRows) Values() ([]any, error)                       { return nil, nil }
 func (emptyRows) RawValues() [][]byte                          { return nil }
 func (emptyRows) Conn() *pgx.Conn                              { return nil }
+func (emptyRows) TypeMap() *pgtype.Map                         { return nil }
 
 // sleepingRows is a zero-row result whose first Next() blocks, simulating
 // row-transfer/scan latency. Used to assert the query-duration timer spans the

@@ -10,11 +10,17 @@ import {
   type DistanceUnit,
   type ElevationUnit,
 } from "../utils/units";
-import { SPORT_COLORS } from "../utils/sportConfig";
+import { SPORT_COLORS, getSportDisplayName } from "../utils/sportConfig";
+import { useSportConfig } from "../hooks/useSportConfig";
 import { formatActivityDate } from "../utils/formatActivityDate";
 import NeonSpinner from "./NeonSpinner";
 import { ExternalLinkIcon } from "./ui/ExternalLinkIcon";
 import { MapPinIcon } from "./ui/MapPinIcon";
+import { Button } from "./ui/button";
+import { Panel } from "./theme/Panel";
+import { Alert } from "./ui/alert";
+import { Table } from "./ui/table";
+import { SportLabel } from "./theme/SportLabel";
 
 /** Speed unit label for each supported distance unit (cycling display). */
 const SPEED_LABEL: Record<DistanceUnit, string> = {
@@ -103,174 +109,165 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
   isSessionSport = false,
   goalLabel,
 }) => {
+  const { sportConfig } = useSportConfig();
   const showImpact = goalTarget != null && goalTarget > 0;
   if (error) {
     return (
-      <div className="alert alert-danger" role="alert">
+      <Alert variant="danger" role="alert">
         <strong>Error loading activities:</strong> {error.message}
-        <button className="btn btn-outline-danger btn-sm ms-6" onClick={onRetry}>
+        <Button variant="outline-danger" size="sm" className="ms-6" onClick={onRetry}>
           Retry
-        </button>
-      </div>
+        </Button>
+      </Alert>
     );
   }
 
   if (!isLoading && activities.length === 0) {
     return (
-      <div className="alert alert-info" role="alert">
+      <Alert variant="info" role="alert">
         No activities found for the selected filters.
-      </div>
+      </Alert>
     );
   }
 
   return (
-    <div className="card glass-panel">
-      <div className="card-body p-0">
-        <div className="overflow-x-auto">
-          <table className="table table-hover table-sm table-dark-transparent mb-0">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Name</th>
-                <th>Sport</th>
-                <th className="text-right">Distance</th>
-                <th className="text-right">Time</th>
-                <th className="text-right">Elevation</th>
-                <th className="text-right">Pace/Speed</th>
-                {showImpact && (
-                  <th className="text-right">
-                    {goalLabel ? (
-                      <span
-                        style={{ cursor: "help", textDecoration: "underline dotted" }}
-                        title={`Share of your ${goalLabel} goal covered by this activity`}
-                      >
-                        Impact
-                      </span>
-                    ) : (
-                      "Impact"
+    <Panel bodyClassName="p-0">
+      <div className="overflow-x-auto">
+        <Table hover>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Name</th>
+              <th>Sport</th>
+              <th className="text-right">Distance</th>
+              <th className="text-right">Time</th>
+              <th className="text-right">Elevation</th>
+              <th className="text-right">Pace/Speed</th>
+              {showImpact && (
+                <th className="text-right">
+                  {goalLabel ? (
+                    <span
+                      style={{ cursor: "help", textDecoration: "underline dotted" }}
+                      title={`Share of your ${goalLabel} goal covered by this activity`}
+                    >
+                      Impact
+                    </span>
+                  ) : (
+                    "Impact"
+                  )}
+                </th>
+              )}
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {activities.map((activity) => (
+              <tr key={activity.id}>
+                <td className="whitespace-nowrap">
+                  {formatActivityDate(activity.startDateLocal, { year: true })}
+                </td>
+                <td>
+                  <a
+                    href={`https://www.strava.com/activities/${activity.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="truncate inline-block align-bottom"
+                    style={{ maxWidth: "200px" }}
+                  >
+                    {activity.name}
+                  </a>
+                </td>
+                <td>
+                  <SportLabel color={SPORT_COLORS[activity.sport] || "rgb(160, 174, 192)"} badge>
+                    {getSportDisplayName(activity.sport, sportConfig)}
+                  </SportLabel>
+                </td>
+                <td className="text-right whitespace-nowrap">
+                  {activity.distanceMeters > 0
+                    ? formatDistance(activity.distanceMeters, distanceUnit)
+                    : "-"}
+                </td>
+                <td className="text-right whitespace-nowrap">
+                  {formatDuration(activity.movingTimeSeconds)}
+                </td>
+                <td className="text-right whitespace-nowrap">
+                  {activity.elevationMeters
+                    ? formatElevation(activity.elevationMeters, elevationUnit)
+                    : "-"}
+                </td>
+                <td className="text-right whitespace-nowrap">
+                  {formatPaceOrSpeed(
+                    activity.distanceMeters,
+                    activity.movingTimeSeconds,
+                    activity.sport,
+                    distanceUnit
+                  )}
+                </td>
+                {showImpact && goalTarget > 0 && (
+                  <td className="text-right whitespace-nowrap text-muted-text">
+                    {formatImpactPct(
+                      isSessionSport
+                        ? (1 / goalTarget) * 100
+                        : activity.distanceMeters > 0
+                          ? (convertDistance(activity.distanceMeters, distanceUnit) / goalTarget) *
+                            100
+                          : null
                     )}
-                  </th>
-                )}
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {activities.map((activity) => (
-                <tr key={activity.id}>
-                  <td className="whitespace-nowrap">
-                    {formatActivityDate(activity.startDateLocal, { year: true })}
                   </td>
-                  <td>
+                )}
+                <td className="text-right pe-6">
+                  <div className="inline-flex items-center gap-3">
+                    {onViewOnMap && activity.hasRoute && (
+                      <button
+                        type="button"
+                        onClick={() => onViewOnMap(activity.id)}
+                        className="text-muted-text hover:text-accent-cyan motion-safe:transition-colors"
+                        title="View on map"
+                        aria-label="View this activity on the map"
+                      >
+                        <MapPinIcon size={14} />
+                      </button>
+                    )}
                     <a
                       href={`https://www.strava.com/activities/${activity.id}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-truncate inline-block"
-                      style={{ maxWidth: "200px" }}
+                      className="text-muted-text"
+                      title="View on Strava"
                     >
-                      {activity.name}
+                      <ExternalLinkIcon size={14} />
                     </a>
-                  </td>
-                  <td>
-                    <span
-                      className="badge badge-sport"
-                      style={
-                        {
-                          "--sport-color": SPORT_COLORS[activity.sport] || "rgb(160, 174, 192)",
-                        } as React.CSSProperties
-                      }
-                    >
-                      {activity.sport}
-                    </span>
-                  </td>
-                  <td className="text-right whitespace-nowrap">
-                    {activity.distanceMeters > 0
-                      ? formatDistance(activity.distanceMeters, distanceUnit)
-                      : "-"}
-                  </td>
-                  <td className="text-right whitespace-nowrap">
-                    {formatDuration(activity.movingTimeSeconds)}
-                  </td>
-                  <td className="text-right whitespace-nowrap">
-                    {activity.elevationMeters
-                      ? formatElevation(activity.elevationMeters, elevationUnit)
-                      : "-"}
-                  </td>
-                  <td className="text-right whitespace-nowrap">
-                    {formatPaceOrSpeed(
-                      activity.distanceMeters,
-                      activity.movingTimeSeconds,
-                      activity.sport,
-                      distanceUnit
-                    )}
-                  </td>
-                  {showImpact && goalTarget > 0 && (
-                    <td className="text-right whitespace-nowrap text-muted-text">
-                      {formatImpactPct(
-                        isSessionSport
-                          ? (1 / goalTarget) * 100
-                          : activity.distanceMeters > 0
-                            ? (convertDistance(activity.distanceMeters, distanceUnit) /
-                                goalTarget) *
-                              100
-                            : null
-                      )}
-                    </td>
-                  )}
-                  <td className="text-right pe-6">
-                    <div className="inline-flex items-center gap-3">
-                      {onViewOnMap && activity.hasRoute && (
-                        <button
-                          type="button"
-                          onClick={() => onViewOnMap(activity.id)}
-                          className="text-muted-text hover:text-accent-cyan motion-safe:transition-colors"
-                          title="View on map"
-                          aria-label="View this activity on the map"
-                        >
-                          <MapPinIcon size={14} />
-                        </button>
-                      )}
-                      <a
-                        href={`https://www.strava.com/activities/${activity.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-muted-text"
-                        title="View on Strava"
-                      >
-                        <ExternalLinkIcon size={14} />
-                      </a>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Loading indicator */}
-        {isLoading && (
-          <div className="text-center py-6">
-            <NeonSpinner />
-          </div>
-        )}
-
-        {/* Load more button */}
-        {!isLoading && hasMore && (
-          <div className="text-center py-6 border-t">
-            <button className="btn btn-ghost-slate" onClick={onLoadMore}>
-              Load More
-            </button>
-          </div>
-        )}
-
-        {/* End of results indicator */}
-        {!isLoading && !hasMore && activities.length > 0 && (
-          <div className="text-center text-muted-text py-6 border-t">
-            <small>Showing all {activities.length} activities</small>
-          </div>
-        )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
       </div>
-    </div>
+
+      {/* Loading indicator */}
+      {isLoading && (
+        <div className="text-center py-6">
+          <NeonSpinner />
+        </div>
+      )}
+
+      {/* Load more button */}
+      {!isLoading && hasMore && (
+        <div className="text-center py-6 border-t">
+          <Button variant="ghost" onClick={onLoadMore}>
+            Load More
+          </Button>
+        </div>
+      )}
+
+      {/* End of results indicator */}
+      {!isLoading && !hasMore && activities.length > 0 && (
+        <div className="text-center text-muted-text py-6 border-t">
+          <small>Showing all {activities.length} activities</small>
+        </div>
+      )}
+    </Panel>
   );
 };
 

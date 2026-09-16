@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
  * text on a bright fill.
  */
 export const sportChipClass = cn(
-  "group",
+  "group rounded-(--chip-radius)",
   "border border-[color-mix(in_srgb,var(--chip)_55%,var(--color-chip-hairline))]",
   "bg-transparent text-foreground",
   "hover:bg-[color-mix(in_srgb,var(--chip)_10%,transparent)] hover:text-foreground",

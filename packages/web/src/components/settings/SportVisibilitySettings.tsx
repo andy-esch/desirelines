@@ -6,6 +6,11 @@ import { CheckIcon, CloseIcon, EyeIcon, EyeSlashIcon } from "../icons";
 import NeonSpinner from "../NeonSpinner";
 import { InlineAlert } from "../InlineAlert";
 import { logger } from "../../lib/logger";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Alert } from "../ui/alert";
+import { Table } from "../ui/table";
+import { Badge } from "../ui/badge";
 
 /** Duration to show "Saved" indicator */
 const SAVE_SUCCESS_DURATION = 2000;
@@ -56,8 +61,8 @@ function SportTable({
   const actionTitle = actionVariant === "show" ? "Show sport" : "Hide sport";
 
   return (
-    <div className="table-responsive">
-      <table className="table table-sm mb-0">
+    <div className="overflow-x-auto">
+      <Table>
         <thead>
           <tr>
             <th style={{ width: "130px" }}>Sport</th>
@@ -92,34 +97,36 @@ function SportTable({
                       title="At least one sport must be visible"
                       style={{ cursor: "not-allowed" }}
                     >
-                      <button
+                      <Button
                         type="button"
-                        className="btn btn-sm btn-outline-secondary"
+                        variant="outline"
+                        size="sm"
+                        className="h-auto px-1.5 py-1"
                         disabled
-                        style={{ padding: "0.25rem 0.4rem", pointerEvents: "none" }}
                         aria-label={actionTitle}
                       >
                         <ActionIcon size={14} />
-                      </button>
+                      </Button>
                     </span>
                   ) : (
-                    <button
+                    <Button
                       type="button"
-                      className={`btn btn-sm ${actionVariant === "show" ? "btn-outline-success" : "btn-outline-secondary"}`}
+                      variant={actionVariant === "show" ? "outline-success" : "outline"}
+                      size="sm"
+                      className="h-auto px-1.5 py-1"
                       onClick={() => onAction(sport.key)}
-                      style={{ padding: "0.25rem 0.4rem" }}
                       title={actionTitle}
                       aria-label={`${actionTitle}: ${sport.displayName}`}
                     >
                       <ActionIcon size={14} />
-                    </button>
+                    </Button>
                   )}
                 </td>
               </tr>
             );
           })}
         </tbody>
-      </table>
+      </Table>
     </div>
   );
 }
@@ -324,9 +331,9 @@ export function SportVisibilitySettings() {
   // Error state
   if (configError) {
     return (
-      <div className="alert alert-danger" role="alert">
+      <Alert variant="danger" role="alert">
         Failed to load sport configuration: {configError.message}
-      </div>
+      </Alert>
     );
   }
 
@@ -340,23 +347,24 @@ export function SportVisibilitySettings() {
     <div>
       {/* Filter input */}
       <div className="mb-6 relative" style={{ maxWidth: "300px" }}>
-        <input
+        <Input
           type="text"
-          className="form-control form-control-sm pe-6"
+          className="h-8 pe-8"
           placeholder="Filter sports..."
           value={filterText}
           onChange={(e) => setFilterText(e.target.value)}
         />
         {filterText && (
-          <button
+          <Button
             type="button"
-            className="btn btn-link btn-sm absolute top-50 end-0 translate-middle-y text-muted-text p-0 pe-2"
+            variant="ghost"
+            size="icon"
+            className="absolute top-1/2 end-0 h-8 w-8 -translate-y-1/2 text-muted-text"
             onClick={() => setFilterText("")}
             aria-label="Clear filter"
-            style={{ lineHeight: 1 }}
           >
             <CloseIcon />
-          </button>
+          </Button>
         )}
       </div>
 
@@ -371,7 +379,9 @@ export function SportVisibilitySettings() {
           >
             <h6 className="mb-2 flex items-center gap-2">
               <span style={{ color: "var(--color-success)" }}>Visible</span>
-              <span className="badge bg-success">{localSelection.size}</span>
+              <Badge variant="solid" size="compact" className="bg-success">
+                {localSelection.size}
+              </Badge>
             </h6>
             <SportTable
               sports={visibleFiltered}
@@ -389,9 +399,9 @@ export function SportVisibilitySettings() {
           >
             <h6 className="mb-2 flex items-center gap-2">
               <span className="text-muted-text">Hidden</span>
-              <span className="badge bg-secondary">
+              <Badge variant="secondary" size="compact">
                 {sportEntries.length - localSelection.size}
-              </span>
+              </Badge>
             </h6>
             <SportTable
               sports={hiddenFiltered}

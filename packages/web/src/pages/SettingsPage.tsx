@@ -9,6 +9,7 @@ import { GoalManagementTable } from "../components/settings/GoalManagementTable"
 import { SportVisibilitySettings } from "../components/settings/SportVisibilitySettings";
 import { CheckIcon } from "../components/icons";
 import NeonSpinner from "../components/NeonSpinner";
+import StyledSelect from "../components/StyledSelect";
 import { InlineAlert } from "../components/InlineAlert";
 import { NarrowPageLayout } from "../components/layout/PageLayout";
 import {
@@ -18,6 +19,9 @@ import {
   ELEVATION_UNIT_OPTIONS,
 } from "../constants/settings";
 import type { Preferences } from "../types/generated/user_config";
+import { Button } from "../components/ui/button";
+import { Panel } from "../components/theme/Panel";
+import { PageTitle } from "../components/theme/PageTitle";
 
 /**
  * Custom 80s-style avatar icon for the settings page
@@ -62,7 +66,6 @@ interface PreferenceSelectProps {
   field: keyof Preferences;
   options: readonly { value: string; label: string }[];
   width: string;
-  disabled: boolean;
   onPreferenceChange: (field: keyof Preferences, value: string | number) => Promise<void>;
 }
 
@@ -76,25 +79,17 @@ function PreferenceSelect({
   field,
   options,
   width,
-  disabled,
   onPreferenceChange,
 }: PreferenceSelectProps) {
   return (
-    <select
+    <StyledSelect
       id={inputId}
-      className="form-select form-select-sm"
       value={value}
-      onChange={(e) => void onPreferenceChange(field, e.target.value)}
-      disabled={disabled}
+      onChange={(v) => void onPreferenceChange(field, v)}
+      options={options}
       aria-describedby={descriptionId}
       style={{ width }}
-    >
-      {options.map((opt) => (
-        <option key={opt.value} value={opt.value}>
-          {opt.label}
-        </option>
-      ))}
-    </select>
+    />
   );
 }
 
@@ -170,7 +165,9 @@ export default function SettingsPage() {
 
   return (
     <NarrowPageLayout background="settings">
-      <h1 className="h2 mb-3 font-display">Settings</h1>
+      <PageTitle kicker="Account · Preferences" className="mb-3">
+        Settings
+      </PageTitle>
 
       {saveError && (
         <InlineAlert className="mb-6" onDismiss={clearSaveError}>
@@ -179,50 +176,47 @@ export default function SettingsPage() {
       )}
 
       {user && (
-        <div className="card mb-8 overflow-hidden neon-backdrop">
-          <div className="card-body p-6 md:p-8">
-            <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
-              <LargeUserAvatar />
+        <Panel className="mb-8 overflow-hidden neon-backdrop" bodyClassName="p-6 md:p-8">
+          <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
+            <LargeUserAvatar />
 
-              <div className="flex-grow text-center md:text-left">
-                <div className="mb-1 text-subtle-text text-sm uppercase tracking-widest font-bold">
-                  Authenticated Athlete
-                </div>
-                <h2 className="h3 mb-2 text-body-text font-display neon-gradient-text">
-                  {displayName}
-                </h2>
-
-                <div className="flex flex-col gap-2 mt-4">
-                  <div className="flex items-center justify-center md:justify-start gap-2 text-muted-text text-sm">
-                    <span className="w-2 h-2 rounded-full bg-success shadow-[0_0_8px_var(--color-success)]"></span>
-                    Connected to Strava
-                  </div>
-
-                  <a
-                    href={`https://www.strava.com/athletes/${user.uid}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center md:justify-start gap-1 text-accent-cyan hover:underline text-sm font-medium"
-                  >
-                    View Strava Profile
-                    <span className="text-xs">↗</span>
-                  </a>
-                </div>
+            <div className="flex-grow text-center md:text-left">
+              <div className="mb-1 text-subtle-text text-sm uppercase tracking-widest font-bold">
+                Authenticated Athlete
               </div>
+              <h2 className="mb-2 text-body-text font-display neon-gradient-text">{displayName}</h2>
 
-              <div className="flex-shrink-0 self-center md:self-start">
-                <button
-                  type="button"
-                  className="btn btn-outline-danger btn-sm"
-                  onClick={() => void handleSignOut()}
-                  disabled={signingOut}
+              <div className="flex flex-col gap-2 mt-4">
+                <div className="flex items-center justify-center md:justify-start gap-2 text-muted-text text-sm">
+                  <span className="w-2 h-2 rounded-full bg-success shadow-[0_0_8px_var(--color-success)]"></span>
+                  Connected to Strava
+                </div>
+
+                <a
+                  href={`https://www.strava.com/athletes/${user.uid}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center md:justify-start gap-1 text-accent-cyan hover:underline text-sm font-medium"
                 >
-                  {signingOut ? "Signing out..." : "Sign Out"}
-                </button>
+                  View Strava Profile
+                  <span className="text-xs">↗</span>
+                </a>
               </div>
             </div>
+
+            <div className="flex-shrink-0 self-center md:self-start">
+              <Button
+                type="button"
+                variant="outline-danger"
+                size="sm"
+                onClick={() => void handleSignOut()}
+                disabled={signingOut}
+              >
+                {signingOut ? "Signing out..." : "Sign Out"}
+              </Button>
+            </div>
           </div>
-        </div>
+        </Panel>
       )}
 
       <SettingsSection
@@ -238,7 +232,6 @@ export default function SettingsPage() {
               field="distanceUnit"
               options={DISTANCE_UNIT_OPTIONS}
               width="150px"
-              disabled={isSaving}
               onPreferenceChange={handlePreferenceChange}
             />
           )}
@@ -253,7 +246,6 @@ export default function SettingsPage() {
               field="elevationUnit"
               options={ELEVATION_UNIT_OPTIONS}
               width="150px"
-              disabled={isSaving}
               onPreferenceChange={handlePreferenceChange}
             />
           )}
@@ -268,7 +260,6 @@ export default function SettingsPage() {
               field="timezone"
               options={COMMON_TIMEZONES}
               width="200px"
-              disabled={isSaving}
               onPreferenceChange={handlePreferenceChange}
             />
           )}
@@ -287,7 +278,11 @@ export default function SettingsPage() {
         <GoalManagementTable />
       </SettingsSection>
 
-      {isSaving && <div className="text-muted-text text-sm text-right">Saving...</div>}
+      {/* The dropdowns stay enabled while saving: disabling the focused one would drop
+          keyboard focus to the page. */}
+      <div role="status" className="text-muted-text text-sm text-right">
+        {isSaving ? "Saving..." : ""}
+      </div>
     </NarrowPageLayout>
   );
 }

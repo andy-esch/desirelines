@@ -103,7 +103,7 @@ export const ChartTooltip = ({
           padding: "8px 12px",
           boxShadow: "0 2px 8px var(--color-surface-shadow)",
           fontSize: "12px",
-          fontFamily: '"Space Grotesk", sans-serif',
+          fontFamily: "var(--font-chart)",
           minWidth: "140px",
         }}
       >
@@ -179,7 +179,7 @@ export const ChartTooltip = ({
         borderRadius: "0.625rem",
         padding: "10px 12px",
         boxShadow: "0 2px 12px var(--color-surface-shadow)",
-        fontFamily: '"Space Grotesk", sans-serif',
+        fontFamily: "var(--font-chart)",
       }}
     >
       {/* Header with date */}

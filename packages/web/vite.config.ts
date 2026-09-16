@@ -4,7 +4,7 @@ import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { execSync } from "child_process";
 import { fileURLToPath, URL } from "node:url";
-import { buildThemeBootScript, THEME_BOOT_PLACEHOLDER } from "./src/themes/bootScript";
+import { buildThemeBootScript, THEME_BOOT_PLACEHOLDER } from "./src/themes/bootScript.ts";
 
 /**
  * Inline the first-paint theme script into index.html. Generated from the theme list so

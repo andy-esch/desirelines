@@ -113,3 +113,11 @@ export function createYearContext(year: number): YearContext {
 function isLeapYear(year: number): boolean {
   return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
 }
+
+/**
+ * Days in a calendar year: 366 in leap years, otherwise 365. `daysElapsed` and
+ * `daysRemaining` both count today, so their sum is one more than this.
+ */
+export function getDaysInYear(year: number): number {
+  return isLeapYear(year) ? 366 : 365;
+}

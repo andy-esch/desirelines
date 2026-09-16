@@ -6,6 +6,9 @@ import type { MetricUnit } from "../utils/units";
 import type { SportConfig } from "../api/activities";
 import { useGoalManager } from "../hooks/useGoalManager";
 import { InlineAlert } from "./InlineAlert";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Alert } from "./ui/alert";
 
 interface GoalControlsProps {
   goals: Goals;
@@ -97,18 +100,17 @@ const GoalControls: React.FC<GoalControlsProps> = ({
       )}
       {!validation.valid && <InlineAlert size="sm">{validation.error}</InlineAlert>}
 
-      <div className="list-group list-group-flush mb-2">
+      <div className="mb-2 flex flex-col divide-y divide-surface-border border-y border-surface-border">
         {goals.map((goal, index) => (
           <div
             key={goal.id}
-            className="list-group-item px-2 py-2"
+            className="px-2 py-2"
             style={{ borderLeft: `4px solid ${GOAL_COLORS[index % GOAL_COLORS.length]}` }}
           >
             <div className="flex justify-between items-center mb-1">
-              <input
+              <Input
                 type="text"
-                className="form-control form-control-sm"
-                style={{ fontSize: "0.875rem" }}
+                className="h-8"
                 value={editingLabel?.id === goal.id ? editingLabel.value : goal.label || ""}
                 onChange={(e) => handleLabelEdit(goal.id, e.target.value)}
                 onBlur={() => handleLabelSave(goal.id)}
@@ -120,29 +122,33 @@ const GoalControls: React.FC<GoalControlsProps> = ({
                 disabled={isSaving}
               />
               {goals.length > 1 && (
-                <button
-                  className="btn btn-sm btn-link text-danger p-0 ms-2"
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="ms-2 h-auto p-0 text-danger"
                   onClick={() => handleRemoveGoal(goal.id)}
                   title="Remove goal"
                   disabled={isSaving}
                 >
                   ×
-                </button>
+                </Button>
               )}
             </div>
 
-            <div className="input-group input-group-sm">
-              <button
-                className="btn btn-outline-secondary"
+            <div className="flex items-stretch">
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-e-none"
                 onClick={() => handleIncrement(goal.id, -incrementSize)}
                 disabled={goal.value <= 0 || isSaving}
               >
                 −
-              </button>
+              </Button>
               {editingId === goal.id ? (
-                <input
+                <Input
                   type="number"
-                  className="form-control text-center"
+                  className="-mx-px h-8 min-w-0 rounded-none text-center text-xs"
                   value={editValue}
                   onChange={(e) => {
                     setEditValue(e.target.value);
@@ -162,9 +168,9 @@ const GoalControls: React.FC<GoalControlsProps> = ({
                   aria-describedby={editValidationError ? `goal-error-${goal.id}` : undefined}
                 />
               ) : (
-                <input
+                <Input
                   type="text"
-                  className="form-control text-center"
+                  className="-mx-px h-8 min-w-0 rounded-none text-center text-xs"
                   value={`${goal.value.toLocaleString()} ${unit}`}
                   onFocus={() => handleStartEdit(goal.id, goal.value)}
                   readOnly
@@ -172,37 +178,43 @@ const GoalControls: React.FC<GoalControlsProps> = ({
                   style={{ cursor: isSaving ? "not-allowed" : "pointer" }}
                 />
               )}
-              <button
-                className="btn btn-outline-secondary"
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-s-none"
                 onClick={() => handleIncrement(goal.id, incrementSize)}
                 disabled={isSaving}
               >
                 +
-              </button>
+              </Button>
             </div>
             {editingId === goal.id && editValidationError && (
-              <div
+              <Alert
+                variant="danger"
                 id={`goal-error-${goal.id}`}
-                className="alert alert-danger py-1 px-2 text-sm mt-1"
+                className="mt-1 px-2 py-1 text-sm"
                 role="alert"
               >
                 {editValidationError}
-              </div>
+              </Alert>
             )}
           </div>
         ))}
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <button
-          className="btn btn-sm btn-outline-slate"
+        <Button
+          variant="outline"
+          size="sm"
           onClick={handleAddGoal}
           disabled={goals.length >= 5 || isSaving}
         >
           + Add Goal
-        </button>
-        <button
-          className="btn btn-sm btn-ghost-slate flex items-center justify-center gap-1"
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-1"
           onClick={() => {
             // Use the sport's own roundingFactor + defaultGoalValue so reset
             // produces sport-appropriate buckets (running: 10/1000, yoga: 10/100,
@@ -234,7 +246,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
             <path d="M3 3v5h5" />
           </svg>
           Reset
-        </button>
+        </Button>
       </div>
     </div>
   );

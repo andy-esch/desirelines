@@ -8,6 +8,7 @@ import Navigation from "./Navigation";
 import { CloseIconLg, SettingsIcon } from "../icons";
 import { useUIState } from "../../contexts/UIStateContext";
 import { formatDisplayDate } from "../../utils/dateUtils";
+import { Button } from "../ui/button";
 
 /** Non-sport first-level routes — anything else is a sport detail page */
 const PAGE_ROUTES = new Set(["", "dashboard", "activities", "routes", "origins", "settings"]);
@@ -53,7 +54,7 @@ export default function Header({ scrolled = false }: HeaderProps) {
 
   return (
     <header
-      className={`sticky top-0 flex items-center flex-nowrap px-2 py-2 transition-shadow duration-200 ${scrolled ? "shadow-lg" : ""}`}
+      className={`sticky top-0 flex items-center flex-nowrap px-2 py-2 h-(--header-height) [border-bottom:var(--header-border)] transition-shadow duration-200 ${scrolled ? "[box-shadow:var(--header-shadow-scrolled)]" : ""}`}
       style={{
         backgroundColor: "var(--color-header-bg)",
         zIndex: 40,
@@ -67,29 +68,35 @@ export default function Header({ scrolled = false }: HeaderProps) {
       <Navigation className="hidden lg:flex ms-4" />
 
       <div className="hidden lg:flex items-center gap-3 ms-auto pe-2">
-        <span className="text-header-ink/50 text-xs whitespace-nowrap">{currentDate}</span>
+        <span className="text-(color:--header-date-color) text-xs tracking-(--nav-tracking) whitespace-nowrap [text-transform:var(--nav-case)]">
+          {currentDate}
+        </span>
         <AccountDropdown user={user} loading={loading} onSignIn={signIn} onSignOut={signOut} />
       </div>
 
       {/* Mobile/tablet: hamburger, controls gear, and account dropdown on right */}
       <div className="lg:hidden ms-auto flex items-center">
-        <button
-          className="btn-icon"
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-11 w-11 text-header-ink hover:bg-header-ink/10 hover:text-header-ink"
           type="button"
           onClick={() => setNavOpen(true)}
           aria-label="Toggle navigation"
         >
           <HamburgerIcon />
-        </button>
+        </Button>
         {showControlsToggle && (
-          <button
-            className="btn-icon"
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-11 w-11 text-header-ink hover:bg-header-ink/10 hover:text-header-ink"
             type="button"
             onClick={toggleMobileSidebar}
             aria-label="Toggle controls"
           >
             <SettingsIcon size={22} />
-          </button>
+          </Button>
         )}
         <AccountDropdown user={user} loading={loading} onSignIn={signIn} onSignOut={signOut} />
       </div>

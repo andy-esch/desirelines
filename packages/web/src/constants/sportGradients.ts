@@ -11,11 +11,18 @@
  * each other — the wash shifts to cyan or magenta instead.
  */
 import { SPORT_COLORS } from "../utils/sportConfig";
-import { alpha, tint } from "../utils/colorTokens";
 
 /** Opacity (%) of the two gradient stops. */
 const PRIMARY_ALPHA = 18;
 const SECONDARY_ALPHA = 8;
+
+/**
+ * A stop at `pct`% opacity, scaled by the theme's `--sport-wash-strength` slot, so a theme
+ * turns the wash off with `0` instead of a component checking which theme is active.
+ */
+function washStop(color: string, pct: number): string {
+  return `color-mix(in srgb, ${color} calc(${pct}% * var(--sport-wash-strength, 1)), transparent)`;
+}
 
 /**
  * Secondary wash colors. Cyan/magenta/purple are neon primitives; sky and ocean have
@@ -23,11 +30,11 @@ const SECONDARY_ALPHA = 8;
  * and are left literal so they don't get coupled to those sports' identity colors.
  */
 const WASH = {
-  cyan: tint("--color-neon-cyan", SECONDARY_ALPHA),
-  magenta: tint("--color-neon-magenta", SECONDARY_ALPHA),
-  purple: tint("--color-neon-purple", SECONDARY_ALPHA),
-  sky: alpha("rgb(0, 200, 255)", SECONDARY_ALPHA),
-  ocean: alpha("rgb(0, 150, 255)", SECONDARY_ALPHA),
+  cyan: washStop("var(--color-neon-cyan)", SECONDARY_ALPHA),
+  magenta: washStop("var(--color-neon-magenta)", SECONDARY_ALPHA),
+  purple: washStop("var(--color-neon-purple)", SECONDARY_ALPHA),
+  sky: washStop("rgb(0, 200, 255)", SECONDARY_ALPHA),
+  ocean: washStop("rgb(0, 150, 255)", SECONDARY_ALPHA),
 } as const;
 
 type WashName = keyof typeof WASH;
@@ -62,12 +69,12 @@ const SPORT_GRADIENT_SPECS: Record<string, { angle: number; wash: WashName }> = 
 };
 
 /** Fallback for sports with no spec — neutral cyan→magenta, slightly softer primary. */
-const DEFAULT_GRADIENT = `linear-gradient(130deg, ${tint("--color-neon-cyan", 15)} 0%, ${WASH.magenta} 100%)`;
+const DEFAULT_GRADIENT = `linear-gradient(130deg, ${washStop("var(--color-neon-cyan)", 15)} 0%, ${WASH.magenta} 100%)`;
 
 export function getSportGradient(sport: string): string {
   const spec = SPORT_GRADIENT_SPECS[sport];
   const color = SPORT_COLORS[sport];
   if (!spec || !color) return DEFAULT_GRADIENT;
 
-  return `linear-gradient(${spec.angle}deg, ${alpha(color, PRIMARY_ALPHA)} 0%, ${WASH[spec.wash]} 100%)`;
+  return `linear-gradient(${spec.angle}deg, ${washStop(color, PRIMARY_ALPHA)} 0%, ${WASH[spec.wash]} 100%)`;
 }

@@ -12,6 +12,10 @@ import ChartErrorBoundary from "../components/charts/ChartErrorBoundary";
 import { PageLayout } from "../components/layout/PageLayout";
 import type { TuningParams } from "../utils/demoDataGenerator";
 import type { TimeRange } from "../utils/dataNormalization";
+import { Alert } from "../components/ui/alert";
+import { Section } from "../components/theme/Section";
+import { useThemeStructure } from "../components/theme/useThemeStructure";
+import DashboardHero from "../components/dashboard/DashboardHero";
 
 /**
  * Dashboard landing page showing multi-sport overview.
@@ -37,6 +41,7 @@ export default function Dashboard() {
   const { user, loading: authLoading } = useAuth();
   const { displayName, loading: profileLoading } = useUserProfile();
   const [timeRange, setTimeRange] = useState<TimeRange>("2weeks");
+  const { heroDecoration } = useThemeStructure();
 
   const loading = authLoading || (!!user && profileLoading);
 
@@ -54,43 +59,47 @@ export default function Dashboard() {
     <PageLayout background="dashboard">
       {/* Demo mode banner for unauthenticated users */}
       {!user && (
-        <div className="alert alert-demo mb-0 rounded-none py-3" role="alert">
+        <Alert variant="demo" className="rounded-none py-3" role="alert">
           <div className="px-4 md:px-6">
             <strong className="text-accent-cyan">Demo Mode</strong>
             <span className="mx-2">—</span>
             Viewing generated sample data. <span className="text-sm">Sign-in is invite-only.</span>
           </div>
-        </div>
+        </Alert>
       )}
 
+      {/* Themes with a hero decoration open on the year clock instead of a welcome line. */}
+      {heroDecoration !== "none" && <DashboardHero tuningParams={tuningParams} />}
+
       <div className="px-4 md:px-6 py-6 @container">
-        {/* Header Section */}
-        <div className="dashboard-header mb-3">
-          <h1 className="h2 font-display">
-            {user ? `Welcome back, ${displayName.split(" ")[0]}!` : "Welcome!"}
-          </h1>
-          <p className="text-muted-text">
-            {user
-              ? "Your multi-sport activity dashboard"
-              : "Explore the dashboard with demo data, then sign in to see your own activities."}
-          </p>
-        </div>
+        {heroDecoration === "none" && (
+          <div className="dashboard-header mb-3">
+            <h1 className="font-display">
+              {user ? `Welcome back, ${displayName.split(" ")[0]}!` : "Welcome!"}
+            </h1>
+            <p className="text-muted-text">
+              {user
+                ? "Your multi-sport activity dashboard"
+                : "Explore the dashboard with demo data, then sign in to see your own activities."}
+            </p>
+          </div>
+        )}
 
-        {/* Recent Activity Header with Time Selector */}
-        <div className="flex justify-between items-center mb-3">
-          <h2 className="h5 mb-0">Recent Activity</h2>
-          <TimeRangeSelector value={timeRange} onChange={setTimeRange} />
-        </div>
-
-        {/* Main Activity Row: Chart + List */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <ChartErrorBoundary>
-            <MultiSportSparklineChart timeRange={timeRange} tuningParams={tuningParams} />
-          </ChartErrorBoundary>
-          <ChartErrorBoundary>
-            <RecentActivitiesListCard timeRange={timeRange} />
-          </ChartErrorBoundary>
-        </div>
+        {/* Recent activity: chart + list under one time range */}
+        <Section
+          title="Recent Activity"
+          actions={<TimeRangeSelector value={timeRange} onChange={setTimeRange} />}
+          className="mb-8"
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <ChartErrorBoundary>
+              <MultiSportSparklineChart timeRange={timeRange} tuningParams={tuningParams} />
+            </ChartErrorBoundary>
+            <ChartErrorBoundary>
+              <RecentActivitiesListCard timeRange={timeRange} />
+            </ChartErrorBoundary>
+          </div>
+        </Section>
 
         {/* Weekly Summary + Goal Progress row */}
         <div className="grid grid-cols-1 @md:grid-cols-2 gap-6 mb-8">
