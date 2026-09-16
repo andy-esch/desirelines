@@ -57,6 +57,11 @@ func TestCloudTraceOneWayPropagator_Extract(t *testing.T) {
 			header:    "105445aa7843bc8bf206b12000100000/0;o=1",
 			wantValid: false,
 		},
+		{
+			name:      "span ID uint64 overflow",
+			header:    "105445aa7843bc8bf206b12000100000/18446744073709551616;o=1",
+			wantValid: false,
+		},
 	}
 
 	prop := cloudTraceOneWayPropagator{}

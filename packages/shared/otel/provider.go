@@ -34,6 +34,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/oauth"
 )
 
@@ -300,6 +301,13 @@ func setup(
 	}, shutdown, nil
 }
 
+// credentialsLoader loads the gRPC PerRPCCredentials for Google Cloud OTLP endpoints.
+// Defaults to oauth.NewApplicationDefault; can be overridden in unit tests to exercise
+// the GCP endpoint construction path without real GCP credentials.
+var credentialsLoader = func(ctx context.Context) (credentials.PerRPCCredentials, error) {
+	return oauth.NewApplicationDefault(ctx)
+}
+
 // newMetricReader builds the production metric Reader: a PeriodicReader
 // wrapping an OTLP metric exporter, exporting on exportInterval.
 //
@@ -317,7 +325,7 @@ func newMetricReader(ctx context.Context) (sdkmetric.Reader, error) {
 		}
 		return sdkmetric.NewPeriodicReader(metricExp, sdkmetric.WithInterval(exportInterval)), nil
 	}
-	creds, err := oauth.NewApplicationDefault(ctx)
+	creds, err := credentialsLoader(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("load application default credentials for metric exporter: %w", err)
 	}
@@ -349,7 +357,7 @@ func newTraceExporter(ctx context.Context) (sdktrace.SpanExporter, error) {
 		}
 		return exp, nil
 	}
-	creds, err := oauth.NewApplicationDefault(ctx)
+	creds, err := credentialsLoader(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("load application default credentials for trace exporter: %w", err)
 	}

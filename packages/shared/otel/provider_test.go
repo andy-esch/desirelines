@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"sync"
 	"testing"
+	"time"
 
 	otelmetric "go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/propagation"
@@ -15,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
+	"google.golang.org/grpc/credentials"
 )
 
 // TestExtendedDurationViews_MatchEachListedInstrument asserts that every name
@@ -474,5 +476,159 @@ func TestSetup_ShutdownTearsDownBothProvidersOnSuccess(t *testing.T) {
 	}
 	if !reader.wasShutdown() {
 		t.Error("ShutdownFunc did not shut down the MeterProvider's reader")
+	}
+}
+
+type fakePerRPCCredentials struct{}
+
+func (fakePerRPCCredentials) GetRequestMetadata(context.Context, ...string) (map[string]string, error) {
+	return map[string]string{"authorization": "Bearer fake-token"}, nil
+}
+
+func (fakePerRPCCredentials) RequireTransportSecurity() bool {
+	return false
+}
+
+func TestCredentialsLoader_RealDefaultFailsWithoutValidCredentials(t *testing.T) {
+	// Point to a non-existent credentials path so oauth.NewApplicationDefault
+	// is forced down its file-lookup error branch deterministically.
+	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", "/nonexistent/credentials.json")
+	creds, err := credentialsLoader(context.Background())
+	if err == nil {
+		t.Fatal("expected error loading application default credentials from nonexistent file, got nil")
+	}
+	if creds != nil {
+		t.Fatalf("expected nil credentials on error, got %v", creds)
+	}
+}
+
+func testGCPBranchSuccess(t *testing.T, envVar string, construct func(context.Context) (interface{ Shutdown(context.Context) error }, error)) {
+	t.Helper()
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
+	t.Setenv(envVar, "")
+
+	origLoader := credentialsLoader
+	credentialsLoader = func(context.Context) (credentials.PerRPCCredentials, error) {
+		return fakePerRPCCredentials{}, nil
+	}
+	t.Cleanup(func() { credentialsLoader = origLoader })
+
+	c, err := construct(context.Background())
+	if err != nil {
+		t.Fatalf("constructor failed with GCP credentials: %v", err)
+	}
+	if c == nil {
+		t.Fatal("expected non-nil instance, got nil")
+	}
+	t.Cleanup(func() {
+		if sdErr := c.Shutdown(context.Background()); sdErr != nil {
+			t.Logf("Shutdown: %v", sdErr)
+		}
+	})
+}
+
+func testGCPBranchCredentialsError(t *testing.T, envVar string, construct func(context.Context) (any, error)) {
+	t.Helper()
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
+	t.Setenv(envVar, "")
+
+	origLoader := credentialsLoader
+	wantErr := errors.New("cannot load adc")
+	credentialsLoader = func(context.Context) (credentials.PerRPCCredentials, error) {
+		return nil, wantErr
+	}
+	t.Cleanup(func() { credentialsLoader = origLoader })
+
+	c, err := construct(context.Background())
+	if err == nil {
+		t.Fatal("expected error when credentialsLoader fails, got nil")
+	}
+	if !errors.Is(err, wantErr) {
+		t.Errorf("error %v does not wrap wantErr %v", err, wantErr)
+	}
+	if c != nil {
+		t.Fatalf("expected nil on error, got %v", c)
+	}
+}
+
+func TestNewMetricReader_GCPBranchWithValidCredentials(t *testing.T) {
+	testGCPBranchSuccess(t, "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", func(ctx context.Context) (interface{ Shutdown(context.Context) error }, error) {
+		return newMetricReader(ctx)
+	})
+}
+
+func TestNewMetricReader_GCPBranchCredentialsError(t *testing.T) {
+	testGCPBranchCredentialsError(t, "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", func(ctx context.Context) (any, error) {
+		return newMetricReader(ctx)
+	})
+}
+
+func TestNewTraceExporter_GCPBranchWithValidCredentials(t *testing.T) {
+	testGCPBranchSuccess(t, "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", func(ctx context.Context) (interface{ Shutdown(context.Context) error }, error) {
+		return newTraceExporter(ctx)
+	})
+}
+
+func TestNewTraceExporter_GCPBranchCredentialsError(t *testing.T) {
+	testGCPBranchCredentialsError(t, "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", func(ctx context.Context) (any, error) {
+		return newTraceExporter(ctx)
+	})
+}
+
+func TestSetup_OTLPEndpoint(t *testing.T) {
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+
+	logger := slog.New(slog.DiscardHandler)
+	providers, shutdown, err := Setup(context.Background(), logger, "test-service")
+	if err != nil {
+		t.Fatalf("Setup failed with OTLP endpoint: %v", err)
+	}
+	if providers == nil {
+		t.Fatal("expected non-nil Providers")
+	}
+	if providers.Meter == nil {
+		t.Fatal("expected non-nil Meter")
+	}
+	if providers.Tracer == nil {
+		t.Fatal("expected non-nil Tracer")
+	}
+	if shutdown == nil {
+		t.Fatal("expected non-nil ShutdownFunc")
+	}
+
+	// Shutdown attempts to flush to localhost:4317 where no collector is listening.
+	// Use a short timeout context and assert shutdown executes without hanging.
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if sdErr := shutdown(shutdownCtx); sdErr != nil {
+		t.Logf("Setup shutdown error: %v", sdErr)
+	}
+}
+
+func TestSetup_GCPCredentialsError(t *testing.T) {
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
+	t.Setenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "")
+	t.Setenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "")
+
+	origLoader := credentialsLoader
+	wantErr := errors.New("credentials failed")
+	credentialsLoader = func(context.Context) (credentials.PerRPCCredentials, error) {
+		return nil, wantErr
+	}
+	t.Cleanup(func() { credentialsLoader = origLoader })
+
+	logger := slog.New(slog.DiscardHandler)
+	providers, shutdown, err := Setup(context.Background(), logger, "test-service")
+	if err == nil {
+		t.Fatal("expected Setup to fail when credentials cannot be loaded, got nil")
+	}
+	if !errors.Is(err, wantErr) {
+		t.Errorf("error %v does not wrap wantErr %v", err, wantErr)
+	}
+	if providers != nil {
+		t.Fatalf("expected nil Providers on error, got %v", providers)
+	}
+	if shutdown != nil {
+		t.Fatalf("expected nil ShutdownFunc on error, got non-nil")
 	}
 }
