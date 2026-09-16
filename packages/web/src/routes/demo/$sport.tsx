@@ -1,15 +1,17 @@
 import { createFileRoute, Outlet, redirect, useRouter } from "@tanstack/react-router";
+import type { ErrorComponentProps } from "@tanstack/react-router";
 import { getDemoSports } from "../../utils/demoDataGenerator";
 import { PageErrorFallback } from "../../components/PageErrorFallback";
 
 const DEMO_SPORTS = getDemoSports();
 
-function DemoSportErrorComponent({ error }: { error: Error }) {
+function DemoSportErrorComponent({ error, reset }: ErrorComponentProps) {
   const router = useRouter();
   return (
     <PageErrorFallback
       error={error}
       onReset={() => {
+        reset?.();
         void router.invalidate();
       }}
     />

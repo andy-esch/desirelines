@@ -1,5 +1,12 @@
 import { Suspense, useEffect, useRef, lazy } from "react";
-import { createRootRoute, Navigate, Outlet, useLocation, useRouter } from "@tanstack/react-router";
+import {
+  createRootRoute,
+  type ErrorComponentProps,
+  Navigate,
+  Outlet,
+  useLocation,
+  useRouter,
+} from "@tanstack/react-router";
 import Header from "../components/layout/Header";
 import { Footer } from "../components/layout/Footer";
 import PageLoader from "../components/PageLoader";
@@ -73,7 +80,7 @@ function RootLayout() {
   );
 }
 
-function RootErrorComponent({ error }: { error: Error }) {
+function RootErrorComponent({ error, reset }: ErrorComponentProps) {
   const router = useRouter();
 
   // Auto-reload for stale chunk errors (after a deploy)
@@ -87,6 +94,7 @@ function RootErrorComponent({ error }: { error: Error }) {
     <PageErrorFallback
       error={error}
       onReset={() => {
+        reset?.();
         void router.invalidate();
       }}
     />

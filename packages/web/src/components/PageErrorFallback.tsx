@@ -5,7 +5,7 @@ import { Alert } from "./ui/alert";
 type ErrorFallbackVariant = "page" | "inline" | "full";
 
 interface PageErrorFallbackProps {
-  error: Error;
+  error: unknown;
   onReset?: (() => void) | undefined;
   /** @default "page" */
   variant?: ErrorFallbackVariant | undefined;
@@ -33,6 +33,7 @@ export function PageErrorFallback({
   heading,
 }: PageErrorFallbackProps) {
   const title = heading ?? defaultHeadings[variant];
+  const errorMessage = error instanceof Error ? error.message : String(error);
 
   // Full-page: monospace layout, no router available
   if (variant === "full") {
@@ -41,7 +42,7 @@ export function PageErrorFallback({
         <h1 className="text-danger">{title}</h1>
         <p>The application encountered an unexpected error.</p>
         <pre className="bg-surface-raised text-body-text p-5 rounded overflow-auto">
-          {error.message}
+          {errorMessage}
         </pre>
         {onReset && (
           <button onClick={onReset} className="mt-4 py-2 px-4 cursor-pointer">
@@ -57,7 +58,7 @@ export function PageErrorFallback({
     return (
       <Alert variant="danger" role="alert">
         <h4>{title}</h4>
-        <p>{error.message}</p>
+        <p>{errorMessage}</p>
         {onReset && (
           <>
             <hr />
@@ -78,7 +79,7 @@ export function PageErrorFallback({
         <p>This page encountered an unexpected error.</p>
         <hr />
         <p className="mb-6">
-          <strong>Error:</strong> {error.message}
+          <strong>Error:</strong> {errorMessage}
         </p>
         <div className="flex gap-2">
           {onReset && (
