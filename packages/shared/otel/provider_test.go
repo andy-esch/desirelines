@@ -227,6 +227,43 @@ func TestNewTraceExporter_OTLPBranchAlsoTriggeredByTracesEndpoint(t *testing.T) 
 	})
 }
 
+// TestNewMetricReader_OTLPBranchWhenEndpointSet verifies that
+// `newMetricReader` takes the local OTLP path when the generic
+// OTel endpoint env var is set.
+func TestNewMetricReader_OTLPBranchWhenEndpointSet(t *testing.T) {
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+	reader, err := newMetricReader(context.Background())
+	if err != nil {
+		t.Fatalf("newMetricReader with OTLP env: %v", err)
+	}
+	if reader == nil {
+		t.Fatal("expected non-nil metric reader, got nil")
+	}
+	t.Cleanup(func() {
+		if sdErr := reader.Shutdown(context.Background()); sdErr != nil {
+			t.Logf("reader Shutdown: %v", sdErr)
+		}
+	})
+}
+
+// TestNewMetricReader_OTLPBranchAlsoTriggeredByMetricsEndpoint mirrors
+// the above for the metrics-specific env var.
+func TestNewMetricReader_OTLPBranchAlsoTriggeredByMetricsEndpoint(t *testing.T) {
+	t.Setenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "localhost:4317")
+	reader, err := newMetricReader(context.Background())
+	if err != nil {
+		t.Fatalf("newMetricReader with METRICS endpoint env: %v", err)
+	}
+	if reader == nil {
+		t.Fatal("expected non-nil metric reader, got nil")
+	}
+	t.Cleanup(func() {
+		if sdErr := reader.Shutdown(context.Background()); sdErr != nil {
+			t.Logf("reader Shutdown: %v", sdErr)
+		}
+	})
+}
+
 // TestNewPropagator_W3CWinsWhenBothHeadersPresent pins the composite
 // propagator's extract precedence: when an incoming request carries
 // BOTH `X-Cloud-Trace-Context` and `traceparent`, the W3C TraceContext
@@ -387,7 +424,7 @@ func TestSetup_ShutsDownMeterProviderOnTraceExporterError(t *testing.T) {
 		context.Background(),
 		logger,
 		"test-service",
-		func() (sdkmetric.Reader, error) { return reader, nil },
+		func(context.Context) (sdkmetric.Reader, error) { return reader, nil },
 		failingTraceExporter,
 	)
 
@@ -422,7 +459,7 @@ func TestSetup_ShutdownTearsDownBothProvidersOnSuccess(t *testing.T) {
 		context.Background(),
 		logger,
 		"test-service",
-		func() (sdkmetric.Reader, error) { return reader, nil },
+		func(context.Context) (sdkmetric.Reader, error) { return reader, nil },
 		func(context.Context) (sdktrace.SpanExporter, error) { return traceExp, nil },
 	)
 	if err != nil {
