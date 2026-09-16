@@ -123,7 +123,9 @@ function Stat({ label, value }: { label: string; value: string }) {
       <div className="truncate font-semibold tabular-nums text-body-text" title={value}>
         {value}
       </div>
-      <div className="text-[0.65rem] uppercase tracking-wider text-muted-text">{label}</div>
+      <div className="text-(length:--label-size) font-(weight:--label-weight) tracking-(--label-tracking) [text-transform:var(--label-case)] text-(color:--label-color)">
+        {label}
+      </div>
     </div>
   );
 }

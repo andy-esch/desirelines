@@ -68,7 +68,9 @@ export default function Header({ scrolled = false }: HeaderProps) {
       <Navigation className="hidden lg:flex ms-4" />
 
       <div className="hidden lg:flex items-center gap-3 ms-auto pe-2">
-        <span className="text-header-ink/50 text-xs whitespace-nowrap">{currentDate}</span>
+        <span className="text-(color:--header-date-color) text-xs tracking-(--nav-tracking) whitespace-nowrap [text-transform:var(--nav-case)]">
+          {currentDate}
+        </span>
         <AccountDropdown user={user} loading={loading} onSignIn={signIn} onSignOut={signOut} />
       </div>
 

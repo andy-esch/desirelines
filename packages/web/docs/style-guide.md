@@ -166,16 +166,16 @@ slot values.
 | Group | Slots | Controls |
 |---|---|---|
 | Type | `--font-body`, `--font-display`, `--font-chart`, `--display-weight` | Faces for UI text, display text (wordmark, titles, big numbers) and chart labels |
-| Page titles | `--page-title-size`, `-leading`, `-color`, `-shadow`, `-case`; `--display-text-gradient`, `--display-text-fill` | The page `h1`, and `neon-gradient-text`: the gradient is `none` and the fill `currentColor` where display text is solid |
-| Labels | `--kicker-size`, `-tracking`, `-color`; `--label-size`, `-tracking`, `-color`, `-case`; `--data-label-case` | The line above a title, section labels, and the case of sport names in rows |
+| Page titles | `--page-title-size`, `-leading`, `-color`, `-shadow`, `-glow-size`, `-offset-shadow`, `-case`; `--display-text-gradient`, `--display-text-fill` | The page `h1`, and `neon-gradient-text`: the gradient is `none` and the fill `currentColor` where display text is solid |
+| Labels | `--kicker-size`, `-tracking`, `-color`; `--label-size`, `-tracking`, `-weight`, `-color`, `-case`; `--data-label-case` | The line above a title, section labels, and the case of sport names in rows |
 | Numbers | `--table-text-size`, `--stat-value-size`, `--stat-value-size-wide`, `--stat-value-shadow` | Table text and big stat numbers (wide = from `md` up) |
 | Wordmark | `--wordmark-font`, `-size`, `-weight`, `-tracking`, `-case`, `-color`, `-color-2`, `-slash-color`, `-slash-size`, `-slash-weight`, `-shadow` | The logo's two words and slash |
-| Header | `--header-height`, `-border`, `-accent-line`, `-shadow-scrolled`; `--nav-size`, `-tracking`, `-case`, `-color`, `-active-color`, `-active-bg`, `-active-hover-bg`, `-active-radius`, `-active-underline`, `-active-shadow`; `--avatar-radius`, `-border`, `-glow`; `--demo-rule` | The top bar and its bottom accent line, nav items (the underline shows in the header bar, not the mobile drawer), avatar and the demo banner's rule |
+| Header | `--header-height`, `-border`, `-accent-line`, `-shadow-scrolled`, `--header-date-color`; `--nav-size`, `-tracking`, `-case`, `-color`, `-active-color`, `-active-bg`, `-active-hover-bg`, `-active-radius`, `-active-underline`, `-active-shadow`; `--avatar-radius`, `-border`, `-glow`; `--demo-bg`, `--demo-border`, `--demo-rule` | The top bar and its bottom accent line, nav items (the underline shows in the header bar, not the mobile drawer), avatar and the demo banner's rule |
 | Backgrounds | `--page-wash-strength`, `--sport-wash-strength`, `--hero-padding`, `--hero-ink`, `--hero-title-size`, `-title-color`, `-title-shadow`, `--hero-number-size`, `-number-glow`, `--glass-blur`, `--glass-blur-sm`, `--progress-shine` | Page and sport gradient strength (0 turns a wash off), the dashboard hero's padding (content must clear the decoration's bottom edge), text on the decoration, headline and numbers, frosted-glass blur for map chrome and for small floating pills (0 makes them solid), progress-bar shine |
 | Panels | `--radius`, `--panel-bg`, `-border-width`, `-radius`, `-shadow`, `-shadow-emphasis`, `-padding`, `-header-padding`, `-body-padding`, `-accent-1/2/3`; `--divider-style` | Cards and panels, including the base radius the shadcn scale derives from |
 | Controls | `--control-height`, `-radius`, `-font-size`, `-case`, `-focus-ring`; `--toggle-gap`, `-frame-border-width`, `-frame-border-color`, `-frame-padding`, `-frame-radius`, `-item-border-width`, `-item-radius`, `-item-color`, `-font-size`, `-tracking`, `-case`; `--color-toggle-pressed`; `--button-radius`, `-case`, `-tracking`; `--stepper-gap` | Inputs, selects, toggle groups, buttons and steppers (height and font size are the default size; `sm` and `lg` buttons and caller overrides keep fixed sizes) |
 | Sliders and chips | `--slider-track-height`, `-track-radius`, `-track-bg`, `-fill-glow`, `-handle-size`, `-handle-radius`, `-handle-border-width`; `--color-slider-fill`; `--chip-radius`, `-border-strength`, `-hover-strength`, `-dot-radius` | Range sliders and sport chips (strengths are how much sport color mixes in) |
-| Tables | `--th-size`, `--th-weight`, `--th-color`, `--th-tracking`, `--th-rule`, `--row-rule`, `--row-padding`, `--row-hover-bg`, `--missing-value-color`, `--sport-mark-radius` | Table headers, row rules and hover, empty cells, sport marks |
+| Tables | `--th-size`, `--th-weight`, `--th-color`, `--th-tracking`, `--th-case`, `--th-rule`, `--row-rule`, `--row-padding`, `--row-hover-bg`, `--missing-value-color`, `--sport-mark-radius` | Table headers, row rules and hover, empty cells, sport marks |
 | Goals and meters | `--track-height`, `-bg`, `-border`, `-fill-height`, `-fill-glow`, `-radius`; `--pace-tick-width`, `-height`; `--meter-segment-width`, `-segment-height`, `--meter-gap`, `--meter-radius`; `--cell-empty-border`, `--cell-radius` | Goal tracks (the fill glows in its own color by `--track-fill-glow`) and their pace tick, segmented meters, heatmap cells |
 | Charts | `--chart-baseline`, `--chart-tick-size`, `--chart-actual-glow`, `--chart-average-dash`, `--chart-bar-radius`, `--chart-bar-gap`, `--chart-hover-column`, `--tooltip-radius` | Chart chrome beyond the color tokens |
 | Map chrome | `--map-chrome-bg`, `-edge`, `-shadow`; `--popup-radius`, `--popup-border`, `--popup-shadow` | The routes-map drawers and their toggles (the edge is drawn on the map-facing side), and the route popup |
@@ -190,6 +190,7 @@ Structure fields (`structure` on the list entry):
 | `statRowStyle` | `cards`, `divided`, `boxed` | How a row of big numbers is framed |
 | `sliderTrack` | `continuous`, `segmented` | Slider tracks as a bar or a segmented meter |
 | `rowHoverCursor` | `true` / `false` | A cursor glyph on the hovered table row |
+| `pagerStyle` | `arrows`, `labelled` | Paging a list: stacked arrows beside it, or a `Prev 1 / 5 Next` row under it |
 | `sportMarkStyle` | `badge`, `dot`, `swatch` | How a sport is marked in rows and lists |
 | `statusSymbolStyle` | `badge`, `filled`, `outlined` | Goal status as colored badges or an SVG symbol plus text |
 | `goalTrackStyle` | `bar-with-percent`, `track`, `outline-track` | Goal progress drawing |
@@ -265,7 +266,7 @@ active theme's `structure`, unless a `ThemeStructureProvider` overrides it for a
 | `SectionLabel` | `--label-*` | Section and panel labels. |
 | `SportLabel`, `SportMark` | `--sport-mark-radius`, `--data-label-case`, `sportMarkStyle` | A sport's name in a row: a glowing dot or swatch before it, or a `SportBadge` (with `badge`) where the theme keeps badges. `SportMark` is the mark alone (e.g. beside the sport page title), and draws nothing where the theme uses badges. |
 | `HeroDecoration` | `heroDecoration` | The artwork behind the dashboard hero band. The recipes (Miami's sunset bands and blinds) are fixed in the component; the blinds use `--color-bg-body`. Bands too light for hero text sit a fixed distance from the bottom, inside `--hero-padding`, and `HeroDecoration.test.ts` checks text contrast on the rest. |
-| `PageTitle` | `--page-title-*`, `--kicker-*`, `--label-case`, `showPageKicker` | A page's `h1`, with an optional kicker line above it where the theme shows kickers. |
+| `PageTitle` | `--page-title-*`, `--kicker-*`, `--label-case`, `showPageKicker` | A page's `h1`, with an optional kicker line above it where the theme shows kickers. `glowColor` tints the glow (the sport page passes the sport's color), sized by `--page-title-glow-size` over `--page-title-offset-shadow`. |
 | `Stat`, `StatRow` | `--stat-*`, `--font-display`, `--display-weight`, `statRowStyle` | A row frames its stats as separate cards, one divided panel, or outline boxes. |
 | `Meter` | `--meter-*`, `--color-meter-*`, `--track-*`, `--color-pace-tick`, `meterPartialCurrent`, `goalTrackStyle` | Segmented (months, weeks) or continuous with an optional pace tick. `indeterminate` animates the segments for loading, and stops under reduced motion. |
 | `StatusSymbol` | `--status-*`, `--color-status-*`, `statusSymbolStyle` | A goal status as an SVG symbol plus text, or the old colored badge where a theme keeps badges. The words always show. |
@@ -303,7 +304,7 @@ banner is its `demo` variant. Pass `role="alert"` or `role="status"` where the m
 be announced.
 
 **Tables:** `Table` (cells take `--row-padding`; `hover` highlights rows with `--row-hover-bg`; header
-cells take `--th-size`, `--th-weight`, `--th-color`, `--th-tracking`, `--th-rule` and `--label-case`, body
+cells take `--th-size`, `--th-weight`, `--th-color`, `--th-tracking`, `--th-case` and `--th-rule`, body
 rows `--row-rule`, and the table `--table-text-size`).
 A sport in a row is a `SportLabel`; a status or count pill is `Badge` with `size="compact"`.
 

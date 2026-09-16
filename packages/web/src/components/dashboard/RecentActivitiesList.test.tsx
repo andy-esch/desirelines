@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import RecentActivitiesList from "./RecentActivitiesList";
+import { THEMES } from "../../themes/registry";
+import { ThemeStructureProvider } from "../theme/ThemeStructureProvider";
 import type { UseActivitiesResult } from "../../hooks/useActivities";
 import type { ActivitySummary } from "../../api/activities";
 
@@ -94,5 +96,27 @@ describe("RecentActivitiesList pagination", () => {
     // so the advance is not protected and the clamp reels it back in.
     rerender(<RecentActivitiesList timeRange="4weeks" pageSize={1} />);
     expect(screen.getByText("1/+")).toBeInTheDocument();
+  });
+
+  it("pages with a labelled row where the theme asks for one", () => {
+    mockUseActivities.mockReturnValue({
+      activities: [activity(1), activity(2), activity(3)],
+      isLoading: false,
+      error: null,
+      hasMore: true,
+      isLoadingMore: false,
+      loadMore: vi.fn(),
+      retry: vi.fn(),
+    });
+    const structure = { ...THEMES[0].structure, pagerStyle: "labelled" as const };
+
+    render(
+      <ThemeStructureProvider structure={structure}>
+        <RecentActivitiesList timeRange="2weeks" pageSize={5} />
+      </ThemeStructureProvider>
+    );
+
+    expect(screen.getByRole("button", { name: "Older activities" })).toHaveTextContent("Next");
+    expect(screen.getByRole("button", { name: "Newer activities" })).toBeDisabled();
   });
 });

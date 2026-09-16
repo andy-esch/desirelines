@@ -272,6 +272,8 @@
   --page-title-size: 1em;
   --page-title-color: var(--color-body-text);
   --page-title-shadow: none;
+  --page-title-glow-size: 0px;
+  --page-title-offset-shadow: 0 0 0 transparent;
   --page-title-case: none;
   --page-title-leading: 1.5;
   --display-text-gradient: linear-gradient(
@@ -284,10 +286,11 @@
   --kicker-size: 0.6875rem;
   --kicker-tracking: 0.3em;
   --kicker-color: var(--color-muted-text);
-  --label-size: 0.6875rem;
-  --label-tracking: 0.26em;
+  --label-size: 0.65rem;
+  --label-tracking: 0.05em;
+  --label-weight: 600;
   --label-color: var(--color-muted-text);
-  --label-case: none;
+  --label-case: uppercase;
   --data-label-case: none;
   --table-text-size: 1em;
   --stat-value-size: 1.75rem;
@@ -331,6 +334,9 @@
   --avatar-border: none;
   --avatar-glow: none;
   --demo-rule: 3px solid var(--color-neon-accent);
+  --demo-bg: color-mix(in srgb, var(--color-neon-accent) 8%, transparent);
+  --demo-border: 1px solid color-mix(in srgb, var(--color-neon-accent) 30%, transparent);
+  --header-date-color: rgb(255 255 255 / 0.5);
 
   /* Backgrounds and decoration */
   --page-wash-strength: 1;
@@ -410,6 +416,7 @@
   --th-weight: bold;
   --th-color: currentColor;
   --th-tracking: normal;
+  --th-case: none;
   --th-rule: none;
   --row-rule: none;
   --row-padding: 0.25rem;
@@ -551,6 +558,8 @@
   --page-title-size: 1em;
   --page-title-color: var(--color-body-text);
   --page-title-shadow: none;
+  --page-title-glow-size: 0px;
+  --page-title-offset-shadow: 0 0 0 transparent;
   --page-title-case: none;
   --page-title-leading: 1.5;
   --display-text-gradient: linear-gradient(
@@ -563,10 +572,11 @@
   --kicker-size: 0.6875rem;
   --kicker-tracking: 0.3em;
   --kicker-color: var(--color-muted-text);
-  --label-size: 0.6875rem;
-  --label-tracking: 0.26em;
+  --label-size: 0.65rem;
+  --label-tracking: 0.05em;
+  --label-weight: 600;
   --label-color: var(--color-muted-text);
-  --label-case: none;
+  --label-case: uppercase;
   --data-label-case: none;
   --table-text-size: 1em;
   --stat-value-size: 1.75rem;
@@ -610,6 +620,9 @@
   --avatar-border: none;
   --avatar-glow: none;
   --demo-rule: 3px solid var(--color-neon-accent);
+  --demo-bg: color-mix(in srgb, var(--color-neon-accent) 8%, transparent);
+  --demo-border: 1px solid color-mix(in srgb, var(--color-neon-accent) 30%, transparent);
+  --header-date-color: rgb(255 255 255 / 0.5);
 
   /* Backgrounds and decoration */
   --page-wash-strength: 1;
@@ -689,6 +702,7 @@
   --th-weight: bold;
   --th-color: currentColor;
   --th-tracking: normal;
+  --th-case: none;
   --th-rule: none;
   --row-rule: none;
   --row-padding: 0.25rem;
@@ -826,6 +840,8 @@
   --page-title-size: 2.25rem;
   --page-title-color: #ffffff;
   --page-title-shadow: 0 0 22px rgba(255, 46, 196, 0.6), 2px 2px 0 #00e5ff;
+  --page-title-glow-size: 22px;
+  --page-title-offset-shadow: 2px 2px 0 #00e5ff;
   --page-title-case: uppercase;
   --page-title-leading: 1;
   --display-text-gradient: none;
@@ -835,6 +851,7 @@
   --kicker-color: #8b7bb5;
   --label-size: 0.6875rem;
   --label-tracking: 0.26em;
+  --label-weight: 400;
   --label-color: #ff2ec4;
   --label-case: uppercase;
   --data-label-case: none;
@@ -874,7 +891,10 @@
   --avatar-radius: 50%;
   --avatar-border: 1px solid #ff2ec4;
   --avatar-glow: 0 0 10px rgba(255, 46, 196, 0.45);
-  --demo-rule: 1px solid rgba(0, 229, 255, 0.18);
+  --demo-rule: none;
+  --demo-bg: #1b0d36;
+  --demo-border: 1px solid rgba(0, 229, 255, 0.18);
+  --header-date-color: #8b7bb5;
 
   /* Backgrounds and decoration */
   --page-wash-strength: 0;
@@ -945,6 +965,7 @@
   --th-weight: 400;
   --th-color: #8b7bb5;
   --th-tracking: 0.14em;
+  --th-case: uppercase;
   --th-rule: 1px dashed rgba(201, 184, 224, 0.25);
   --row-rule: 1px solid rgba(201, 184, 224, 0.08);
   --row-padding: 0.625rem 0.5rem;
@@ -1321,7 +1342,7 @@
     font-weight: var(--th-weight);
     color: var(--th-color);
     letter-spacing: var(--th-tracking);
-    text-transform: var(--label-case);
+    text-transform: var(--th-case);
     border-bottom: var(--th-rule);
   }
   .data-table tbody tr {
