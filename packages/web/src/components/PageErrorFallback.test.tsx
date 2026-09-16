@@ -32,4 +32,22 @@ describe("PageErrorFallback", () => {
     const dashboardLink = screen.getByRole("link", { name: /go to dashboard/i });
     expect(dashboardLink).toHaveAttribute("href", "/");
   });
+
+  it("displays non-Error string error message", async () => {
+    await renderWithRouter(
+      <PageErrorFallback error="Failed to fetch resource" onReset={vi.fn()} />
+    );
+
+    expect(screen.getByText("Something went wrong")).toBeInTheDocument();
+    expect(screen.getByText(/Failed to fetch resource/)).toBeInTheDocument();
+  });
+
+  it("displays non-Error object error message in inline variant", async () => {
+    await renderWithRouter(
+      <PageErrorFallback error={{ code: 500 }} variant="inline" onReset={vi.fn()} />
+    );
+
+    expect(screen.getByText("Failed to load chart data")).toBeInTheDocument();
+    expect(screen.getByText(/\[object Object\]/)).toBeInTheDocument();
+  });
 });

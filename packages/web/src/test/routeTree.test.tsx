@@ -48,8 +48,8 @@ vi.mock("../components/PageTransition", () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 vi.mock("../components/PageErrorFallback", () => ({
-  PageErrorFallback: ({ error }: { error: Error }) => (
-    <div data-testid="error-fallback">{error.message}</div>
+  PageErrorFallback: ({ error }: { error: unknown }) => (
+    <div data-testid="error-fallback">{error instanceof Error ? error.message : String(error)}</div>
   ),
 }));
 vi.mock("../hooks/useScrolled", () => ({
