@@ -19,11 +19,10 @@ import (
 	"os"
 	"time"
 
-	mexporter "github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric"
-	texporter "github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace"
-	gcppropagator "github.com/GoogleCloudPlatform/opentelemetry-operations-go/propagator"
 	"go.opentelemetry.io/contrib/detectors/gcp"
 	otelglobal "go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
@@ -34,6 +33,9 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/oauth"
 )
 
 const (
@@ -42,6 +44,9 @@ const (
 
 	// scopeName is the instrumentation scope name for all desirelines instruments.
 	scopeName = "desirelines.io"
+
+	// gcpTelemetryEndpoint is Google Cloud's native OTLP telemetry ingestion endpoint.
+	gcpTelemetryEndpoint = "telemetry.googleapis.com:443"
 )
 
 // extendedDurationBuckets resolves long-tail latency past the default 10s
@@ -103,7 +108,7 @@ func newMeterProvider(res *resource.Resource, reader sdkmetric.Reader) *sdkmetri
 // X-Cloud-Trace-Context header through OTel spans, Go logs, and
 // downstream Python services.
 //
-// CloudTraceOneWayPropagator (extract-only) reads the GCP trace context
+// cloudTraceOneWayPropagator (extract-only) reads the GCP trace context
 // from the incoming X-Cloud-Trace-Context header injected by Cloud Run.
 // It is listed first so that when an incoming request carries BOTH
 // headers, TraceContext (W3C) extracts second and takes precedence —
@@ -124,7 +129,7 @@ func newMeterProvider(res *resource.Resource, reader sdkmetric.Reader) *sdkmetri
 // Baggage is included for future use (e.g., propagating correlation_id).
 func newPropagator() propagation.TextMapPropagator {
 	return propagation.NewCompositeTextMapPropagator(
-		gcppropagator.CloudTraceOneWayPropagator{},
+		cloudTraceOneWayPropagator{},
 		propagation.TraceContext{},
 		propagation.Baggage{},
 	)
@@ -191,7 +196,7 @@ func setup(
 	ctx context.Context,
 	logger *slog.Logger,
 	serviceName string,
-	metricReaderFn func() (sdkmetric.Reader, error),
+	metricReaderFn func(context.Context) (sdkmetric.Reader, error),
 	traceExporterFn func(context.Context) (sdktrace.SpanExporter, error),
 ) (*Providers, ShutdownFunc, error) {
 	// shutdownFuncs accumulates each provider's shutdown function as it is
@@ -211,23 +216,37 @@ func setup(
 		shutdownFuncs = nil
 		return err
 	}
-	// Use a fresh context for the failure-path cleanup: if setup failed because
-	// the startup ctx was canceled/timed out, reusing it could skip
-	// flushing/teardown of the already-constructed providers.
+	// Use a fresh context with a bounded timeout for the failure-path cleanup:
+	// if setup failed because the startup ctx was canceled/timed out, reusing it
+	// could skip flushing/teardown of the already-constructed providers. A 5s
+	// ceiling prevents an unresponsive network endpoint from hanging boot.
 	handleErr := func(cause error) error { //nolint:contextcheck // cleanup deliberately runs on a fresh context, not the (possibly canceled) startup ctx
-		return errors.Join(cause, shutdown(context.Background()))
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return errors.Join(cause, shutdown(cleanupCtx))
+	}
+
+	attrs := []attribute.KeyValue{semconv.ServiceName(serviceName)}
+	projectID := os.Getenv("GCP_PROJECT_ID")
+	if projectID == "" {
+		projectID = os.Getenv("GOOGLE_CLOUD_PROJECT")
+	}
+	if projectID != "" {
+		attrs = append(attrs, attribute.String("gcp.project_id", projectID), semconv.CloudAccountID(projectID))
 	}
 
 	res, err := resource.New(ctx,
 		resource.WithDetectors(gcp.NewDetector()),
-		resource.WithAttributes(semconv.ServiceName(serviceName)),
+		resource.WithFromEnv(),
+		resource.WithTelemetrySDK(),
+		resource.WithAttributes(attrs...),
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("create OTel resource: %w", err)
 	}
 
 	// --- Metrics ---
-	reader, err := metricReaderFn()
+	reader, err := metricReaderFn(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("create metric reader: %w", err)
 	}
@@ -289,31 +308,69 @@ func setup(
 	}, shutdown, nil
 }
 
-// newMetricReader builds the production metric Reader: a PeriodicReader
-// wrapping the GCP Cloud Monitoring exporter, exporting on exportInterval.
-// Extracted from Setup so the reader can be substituted with a ManualReader
-// in provider_test.go (the GCP exporter needs credentials at construction).
-func newMetricReader() (sdkmetric.Reader, error) {
-	metricExp, err := mexporter.New()
+// credentialsLoaderFunc loads the gRPC PerRPCCredentials for Google Cloud OTLP endpoints.
+type credentialsLoaderFunc func(ctx context.Context) (credentials.PerRPCCredentials, error)
+
+// defaultCredentialsLoader loads Application Default Credentials with the cloud-platform scope.
+// The cloud-platform scope is required for User Application Default Credentials (e.g. gcloud auth
+// application-default login) while remaining fully compatible with Cloud Run service accounts.
+func defaultCredentialsLoader(ctx context.Context) (credentials.PerRPCCredentials, error) {
+	creds, err := oauth.NewApplicationDefault(ctx, "https://www.googleapis.com/auth/cloud-platform")
 	if err != nil {
-		return nil, fmt.Errorf("create GCP metric exporter: %w", err)
+		return nil, fmt.Errorf("load application default credentials: %w", err)
+	}
+	return creds, nil
+}
+
+// newMetricReader builds the production metric Reader: a PeriodicReader
+// wrapping an OTLP metric exporter, exporting on exportInterval.
+//
+// The OTLP path is for local debugging — point OTEL_EXPORTER_OTLP_ENDPOINT
+// or OTEL_EXPORTER_OTLP_METRICS_ENDPOINT at a local Collector to inspect metrics
+// off-process. Production deploys leave the env vars unset and export directly
+// to Google Cloud's native OTLP telemetry endpoint (telemetry.googleapis.com)
+// authenticated with Application Default Credentials (ADC).
+func newMetricReader(ctx context.Context) (sdkmetric.Reader, error) {
+	return newMetricReaderWithLoader(ctx, defaultCredentialsLoader)
+}
+
+func newMetricReaderWithLoader(ctx context.Context, loader credentialsLoaderFunc) (sdkmetric.Reader, error) {
+	if os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") != "" ||
+		os.Getenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT") != "" {
+		metricExp, err := otlpmetricgrpc.New(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("create OTLP metric exporter: %w", err)
+		}
+		return sdkmetric.NewPeriodicReader(metricExp, sdkmetric.WithInterval(exportInterval)), nil
+	}
+	creds, err := loader(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("load application default credentials for metric exporter: %w", err)
+	}
+	metricExp, err := otlpmetricgrpc.New(
+		ctx,
+		otlpmetricgrpc.WithEndpoint(gcpTelemetryEndpoint),
+		otlpmetricgrpc.WithDialOption(grpc.WithPerRPCCredentials(creds)),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create GCP OTLP metric exporter: %w", err)
 	}
 	return sdkmetric.NewPeriodicReader(metricExp, sdkmetric.WithInterval(exportInterval)), nil
 }
 
 // newTraceExporter returns an OTLP trace exporter when one of the standard
-// OTel endpoint env vars is set, otherwise the GCP Cloud Trace exporter.
+// OTel endpoint env vars is set, otherwise an OTLP trace exporter targeting
+// Google Cloud's native OTLP telemetry endpoint (telemetry.googleapis.com)
+// authenticated with Application Default Credentials (ADC).
 //
 // The OTLP path is for local debugging — point OTEL_EXPORTER_OTLP_ENDPOINT
 // at a local Collector or Jaeger to inspect spans off-process. Production
-// deploys leave the env vars unset and fall through to Cloud Trace.
-//
-// The OTLP SDK reads the endpoint, headers, protocol, etc. directly from
-// the standard OTEL_EXPORTER_OTLP_* env vars — we don't decode them here.
-// gRPC is the default protocol; if HTTP/protobuf is ever needed, switch
-// the import to `otlptracehttp` (this helper would then branch on
-// `OTEL_EXPORTER_OTLP_PROTOCOL`).
+// deploys leave the env vars unset and export to Cloud Trace via telemetry.googleapis.com.
 func newTraceExporter(ctx context.Context) (sdktrace.SpanExporter, error) {
+	return newTraceExporterWithLoader(ctx, defaultCredentialsLoader)
+}
+
+func newTraceExporterWithLoader(ctx context.Context, loader credentialsLoaderFunc) (sdktrace.SpanExporter, error) {
 	if os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") != "" ||
 		os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") != "" {
 		exp, err := otlptracegrpc.New(ctx)
@@ -322,9 +379,17 @@ func newTraceExporter(ctx context.Context) (sdktrace.SpanExporter, error) {
 		}
 		return exp, nil
 	}
-	exp, err := texporter.New()
+	creds, err := loader(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("create GCP trace exporter: %w", err)
+		return nil, fmt.Errorf("load application default credentials for trace exporter: %w", err)
+	}
+	exp, err := otlptracegrpc.New(
+		ctx,
+		otlptracegrpc.WithEndpoint(gcpTelemetryEndpoint),
+		otlptracegrpc.WithDialOption(grpc.WithPerRPCCredentials(creds)),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create GCP OTLP trace exporter: %w", err)
 	}
 	return exp, nil
 }

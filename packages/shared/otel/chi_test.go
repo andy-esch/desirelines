@@ -411,3 +411,29 @@ func TestTraceIDResponseHeader_HeaderPresentEvenOnHandlerError(t *testing.T) {
 		t.Errorf("X-Trace-Id on 500 = %q, want %q", got, want)
 	}
 }
+
+func TestSpanNameFromChiRoute_NoChiContextDoesNotPanic(t *testing.T) {
+	sr := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))
+	tr := tp.Tracer("test")
+
+	handler := SpanNameFromChiRoute(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/direct", nil)
+	ctx, span := tr.Start(req.Context(), "initial-name")
+	req = req.WithContext(ctx)
+
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	span.End()
+
+	ended := sr.Ended()
+	if len(ended) != 1 {
+		t.Fatalf("expected 1 ended span, got %d", len(ended))
+	}
+	if ended[0].Name() != "initial-name" {
+		t.Errorf("span name = %q, want initial-name", ended[0].Name())
+	}
+}

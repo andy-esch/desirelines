@@ -53,6 +53,8 @@ resource "google_project_service" "required_apis" {
     "firestore.googleapis.com",
     "iamcredentials.googleapis.com",
     "cloudtrace.googleapis.com",
+    "monitoring.googleapis.com",
+    "telemetry.googleapis.com",
     "cloudscheduler.googleapis.com",
   ]) : []
 
