@@ -250,6 +250,11 @@ flashes the wrong theme, and it can't drift from the list because nobody hand-wr
 
 `ThemeProvider` applies the attribute eagerly on change (not only in an effect), because
 consumers that read resolved token values would otherwise render one theme behind.
+**Fonts.** `src/themes/fontPreloads.ts` preloads the woff2 files of the applied theme's
+`fonts` before the app renders, so a headline doesn't paint in the fallback face first. The
+URLs come from Vite `?url` imports, so they point at the same hashed files the stylesheet
+requests; a family with no entry there (the system stack, or a variable face the stylesheet
+already imports) simply isn't preloaded.
 
 ## Components
 

@@ -8,12 +8,17 @@ import { loadConfig } from "./lib/config";
 import { createAppRouter } from "./router";
 import { logger } from "./lib/logger";
 import { installGlobalErrorHandlers } from "./lib/global-error-handlers";
+import { preloadThemeFonts } from "./themes/fontPreloads";
 import { redactAuthorizationHeader } from "./api/errors";
 
 // Catch errors outside the React tree (timers, non-React scripts,
 // unhandled promise rejections). React-rendering errors are caught
 // by the <ErrorBoundary> below.
 installGlobalErrorHandlers();
+
+// Ask for the active theme's faces as early as the app can, so headlines don't paint in
+// the fallback face first. The first-paint script has already set `data-theme`.
+preloadThemeFonts(document);
 
 // Log version for debugging
 logger.info(
