@@ -44,7 +44,11 @@ export function SettingsSection({
 
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        setContentHeight(entry.contentRect.height);
+        // The border box, not `contentRect`: the measured element carries the panel's own
+        // padding, and a content-box height cut that much off the end of a long section
+        // (the sport list lost its "N of 17 sports visible" footer).
+        const borderBox = entry.borderBoxSize?.[0]?.blockSize;
+        setContentHeight(borderBox ?? (entry.target as HTMLElement).offsetHeight);
       }
     });
 
