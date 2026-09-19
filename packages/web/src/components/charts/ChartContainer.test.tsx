@@ -1,12 +1,24 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { ChartContainer } from "./ChartContainer";
+import { getTheme } from "../../themes/registry";
+import { ThemeStructureProvider } from "../theme/ThemeStructureProvider";
+
+/** Legacy's structure puts a panel's title in a card header, as these cases expect. */
+function inLegacy(node: ReactNode) {
+  return render(
+    <ThemeStructureProvider structure={getTheme("legacy-dark").structure}>
+      {node}
+    </ThemeStructureProvider>
+  );
+}
 
 const base = { title: "Cumulative Distance", isLoading: false, error: null, isEmpty: false };
 
 describe("ChartContainer", () => {
   it("frames the chart in a panel with the title and controls in its header", () => {
-    const { container } = render(
+    const { container } = inLegacy(
       <ChartContainer {...base} framed headerControls={<button>YTD</button>}>
         <p>chart</p>
       </ChartContainer>
@@ -18,7 +30,7 @@ describe("ChartContainer", () => {
   });
 
   it("keeps the title but not the controls while loading", () => {
-    render(
+    inLegacy(
       <ChartContainer {...base} isLoading framed headerControls={<button>YTD</button>}>
         <p>chart</p>
       </ChartContainer>
@@ -29,7 +41,7 @@ describe("ChartContainer", () => {
   });
 
   it("draws its own header row when not framed", () => {
-    const { container } = render(
+    const { container } = inLegacy(
       <ChartContainer {...base} headerControls={<button>YTD</button>}>
         <p>chart</p>
       </ChartContainer>

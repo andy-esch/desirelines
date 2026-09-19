@@ -193,7 +193,7 @@ const LEGACY_FONTS: readonly ThemeFont[] = [
 export const THEMES = [
   {
     id: "legacy-dark",
-    label: "Dark",
+    label: "Legacy",
     scheme: "dark",
     mapStyle: MAPBOX_DARK,
     map: STOCK_MAP,
@@ -221,7 +221,7 @@ export const THEMES = [
     scheme: "dark",
     mapStyle: MAPBOX_DARK,
     map: RETRO_BASE_MAPS.miami,
-    hidden: true,
+    hidden: false,
     background: "#160b2e",
     swatches: ["#160b2e", "#ff2ec4", "#00e5ff"],
     fonts: MIAMI_FONTS,
@@ -237,14 +237,30 @@ export type ThemePreference = ThemeId | "system";
 /** localStorage key for the preference. Unchanged from the dark/light toggle era. */
 export const THEME_STORAGE_KEY = "theme";
 
-/** Preference used when nothing (or nothing valid) is stored. */
-export const DEFAULT_THEME_PREFERENCE: ThemePreference = "system";
+/**
+ * Preference used when nothing (or nothing valid) is stored. Miami is the site's look, so
+ * a new visitor gets it whatever their OS color scheme says.
+ */
+export const DEFAULT_THEME_PREFERENCE: ThemePreference = "miami";
 
 /** The theme "system" resolves to for each OS color scheme. */
 export const SYSTEM_THEME_IDS: Readonly<Record<ThemeScheme, ThemeId>> = {
   dark: "legacy-dark",
   light: "legacy-light",
 };
+
+/**
+ * The one-time move to Miami. A visitor who had never chosen, or who was on the dark theme
+ * the site used to default to, gets the new look; an explicit light choice is left alone.
+ * The flag makes it once-only, so choosing Legacy again sticks. The first-paint script runs
+ * it (see `bootScript.ts`), before anything is painted.
+ */
+export const MIAMI_MIGRATION = {
+  storageKey: "theme-migrated-miami",
+  /** Stored preferences that become Miami, after the aliases below are applied. */
+  from: ["system", "legacy-dark"],
+  to: "miami",
+} as const;
 
 /** Values written by the old dark/light toggle, mapped onto the theme that replaced them. */
 export const LEGACY_PREFERENCE_ALIASES: Readonly<Record<string, ThemeId>> = {

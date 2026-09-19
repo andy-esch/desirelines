@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   DEFAULT_THEME_PREFERENCE,
+  MIAMI_MIGRATION,
   LEGACY_PREFERENCE_ALIASES,
   SYSTEM_THEME_IDS,
   THEMES,
@@ -37,6 +38,18 @@ describe("theme list", () => {
   it("offers only unhidden themes in the picker", () => {
     expect(VISIBLE_THEMES.every((t) => !t.hidden)).toBe(true);
     expect(VISIBLE_THEMES).toHaveLength(THEMES.filter((t) => !t.hidden).length);
+  });
+
+  it("defaults to a theme rather than the OS scheme", () => {
+    expect(DEFAULT_THEME_PREFERENCE).not.toBe("system");
+    expect(THEMES.some((t) => t.id === DEFAULT_THEME_PREFERENCE)).toBe(true);
+  });
+
+  it("moves stored preferences onto a theme that exists", () => {
+    expect(THEMES.some((t) => t.id === MIAMI_MIGRATION.to)).toBe(true);
+    for (const value of MIAMI_MIGRATION.from) {
+      expect(value === "system" || THEMES.some((t) => t.id === value)).toBe(true);
+    }
   });
 });
 

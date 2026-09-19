@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import type { ReactNode } from "react";
 import { render, screen } from "@testing-library/react";
 import GoalSummaryTable from "./GoalSummaryTable";
 import type { Goals } from "../utils/goalCalculations";
@@ -26,6 +27,16 @@ vi.mock("../hooks/useDangerThresholds", () => ({
 // Mock the date for consistent testing (local time)
 // June 15, 2025 = 166 days elapsed, 200 days remaining
 const mockCurrentDate = new Date(2025, 5, 15, 12, 0, 0); // Mid-year (June 15 local noon)
+
+/**
+ * The percent-on-the-bar progress these cases read is Legacy's drawing; the retro themes
+ * show a track with a pace tick instead (see "Goal track" below).
+ */
+function renderInLegacy(node: ReactNode) {
+  return render(
+    <ThemeStructureProvider structure={THEMES[0].structure}>{node}</ThemeStructureProvider>
+  );
+}
 
 describe("GoalSummaryTable", () => {
   beforeEach(() => {
@@ -134,7 +145,7 @@ describe("GoalSummaryTable", () => {
     });
 
     it("caps progress at 100%", () => {
-      render(
+      renderInLegacy(
         <GoalSummaryTable
           goals={testGoals([{ id: "1", value: 1000, label: "Test Goal" }])}
           currentValue={1500}

@@ -1,7 +1,13 @@
 import { describe, it, expect } from "vitest";
 import type { ReactNode } from "react";
 import { render, screen } from "@testing-library/react";
-import { THEMES, type ThemeStructure } from "../../themes/registry";
+import {
+  DEFAULT_THEME_PREFERENCE,
+  getTheme,
+  THEMES,
+  type ThemeId,
+  type ThemeStructure,
+} from "../../themes/registry";
 import { ThemeStructureProvider } from "./ThemeStructureProvider";
 import { useThemeStructure } from "./useThemeStructure";
 import { Panel } from "./Panel";
@@ -27,7 +33,8 @@ describe("useThemeStructure", () => {
 
   it("follows the active theme by default", () => {
     render(<Probe />);
-    expect(screen.getByText(LEGACY.statRowStyle)).toBeInTheDocument();
+    const active = getTheme(DEFAULT_THEME_PREFERENCE as ThemeId).structure;
+    expect(screen.getByText(active.statRowStyle)).toBeInTheDocument();
   });
 
   it("lets a subtree render another structure", () => {
@@ -38,7 +45,8 @@ describe("useThemeStructure", () => {
 
 describe("Panel", () => {
   it("puts the title in a card header in Legacy themes", () => {
-    const { container } = render(
+    const { container } = withStructure(
+      {},
       <Panel title="Goal achievability" meta="110 days left">
         body
       </Panel>
@@ -72,7 +80,7 @@ describe("Panel", () => {
   });
 
   it("renders no header without a title or meta", () => {
-    const { container } = render(<Panel>body</Panel>);
+    const { container } = withStructure({}, <Panel>body</Panel>);
     expect(container.querySelector("section")).toHaveAttribute("data-placement", "none");
   });
 
@@ -95,7 +103,8 @@ describe("Panel", () => {
 
 describe("Section", () => {
   it("titles the section with a heading and shows its actions", () => {
-    render(
+    withStructure(
+      {},
       <Section title="Recent activity" actions={<button>2W</button>}>
         <p>content</p>
       </Section>
@@ -118,13 +127,13 @@ describe("Section", () => {
 
 describe("SportLabel", () => {
   it("shows the plain name where the theme uses badges and no badge is asked for", () => {
-    const { container } = render(<SportLabel color="#ff00ff">Cycling</SportLabel>);
+    const { container } = withStructure({}, <SportLabel color="#ff00ff">Cycling</SportLabel>);
     expect(screen.getByText("Cycling")).toBeInTheDocument();
     expect(container.querySelector("[data-mark]")).not.toBeInTheDocument();
   });
 
   it("draws no standalone mark where the theme uses badges", () => {
-    const { container } = render(<SportMark color="#ff00ff" />);
+    const { container } = withStructure({}, <SportMark color="#ff00ff" />);
     expect(container).toBeEmptyDOMElement();
   });
 
@@ -198,7 +207,10 @@ describe("Meter", () => {
   });
 
   it("fills the whole current segment otherwise", () => {
-    const { container } = render(<Meter value={dayOfYear} segments={12} label="Year progress" />);
+    const { container } = withStructure(
+      { meterPartialCurrent: false },
+      <Meter value={dayOfYear} segments={12} label="Year progress" />
+    );
     const current = container.querySelector('[data-segment="current"] > span') as HTMLElement;
     expect(current.style.width).toBe("100%");
   });
@@ -219,7 +231,8 @@ describe("Meter", () => {
   });
 
   it("draws a continuous track with a fill, a marker and, in Legacy themes, the percent", () => {
-    const { container } = render(
+    const { container } = withStructure(
+      {},
       <Meter
         value={0.62}
         marker={dayOfYear}
@@ -270,7 +283,8 @@ describe("PageTitle", () => {
 
 describe("StatusSymbol", () => {
   it("renders a badge in Legacy themes, keeping the caller's fill", () => {
-    render(
+    withStructure(
+      {},
       <StatusSymbol
         status="behind"
         label="Behind"
@@ -284,7 +298,8 @@ describe("StatusSymbol", () => {
   });
 
   it("shows badge content in badges and the label with symbols", () => {
-    const { unmount } = render(
+    const { unmount } = withStructure(
+      {},
       <StatusSymbol status="ahead" label="145% of goal" badgeContent="145%" />
     );
     expect(screen.getByText("145%")).toHaveAttribute("data-status", "ahead");

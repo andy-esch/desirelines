@@ -3,14 +3,7 @@ import { Link } from "@tanstack/react-router";
 import type { User } from "../../hooks/useAuth";
 import { useUserProfile } from "../../hooks/useUserProfile";
 import { tint } from "../../utils/colorTokens";
-import {
-  CheckIcon,
-  ChevronDownIcon,
-  SettingsIcon,
-  SignOutIcon,
-  SignInIcon,
-  MonitorIcon,
-} from "../icons";
+import { CheckIcon, ChevronDownIcon, SettingsIcon, SignOutIcon, SignInIcon } from "../icons";
 import { useTheme } from "../../contexts/ThemeContext";
 import { VISIBLE_THEMES, type ThemePreference } from "../../themes/registry";
 
@@ -90,7 +83,6 @@ const THEME_OPTIONS: readonly { value: ThemePreference; label: string; icon: Rea
     label: t.label,
     icon: <ThemeSwatch colors={t.swatches} />,
   })),
-  { value: "system", label: "System", icon: <MonitorIcon size={13} /> },
 ];
 
 /**

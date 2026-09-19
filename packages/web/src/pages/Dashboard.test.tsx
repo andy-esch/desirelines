@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { ReactNode } from "react";
 import { screen, waitFor } from "@testing-library/react";
 import Dashboard from "./Dashboard";
 import { renderWithRouter } from "../test/renderWithRouter";
+import { getTheme } from "../themes/registry";
+import { ThemeStructureProvider } from "../components/theme/ThemeStructureProvider";
 
 // Mock useAuth hook
 vi.mock("../hooks/useAuth", () => ({
@@ -142,6 +145,18 @@ const mockUseUserProfile = vi.mocked(useUserProfile);
 const mockSignIn = vi.fn();
 const mockSignOut = vi.fn();
 
+/**
+ * Themes without a hero decoration (Legacy) open on the welcome line instead of the hero
+ * band, so the cases about that line render in Legacy's structure.
+ */
+function LegacyStructure({ children }: { children: ReactNode }) {
+  return (
+    <ThemeStructureProvider structure={getTheme("legacy-dark").structure}>
+      {children}
+    </ThemeStructureProvider>
+  );
+}
+
 describe("Dashboard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -199,8 +214,14 @@ describe("Dashboard", () => {
       });
     });
 
-    it("renders welcome message without user name", async () => {
+    it("opens on the hero band, where the theme has a hero decoration", async () => {
       await renderWithRouter(<Dashboard />);
+      expect(screen.getByRole("heading", { name: /Day \d+/ })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Welcome!" })).not.toBeInTheDocument();
+    });
+
+    it("renders welcome message without user name, where the theme has no hero", async () => {
+      await renderWithRouter(<Dashboard />, { wrapper: LegacyStructure });
       expect(screen.getByRole("heading", { name: "Welcome!" })).toBeInTheDocument();
     });
 
@@ -235,8 +256,8 @@ describe("Dashboard", () => {
       });
     });
 
-    it("renders personalized welcome message", async () => {
-      await renderWithRouter(<Dashboard />);
+    it("renders personalized welcome message, where the theme has no hero", async () => {
+      await renderWithRouter(<Dashboard />, { wrapper: LegacyStructure });
       expect(screen.getByRole("heading", { name: /Welcome back, Jane/i })).toBeInTheDocument();
     });
 
@@ -245,8 +266,8 @@ describe("Dashboard", () => {
       expect(screen.queryByText("Want to see your own data?")).not.toBeInTheDocument();
     });
 
-    it("shows dashboard description", async () => {
-      await renderWithRouter(<Dashboard />);
+    it("shows dashboard description, where the theme has no hero", async () => {
+      await renderWithRouter(<Dashboard />, { wrapper: LegacyStructure });
       expect(screen.getByText("Your multi-sport activity dashboard")).toBeInTheDocument();
     });
   });

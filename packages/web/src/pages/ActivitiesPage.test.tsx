@@ -256,7 +256,8 @@ describe("ActivitiesPage", () => {
     it("summarizes three selected sports in the filter pill", async () => {
       await renderActivitiesPage("/activities?sports=cycling,running,yoga");
 
-      expect(screen.getByText(/3 sports/)).toBeInTheDocument();
+      // Scoped to the pill: the page title's kicker also names the filters.
+      expect(screen.getByText("Filtered:").closest("div")).toHaveTextContent("3 sports");
     });
   });
 
