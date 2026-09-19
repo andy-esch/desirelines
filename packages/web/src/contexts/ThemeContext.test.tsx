@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { act, render } from "@testing-library/react";
 import { ThemeProvider, useTheme } from "./ThemeContext";
-import { THEME_STORAGE_KEY } from "../themes/registry";
+import {
+  DEFAULT_THEME_PREFERENCE,
+  getTheme,
+  type ThemeId,
+  THEME_STORAGE_KEY,
+} from "../themes/registry";
 
 const originalMatchMedia = window.matchMedia;
 
@@ -69,16 +74,17 @@ describe("ThemeProvider", () => {
     document.documentElement.style.colorScheme = "";
   });
 
-  it("follows the OS scheme when nothing is stored", () => {
+  it("applies the default theme when nothing is stored, whatever the OS says", () => {
     mockColorScheme(false);
     const provider = renderProvider();
+    const fallback = getTheme(DEFAULT_THEME_PREFERENCE as ThemeId);
 
-    expect(provider.value.preference).toBe("system");
-    expect(provider.value.theme.id).toBe("legacy-light");
-    expect(document.documentElement.dataset.theme).toBe("legacy-light");
-    expect(document.documentElement.style.colorScheme).toBe("light");
+    expect(provider.value.preference).toBe(DEFAULT_THEME_PREFERENCE);
+    expect(provider.value.theme.id).toBe(fallback.id);
+    expect(document.documentElement.dataset.theme).toBe(fallback.id);
+    expect(document.documentElement.style.colorScheme).toBe(fallback.scheme);
     expect(document.head.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.content).toBe(
-      "#f0f4f8"
+      fallback.background
     );
   });
 
@@ -104,8 +110,11 @@ describe("ThemeProvider", () => {
     expect(firstLight?.domTheme).toBe("legacy-light");
   });
 
+  // "System" is not in the picker today, but a preference stored before it went away
+  // still follows the OS, and "Match system" returns with the light retro theme.
   it("tracks OS changes while following the system", () => {
     const os = mockColorScheme(true);
+    localStorage.setItem(THEME_STORAGE_KEY, "system");
     const provider = renderProvider();
     expect(provider.value.theme.id).toBe("legacy-dark");
 

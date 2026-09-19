@@ -16,7 +16,7 @@ vi.mock("../../hooks/useUserProfile", () => ({
 
 const { setPreference } = vi.hoisted(() => ({ setPreference: vi.fn() }));
 vi.mock("../../contexts/ThemeContext", () => ({
-  useTheme: () => ({ preference: "system", setPreference }),
+  useTheme: () => ({ preference: "miami", setPreference }),
 }));
 
 describe("AccountDropdown", () => {
@@ -99,7 +99,7 @@ describe("AccountDropdown", () => {
 
   it("exposes the active theme programmatically, not just visually", () => {
     // The active theme was conveyed only by border/background colour, so a screen
-    // reader user couldn't tell which was selected. useTheme is mocked to "system".
+    // reader user couldn't tell which was selected. useTheme is mocked to "miami".
     const onSignIn = vi.fn().mockResolvedValue(undefined);
     const onSignOut = vi.fn().mockResolvedValue(undefined);
 
@@ -112,15 +112,16 @@ describe("AccountDropdown", () => {
     const themeGroup = screen.getByRole("group", { name: /theme/i });
     expect(themeGroup).toBeInTheDocument();
 
-    // One radio per released theme, plus System.
+    // One radio per released theme; "System" is gone until "Match system" returns.
     const radios = screen.getAllByRole("menuitemradio");
-    expect(radios).toHaveLength(VISIBLE_THEMES.length + 1);
+    expect(radios).toHaveLength(VISIBLE_THEMES.length);
+    expect(screen.queryByRole("menuitemradio", { name: /system theme/i })).not.toBeInTheDocument();
 
-    expect(screen.getByRole("menuitemradio", { name: /system theme/i })).toHaveAttribute(
+    expect(screen.getByRole("menuitemradio", { name: /miami theme/i })).toHaveAttribute(
       "aria-checked",
       "true"
     );
-    for (const name of [/light theme/i, /dark theme/i]) {
+    for (const name of [/light theme/i, /legacy theme/i]) {
       expect(screen.getByRole("menuitemradio", { name })).toHaveAttribute("aria-checked", "false");
     }
   });

@@ -134,7 +134,16 @@ normal vision.
 
 The app has a list of themes, not a dark/light switch. The active theme is a
 `data-theme="<id>"` attribute on `<html>`, and a theme is **values only**: nothing in a
-component knows which theme is active. **There are no `dark:` Tailwind utilities and no
+component knows which theme is active.
+
+| Theme | Id | What it is |
+|---|---|---|
+| Miami | `miami` | The site's look, and what a visitor gets without a stored choice. Sunset purples with pink and cyan neon, IBM Plex Mono with Archivo Black. |
+| Legacy | `legacy-dark` | The dark theme the site had before, still selectable. |
+| Light | `legacy-light` | The light theme the site had before. |
+
+The picker offers no "System" entry: the default no longer follows the OS color scheme, and
+"Match system" returns with the light retro theme. **There are no `dark:` Tailwind utilities and no
 theme-id checks in components** — anything that differs between themes is a token value or
 a field on the theme's list entry.
 
@@ -147,7 +156,7 @@ A theme is two halves that must agree:
    `color-mix` of the accent, say) are redefined too, because custom properties resolve
    `var()` where they are declared.
 2. **A list entry** — in `src/themes/registry.ts`: `id`, `label`, `scheme` (`dark` / `light`,
-   which sets `color-scheme` and decides what "System" resolves to), `mapStyle` (the routes
+   which sets `color-scheme` and, for a stored `system` preference, which theme applies), `mapStyle` (the routes
    map's Mapbox style), `map` (a base-map palette and label font applied over that style;
    `null` fields keep the stock style), `hidden`, `background` (must equal the block's
    `--color-bg-body`),
@@ -248,8 +257,20 @@ from the theme list (`src/themes/bootScript.ts`). It applies the stored preferen
 including the old `dark` / `light` values — before the stylesheet loads, so the page never
 flashes the wrong theme, and it can't drift from the list because nobody hand-writes it.
 
+The same script runs the one-time move to Miami (`MIAMI_MIGRATION` in the theme list): a
+visitor with no stored choice, or one stored from the old dark default or the old "System"
+entry, moves to Miami, and a flag records that it happened, so choosing Legacy afterwards
+sticks. An explicit light choice is left alone. It runs in the script rather than in React
+so a migrated visitor never sees the old theme paint first.
+
 `ThemeProvider` applies the attribute eagerly on change (not only in an effect), because
 consumers that read resolved token values would otherwise render one theme behind.
+
+**Fonts.** `src/themes/fontPreloads.ts` preloads the woff2 files of the applied theme's
+`fonts` before the app renders, so a headline doesn't paint in the fallback face first. The
+URLs come from Vite `?url` imports, so they point at the same hashed files the stylesheet
+requests; a family with no entry there (the system stack, or a variable face the stylesheet
+already imports) simply isn't preloaded.
 
 ## Components
 
