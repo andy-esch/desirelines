@@ -1,6 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { NarrowPageLayout } from "../components/layout/PageLayout";
 import { PageTitle } from "../components/theme/PageTitle";
+import { SectionLabel } from "../components/theme/SectionLabel";
+import { useThemeStructure } from "../components/theme/useThemeStructure";
 import { buttonVariants } from "../components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +18,22 @@ const GitHubIcon = () => (
  * This is the basic static version. A more elaborate scrollytelling version
  * is planned for the future (see about-origins-page.md task).
  */
+/**
+ * A section heading. Themes that label panels from outside get the page's tracked label
+ * over a rule, as the design draws; the rest keep the cyan heading this page has had.
+ */
+function OriginsHeading({ children, first = false }: { children: string; first?: boolean }) {
+  const { sectionLabelPlacement } = useThemeStructure();
+  if (sectionLabelPlacement === "card-header") {
+    return <h2 className="mb-3 text-accent-cyan font-normal text-2xl">{children}</h2>;
+  }
+  return (
+    <h2 className={cn("mb-4 pb-3 border-b border-divider", !first && "pt-1")}>
+      <SectionLabel>{children}</SectionLabel>
+    </h2>
+  );
+}
+
 export default function OriginsPage() {
   return (
     <NarrowPageLayout background="origins" maxWidth="720px">
@@ -25,7 +43,7 @@ export default function OriginsPage() {
         </PageTitle>
 
         <section className="mb-12">
-          <h2 className="mb-3 text-accent-cyan font-normal text-2xl">What is Desirelines?</h2>
+          <OriginsHeading first>What is Desirelines?</OriginsHeading>
           <p className="leading-[1.7]">
             Desirelines is a personal fitness tracking application that helps you set and track
             progress toward your annual goals. Connect your Strava account and visualize your
@@ -34,7 +52,7 @@ export default function OriginsPage() {
         </section>
 
         <section className="mb-12">
-          <h2 className="mb-3 text-accent-cyan font-normal text-2xl">The Name</h2>
+          <OriginsHeading>The Name</OriginsHeading>
           <p className="leading-[1.7]">
             In urban planning and landscape architecture, a "desire line" (or desire path) is a path
             created by foot traffic—the natural route people take when walking between two points,
@@ -52,7 +70,7 @@ export default function OriginsPage() {
         </section>
 
         <section className="mb-12">
-          <h2 className="mb-3 text-accent-cyan font-normal text-2xl">Open Source</h2>
+          <OriginsHeading>Open Source</OriginsHeading>
           <p className="leading-[1.7]">
             Desirelines is open source software. View the code, report issues, or contribute on
             GitHub.
