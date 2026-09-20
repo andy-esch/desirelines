@@ -5,7 +5,7 @@ import type { MetricUnit } from "../utils/units";
 import { useDangerThresholds } from "../hooks/useDangerThresholds";
 import { CheckIcon, WarningIcon } from "./icons";
 import { StatusSymbol, type GoalStatus } from "./theme/StatusSymbol";
-import type { YearContext } from "../utils/yearContext";
+import { getYearElapsedShare, type YearContext } from "../utils/yearContext";
 import { Panel } from "./theme/Panel";
 import { Meter } from "./theme/Meter";
 import { useThemeStructure } from "./theme/useThemeStructure";
@@ -32,13 +32,10 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
   sport,
   isLoading = false,
 }) => {
-  const { year, isPastYear, daysElapsed, daysRemaining } = yearContext;
+  const { year, isPastYear, daysRemaining } = yearContext;
   const { goalTrackStyle } = useThemeStructure();
   // Where linear pacing puts you today, as a share of the year: the goal track's pace tick.
-  const paceShare =
-    yearContext.shouldShowPacing && daysElapsed + daysRemaining > 0
-      ? daysElapsed / (daysElapsed + daysRemaining)
-      : undefined;
+  const paceShare = yearContext.shouldShowPacing ? getYearElapsedShare(yearContext) : undefined;
 
   // Get danger threshold for this sport
   const { getThreshold } = useDangerThresholds();
@@ -64,11 +61,8 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
    * Calculate the prorated goal for the current point in the year.
    * This is what you "should" have achieved by now if pacing linearly.
    */
-  const calculateProratedGoal = (goalValue: number): number => {
-    const totalDays = daysElapsed + daysRemaining;
-    if (totalDays === 0) return goalValue;
-    return goalValue * (daysElapsed / totalDays);
-  };
+  const calculateProratedGoal = (goalValue: number): number =>
+    goalValue * getYearElapsedShare(yearContext);
 
   /**
    * Calculate pace ratio: actual progress vs expected progress at this point in year.

@@ -11,7 +11,7 @@ import { generateDemoGoals } from "../utils/demoDataGenerator";
 import { filterValidSports, getSportDisplayName, getPrimaryMetric } from "../utils/sportConfig";
 import { getMetricConfig, getMetricConfigByMetricId } from "../config/metricConfig";
 import { getTargetGoalValue } from "../utils/goalCalculations";
-import { createYearContext } from "../utils/yearContext";
+import { getDaysInYear } from "../utils/yearContext";
 import {
   convertDistance,
   goalMetersToDisplay,
@@ -121,9 +121,8 @@ export function useWeeklySummary(): {
     })),
   });
 
-  // Year context for prorating (daysInYear = elapsed + remaining)
-  const yearContext = useMemo(() => createYearContext(currentYear), [currentYear]);
-  const daysInYear = yearContext.daysElapsed + yearContext.daysRemaining;
+  // For prorating a yearly goal down to this week
+  const daysInYear = getDaysInYear(currentYear);
 
   // Combine into WeeklySportTotal array
   const sportTotals = useMemo(() => {
