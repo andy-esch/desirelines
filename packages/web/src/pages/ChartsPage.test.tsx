@@ -108,7 +108,8 @@ describe("ChartsPage", () => {
     mockAllActivities([activity({ sport: "cycling", hasRoute: true })]);
     await renderChartsPage();
 
-    const timeButton = screen.getByRole("button", { name: /time/i });
+    // Exact: the time-range toggle's "All Time" also matches a loose /time/ query.
+    const timeButton = screen.getByRole("button", { name: "Time" });
     expect(timeButton).toHaveAttribute("aria-pressed", "false");
     await user.click(timeButton);
     expect(timeButton).toHaveAttribute("aria-pressed", "true");

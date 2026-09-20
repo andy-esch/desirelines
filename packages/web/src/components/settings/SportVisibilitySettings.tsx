@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { useSportConfig } from "../../hooks/useSportConfig";
 import { useVisibleSports } from "../../hooks/useVisibleSports";
 import { getMetricDisplayLabel } from "../../config/metricConfig";
@@ -10,7 +10,9 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Alert } from "../ui/alert";
 import { Table } from "../ui/table";
-import { Badge } from "../ui/badge";
+import { SectionLabel } from "../theme/SectionLabel";
+import { SportLabel } from "../theme/SportLabel";
+import { SPORT_COLORS, DEFAULT_SPORT_COLOR } from "../../utils/sportConfig";
 
 /** Duration to show "Saved" indicator */
 const SAVE_SUCCESS_DURATION = 2000;
@@ -76,7 +78,14 @@ function SportTable({
             const isDisabled = disabled?.(sport.key) ?? false;
             return (
               <tr key={sport.key}>
-                <td className="align-middle font-medium">{sport.displayName}</td>
+                <td className="align-middle font-medium">
+                  <SportLabel
+                    color={SPORT_COLORS[sport.key] ?? DEFAULT_SPORT_COLOR}
+                    className={actionVariant === "show" ? "opacity-55" : undefined}
+                  >
+                    {sport.displayName}
+                  </SportLabel>
+                </td>
                 <td className="align-middle">
                   <span className="text-muted-text text-sm" style={{ lineHeight: 1.4 }}>
                     {sport.stravaTypes.join(", ")}
@@ -128,6 +137,31 @@ function SportTable({
         </tbody>
       </Table>
     </div>
+  );
+}
+
+/** A labelled group of sports with its count, e.g. Visible 5. */
+function SportGroup({
+  label,
+  count,
+  className,
+  children,
+}: {
+  label: string;
+  count: number;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className={className}>
+      <div className="mb-2 flex items-center gap-2">
+        <SectionLabel>{label}</SectionLabel>
+        <span className="inline-flex min-w-6 justify-center rounded-sm border border-surface-border px-1.5 py-0.5 text-xs tabular-nums text-muted-text">
+          {count}
+        </span>
+      </div>
+      {children}
+    </section>
   );
 }
 
@@ -372,17 +406,8 @@ export function SportVisibilitySettings() {
         <div className="text-muted-text py-6 text-center">No sports match "{filterText}"</div>
       ) : (
         <>
-          {/* Visible Sports Box */}
-          <div
-            className="border rounded p-6 mb-6"
-            style={{ backgroundColor: "color-mix(in srgb, var(--color-success) 5%, transparent)" }}
-          >
-            <h6 className="mb-2 flex items-center gap-2">
-              <span style={{ color: "var(--color-success)" }}>Visible</span>
-              <Badge variant="solid" size="compact" className="bg-success">
-                {localSelection.size}
-              </Badge>
-            </h6>
+          {/* Two labelled groups in one panel: the tinted boxes read as cards inside a card. */}
+          <SportGroup label="Visible" count={localSelection.size}>
             <SportTable
               sports={visibleFiltered}
               actionVariant="hide"
@@ -390,26 +415,20 @@ export function SportVisibilitySettings() {
               disabled={(key) => localSelection.size === 1 && localSelection.has(key)}
               emptyMessage={filterText ? "No visible sports match filter" : "No sports visible"}
             />
-          </div>
+          </SportGroup>
 
-          {/* Hidden Sports Box */}
-          <div
-            className="border rounded p-6"
-            style={{ backgroundColor: "var(--color-surface-hover)" }}
+          <SportGroup
+            label="Hidden"
+            count={sportEntries.length - localSelection.size}
+            className="mt-6 border-t border-divider pt-6"
           >
-            <h6 className="mb-2 flex items-center gap-2">
-              <span className="text-muted-text">Hidden</span>
-              <Badge variant="secondary" size="compact">
-                {sportEntries.length - localSelection.size}
-              </Badge>
-            </h6>
             <SportTable
               sports={hiddenFiltered}
               actionVariant="show"
               onAction={showSport}
               emptyMessage={filterText ? "No hidden sports match filter" : "No sports hidden"}
             />
-          </div>
+          </SportGroup>
         </>
       )}
 

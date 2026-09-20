@@ -97,7 +97,7 @@ export default function ActivityVolumeChart({
             // "snap"); disable the position tween and nudge it off the hovered bar.
             isAnimationActive={false}
             offset={16}
-            cursor={{ fill: "var(--color-chart-grid)", opacity: 0.25 }}
+            cursor={{ fill: "var(--chart-hover-column)" }}
             content={
               <VolumeTooltip
                 series={series}
@@ -204,7 +204,7 @@ function VolumeTooltip({
       style={{
         backgroundColor: "var(--color-chart-tooltip-bg)",
         border: "1px solid var(--color-chart-tooltip-border)",
-        borderRadius: "0.625rem",
+        borderRadius: "var(--tooltip-radius)",
         padding: "10px 12px",
         boxShadow: "0 2px 12px var(--color-surface-shadow)",
         fontFamily: "var(--font-chart)",

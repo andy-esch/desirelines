@@ -184,7 +184,9 @@ export default function SettingsPage() {
               <div className="mb-1 text-subtle-text text-sm uppercase tracking-widest font-bold">
                 Authenticated Athlete
               </div>
-              <h2 className="mb-2 text-body-text font-display neon-gradient-text">{displayName}</h2>
+              <h2 className="mb-2 text-body-text font-display neon-gradient-text [text-shadow:var(--page-title-shadow)]">
+                {displayName}
+              </h2>
 
               <div className="flex flex-col gap-2 mt-4">
                 <div className="flex items-center justify-center md:justify-start gap-2 text-muted-text text-sm">

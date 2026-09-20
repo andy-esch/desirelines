@@ -14,13 +14,7 @@ import ActiveFilterPill, {
 } from "../components/ActiveFilterPill";
 import { PageTitle } from "../components/theme/PageTitle";
 import SportFilterPills from "../components/SportFilterPills";
-import {
-  Select,
-  SelectTrigger,
-  SelectContent,
-  SelectItem,
-  SelectValue,
-} from "../components/ui/select";
+import { TimeRangeToggle } from "../components/TimeRangeToggle";
 import {
   type TimeRange,
   TIME_RANGE_OPTIONS,
@@ -145,23 +139,11 @@ const ActivitiesPage = () => {
             <span id="activitiesTimeLabel" className="text-muted-text text-sm">
               Time:
             </span>
-            <Select
+            <TimeRangeToggle
               value={selectedRange}
-              onValueChange={(v) => handleRangeChange(coerceTimeRange(v, DEFAULT_RANGE))}
-            >
-              <SelectTrigger aria-labelledby="activitiesTimeLabel" className="w-auto">
-                <SelectValue>
-                  {(v) => TIME_RANGE_OPTIONS.find((o) => o.value === v)?.label ?? ""}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {TIME_RANGE_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={handleRangeChange}
+              labelledBy="activitiesTimeLabel"
+            />
           </div>
 
           <div className="flex items-center gap-2">

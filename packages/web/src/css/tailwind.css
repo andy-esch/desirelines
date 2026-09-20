@@ -1018,7 +1018,10 @@
   --stat-sub-color: #8b7bb5;
   --color-meter-done: #ff2ec4;
   --color-meter-current: #00e5ff;
-  --color-meter-todo: rgba(255, 255, 255, 0.08);
+  /* Months still to come. The design's dark chip reads at about 1.2:1 against the sunset
+     band the meter sits on, so it takes a light one instead: about 2.3:1 to 2.9:1 there,
+     and clearly visible on a panel. */
+  --color-meter-todo: rgba(255, 255, 255, 0.35);
   --meter-done-glow: 0 0 6px rgba(255, 46, 196, 0.55);
   --meter-current-glow: 0 0 8px rgba(0, 229, 255, 0.9);
   --color-pace-tick: #ffd9f2;
