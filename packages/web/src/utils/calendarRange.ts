@@ -19,11 +19,17 @@ export function getCalendarRange(option: TimeRangeOption): {
   let endDate: Date;
 
   if (option === "trailing12") {
-    // Trailing 12 months from today
+    // Trailing 12 months, starting the day after this date a year ago.
+    //
+    // Feb 29 has to be handled both ways round. Stepping the year back from a leap day
+    // rolls to Mar 1, which is already the day after that year's Feb 28, so adding a day
+    // there would skip one. Stepping the day first instead breaks the mirror case, where
+    // today is Feb 28 and the earlier year does have a Feb 29 to include.
     endDate = today;
     startDate = new Date(today);
     startDate.setFullYear(startDate.getFullYear() - 1);
-    startDate.setDate(startDate.getDate() + 1); // Start day after same date last year
+    const rolledPastLeapDay = startDate.getMonth() !== today.getMonth();
+    if (!rolledPastLeapDay) startDate.setDate(startDate.getDate() + 1);
   } else {
     // Specific year - always show full year for stable layout
     const year = option;
