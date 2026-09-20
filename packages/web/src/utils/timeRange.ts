@@ -8,13 +8,14 @@ import { toLocalDateString, addDays, getTodayLocalMidnight } from "./dateUtils";
 
 export type TimeRange = "2w" | "4w" | "2m" | "6m" | "ytd" | "all";
 
-export const TIME_RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
-  { value: "2w", label: "2 Weeks" },
-  { value: "4w", label: "4 Weeks" },
-  { value: "2m", label: "2 Months" },
-  { value: "6m", label: "6 Months" },
-  { value: "ytd", label: "Year to Date" },
-  { value: "all", label: "All Time" },
+/** `short` is what a segmented control shows; `label` stays the spoken and written name. */
+export const TIME_RANGE_OPTIONS: { value: TimeRange; label: string; short: string }[] = [
+  { value: "2w", label: "2 Weeks", short: "2W" },
+  { value: "4w", label: "4 Weeks", short: "4W" },
+  { value: "2m", label: "2 Months", short: "2M" },
+  { value: "6m", label: "6 Months", short: "6M" },
+  { value: "ytd", label: "Year to Date", short: "YTD" },
+  { value: "all", label: "All Time", short: "All" },
 ];
 
 export const VALID_RANGES: TimeRange[] = ["2w", "4w", "2m", "6m", "ytd", "all"];

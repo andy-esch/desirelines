@@ -150,11 +150,13 @@ describe("ActivitiesPage", () => {
       });
     });
 
-    it("renders the time-range select showing the current range", async () => {
+    it("marks the current range in the time toggle", async () => {
       await renderActivitiesPage();
 
-      // Default route → 4w; the Select trigger shows its label (options are portaled).
-      expect(screen.getByText("4 Weeks")).toBeInTheDocument();
+      // Default route → 4w. Items show a short form and are named by the full one.
+      const current = screen.getByRole("button", { name: "4 Weeks" });
+      expect(current).toHaveAttribute("data-pressed");
+      expect(current).toHaveTextContent("4W");
     });
 
     it("renders a colored pill per visible sport (no dropdown, no All-Sports chip)", async () => {
@@ -167,16 +169,23 @@ describe("ActivitiesPage", () => {
       expect(screen.queryByRole("button", { name: "All Sports" })).not.toBeInTheDocument();
     });
 
-    it("offers every time-range preset when opened", async () => {
+    it("offers every time-range preset, and selecting one marks it", async () => {
       const user = userEvent.setup();
       await renderActivitiesPage();
 
-      await user.click(screen.getByText("4 Weeks")); // open the select
-      expect(await screen.findByRole("option", { name: "2 Weeks" })).toBeInTheDocument();
-      expect(screen.getByRole("option", { name: "2 Months" })).toBeInTheDocument();
-      expect(screen.getByRole("option", { name: "6 Months" })).toBeInTheDocument();
-      expect(screen.getByRole("option", { name: "Year to Date" })).toBeInTheDocument();
-      expect(screen.getByRole("option", { name: "All Time" })).toBeInTheDocument();
+      for (const name of [
+        "2 Weeks",
+        "4 Weeks",
+        "2 Months",
+        "6 Months",
+        "Year to Date",
+        "All Time",
+      ]) {
+        expect(screen.getByRole("button", { name })).toBeInTheDocument();
+      }
+
+      await user.click(screen.getByRole("button", { name: "2 Weeks" }));
+      expect(screen.getByRole("button", { name: "2 Weeks" })).toHaveAttribute("data-pressed");
     });
 
     it("has no sport pill pressed by default (all sports)", async () => {
