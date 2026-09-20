@@ -7,7 +7,7 @@ import { getTodayUtcAnchored } from "../../utils/dateUtils";
 import type { TuningParams } from "../../utils/demoDataGenerator";
 import { PACE_THRESHOLDS } from "../../utils/goalCalculations";
 import { getIsoWeek, getMonthShareOfYear } from "../../utils/yearClock";
-import type { YearContext } from "../../utils/yearContext";
+import { getYearElapsedShare } from "../../utils/yearContext";
 import { HeroDecoration } from "../theme/HeroDecoration";
 import { Meter } from "../theme/Meter";
 import { useThemeStructure } from "../theme/useThemeStructure";
@@ -18,11 +18,10 @@ import { useThemeStructure } from "../theme/useThemeStructure";
  */
 export function countGoalsOnPace(
   sports: Pick<SportGoalData, "currentValue" | "targetGoal">[],
-  yearContext: Pick<YearContext, "daysElapsed" | "daysRemaining">
+  /** How much of the year has elapsed, from `getYearElapsedShare`. */
+  share: number
 ): { onPace: number; total: number } {
   const withGoals = sports.filter((s) => s.targetGoal > 0);
-  const totalDays = yearContext.daysElapsed + yearContext.daysRemaining;
-  const share = totalDays > 0 ? yearContext.daysElapsed / totalDays : 0;
   const onPace = withGoals.filter((s) => {
     if (s.currentValue >= s.targetGoal) return true;
     const prorated = s.targetGoal * share;
@@ -81,7 +80,7 @@ export default function DashboardHero({
   const distanceSports = sportTotals.filter((s) => s.metricType === "distance");
   const weekDistance = distanceSports.reduce((sum, s) => sum + s.weeklyTotal, 0);
   const distanceUnit = distanceSports[0]?.metricUnit ?? "mi";
-  const goals = countGoalsOnPace(sportData, yearContext);
+  const goals = countGoalsOnPace(sportData, getYearElapsedShare(yearContext));
   const pending = "--";
 
   return (

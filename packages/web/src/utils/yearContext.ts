@@ -121,3 +121,18 @@ function isLeapYear(year: number): boolean {
 export function getDaysInYear(year: number): number {
   return isLeapYear(year) ? 366 : 365;
 }
+
+/**
+ * How much of the year has elapsed, from 0 to 1, with today counted as elapsed: pacing
+ * asks where you should stand by the end of today.
+ *
+ * Every pacing calculation shares this, so a goal's status, its pace tick and the hero's
+ * "goals on pace" always agree. Dividing by `daysElapsed + daysRemaining` instead counts
+ * today twice, which understates the share by a day.
+ */
+export function getYearElapsedShare(
+  yearContext: Pick<YearContext, "year" | "daysElapsed">
+): number {
+  const daysInYear = getDaysInYear(yearContext.year);
+  return daysInYear > 0 ? Math.min(1, yearContext.daysElapsed / daysInYear) : 0;
+}

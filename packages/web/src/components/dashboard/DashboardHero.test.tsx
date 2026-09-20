@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { countGoalsOnPace } from "./DashboardHero";
 
 // Halfway through the year: linear pacing puts a 1,000 mi goal at 500 mi today.
-const HALFWAY = { daysElapsed: 183, daysRemaining: 183 };
+const HALFWAY = 0.5;
 
 describe("countGoalsOnPace", () => {
   it("counts achieved goals and goals at the on-track share of today's pace", () => {
@@ -31,8 +31,7 @@ describe("countGoalsOnPace", () => {
   });
 
   it("counts any progress as on pace before pacing expects any", () => {
-    const newYear = { daysElapsed: 0, daysRemaining: 365 };
-    expect(countGoalsOnPace([{ currentValue: 1, targetGoal: 1000 }], newYear)).toEqual({
+    expect(countGoalsOnPace([{ currentValue: 1, targetGoal: 1000 }], 0)).toEqual({
       onPace: 1,
       total: 1,
     });

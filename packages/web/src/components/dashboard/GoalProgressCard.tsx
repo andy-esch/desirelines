@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useDashboardGoalData, type SportGoalData } from "../../hooks/useDashboardGoalData";
 import { PACE_THRESHOLDS } from "../../utils/goalCalculations";
 import { formatMetricDisplayValue } from "../../utils/units";
-import { getDaysInYear, type YearContext } from "../../utils/yearContext";
+import { getDaysInYear, getYearElapsedShare, type YearContext } from "../../utils/yearContext";
 import RaceTrack, { RaceTrackLegend } from "../RaceTrack";
 import Skeleton from "../Skeleton";
 import { Panel } from "../theme/Panel";
@@ -100,8 +100,7 @@ function SportProgressRow({ sport, yearContext, raceTrack }: SportProgressRowPro
   const youPosition = sport.targetGoal > 0 ? (sport.currentValue / sport.targetGoal) * 100 : 0;
 
   // Goal pace position: what % of the year has elapsed
-  const totalDays = yearContext.daysElapsed + yearContext.daysRemaining;
-  const pacePosition = totalDays > 0 ? (yearContext.daysElapsed / totalDays) * 100 : 0;
+  const pacePosition = getYearElapsedShare(yearContext) * 100;
 
   const { label: status, delta } = getStatusForDashboard(
     sport.currentValue,
@@ -208,7 +207,7 @@ interface DashboardStatus {
 function getStatusForDashboard(
   currentValue: number,
   targetGoal: number,
-  yearContext: Pick<YearContext, "daysElapsed" | "daysRemaining" | "isPastYear">
+  yearContext: Pick<YearContext, "year" | "daysElapsed" | "isPastYear">
 ): DashboardStatus {
   const progress = targetGoal > 0 ? (currentValue / targetGoal) * 100 : 0;
 
@@ -219,9 +218,7 @@ function getStatusForDashboard(
   if (progress >= 100) return { label: "Achieved", delta: null };
 
   // Calculate pace ratio: actual vs expected at this point
-  const totalDays = yearContext.daysElapsed + yearContext.daysRemaining;
-  if (totalDays === 0) return { label: "—", delta: null };
-  const proratedGoal = targetGoal * (yearContext.daysElapsed / totalDays);
+  const proratedGoal = targetGoal * getYearElapsedShare(yearContext);
   if (proratedGoal === 0) return { label: currentValue > 0 ? "Ahead" : "—", delta: null };
   const paceRatio = currentValue / proratedGoal;
   const delta = currentValue - proratedGoal;
