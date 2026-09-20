@@ -4,6 +4,7 @@ import { Slider } from "../ui/slider";
 import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
 import { Button } from "../ui/button";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../ui/select";
+import { MAP_CHROME_STYLE } from "./mapChrome";
 import { cn } from "@/lib/utils";
 import { type RouteFilterState, yearRange } from "../../utils/routeFilters";
 import type { RegionSummary } from "../../api/map";
@@ -245,7 +246,10 @@ export default function MapFilterControls({
                 }}
               </SelectValue>
             </SelectTrigger>
-            <SelectContent>
+            {/* The popup portals to <body>, outside the drawer that remaps the accent, so
+                it carries the remap itself. Without this its selected row takes the page
+                accent while the drawer around it uses the map's. */}
+            <SelectContent style={MAP_CHROME_STYLE}>
               <SelectItem value={ALL_REGIONS}>All regions</SelectItem>
               {regionsSorted.map((r) => (
                 <SelectItem key={r.regionId} value={String(r.regionId)}>
