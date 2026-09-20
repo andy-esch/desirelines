@@ -10,13 +10,7 @@ import ActiveFilterPill, {
 } from "../components/ActiveFilterPill";
 import { PageTitle } from "../components/theme/PageTitle";
 import SportFilterPills from "../components/SportFilterPills";
-import {
-  Select,
-  SelectTrigger,
-  SelectContent,
-  SelectItem,
-  SelectValue,
-} from "../components/ui/select";
+import { TimeRangeToggle } from "../components/TimeRangeToggle";
 import { ToggleGroup, ToggleGroupItem } from "../components/ui/toggle-group";
 import { useActivityBuckets } from "../hooks/useActivityBuckets";
 import { useSportConfig } from "../hooks/useSportConfig";
@@ -137,6 +131,17 @@ export default function ChartsPage() {
     return { rows, series: chartData.series };
   }, [chartData, metric, userSettings.distanceUnit]);
 
+  // Everything the chart is showing, in display units, for the caption under it.
+  const displayTotal = useMemo(
+    () =>
+      displayData.rows.reduce(
+        (sum, row) =>
+          sum + displayData.series.reduce((n, s) => n + ((row[s.key] as number) ?? 0), 0),
+        0
+      ),
+    [displayData]
+  );
+
   const { geoCount, indoorCount } = useMemo(() => {
     let geo = 0;
     let indoor = 0;
@@ -224,29 +229,17 @@ export default function ChartsPage() {
           </p>
         </div>
 
-        {/* Shared range + sport filters, plus the type + metric toggles. */}
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 mb-6">
+        {/* Two rows: the shared range and sport filters, then this view's own toggles. */}
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 mb-3">
           <div className="flex items-center gap-2">
             <span id="chartsTimeLabel" className="text-muted-text text-sm">
               Time:
             </span>
-            <Select
+            <TimeRangeToggle
               value={selectedRange}
-              onValueChange={(v) => setSearch({ range: coerceTimeRange(v, DEFAULT_RANGE) })}
-            >
-              <SelectTrigger aria-labelledby="chartsTimeLabel" className="w-auto">
-                <SelectValue>
-                  {(v) => TIME_RANGE_OPTIONS.find((o) => o.value === v)?.label ?? ""}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {TIME_RANGE_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={(range) => setSearch({ range })}
+              labelledBy="chartsTimeLabel"
+            />
           </div>
 
           <div className="flex items-center gap-2">
@@ -261,7 +254,9 @@ export default function ChartsPage() {
               labelledBy="chartsSportLabel"
             />
           </div>
+        </div>
 
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 mb-6">
           <ToggleGroup
             value={[typeFilter]}
             onValueChange={(vals) => {
@@ -286,7 +281,7 @@ export default function ChartsPage() {
 
         <ChartContainer
           title="Activity volume"
-          hideHeader
+          framed
           isLoading={isLoading}
           error={error}
           // Empty only when there are no activities at all in the range+sport. A
@@ -308,16 +303,21 @@ export default function ChartsPage() {
             // count is discrete → integer ticks; distance/time are continuous.
             allowDecimals={metric !== "count"}
           />
-          <p className="mt-3 text-xs text-muted-text">
-            {geoCount.toLocaleString()} outdoor · {indoorCount.toLocaleString()} indoor / virtual
-            {typeFilter !== "all" && chartData.series.length === 0 && (
-              <span>
-                {" "}
-                — no {typeFilter === "outdoor" ? "outdoor" : "indoor / virtual"} activities in this
-                range
-              </span>
-            )}
-          </p>
+          <div className="mt-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-xs text-muted-text">
+            <p className="m-0">
+              {geoCount.toLocaleString()} outdoor · {indoorCount.toLocaleString()} indoor / virtual
+              {typeFilter !== "all" && chartData.series.length === 0 && (
+                <span>
+                  {" "}
+                  — no {typeFilter === "outdoor" ? "outdoor" : "indoor / virtual"} activities in
+                  this range
+                </span>
+              )}
+            </p>
+            <p className="m-0">
+              Total <span className="text-body-text">{formatTooltipValue(displayTotal)}</span>
+            </p>
+          </div>
         </ChartContainer>
       </div>
     </PageLayout>
