@@ -186,6 +186,22 @@ describe("MapFilterControls", () => {
     expect(onSelectRegion).toHaveBeenCalledWith(10);
   });
 
+  it("carries the map-chrome remap onto the region popup, which portals out of the drawer", async () => {
+    // The drawer remaps --color-accent-cyan on itself, but this popup renders in a
+    // portal on <body>, so it inherits the page accent instead of the map's unless it
+    // carries the remap too. In legacy-dark the two are different cyans, which is where
+    // the mismatch showed; in legacy-light they coincide and it looks correct by luck.
+    const user = userEvent.setup();
+    renderControls();
+    await user.click(screen.getByRole("combobox"));
+    const option = await screen.findByRole("option", { name: /All regions/ });
+    const popup = option.closest("[role='listbox']");
+    expect(popup).not.toBeNull();
+    expect((popup as HTMLElement).style.getPropertyValue("--color-accent-cyan")).toBe(
+      "var(--color-map-chrome-accent)"
+    );
+  });
+
   it("greys out and disables every control when the dataset is empty", () => {
     renderControls({ disabled: true });
     expect(screen.getByRole("button", { name: "Cycling" })).toBeDisabled();
