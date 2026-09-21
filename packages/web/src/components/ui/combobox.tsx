@@ -6,8 +6,15 @@ import { cn } from "@/lib/utils";
 /**
  * Combobox — shadcn-style wrapper over Base UI's Combobox, themed via the
  * `@theme` shim. Single-select (search input) or **multi-select** (`multiple`,
- * with selected items shown as chips) — the sport/region pickers in the map
- * filters. Built-in client filtering is available via `BaseCombobox.useFilter`
+ * with selected items shown as chips).
+ *
+ * Nothing renders it today: the map filters went to sport chips and a plain
+ * select instead. It is kept as part of the primitive set and follows the same
+ * slots and touch sizing as its siblings, so it stays ready for the case it
+ * suits — a list long enough that typing beats scrolling. Treat it as live code
+ * when sweeping the primitives, not as a dead file.
+ *
+ * Built-in client filtering is available via `BaseCombobox.useFilter`
  * (re-exported as `useComboboxFilter`); pass `items` to `<Combobox>`.
  *
  *   <Combobox multiple items value onValueChange>
