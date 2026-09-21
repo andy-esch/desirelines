@@ -18,6 +18,15 @@ web-typecheck:
 web-dev:
     cd packages/web && npm run dev
 
+# Build the web project into packages/web/build (mode: staging, production, development)
+web-build mode="staging":
+    cd packages/web && npm run build -- --mode {{mode}}
+
+# Serve the last web build locally, for checking the bundle the browser actually gets.
+# The mode must match the one `web-build` used, or Vite re-validates against the wrong env.
+web-preview port="4173" mode="staging":
+    cd packages/web && npm run preview -- --port {{port}} --mode {{mode}}
+
 # Deploy web frontend to Firebase Hosting
 deploy-web env:
     #!/usr/bin/env bash
