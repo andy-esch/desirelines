@@ -51,8 +51,12 @@ function Slider({
               getAriaValueText={getAriaValueText}
               className={cn(
                 "size-(--slider-handle-size) rounded-(--slider-handle-radius) border-(length:--slider-handle-border-width) border-[color:var(--color-slider-fill,var(--color-accent-cyan))] bg-card shadow-sm outline-none",
-                "transition-colors focus-visible:ring-2 focus-visible:ring-ring/40",
-                "data-[disabled]:opacity-50"
+                "transition-[transform,border-color,background-color] focus-visible:ring-2 focus-visible:ring-ring/40",
+                // Feedback through scale and cursor rather than a shadow: the focus ring is
+                // itself a box-shadow, so a shadow here would fight it. Base UI centers the
+                // thumb with `translate`, which composes with Tailwind's separate `scale`.
+                "cursor-grab hover:scale-110 data-[dragging]:scale-125 data-[dragging]:cursor-grabbing",
+                "data-[disabled]:cursor-default data-[disabled]:opacity-50 data-[disabled]:hover:scale-100"
               )}
             />
           ))}

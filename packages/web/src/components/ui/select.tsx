@@ -51,7 +51,9 @@ function SelectContent({
       <BaseSelect.Positioner sideOffset={sideOffset} className="z-50 outline-none">
         <BaseSelect.Popup
           className={cn(
-            "max-h-[var(--available-height)] min-w-[var(--anchor-width)] overflow-y-auto overscroll-contain",
+            // --available-width comes off the positioner: without the cap, a popup as wide
+            // as its longest option runs past the screen edge on a phone.
+            "max-h-[var(--available-height)] min-w-[var(--anchor-width)] max-w-[var(--available-width)] overflow-y-auto overscroll-contain",
             "rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-lg shadow-scrim/40",
             "transition-[transform,opacity] data-[starting-style]:opacity-0 data-[ending-style]:opacity-0",
             className
@@ -73,7 +75,9 @@ function SelectItem({
   return (
     <BaseSelect.Item
       className={cn(
-        "relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-foreground outline-none",
+        // 32px for a mouse, 44px for a finger: the pointer-coarse row clears the touch
+        // target in WCAG 2.5.5 and Apple's HIG without loosening the desktop list.
+        "relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 pointer-coarse:py-3 text-sm text-foreground outline-none",
         "data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground",
         "data-[selected]:text-primary data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
         className

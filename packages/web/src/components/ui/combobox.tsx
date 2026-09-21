@@ -94,7 +94,9 @@ function ComboboxContent({
       <BaseCombobox.Positioner sideOffset={sideOffset} className="z-50 outline-none">
         <BaseCombobox.Popup
           className={cn(
-            "max-h-[min(var(--available-height),20rem)] w-[var(--anchor-width)] min-w-[8rem] overflow-y-auto overscroll-contain",
+            // --available-width comes off the positioner: without the cap, the anchor width can
+            // carry the popup past the screen edge on a phone.
+            "max-h-[min(var(--available-height),20rem)] w-[var(--anchor-width)] min-w-[8rem] max-w-[var(--available-width)] overflow-y-auto overscroll-contain",
             "rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-lg shadow-scrim/40",
             "transition-[transform,opacity] data-[starting-style]:opacity-0 data-[ending-style]:opacity-0",
             className
@@ -123,7 +125,8 @@ function ComboboxItem({
   return (
     <BaseCombobox.Item
       className={cn(
-        "relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-foreground outline-none",
+        // 32px for a mouse, 44px for a finger (WCAG 2.5.5 / Apple HIG).
+        "relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 pointer-coarse:py-3 text-sm text-foreground outline-none",
         "data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground",
         "data-[selected]:text-primary data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
         className
