@@ -144,16 +144,50 @@ export default defineConfig(({ mode }) => {
   // Allow overriding via env var (useful for CI)
   const version = env.VITE_GIT_COMMIT || commitHash;
 
-  // Vendor chunks — cached separately from app code.
-  // Each group contains libraries that update on a similar cadence.
-  const vendorChunks: Record<string, readonly string[]> = {
-    "react-vendor": ["react", "react-dom", "@tanstack/react-router"],
-    "firebase-vendor": ["firebase/app", "firebase/auth", "firebase/firestore"],
-    "chart-vendor": ["recharts"],
-    "query-vendor": ["@tanstack/react-query"],
-    "zod-vendor": ["zod"],
-  };
-  const vendorChunkEntries = Object.entries(vendorChunks);
+  // Vendor chunks — cached separately from app code, and kept off each other's
+  // critical path. Each group holds libraries that update on a similar cadence.
+  //
+  // Higher priority matches first, and a claimed module is removed from every lower
+  // group, so this order is what decides where a package that several libraries
+  // depend on actually lands. That matters more than it looks: recharts depends on
+  // React and on micro-utils the app itself uses (clsx, use-sync-external-store),
+  // and if those land in chart-vendor then every route has to download the whole
+  // chart library before React exists. `shared-vendor` sits above chart-vendor for
+  // exactly that reason. Check the emitted chunks, not this list: `just web-build`
+  // then confirm chart-vendor is absent from build/index.html's modulepreloads.
+  const vendorGroups = [
+    {
+      name: "react-vendor",
+      test: /node_modules[\\/](?:react|react-dom|scheduler|@tanstack[\\/](?:react-router|router-core|history|store))[\\/]/,
+      priority: 50,
+    },
+    {
+      name: "shared-vendor",
+      test: /node_modules[\\/](?:clsx|tailwind-merge|use-sync-external-store|react-is)[\\/]/,
+      priority: 45,
+    },
+    {
+      name: "firebase-vendor",
+      test: /node_modules[\\/](?:@firebase[\\/]|firebase[\\/]|idb[\\/])/,
+      priority: 40,
+    },
+    {
+      name: "query-vendor",
+      test: /node_modules[\\/]@tanstack[\\/](?:react-query|query-core)[\\/]/,
+      priority: 35,
+    },
+    {
+      name: "zod-vendor",
+      test: /node_modules[\\/]zod[\\/]/,
+      priority: 30,
+    },
+    {
+      // recharts and everything only it pulls in, so chart pages carry this alone.
+      name: "chart-vendor",
+      test: /node_modules[\\/](?:recharts|victory-vendor|d3-[a-z-]+|decimal\.js-light|es-toolkit|eventemitter3|@reduxjs[\\/]toolkit|react-redux|reselect|immer|tiny-invariant)[\\/]/,
+      priority: 20,
+    },
+  ];
 
   return {
     define: {
@@ -194,21 +228,7 @@ export default defineConfig(({ mode }) => {
       sourcemap: mode === "production" ? "hidden" : true,
       rolldownOptions: {
         output: {
-          manualChunks(id) {
-            for (const [chunk, deps] of vendorChunkEntries) {
-              if (
-                deps.some((dep) => {
-                  const segment = `node_modules/${dep}`;
-                  const i = id.indexOf(segment);
-                  if (i === -1) return false;
-                  const next = id[i + segment.length];
-                  return next === "/" || next === undefined;
-                })
-              ) {
-                return chunk;
-              }
-            }
-          },
+          advancedChunks: { groups: vendorGroups },
         },
       },
     },
