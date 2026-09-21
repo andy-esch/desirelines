@@ -210,18 +210,18 @@ export function AccountDropdown({
   };
 
   const menuItemStyle: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.5rem",
-    width: "100%",
-    padding: "0.625rem 1rem",
-    border: "none",
     color: "var(--color-header-text)",
-    textAlign: "left",
-    cursor: "pointer",
-    textDecoration: "none",
-    fontSize: "0.875rem",
   };
+
+  // Row geometry lives in classes, not in the style object beside it: `pointer-coarse`
+  // is a media query and an inline style cannot carry one. A finger needs the 44px
+  // target (WCAG 2.5.5, Apple HIG); a mouse keeps the compact row.
+  const menuRowClass =
+    "flex w-full items-center gap-2 border-0 px-4 py-2.5 text-start text-sm no-underline " +
+    "cursor-pointer pointer-coarse:min-h-11 transition-colors hover:bg-header-ink/[0.08]";
+  const themeRowClass =
+    "flex w-full items-center gap-2 border-0 bg-transparent px-4 py-1.5 text-start text-[0.8125rem] " +
+    "cursor-pointer pointer-coarse:min-h-11 transition-colors hover:bg-header-ink/[0.08]";
 
   return (
     <div ref={dropdownRef} className="relative" onKeyDown={handleKeyDown} role="presentation">
@@ -229,7 +229,7 @@ export function AccountDropdown({
       <button
         ref={triggerRef}
         type="button"
-        className="bg-transparent border-0 text-header-ink flex items-center gap-0.5 p-1 cursor-pointer"
+        className="bg-transparent border-0 text-header-ink flex items-center justify-center gap-0.5 p-1 pointer-coarse:min-h-11 pointer-coarse:min-w-11 cursor-pointer"
         onClick={() => setIsOpen(!isOpen)}
         aria-expanded={isOpen}
         aria-haspopup="menu"
@@ -288,7 +288,7 @@ export function AccountDropdown({
           <Link
             to="/settings"
             role="menuitem"
-            className="transition-colors hover:bg-header-ink/[0.08]"
+            className={menuRowClass}
             style={menuItemStyle}
             onClick={handleSettingsClick}
           >
@@ -329,11 +329,9 @@ export function AccountDropdown({
                     aria-checked={checked}
                     onClick={() => setPreference(value)}
                     aria-label={`${label} theme`}
-                    className="bg-transparent transition-colors hover:bg-header-ink/[0.08]"
+                    className={themeRowClass}
                     style={{
                       ...menuItemStyle,
-                      padding: "0.375rem 1rem",
-                      fontSize: "0.8125rem",
                       // Inline only when checked, so the hover class still applies to the
                       // rest. brand-cyan, not accent-cyan-glow: this dropdown lives in the
                       // header, which is pinned dark, so it must not flip with the theme.
@@ -357,7 +355,7 @@ export function AccountDropdown({
               <button
                 type="button"
                 role="menuitem"
-                className="transition-colors hover:bg-header-ink/[0.08]"
+                className={menuRowClass}
                 style={menuItemStyle}
                 onClick={() => void handleSignOut()}
                 disabled={actionLoading}
@@ -369,7 +367,7 @@ export function AccountDropdown({
               <button
                 type="button"
                 role="menuitem"
-                className="transition-colors hover:bg-header-ink/[0.08]"
+                className={menuRowClass}
                 style={{
                   ...menuItemStyle,
                   color: "var(--color-header-accent)",
