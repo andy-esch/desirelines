@@ -26,6 +26,46 @@ function themeBootScript(): Plugin {
   };
 }
 
+/**
+ * Fail the build if the entry chunk's static import graph reaches the chart library.
+ *
+ * recharts is ~110 KB gzipped and only chart routes need it, but it depends on React
+ * and on micro-utils the app itself uses, so a chunking change can quietly make it a
+ * prerequisite of the first render on every route. That costs seconds on a slow
+ * connection and nothing warns about it. If this fires, look at which module pulled
+ * the chart chunk in and give the package it shares a group of its own above
+ * chart-vendor, rather than relaxing the check.
+ */
+function keepChartsOffTheEntryPath(): Plugin {
+  return {
+    name: "desirelines-charts-off-entry-path",
+    generateBundle(_options, bundle) {
+      const reached = new Set<string>();
+      const queue = Object.values(bundle)
+        .filter((chunk) => chunk.type === "chunk" && chunk.isEntry)
+        .map((chunk) => chunk.fileName);
+
+      while (queue.length > 0) {
+        const fileName = queue.pop();
+        if (fileName === undefined || reached.has(fileName)) continue;
+        reached.add(fileName);
+        const chunk = bundle[fileName];
+        // Static imports only: a dynamic import is a later round trip, which is the
+        // whole point of the split.
+        if (chunk?.type === "chunk") queue.push(...chunk.imports);
+      }
+
+      const chart = [...reached].find((fileName) => fileName.includes("chart-vendor"));
+      if (chart) {
+        throw new Error(
+          `${chart} is on the entry chunk's static import path, so every route now downloads ` +
+            "the chart library before it can render. See the vendor groups in vite.config.ts."
+        );
+      }
+    },
+  };
+}
+
 // In test runs, force the timezone to a zone with a non-zero UTC offset (default:
 // the sole athlete's) so timezone off-by-one bugs surface in CI too — under UTC the
 // local-vs-UTC-midnight distinction collapses and this whole class of bug hides.
@@ -207,6 +247,7 @@ export default defineConfig(({ mode }) => {
         routeFileIgnorePattern: "\\.test\\.tsx?$",
       }),
       themeBootScript(),
+      keepChartsOffTheEntryPath(),
       tailwindcss(),
       react({
         babel: {
