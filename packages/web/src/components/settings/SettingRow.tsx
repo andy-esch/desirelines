@@ -1,4 +1,5 @@
 import { useId, type ReactNode } from "react";
+import { cn } from "../../lib/utils";
 
 interface SettingRowProps {
   label: string;
@@ -25,10 +26,13 @@ export function SettingRow({ label, description, children, readOnly }: SettingRo
 
   return (
     <div
-      className="flex justify-between items-start py-6"
+      className="flex flex-col gap-3 py-6 sm:flex-row sm:items-start sm:justify-between sm:gap-0"
       style={{ borderBottom: "1px solid var(--color-surface-border)" }}
     >
-      <div className="me-6" style={{ flex: 1 }}>
+      {/* Stacked on phones: a label long enough to need two lines (a timezone name, say)
+          leaves the side-by-side row too narrow for its own control, and the page clips
+          the overflow rather than scrolling it. */}
+      <div className="sm:me-6 sm:flex-1">
         <LabelTag htmlFor={readOnly ? undefined : inputId} className="font-medium block">
           {label}
         </LabelTag>
@@ -38,10 +42,7 @@ export function SettingRow({ label, description, children, readOnly }: SettingRo
           </div>
         )}
       </div>
-      <div
-        className="flex items-center"
-        style={{ minWidth: readOnly ? "auto" : "200px", justifyContent: "flex-end" }}
-      >
+      <div className={cn("flex items-center sm:justify-end", !readOnly && "sm:min-w-[200px]")}>
         {typeof children === "function" ? children(descriptionId, inputId) : children}
       </div>
     </div>

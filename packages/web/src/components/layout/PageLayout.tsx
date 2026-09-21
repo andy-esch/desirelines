@@ -46,7 +46,9 @@ export function NarrowPageLayout({
 }: NarrowPageLayoutProps) {
   return (
     <div className={`grow overflow-x-hidden ${bgClasses[background]}`}>
-      <div className="container mx-auto py-6" style={{ maxWidth }}>
+      {/* Tailwind's `container` carries no side padding of its own, so the gutter has to
+          be set here or the content sits against the screen edge on a phone. */}
+      <div className="container mx-auto px-4 md:px-6 py-6" style={{ maxWidth }}>
         {children}
       </div>
     </div>
