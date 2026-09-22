@@ -4,7 +4,7 @@ import { Button } from "../ui/button";
 import { ExternalLinkIcon } from "../ui/ExternalLinkIcon";
 import type { MapActivity } from "../../api/map";
 import { formatDistance, type DistanceUnit } from "../../utils/units";
-import { formatActivityDate } from "../../utils/formatActivityDate";
+import { useThemeDateFormat } from "../theme/useThemeDateFormat";
 import { DEFAULT_SPORT_COLOR } from "../../utils/sportConfig";
 
 /** Keep the list compact so the filters above it stay in view. */
@@ -44,6 +44,7 @@ export default function MapActivityList({
   selectedId,
   onSelect,
 }: MapActivityListProps) {
+  const { formatActivityDate } = useThemeDateFormat();
   const listRef = useRef<HTMLUListElement>(null);
   const [page, setPage] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
