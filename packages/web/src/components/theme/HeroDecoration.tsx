@@ -37,12 +37,86 @@ const SUNSET_BLINDS = [
 ].join(", ");
 
 /**
+ * Arcade's laser floor: a rainbow grid running to a horizon, drawn entirely in gradients.
+ *
+ * The plane is a flat box rotated back under the hero. It is stretched well past both edges
+ * (`-50%` each side) because perspective fans the far end inward: without the overhang the
+ * grid would narrow away from the page edges near the horizon.
+ */
+const GRID_PLANE_TRANSFORM = "perspective(420px) rotateX(62deg)";
+
+/**
+ * The columns. The spacing is a percentage rather than a pixel pitch, so the plane keeps 48
+ * columns at every page width and the perspective reads the same on a phone as on a desktop.
+ */
+const GRID_COLUMNS =
+  "linear-gradient(90deg, #ff5f1f 0%, #ff00ff 12%, #b400ff 24%, #0080ff 36%, #00ffff 50%, " +
+  "#0080ff 64%, #b400ff 76%, #ff00ff 88%, #ff5f1f 100%)";
+const GRID_COLUMN_MASK = "repeating-linear-gradient(90deg, #000 0 2px, transparent 2px 2.0833%)";
+
+/** The cross lines: cyan, then magenta every other rung. */
+const GRID_ROWS =
+  "repeating-linear-gradient(0deg, rgba(0, 255, 255, 0.6) 0 2px, transparent 2px 30px, " +
+  "rgba(255, 0, 255, 0.6) 30px 32px, transparent 32px 60px)";
+
+/** Distance haze: the grid dissolves into the ground rather than ending at an edge. */
+const GRID_FADE =
+  "linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0.9) 28%, rgba(0, 0, 0, 0.45) 58%, transparent 100%)";
+
+const GRID_HORIZON =
+  "linear-gradient(90deg, transparent, #ff00ff 30%, #00ffff 50%, #ff00ff 70%, transparent)";
+const GRID_GLOW =
+  "radial-gradient(ellipse 55% 70% at 50% 100%, rgba(180, 0, 255, 0.22), transparent 70%)";
+
+/**
+ * How far up the hero the floor reaches. The hero reserves at least this much bottom padding
+ * (`--hero-padding`), so the plane never runs under the headline; the test holds the pair
+ * together.
+ */
+export const GRID_FLOOR_HEIGHT = 176;
+
+/** The floor and its haze, sized to the bottom of the hero band. */
+function GridFloor() {
+  return (
+    <>
+      <div aria-hidden="true" className="absolute inset-0 overflow-hidden">
+        {/* The plane itself, clipped by the parent so the overhang never widens the page. */}
+        <div
+          data-decoration="grid-floor"
+          className="absolute bottom-0 -left-1/2 -right-1/2 h-[900px] origin-bottom"
+          style={{
+            transform: GRID_PLANE_TRANSFORM,
+            background: GRID_ROWS + ", " + GRID_COLUMNS,
+            maskImage: GRID_COLUMN_MASK,
+            WebkitMaskImage: GRID_COLUMN_MASK,
+            opacity: 0.75,
+          }}
+        />
+        {/* Violet haze where the floor meets the horizon. */}
+        <div className="absolute inset-0" style={{ background: GRID_GLOW }} />
+        {/* The far edge reads as distance, not as the end of a box. */}
+        <div className="absolute inset-x-0 bottom-0 h-[200px]" style={{ background: GRID_FADE }} />
+        <div
+          data-decoration="grid-horizon"
+          className="absolute inset-x-0 bottom-[150px] h-px opacity-70"
+          style={{ background: GRID_HORIZON, boxShadow: "0 0 12px rgba(255, 0, 255, 0.7)" }}
+        />
+      </div>
+    </>
+  );
+}
+
+/**
  * The decoration behind a hero band, per the theme's `heroDecoration`. The recipes are
  * fixed artwork, so they live here rather than in slots. Hero content must clear the
  * bottom of the band, which the theme's `--hero-padding` accounts for: the sunset's light
- * bands and blinds stay within its bottom 58px.
+ * bands and blinds stay within its bottom 58px, and the grid's floor within its bottom 176px.
+ *
+ * Neither decoration animates, so there is nothing for reduced motion to stop; both are
+ * `aria-hidden`, since neither carries information the text does not.
  */
 export function HeroDecoration({ kind }: { kind: ThemeStructure["heroDecoration"] }) {
+  if (kind === "grid") return <GridFloor />;
   if (kind !== "sunset") return null;
   return (
     <>
