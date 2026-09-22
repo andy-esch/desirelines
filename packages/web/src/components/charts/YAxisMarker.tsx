@@ -5,6 +5,8 @@
  * typically used to show where "Actual" data and goal lines currently sit.
  */
 import { ReferenceLine } from "recharts";
+import type { ThemeStructure } from "../../themes/registry";
+import { useThemeStructure } from "../theme/useThemeStructure";
 
 /** Default marker styling constants */
 const DEFAULT_MARKER_RADIUS = 4;
@@ -39,6 +41,7 @@ function MarkerLabel({
   fontWeight,
   radius,
   position,
+  shape,
 }: {
   viewBox: { x: number; y: number; width: number };
   label: string;
@@ -47,6 +50,7 @@ function MarkerLabel({
   fontWeight: string | number;
   radius: number;
   position: "left" | "right";
+  shape: ThemeStructure["chartMarkerShape"];
 }) {
   const isRight = position === "right";
   const dotX = isRight ? viewBox.x + viewBox.width : viewBox.x;
@@ -55,7 +59,17 @@ function MarkerLabel({
 
   return (
     <g>
-      <circle cx={dotX} cy={viewBox.y} r={radius} fill={color} />
+      {shape === "square" ? (
+        <rect
+          x={dotX - radius}
+          y={viewBox.y - radius}
+          width={radius * 2}
+          height={radius * 2}
+          fill={color}
+        />
+      ) : (
+        <circle cx={dotX} cy={viewBox.y} r={radius} fill={color} />
+      )}
       <text
         x={textX}
         y={viewBox.y}
@@ -93,6 +107,7 @@ export function YAxisMarker({
   radius = DEFAULT_MARKER_RADIUS,
   position = "left",
 }: YAxisMarkerProps) {
+  const { chartMarkerShape } = useThemeStructure();
   return (
     <ReferenceLine
       y={value}
@@ -106,6 +121,7 @@ export function YAxisMarker({
           fontWeight={fontWeight}
           radius={radius}
           position={position}
+          shape={chartMarkerShape}
         />
       )}
     />

@@ -1,4 +1,4 @@
-import { formatChartAxisDate } from "../../utils/dateUtils";
+import { useThemeDateFormat } from "../theme/useThemeDateFormat";
 
 export interface ChartTooltipProps {
   /** Whether the tooltip is active (hovered) */
@@ -43,10 +43,10 @@ export const ChartTooltip = ({
   decimals = 1,
   compact = false,
 }: ChartTooltipProps) => {
+  const { formatAxisDate } = useThemeDateFormat();
   if (!active || !payload || payload.length === 0) return null;
 
-  const formattedDate =
-    typeof label === "number" ? formatChartAxisDate(label) : String(label ?? "");
+  const formattedDate = typeof label === "number" ? formatAxisDate(label) : String(label ?? "");
 
   // Find actual value and goal values from payload
   const actualEntry = payload.find((p) => p.dataKey === "actual" || p.name?.includes("Data"));

@@ -207,7 +207,10 @@ const LEGACY_STRUCTURE: ThemeStructure = {
   loaderStyle: "spinner",
   dangerZoneFill: "wash",
   chartMarkerShape: "circle",
-  chartLegend: false,
+  // True, not false: the sparkline legend has rendered since February 2026, months before
+  // this field existed, so `false` never described Legacy. Now that something reads the
+  // field, honouring the old value would delete a legend Legacy has always shown.
+  chartLegend: true,
   mapDrawerSections: "flat",
   dateFormat: "short",
 };
