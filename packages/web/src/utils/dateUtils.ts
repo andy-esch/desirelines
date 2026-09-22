@@ -1,3 +1,5 @@
+import { type DateStyle, dottedDate, pad2 } from "./dateStyle";
+
 /**
  * Date Utilities
  *
@@ -228,8 +230,10 @@ export function isSameDay(date1: Date, date2: Date): boolean {
  */
 export function formatDisplayDate(
   date: Date,
-  options: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" }
+  options: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" },
+  style: DateStyle = "short"
 ): string {
+  if (style === "dotted") return dottedDate(date, options);
   return date.toLocaleDateString("en-US", options);
 }
 
@@ -248,12 +252,31 @@ export function formatDisplayDate(
  * ```
  */
 export function formatChartAxisDate(timestamp: number): string {
-  const date = new Date(timestamp);
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  }).format(date);
+  return chartAxisDateFormatter("short")(timestamp);
+}
+
+/**
+ * The axis formatter for a given date style.
+ *
+ * A factory rather than a second parameter on {@link formatChartAxisDate}: the result is
+ * handed straight to a chart's `tickFormatter`, which calls it as `(value, index)`. A
+ * style parameter in that position would receive the tick index instead, and every label
+ * after the first would silently take the wrong spelling.
+ */
+export function chartAxisDateFormatter(style: DateStyle): (timestamp: number) => string {
+  return (timestamp: number) => {
+    const date = new Date(timestamp);
+    if (style === "dotted") {
+      // UTC parts, to match the Intl branch: chart timestamps are stored in UTC and a local
+      // read would slide the label by a day for anyone west of Greenwich.
+      return `${pad2(date.getUTCMonth() + 1)}.${pad2(date.getUTCDate())}`;
+    }
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      timeZone: "UTC",
+    }).format(date);
+  };
 }
 
 /**

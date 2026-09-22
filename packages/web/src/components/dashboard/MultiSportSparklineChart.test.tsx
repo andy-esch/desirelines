@@ -10,6 +10,8 @@ import {
   emptyDailySportData,
 } from "../../test/fixtures/sportConfig";
 import { renderWithRouter } from "../../test/renderWithRouter";
+import { ThemeStructureProvider } from "../theme/ThemeStructureProvider";
+import { THEMES } from "../../themes/registry";
 
 // Mock useDailySportData hook
 vi.mock("../../hooks/useDailySportData", () => ({
@@ -150,6 +152,20 @@ describe("MultiSportSparklineChart", () => {
         "/running/2025"
       );
       expect(screen.getByRole("link", { name: "Yoga" })).toHaveAttribute("href", "/yoga/2025");
+    });
+
+    it("drops the legend in themes whose structure carries none", async () => {
+      await renderWithRouter(<MultiSportSparklineChart timeRange="2weeks" />, {
+        wrapper: ({ children }) => (
+          <ThemeStructureProvider structure={{ ...THEMES[0].structure, chartLegend: false }}>
+            {children}
+          </ThemeStructureProvider>
+        ),
+      });
+
+      expect(screen.queryByRole("link", { name: "Cycling" })).not.toBeInTheDocument();
+      // The chart itself stays: the legend is the only thing the field removes.
+      expect(screen.getAllByTestId("chart-line")).toHaveLength(3);
     });
   });
 });

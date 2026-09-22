@@ -7,7 +7,7 @@ import { AccountDropdown } from "./AccountDropdown";
 import Navigation from "./Navigation";
 import { CloseIconLg, SettingsIcon } from "../icons";
 import { useUIState } from "../../contexts/UIStateContext";
-import { formatDisplayDate } from "../../utils/dateUtils";
+import { useThemeDateFormat } from "../theme/useThemeDateFormat";
 import { Button } from "../ui/button";
 
 /** Non-sport first-level routes — anything else is a sport detail page */
@@ -27,6 +27,7 @@ interface HeaderProps {
 }
 
 export default function Header({ scrolled = false }: HeaderProps) {
+  const { formatDate } = useThemeDateFormat();
   const location = useLocation();
   const { user, loading, signIn, signOut } = useAuth();
   const [navOpen, setNavOpen] = useState(false);
@@ -46,7 +47,7 @@ export default function Header({ scrolled = false }: HeaderProps) {
     !PAGE_ROUTES.has(firstSegment) || // /:sport or /:sport/:year
     (firstSegment === "demo" && segments.length >= 2); // /demo/:sport/...
 
-  const currentDate = formatDisplayDate(new Date(), {
+  const currentDate = formatDate(new Date(), {
     month: "short",
     day: "numeric",
     year: "numeric",

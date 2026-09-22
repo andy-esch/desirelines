@@ -12,7 +12,7 @@ import {
 } from "../utils/units";
 import { SPORT_COLORS, getSportDisplayName } from "../utils/sportConfig";
 import { useSportConfig } from "../hooks/useSportConfig";
-import { formatActivityDate } from "../utils/formatActivityDate";
+import { useThemeDateFormat } from "./theme/useThemeDateFormat";
 import NeonSpinner from "./NeonSpinner";
 import { ExternalLinkIcon } from "./ui/ExternalLinkIcon";
 import { MapPinIcon } from "./ui/MapPinIcon";
@@ -109,6 +109,7 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
   isSessionSport = false,
   goalLabel,
 }) => {
+  const { formatActivityDate } = useThemeDateFormat();
   const { sportConfig } = useSportConfig();
   const showImpact = goalTarget != null && goalTarget > 0;
   if (error) {

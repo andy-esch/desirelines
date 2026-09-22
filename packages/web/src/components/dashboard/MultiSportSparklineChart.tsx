@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
-import { parseLocalDateStrict, formatDisplayDate } from "../../utils/dateUtils";
+import { parseLocalDateStrict } from "../../utils/dateUtils";
 import {
   convertDistance,
   getDistanceLabel,
@@ -12,6 +12,8 @@ import { useMultiSportChartData } from "../../hooks/useMultiSportChartData";
 import type { TuningParams } from "../../utils/demoDataGenerator";
 import type { TimeRange } from "../../utils/dataNormalization";
 import { Panel } from "../theme/Panel";
+import { useThemeStructure } from "../theme/useThemeStructure";
+import { useThemeDateFormat } from "../theme/useThemeDateFormat";
 import { cn } from "@/lib/utils";
 
 interface MultiSportSparklineChartProps {
@@ -30,12 +32,12 @@ interface SportMetaItem {
 }
 
 /**
- * Format date for x-axis tick (e.g., "Dec 15").
- * Uses parseLocalDateStrict to avoid UTC conversion issues.
+ * Format date for x-axis tick (e.g., "Dec 15", or "12.15" where the theme spells dates that
+ * way). Uses parseLocalDateStrict to avoid UTC conversion issues. Takes the formatter rather
+ * than reading the theme itself: this is called as a chart tick formatter, outside React.
  */
-function formatAxisDate(dateStr: string): string {
-  const date = parseLocalDateStrict(dateStr);
-  return formatDisplayDate(date);
+function formatAxisDate(dateStr: string, formatDate: (date: Date) => string): string {
+  return formatDate(parseLocalDateStrict(dateStr));
 }
 
 interface TooltipPayloadItem {
@@ -96,10 +98,11 @@ function UnifiedSparklineTooltip({
   sportMeta,
   distanceUnit,
 }: UnifiedSparklineTooltipProps) {
+  const { formatDate } = useThemeDateFormat();
   if (!active || !payload || payload.length === 0 || !label) return null;
 
   const date = parseLocalDateStrict(label);
-  const formattedDate = formatDisplayDate(date, {
+  const formattedDate = formatDate(date, {
     weekday: "short",
     month: "short",
     day: "numeric",
@@ -211,6 +214,8 @@ export default function MultiSportSparklineChart({
   className = "",
   tuningParams,
 }: MultiSportSparklineChartProps) {
+  const { chartLegend } = useThemeStructure();
+  const { formatDate } = useThemeDateFormat();
   const {
     unifiedChartData,
     sportMeta,
@@ -253,8 +258,8 @@ export default function MultiSportSparklineChart({
 
   return (
     <Panel className={cn("h-full", className)} bodyClassName="flex flex-1 flex-col p-2">
-      {/* Legend with sport links */}
-      <SparklineLegend sportMeta={sportMeta} />
+      {/* Legend with sport links, for themes whose design carries one. */}
+      {chartLegend && <SparklineLegend sportMeta={sportMeta} />}
 
       {/* Unified chart — grows to fill available height */}
       <div className="grow" style={{ minHeight: chartHeight }}>
@@ -265,7 +270,7 @@ export default function MultiSportSparklineChart({
               axisLine={false}
               tickLine={false}
               tick={{ fontSize: 9, fill: "var(--color-chart-tick)" }}
-              tickFormatter={formatAxisDate}
+              tickFormatter={(value: string) => formatAxisDate(value, formatDate)}
               interval="preserveStartEnd"
               minTickGap={50}
             />

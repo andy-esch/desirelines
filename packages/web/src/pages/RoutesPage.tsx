@@ -11,6 +11,7 @@ import {
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import type { FilterSpecification } from "mapbox-gl";
 import { PageLayout } from "../components/layout/PageLayout";
+import { MapDrawerSection } from "../components/routes/MapDrawerSection";
 import { useAuth } from "../hooks/useAuth";
 import { useTheme } from "../contexts/ThemeContext";
 import { useRouteRegions } from "../hooks/useRouteRegions";
@@ -501,7 +502,7 @@ export default function RoutesPage() {
                 onSelectRegion={onSelectRegion}
                 disabled={datasetLoading || activities.length === 0}
               />
-              <div className="border-t border-border/60">
+              <MapDrawerSection>
                 <MapActivityList
                   activities={routeFilters.filteredActivities}
                   sportColors={sportColors}
@@ -510,15 +511,15 @@ export default function RoutesPage() {
                   selectedId={selected?.id ?? null}
                   onSelect={onSelectFromList}
                 />
-              </div>
-              <div className="border-t border-border/60">
+              </MapDrawerSection>
+              <MapDrawerSection>
                 <MapTimeRangeFilter
                   dateDomain={routeFilters.dateDomain}
                   dateRange={routeFilters.filters.dateRange}
                   onChange={routeFilters.setDateRange}
                   disabled={datasetLoading || activities.length === 0}
                 />
-              </div>
+              </MapDrawerSection>
             </MapFilterDrawer>
           </Suspense>
 
@@ -546,26 +547,26 @@ export default function RoutesPage() {
                       selectedSports={routeFilters.filters.sports}
                       onToggleSport={routeFilters.toggleSport}
                     />
-                    <div className="border-t border-border/60">
+                    <MapDrawerSection>
                       <WeeklyVolumeChart
                         activities={deferredFilteredActivities}
                         distanceUnit={distanceUnit}
                       />
-                    </div>
-                    <div className="border-t border-border/60">
+                    </MapDrawerSection>
+                    <MapDrawerSection>
                       <CumulativeDistanceChart
                         activities={deferredFilteredActivities}
                         distanceUnit={distanceUnit}
                       />
-                    </div>
-                    <div className="border-t border-border/60">
+                    </MapDrawerSection>
+                    <MapDrawerSection>
                       <DistanceHistogramChart
                         activities={deferredFilteredActivities}
                         distanceUnit={distanceUnit}
                         onSelectRange={routeFilters.setDistanceRange}
                       />
-                    </div>
-                    <div className="border-t border-border/60">
+                    </MapDrawerSection>
+                    <MapDrawerSection>
                       <RegionBreakdownChart
                         activities={deferredFilteredActivities}
                         regionNames={regionNames}
@@ -573,7 +574,7 @@ export default function RoutesPage() {
                         selectedRegionId={routeFilters.filters.regionId}
                         onSelectRegion={onSelectRegion}
                       />
-                    </div>
+                    </MapDrawerSection>
                   </>
                 )}
               </MapInsightsDrawer>

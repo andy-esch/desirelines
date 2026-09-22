@@ -2,7 +2,8 @@
  * PacingChartPresenter - Pure presentation component for daily pacing charts.
  *
  * This is a "dumb" component that receives all data pre-computed and simply renders.
- * It has no hooks, no state, and no business logic - making it easy to test and reason about.
+ * It has no state and no business logic - making it easy to test and reason about. Its one
+ * hook reads the theme structure, which decides how the danger zone is filled.
  *
  * The parent container (PacingMetricsChart) handles:
  * - Data fetching and transformation via usePacingChartData hook
@@ -12,6 +13,7 @@
  * - Pure rendering of the chart visualization
  * - Danger zone display (zone of unachievability)
  */
+import { useId } from "react";
 import {
   LineChart,
   Line,
@@ -32,7 +34,9 @@ import { CHART_COLORS, GOAL_COLORS } from "../../constants/chartColors";
 import { CHART_CONFIG, DANGER_ZONE_CONFIG } from "../../constants/chartConfig";
 import ChartTooltip from "./ChartTooltip";
 import YAxisMarker from "./YAxisMarker";
-import { formatChartAxisDate } from "../../utils/dateUtils";
+import { useThemeDateFormat } from "../theme/useThemeDateFormat";
+import { useThemeStructure } from "../theme/useThemeStructure";
+import type { ThemeStructure } from "../../themes/registry";
 
 // ============================================================================
 // Types
@@ -93,6 +97,25 @@ export interface PacingChartPresenterProps {
 // ============================================================================
 
 /**
+ * How the danger zone is painted, for the theme's `dangerZoneFill`.
+ *
+ * A wash is the configured flat fill; a hatch swaps in a stripe pattern at full opacity,
+ * since the stripes carry their own transparency. Exported for its test: the alternative is
+ * mounting a chart in jsdom to read one attribute.
+ */
+export function dangerZoneAreaFill(
+  style: ThemeStructure["dangerZoneFill"],
+  washFill: string,
+  washOpacity: number,
+  patternId: string
+): { hatched: boolean; fill: string; fillOpacity: number } {
+  if (style === "hatch") {
+    return { hatched: true, fill: `url(#${patternId})`, fillOpacity: 1 };
+  }
+  return { hatched: false, fill: washFill, fillOpacity: washOpacity };
+}
+
+/**
  * Renders the danger zone (zone of unachievability) visual elements.
  * Shows a shaded area and labeled threshold line.
  */
@@ -106,15 +129,40 @@ function DangerZoneOverlay({
   unitLabel: string;
 }) {
   const { area, line, label } = DANGER_ZONE_CONFIG;
+  const { dangerZoneFill } = useThemeStructure();
+  // Unique per chart: two pacing charts on a page would otherwise share one pattern id,
+  // and the second would paint with the first chart's stripes.
+  const hatchId = `danger-hatch-${useId().replace(/:/g, "")}`;
+  const { hatched, fill, fillOpacity } = dangerZoneAreaFill(
+    dangerZoneFill,
+    area.fill,
+    area.fillOpacity,
+    hatchId
+  );
 
   return (
     <>
+      {hatched && (
+        <defs>
+          {/* 2px stripes every 8px at 45 degrees, the weight the retro designs call for. */}
+          <pattern
+            id={hatchId}
+            width={8}
+            height={8}
+            patternUnits="userSpaceOnUse"
+            patternTransform="rotate(45)"
+          >
+            <rect width={2} height={8} fill={area.fill} fillOpacity={0.3} />
+          </pattern>
+        </defs>
+      )}
+
       {/* Shaded danger zone area */}
       <ReferenceArea
         y1={threshold}
         y2={yMax}
-        fill={area.fill}
-        fillOpacity={area.fillOpacity}
+        fill={fill}
+        fillOpacity={fillOpacity}
         stroke={area.stroke}
         strokeDasharray={area.strokeDasharray}
       />
@@ -182,6 +230,7 @@ export function PacingChartPresenter({
   isAnimationActive = true,
   dangerZone,
 }: PacingChartPresenterProps) {
+  const { formatAxisDate } = useThemeDateFormat();
   const yAxisLabel = isSessionsMode ? "# Sessions / Day" : `${unitLabel} / Day`;
   const tooltipUnit = `${unitLabel}/day`;
 
@@ -197,7 +246,7 @@ export function PacingChartPresenter({
           type="number"
           domain={[startDate.getTime(), displayEndDate.getTime()]}
           scale="time"
-          tickFormatter={formatChartAxisDate}
+          tickFormatter={formatAxisDate}
           stroke={CHART_CONFIG.axis.stroke}
           tick={CHART_CONFIG.tick}
           interval="preserveStartEnd"
