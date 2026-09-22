@@ -1625,6 +1625,76 @@
   .data-table[data-hover] tbody tr:hover {
     background-color: var(--row-hover-bg);
   }
+  /* The caret sits in the row's left gutter, drawn from borders rather than typed: Plex Mono
+     carries no glyph for it, and an image would need a slot per theme color. */
+  .data-table[data-row-cursor] tbody tr {
+    position: relative;
+  }
+  .data-table[data-row-cursor] tbody tr:hover > *:first-child::before {
+    content: "";
+    position: absolute;
+    left: -0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    border-left: 5px solid var(--color-accent-cyan);
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+  }
+
+  /* --- Segmented slider track --- */
+
+  /* 30 cells with a 2px gap, masked out of the bar so the track and its fill are cut the
+     same way. A mask rather than 30 elements: Base UI owns the children of Track. */
+  .slider-segmented {
+    --slider-cell: calc(100% / 30);
+    mask-image: repeating-linear-gradient(
+      90deg,
+      #000 0 calc(var(--slider-cell) - 2px),
+      transparent calc(var(--slider-cell) - 2px) var(--slider-cell)
+    );
+  }
+
+  /* --- Loading indicators (NeonSpinner's chaser and block variants) --- */
+
+  .loader-segment {
+    opacity: 0.25;
+    animation: loader-chase 0.9s linear infinite;
+  }
+  .loader-cursor {
+    animation: loader-blink 1s steps(1, end) infinite;
+  }
+  @keyframes loader-chase {
+    0%,
+    45% {
+      opacity: 0.25;
+      box-shadow: none;
+    }
+    10% {
+      opacity: 1;
+      box-shadow: 0 0 8px currentColor;
+    }
+  }
+  @keyframes loader-blink {
+    0%,
+    50% {
+      opacity: 1;
+    }
+    50.01%,
+    100% {
+      opacity: 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .loader-segment,
+    .loader-cursor {
+      animation: none;
+    }
+    /* Still legible standing still: without this the whole row sits at rest opacity and
+       reads as disabled rather than busy. */
+    .loader-segment {
+      opacity: 0.6;
+    }
+  }
 
   /* --- Page transition fade-in --- */
 

@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Slider as BaseSlider } from "@base-ui/react/slider";
 import { cn } from "@/lib/utils";
+import { useThemeStructure } from "../theme/useThemeStructure";
 
 /**
  * Slider — shadcn-style wrapper over Base UI's Slider, themed via the `@theme`
@@ -31,6 +32,9 @@ function Slider({
     return [min];
   }, [value, defaultValue, min]);
 
+  const { sliderTrack } = useThemeStructure();
+  const segmented = sliderTrack === "segmented";
+
   return (
     <BaseSlider.Root
       value={value}
@@ -41,9 +45,21 @@ function Slider({
       {...props}
     >
       <BaseSlider.Control className="flex w-full items-center py-2">
-        {/* A theme may give sliders their own fill color; otherwise they take the accent. */}
-        <BaseSlider.Track className="relative h-(--slider-track-height) w-full rounded-(--slider-track-radius) bg-(--slider-track-bg)">
-          <BaseSlider.Indicator className="rounded-(--slider-track-radius) bg-[color:var(--color-slider-fill,var(--color-accent-cyan))] [box-shadow:var(--slider-fill-glow)]" />
+        {/* A theme may give sliders their own fill color; otherwise they take the accent.
+            Segmented tracks cut the same bar into cells with a mask, so the fill lights cell
+            by cell without either element changing shape. */}
+        <BaseSlider.Track
+          className={cn(
+            "relative h-(--slider-track-height) w-full rounded-(--slider-track-radius) bg-(--slider-track-bg)",
+            segmented && "slider-segmented"
+          )}
+        >
+          <BaseSlider.Indicator
+            className={cn(
+              "rounded-(--slider-track-radius) bg-[color:var(--color-slider-fill,var(--color-accent-cyan))] [box-shadow:var(--slider-fill-glow)]",
+              segmented && "slider-segmented"
+            )}
+          />
           {thumbValues.map((_, i) => (
             <BaseSlider.Thumb
               key={i}
