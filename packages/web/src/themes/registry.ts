@@ -161,6 +161,33 @@ const MIAMI_FONTS: readonly ThemeFont[] = [
   { family: "Archivo Black", weights: [400] },
 ];
 
+const ARCADE_STRUCTURE: ThemeStructure = {
+  showPageKicker: true,
+  heroDecoration: "grid",
+  sectionLabelPlacement: "header-bar",
+  statRowStyle: "boxed",
+  sliderTrack: "segmented",
+  rowHoverCursor: true,
+  pagerStyle: "arrows",
+  sportMarkStyle: "swatch",
+  statusSymbolStyle: "outlined",
+  goalTrackStyle: "outline-track",
+  // The year meter counts 52 weeks, so the current segment is a whole week either way.
+  meterPartialCurrent: false,
+  loaderStyle: "block",
+  dangerZoneFill: "hatch",
+  chartMarkerShape: "square",
+  chartLegend: true,
+  mapDrawerSections: "panels",
+  dateFormat: "dotted",
+};
+
+/** Arcade's faces: Plex Mono for all UI and data, Michroma for display text. */
+const ARCADE_FONTS: readonly ThemeFont[] = [
+  { family: "IBM Plex Mono", weights: [400, 500, 600] },
+  { family: "Michroma", weights: [400] },
+];
+
 /** Legacy themes show the stock Mapbox styles. */
 const STOCK_MAP: ThemeMap = { palette: null, labelFont: null };
 
@@ -226,6 +253,20 @@ export const THEMES = [
     swatches: ["#160b2e", "#ff2ec4", "#00e5ff"],
     fonts: MIAMI_FONTS,
     structure: MIAMI_STRUCTURE,
+  },
+  {
+    id: "arcade",
+    label: "Arcade",
+    scheme: "dark",
+    mapStyle: MAPBOX_DARK,
+    map: RETRO_BASE_MAPS.arcade,
+    // Hidden until the release slice: the theme block and its structure land first so the
+    // gallery can show it, without offering a half-built theme in the picker.
+    hidden: true,
+    background: "#000000",
+    swatches: ["#000000", "#00ffff", "#ff00ff"],
+    fonts: ARCADE_FONTS,
+    structure: ARCADE_STRUCTURE,
   },
 ] as const satisfies readonly ThemeDefinition[];
 
