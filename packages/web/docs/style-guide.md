@@ -139,8 +139,11 @@ component knows which theme is active.
 | Theme | Id | What it is |
 |---|---|---|
 | Miami | `miami` | The site's look, and what a visitor gets without a stored choice. Sunset purples with pink and cyan neon, IBM Plex Mono with Archivo Black. |
-| Legacy | `legacy-dark` | The dark theme the site had before, still selectable. |
+| Arcade | `arcade` | Cyan and magenta on black, outline panels and a laser-grid horizon, IBM Plex Mono with Michroma. Carries the neon look the old dark theme had. |
 | Light | `legacy-light` | The light theme the site had before. |
+
+A retired theme leaves an entry in `LEGACY_PREFERENCE_ALIASES` rather than a dead id in
+someone's storage: a saved `legacy-dark` resolves to Arcade, which replaced it.
 
 The picker offers no "System" entry: the default no longer follows the OS color scheme, and
 "Match system" returns with the light retro theme. **There are no `dark:` Tailwind utilities and no
@@ -168,9 +171,9 @@ A theme is two halves that must agree:
 Beyond colors, a theme sets **slots**: non-color CSS variables for type, shape, depth and
 decoration, plus a few **structure fields** on its list entry for choices that add or remove
 markup. Components read slots and fields; they never check which theme is active. Every
-block defines every slot. Legacy dark and Legacy light carry today's values, so a slot a
-component doesn't read yet changes nothing. The dev gallery lists each theme's resolved
-slot values.
+block defines every slot. Legacy light carries the pre-retro values, so a slot a component
+doesn't read yet changes nothing there. The dev gallery lists each theme's resolved slot
+values.
 
 | Group | Slots | Controls |
 |---|---|---|
@@ -257,11 +260,19 @@ from the theme list (`src/themes/bootScript.ts`). It applies the stored preferen
 including the old `dark` / `light` values — before the stylesheet loads, so the page never
 flashes the wrong theme, and it can't drift from the list because nobody hand-writes it.
 
-The same script runs the one-time move to Miami (`MIAMI_MIGRATION` in the theme list): a
-visitor with no stored choice, or one stored from the old dark default or the old "System"
-entry, moves to Miami, and a flag records that it happened, so choosing Legacy afterwards
-sticks. An explicit light choice is left alone. It runs in the script rather than in React
-so a migrated visitor never sees the old theme paint first.
+The same script handles preferences that predate the current list, in two steps that answer
+different questions.
+
+**Aliases** (`LEGACY_PREFERENCE_ALIASES`) map a retired value onto the theme that replaced
+it, and write the result back so the value is migrated once rather than re-resolved forever.
+A saved `legacy-dark` becomes Arcade, which carries the look that choice was about. The old
+toggle's bare `dark` becomes the default instead: that toggle offered one dark, so the value
+is a light-or-dark preference, not a taste.
+
+**The one-time move to Miami** (`MIAMI_MIGRATION`) then covers a visitor who never chose at
+all, including the retired "System" entry, and a flag records that it happened so a choice
+made afterwards sticks. An explicit light choice is left alone. Both run in the script rather
+than in React, so a migrated visitor never sees the old theme paint first.
 
 `ThemeProvider` applies the attribute eagerly on change (not only in an effect), because
 consumers that read resolved token values would otherwise render one theme behind.
