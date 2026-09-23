@@ -31,7 +31,7 @@ describe("preloadThemeFonts", () => {
   });
 
   it("preloads nothing for a theme on the system font stack", () => {
-    document.documentElement.dataset.theme = "legacy-dark";
+    document.documentElement.dataset.theme = "legacy-light";
     preloadThemeFonts(document);
 
     expect(preloadedHrefs()).toEqual([]);

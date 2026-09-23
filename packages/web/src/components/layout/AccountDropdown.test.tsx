@@ -121,7 +121,7 @@ describe("AccountDropdown", () => {
       "aria-checked",
       "true"
     );
-    for (const name of [/light theme/i, /legacy theme/i]) {
+    for (const name of [/light theme/i, /arcade theme/i]) {
       expect(screen.getByRole("menuitemradio", { name })).toHaveAttribute("aria-checked", "false");
     }
   });

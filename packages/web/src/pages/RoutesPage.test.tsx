@@ -3,6 +3,7 @@ import { screen, waitFor, fireEvent, within } from "@testing-library/react";
 import RoutesPage from "./RoutesPage";
 import { renderWithRouter } from "../test/renderWithRouter";
 import type { MapActivity, RegionSummary } from "../api/map";
+import { getTheme } from "../themes/registry";
 
 // Mock hooks
 vi.mock("../hooks/useAuth", () => ({
@@ -35,8 +36,8 @@ vi.mock("../contexts/ThemeContext", async () => {
   const { getTheme } = await import("../themes/registry");
   return {
     useTheme: vi.fn(() => ({
-      preference: "legacy-dark",
-      theme: getTheme("legacy-dark"),
+      preference: "arcade",
+      theme: getTheme("arcade"),
       setPreference: vi.fn(),
     })),
   };
@@ -345,8 +346,10 @@ describe("RoutesPage", () => {
     expect(props.apiBaseUrl).toBe("http://localhost:8084/api/v1");
     expect(props.defaultViewport).toEqual(viewport);
     expect(props.mapStyle).toBe("mapbox://styles/mapbox/dark-v11");
-    // Legacy themes show the stock map: no recolor, no label font.
-    expect(props.baseMap).toEqual({ palette: null, labelFont: null });
+    // The theme's own recolor reaches the map, rather than a shape hardcoded here: the
+    // assertion followed Legacy dark to the stock map and would have gone quiet the moment
+    // the mocked theme changed.
+    expect(props.baseMap).toEqual(getTheme("arcade").map);
     // Cross-filter expression is wired through (null here: the mocked dataset is
     // empty, so useRouteFilters yields no filter, so the map shows all routes).
     expect(props).toHaveProperty("filter");

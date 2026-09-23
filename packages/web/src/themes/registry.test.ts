@@ -60,8 +60,12 @@ describe("parseThemePreference", () => {
   });
 
   it("migrates the values the old dark/light toggle stored", () => {
-    expect(parseThemePreference("dark")).toBe("legacy-dark");
+    // The toggle offered one dark, so its value is a light-or-dark preference, not a taste:
+    // it lands on the default. A saved theme id is a choice between looks, so Legacy dark
+    // lands on Arcade, which carries that look.
+    expect(parseThemePreference("dark")).toBe("miami");
     expect(parseThemePreference("light")).toBe("legacy-light");
+    expect(parseThemePreference("legacy-dark")).toBe("arcade");
   });
 
   it.each([null, undefined, "", "neon", "constructor", "toString", "__proto__"])(
@@ -80,6 +84,6 @@ describe("resolveTheme", () => {
 
   it("ignores the OS scheme for an explicit theme", () => {
     expect(resolveTheme("legacy-light", "dark").id).toBe("legacy-light");
-    expect(resolveTheme("legacy-dark", "light").id).toBe("legacy-dark");
+    expect(resolveTheme("arcade", "light").id).toBe("arcade");
   });
 });

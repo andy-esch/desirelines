@@ -88,13 +88,22 @@ describe("ThemeProvider", () => {
     );
   });
 
-  it("reads the old stored 'dark' value as the legacy dark theme", () => {
+  it("reads the old toggle 'dark' value as the default theme", () => {
     mockColorScheme(false);
     localStorage.setItem(THEME_STORAGE_KEY, "dark");
     const provider = renderProvider();
 
-    expect(provider.value.preference).toBe("legacy-dark");
-    expect(document.documentElement.dataset.theme).toBe("legacy-dark");
+    expect(provider.value.preference).toBe("miami");
+    expect(document.documentElement.dataset.theme).toBe("miami");
+  });
+
+  it("reads a saved Legacy dark as Arcade, which carries that look now", () => {
+    mockColorScheme(false);
+    localStorage.setItem(THEME_STORAGE_KEY, "legacy-dark");
+    const provider = renderProvider();
+
+    expect(provider.value.preference).toBe("arcade");
+    expect(document.documentElement.dataset.theme).toBe("arcade");
   });
 
   it("persists a choice and applies it before consumers re-render", () => {
@@ -116,7 +125,7 @@ describe("ThemeProvider", () => {
     const os = mockColorScheme(true);
     localStorage.setItem(THEME_STORAGE_KEY, "system");
     const provider = renderProvider();
-    expect(provider.value.theme.id).toBe("legacy-dark");
+    expect(provider.value.theme.id).toBe("miami");
 
     os.setDark(false);
 
@@ -126,11 +135,11 @@ describe("ThemeProvider", () => {
 
   it("ignores OS changes for an explicit theme, then resolves freshly on returning to system", () => {
     const os = mockColorScheme(true);
-    localStorage.setItem(THEME_STORAGE_KEY, "legacy-dark");
+    localStorage.setItem(THEME_STORAGE_KEY, "arcade");
     const provider = renderProvider();
 
     os.setDark(false);
-    expect(document.documentElement.dataset.theme).toBe("legacy-dark");
+    expect(document.documentElement.dataset.theme).toBe("arcade");
 
     act(() => provider.value.setPreference("system"));
     expect(document.documentElement.dataset.theme).toBe("legacy-light");
