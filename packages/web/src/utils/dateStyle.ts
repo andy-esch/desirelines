@@ -30,3 +30,25 @@ export function dottedDate(date: Date, options: Intl.DateTimeFormatOptions): str
   if (parts.length === 0) return date.toLocaleDateString("en-US", options);
   return parts.join(".");
 }
+
+/**
+ * A month label: `Jan` / `Jan '26`, or dotted `01` / `2026.01`.
+ *
+ * Kept here rather than in the chart that needs it, because a month is a date and the theme
+ * spells it: the chart was building the short form by hand and had no dotted form at all.
+ *
+ * @param month - `YYYY-MM`
+ */
+export function formatMonthLabel(month: string, showYear: boolean, style: DateStyle): string {
+  // Fixed offsets into "YYYY-MM" rather than destructuring split(), whose elements type as
+  // possibly-undefined.
+  const year = month.slice(0, 4);
+  const monthNumber = Number(month.slice(5, 7));
+  if (style === "dotted") {
+    return showYear ? `${year}.${pad2(monthNumber)}` : pad2(monthNumber);
+  }
+  const name = new Date(Number(year), monthNumber - 1, 1).toLocaleString("en-US", {
+    month: "short",
+  });
+  return showYear ? `${name} '${year.slice(2)}` : name;
+}

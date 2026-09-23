@@ -4,6 +4,7 @@ import {
   formatDisplayDate as formatDisplayDateWithStyle,
 } from "../../utils/dateUtils";
 import { formatActivityDate as formatActivityDateWithStyle } from "../../utils/formatActivityDate";
+import { formatMonthLabel as formatMonthLabelWithStyle } from "../../utils/dateStyle";
 import { useThemeStructure } from "./useThemeStructure";
 
 /**
@@ -26,6 +27,9 @@ export function useThemeDateFormat() {
           : formatDisplayDateWithStyle(date, undefined, dateFormat),
       /** A chart axis tick, from a UTC timestamp. */
       formatAxisDate: chartAxisDateFormatter(dateFormat),
+      /** A month, from `YYYY-MM`, with or without its year. */
+      formatMonth: (month: string, showYear: boolean) =>
+        formatMonthLabelWithStyle(month, showYear, dateFormat),
       /** An athlete-local activity date (`YYYY-MM-DD…`), as rows and lists show it. */
       formatActivityDate: (startDateLocal: string, opts?: { year?: boolean }) =>
         formatActivityDateWithStyle(startDateLocal, { ...opts, style: dateFormat }),

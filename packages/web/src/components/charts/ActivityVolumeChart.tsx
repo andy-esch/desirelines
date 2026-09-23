@@ -10,6 +10,7 @@
  * Pure: all data-shaping, filtering, and unit choices happen upstream.
  */
 import { useMemo } from "react";
+import { useThemeDateFormat } from "../theme/useThemeDateFormat";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { SportConfig } from "../../api/activities";
 import type { ChartData } from "../../utils/activityBuckets";
@@ -21,16 +22,6 @@ function sportColor(sport: string): string {
 }
 
 /** "2026-05" → "May" (or "May '26" when the range spans multiple years). */
-function formatMonthLabel(month: string, showYear: boolean): string {
-  // Fixed offsets into "YYYY-MM" rather than destructuring split(), whose
-  // elements type as possibly-undefined and previously needed a `!`.
-  const year = month.slice(0, 4);
-  const name = new Date(Number(year), Number(month.slice(5, 7)) - 1, 1).toLocaleString("en-US", {
-    month: "short",
-  });
-  return showYear ? `${name} '${year.slice(2)}` : name;
-}
-
 interface ActivityVolumeChartProps {
   data: ChartData;
   sportConfig: SportConfig | null;
@@ -52,6 +43,7 @@ export default function ActivityVolumeChart({
   metricLabel,
   allowDecimals,
 }: ActivityVolumeChartProps) {
+  const { formatMonth } = useThemeDateFormat();
   const { rows, series } = data;
 
   const showYear = useMemo(() => new Set(rows.map((r) => r.month.slice(0, 4))).size > 1, [rows]);
@@ -63,7 +55,7 @@ export default function ActivityVolumeChart({
           <CartesianGrid stroke={CHART_CONFIG.grid.stroke} vertical={CHART_CONFIG.grid.vertical} />
           <XAxis
             dataKey="month"
-            tickFormatter={(m: string) => formatMonthLabel(m, showYear)}
+            tickFormatter={(m: string) => formatMonth(m, showYear)}
             stroke={CHART_CONFIG.axis.stroke}
             tick={CHART_CONFIG.tick}
           />
@@ -180,6 +172,7 @@ function VolumeTooltip({
   sportConfig: SportConfig | null;
   formatValue: (value: number) => string;
 }) {
+  const { formatMonth } = useThemeDateFormat();
   if (!active || !payload || payload.length === 0 || typeof label !== "string") return null;
 
   // `series` is stable across a hover gesture but this component re-renders on
@@ -221,7 +214,7 @@ function VolumeTooltip({
           borderBottom: "1px solid var(--color-chart-tooltip-divider)",
         }}
       >
-        {formatMonthLabel(label, true)}
+        {formatMonth(label, true)}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
         {rows.map((r) => (
