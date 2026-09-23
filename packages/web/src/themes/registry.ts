@@ -222,18 +222,6 @@ const LEGACY_FONTS: readonly ThemeFont[] = [
 
 export const THEMES = [
   {
-    id: "legacy-dark",
-    label: "Legacy",
-    scheme: "dark",
-    mapStyle: MAPBOX_DARK,
-    map: STOCK_MAP,
-    hidden: false,
-    background: "#0f1724",
-    swatches: ["#0f1724", "#00d4ff", "#ff00ff"],
-    fonts: LEGACY_FONTS,
-    structure: LEGACY_STRUCTURE,
-  },
-  {
     id: "legacy-light",
     label: "Light",
     scheme: "light",
@@ -263,9 +251,7 @@ export const THEMES = [
     scheme: "dark",
     mapStyle: MAPBOX_DARK,
     map: RETRO_BASE_MAPS.arcade,
-    // Hidden until the release slice: the theme block and its structure land first so the
-    // gallery can show it, without offering a half-built theme in the picker.
-    hidden: true,
+    hidden: false,
     background: "#000000",
     swatches: ["#000000", "#00ffff", "#ff00ff"],
     fonts: ARCADE_FONTS,
@@ -289,26 +275,35 @@ export const DEFAULT_THEME_PREFERENCE: ThemePreference = "miami";
 
 /** The theme "system" resolves to for each OS color scheme. */
 export const SYSTEM_THEME_IDS: Readonly<Record<ThemeScheme, ThemeId>> = {
-  dark: "legacy-dark",
+  dark: "miami",
   light: "legacy-light",
 };
 
 /**
- * The one-time move to Miami. A visitor who had never chosen, or who was on the dark theme
- * the site used to default to, gets the new look; an explicit light choice is left alone.
- * The flag makes it once-only, so choosing Legacy again sticks. The first-paint script runs
- * it (see `bootScript.ts`), before anything is painted.
+ * The one-time move to Miami, for a visitor who had never chosen a theme. An explicit
+ * choice is left alone: it goes through the aliases below instead, which is how a saved
+ * Legacy dark now lands on Arcade rather than here. The flag makes it once-only, and the
+ * first-paint script runs it (see `bootScript.ts`) before anything is painted.
  */
 export const MIAMI_MIGRATION = {
   storageKey: "theme-migrated-miami",
   /** Stored preferences that become Miami, after the aliases below are applied. */
-  from: ["system", "legacy-dark"],
+  from: ["system"],
   to: "miami",
 } as const;
 
-/** Values written by the old dark/light toggle, mapped onto the theme that replaced them. */
+/**
+ * Retired preference values, mapped onto the theme that replaced them. Applied before
+ * anything else, so a saved value never has to survive on its own.
+ *
+ * The two dark values part ways deliberately. `legacy-dark` was a choice between themes, so
+ * it lands on Arcade, which carries the neon look that choice was about. `dark` came from the
+ * old two-option toggle, where dark was the only dark there was: that is a light-or-dark
+ * preference rather than a taste, so it lands on the default like everyone who never chose.
+ */
 export const LEGACY_PREFERENCE_ALIASES: Readonly<Record<string, ThemeId>> = {
-  dark: "legacy-dark",
+  dark: "miami",
+  "legacy-dark": "arcade",
   light: "legacy-light",
 };
 

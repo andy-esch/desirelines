@@ -50,6 +50,7 @@ describe("theme boot script", () => {
     document.documentElement.style.colorScheme = "";
   });
 
+  // "dark" and "legacy-dark" are retired values a returning visitor can still have stored.
   const stored = [
     null,
     "system",
@@ -85,7 +86,7 @@ describe("theme boot script", () => {
       expect(localStorage.getItem(MIAMI_MIGRATION.storageKey)).toBe("1");
     });
 
-    it("moves the old dark value too, since it aliases onto the dark theme", () => {
+    it("lands the old toggle dark value on the default, as the migration intends", () => {
       runBootScript({ stored: "dark", scheme: "light", migrated: false });
 
       expect(document.documentElement.dataset.theme).toBe(MIAMI_MIGRATION.to);
@@ -98,13 +99,24 @@ describe("theme boot script", () => {
       expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("legacy-light");
     });
 
-    it("runs once, so choosing the old theme afterwards sticks", () => {
+    it("runs once, so a choice made afterwards sticks", () => {
       runBootScript({ stored: "system", scheme: "dark", migrated: false });
-      localStorage.setItem(THEME_STORAGE_KEY, "legacy-dark");
+      localStorage.setItem(THEME_STORAGE_KEY, "legacy-light");
+      runBootScript({ stored: "legacy-light", scheme: "dark" });
+
+      expect(document.documentElement.dataset.theme).toBe("legacy-light");
+      expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("legacy-light");
+    });
+
+    it("lands a saved Legacy dark on Arcade, the theme that replaced it", () => {
+      // Legacy dark is gone from the list, so this goes through the aliases rather than the
+      // migration: an explicit choice of that look keeps the look, and is not swept to the
+      // default with visitors who never chose.
       runBootScript({ stored: "legacy-dark", scheme: "dark" });
 
-      expect(document.documentElement.dataset.theme).toBe("legacy-dark");
-      expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("legacy-dark");
+      expect(document.documentElement.dataset.theme).toBe("arcade");
+      // Written back, so the retired id is migrated once rather than re-resolved forever.
+      expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("arcade");
     });
 
     it("stores nothing for a first-time visitor, who gets the default anyway", () => {

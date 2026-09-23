@@ -151,7 +151,7 @@ const mockSignOut = vi.fn();
  */
 function LegacyStructure({ children }: { children: ReactNode }) {
   return (
-    <ThemeStructureProvider structure={getTheme("legacy-dark").structure}>
+    <ThemeStructureProvider structure={getTheme("legacy-light").structure}>
       {children}
     </ThemeStructureProvider>
   );

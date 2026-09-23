@@ -8,7 +8,7 @@ import { ThemeStructureProvider } from "../theme/ThemeStructureProvider";
 /** Legacy's structure puts a panel's title in a card header, as these cases expect. */
 function inLegacy(node: ReactNode) {
   return render(
-    <ThemeStructureProvider structure={getTheme("legacy-dark").structure}>
+    <ThemeStructureProvider structure={getTheme("legacy-light").structure}>
       {node}
     </ThemeStructureProvider>
   );

@@ -48,7 +48,12 @@ export function buildThemeBootScript(): string {
   var p = null;
   var done = "1";
   try { p = window.localStorage.getItem(c.key); } catch (e) {}
-  if (p !== null && has(c.aliases, p)) p = c.aliases[p];
+  if (p !== null && has(c.aliases, p)) {
+    p = c.aliases[p];
+    // Write the resolved id back: a retired value is migrated once rather than re-resolved
+    // on every load, so the alias table can eventually be dropped without stranding anyone.
+    try { window.localStorage.setItem(c.key, p); } catch (e) {}
+  }
   try {
     if (window.localStorage.getItem(c.migration.key) !== done) {
       window.localStorage.setItem(c.migration.key, done);

@@ -13,7 +13,7 @@ vi.mock("../../hooks/useDashboardGoalData", () => ({
 }));
 vi.mock("../../contexts/ThemeContext", async () => {
   const { THEMES } = await import("../../themes/registry");
-  return { useTheme: () => ({ theme: THEMES.find((t) => t.id === "legacy-dark") }) };
+  return { useTheme: () => ({ theme: THEMES.find((t) => t.id === "legacy-light") }) };
 });
 vi.mock("../../hooks/useActivities", () => ({ useActivities: vi.fn() }));
 vi.mock("../../hooks/useSportConfig", () => ({ useSportConfig: () => ({ sportConfig: null }) }));
