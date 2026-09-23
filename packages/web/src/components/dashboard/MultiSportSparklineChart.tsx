@@ -40,6 +40,48 @@ function formatAxisDate(dateStr: string, formatDate: (date: Date) => string): st
   return formatDate(parseLocalDateStrict(dateStr));
 }
 
+/**
+ * An axis label that stays inside the plot.
+ *
+ * Recharts centres every tick on its position, so the first and last labels hang half their
+ * width past the ends of the lines they describe. Anchoring the outer two to their own edge
+ * keeps the row of dates within the same x-range as the sparklines.
+ *
+ * Recharts clones this element with the tick's geometry, so the props arrive from there
+ * rather than from the caller.
+ */
+function ClampedAxisTick({
+  x,
+  y,
+  payload,
+  index,
+  visibleTicksCount,
+  formatDate,
+}: {
+  x?: number;
+  y?: number;
+  payload?: { value?: string };
+  index?: number;
+  visibleTicksCount?: number;
+  formatDate: (date: Date) => string;
+}) {
+  const last = (visibleTicksCount ?? 0) - 1;
+  const anchor = index === 0 ? "start" : index === last ? "end" : "middle";
+  return (
+    <text
+      x={x}
+      y={y}
+      dy={10}
+      textAnchor={anchor}
+      fontSize={9}
+      fill="var(--color-chart-tick)"
+      fontFamily="var(--font-chart)"
+    >
+      {payload?.value ? formatAxisDate(payload.value, formatDate) : ""}
+    </text>
+  );
+}
+
 interface TooltipPayloadItem {
   dataKey?: string | number | undefined;
   value?: number | undefined;
@@ -269,8 +311,7 @@ export default function MultiSportSparklineChart({
               dataKey="date"
               axisLine={false}
               tickLine={false}
-              tick={{ fontSize: 9, fill: "var(--color-chart-tick)" }}
-              tickFormatter={(value: string) => formatAxisDate(value, formatDate)}
+              tick={<ClampedAxisTick formatDate={formatDate} />}
               interval="preserveStartEnd"
               minTickGap={50}
             />

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import tailwindCss from "../../css/tailwind.css?raw";
-import { SUNSET_STOPS } from "./HeroDecoration";
+import { SUNSET_STOPS, GRID_FLOOR_HEIGHT } from "./HeroDecoration";
 
 const miamiBlock = tailwindCss.match(/\[data-theme="miami"\]\s*\{([^}]*)\}/)?.[1] ?? "";
 const slot = (name: string) =>
@@ -32,5 +32,26 @@ describe("Miami sunset", () => {
       const offset = parseFloat(stop.from.match(/100% - (\d+)px/)?.[1] ?? "NaN");
       expect(offset, `${stop.color} starts ${stop.from}`).toBeLessThanOrEqual(bottomPadding);
     }
+  });
+});
+
+describe("Arcade grid", () => {
+  const arcadeBlock = tailwindCss.match(/\[data-theme="arcade"\]\s*\{([^}]*)\}/)?.[1] ?? "";
+  const arcadeSlot = (name: string) =>
+    arcadeBlock.match(new RegExp(`${name}\\s*:\\s*([^;]+);`))?.[1]?.trim() ?? "";
+
+  it("keeps the floor inside the hero padding that content never enters", () => {
+    // The plane is drawn from the bottom up; the hero reserves its bottom padding for it, so
+    // a floor taller than that padding would run under the headline.
+    const bottomPadding = parseFloat(arcadeSlot("--hero-padding").split(/\s+/)[2] ?? "");
+    expect(bottomPadding).toBeGreaterThanOrEqual(GRID_FLOOR_HEIGHT);
+  });
+
+  it("keeps 4.5:1 between the hero ink and the ground the headline sits on", () => {
+    // Above the horizon the hero is the page ground: the floor never reaches the text.
+    const ink = arcadeSlot("--hero-ink");
+    const ground = arcadeSlot("--color-bg-body");
+    expect(ink).toMatch(/^#[0-9a-f]{6}$/i);
+    expect(contrast(ink, ground)).toBeGreaterThanOrEqual(4.5);
   });
 });
