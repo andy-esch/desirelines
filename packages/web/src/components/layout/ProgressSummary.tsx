@@ -33,8 +33,12 @@ export default function ProgressSummary({
       </div>
       <div className="flex justify-between text-sm">
         <span className="text-muted-text">Est. Year-End</span>
+        {/* Same face and weight as the value above it: these are a pair, read together, and
+            the display face is for headlines and big numbers. The glow is what marks this
+            one as the projection. Display faces here carry a single weight, so `font-semibold`
+            on one of them also had the browser synthesising a bold. */}
         <span
-          className="font-semibold font-display"
+          className="font-semibold"
           style={{ textShadow: `0 0 12px ${tint("--color-brand-cyan", 20)}` }}
         >
           {formatValue(estimatedYearEnd)}

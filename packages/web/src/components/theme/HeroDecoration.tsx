@@ -39,11 +39,20 @@ const SUNSET_BLINDS = [
 /**
  * Arcade's laser floor: a rainbow grid running to a horizon, drawn entirely in gradients.
  *
- * The plane is a flat box rotated back under the hero. It is stretched well past both edges
- * (`-50%` each side) because perspective fans the far end inward: without the overhang the
- * grid would narrow away from the page edges near the horizon.
+ * Three layers share one transform: a fill so the floor reads as a surface rather than a
+ * hole, the columns, and the cross lines. They are separate elements because only the
+ * columns are masked into lanes — masking the whole plane erases the rungs with them, which
+ * is what left the first version with nothing running across.
+ *
+ * The plane is stretched well past both edges (`-50%` each side) because perspective fans
+ * the far end inward: without the overhang the grid would narrow away from the page edges
+ * near the horizon.
  */
-const GRID_PLANE_TRANSFORM = "perspective(420px) rotateX(62deg)";
+const GRID_PLANE_TRANSFORM = "perspective(360px) rotateX(67deg)";
+
+/** The floor's own surface, darkest at the horizon so the fade has something to sit on. */
+const GRID_FILL =
+  "linear-gradient(0deg, rgba(180, 0, 255, 0.12) 0%, rgba(74, 0, 110, 0.08) 45%, rgba(10, 0, 20, 0.03) 100%)";
 
 /**
  * The columns. The spacing is a percentage rather than a pixel pitch, so the plane keeps 48
@@ -69,40 +78,84 @@ const GRID_GLOW =
   "radial-gradient(ellipse 55% 70% at 50% 100%, rgba(180, 0, 255, 0.22), transparent 70%)";
 
 /**
- * How far up the hero the floor reaches. The hero reserves at least this much bottom padding
- * (`--hero-padding`), so the plane never runs under the headline; the test holds the pair
- * together.
+ * How far up the hero the floor reaches: the plane's projected height, measured in the
+ * browser at the pitch and depth below. Three things hang off it — the distance fade, the
+ * horizon line, and the test that keeps the floor inside the hero's bottom padding, which
+ * content never enters. Place the horizon by eye instead and it floats above where the grid
+ * actually ends, which is how the first version looked wrong.
  */
-export const GRID_FLOOR_HEIGHT = 176;
+export const GRID_FLOOR_HEIGHT = 98;
+
+/** The plane's own depth. Shorter than the hero is tall, so the grid lies down rather than
+ * standing up: at a steep pitch a long plane pushes its far end well above the horizon. */
+const GRID_PLANE_DEPTH = 700;
+
+/** One layer of the floor, sharing the plane's geometry. */
+function GridPlane({
+  background,
+  backgroundSize,
+  backgroundPosition,
+  mask,
+  opacity,
+  decoration,
+}: {
+  background: string;
+  /** Set where a gradient should repeat per viewport width rather than span the whole plane. */
+  backgroundSize?: string;
+  /** Shift a repeating gradient so its middle stop lands at the middle of the screen. */
+  backgroundPosition?: string;
+  mask?: string;
+  opacity: number;
+  decoration?: string;
+}) {
+  return (
+    <div
+      {...(decoration ? { "data-decoration": decoration } : {})}
+      className="absolute bottom-0 -left-1/2 -right-1/2 origin-bottom"
+      style={{
+        height: GRID_PLANE_DEPTH,
+        transform: GRID_PLANE_TRANSFORM,
+        background,
+        ...(backgroundSize ? { backgroundSize } : {}),
+        ...(backgroundPosition ? { backgroundPosition } : {}),
+        opacity,
+        ...(mask ? { maskImage: mask, WebkitMaskImage: mask } : {}),
+      }}
+    />
+  );
+}
 
 /** The floor and its haze, sized to the bottom of the hero band. */
 function GridFloor() {
   return (
-    <>
-      <div aria-hidden="true" className="absolute inset-0 overflow-hidden">
-        {/* The plane itself, clipped by the parent so the overhang never widens the page. */}
-        <div
-          data-decoration="grid-floor"
-          className="absolute bottom-0 -left-1/2 -right-1/2 h-[900px] origin-bottom"
-          style={{
-            transform: GRID_PLANE_TRANSFORM,
-            background: GRID_ROWS + ", " + GRID_COLUMNS,
-            maskImage: GRID_COLUMN_MASK,
-            WebkitMaskImage: GRID_COLUMN_MASK,
-            opacity: 0.75,
-          }}
-        />
-        {/* Violet haze where the floor meets the horizon. */}
-        <div className="absolute inset-0" style={{ background: GRID_GLOW }} />
-        {/* The far edge reads as distance, not as the end of a box. */}
-        <div className="absolute inset-x-0 bottom-0 h-[200px]" style={{ background: GRID_FADE }} />
-        <div
-          data-decoration="grid-horizon"
-          className="absolute inset-x-0 bottom-[150px] h-px opacity-70"
-          style={{ background: GRID_HORIZON, boxShadow: "0 0 12px rgba(255, 0, 255, 0.7)" }}
-        />
-      </div>
-    </>
+    <div aria-hidden="true" className="absolute inset-0 overflow-hidden">
+      <GridPlane background={GRID_FILL} opacity={1} decoration="grid-fill" />
+      <GridPlane
+        background={GRID_COLUMNS}
+        backgroundSize="50% 100%"
+        backgroundPosition="50% 0"
+        mask={GRID_COLUMN_MASK}
+        opacity={0.75}
+        decoration="grid-floor"
+      />
+      <GridPlane background={GRID_ROWS} opacity={0.75} decoration="grid-rows" />
+      {/* Violet haze where the floor meets the horizon. */}
+      <div className="absolute inset-0" style={{ background: GRID_GLOW }} />
+      {/* The far edge reads as distance, not as the end of a box. */}
+      <div
+        className="absolute inset-x-0 bottom-0"
+        style={{ height: GRID_FLOOR_HEIGHT, background: GRID_FADE }}
+      />
+      <div
+        data-decoration="grid-horizon"
+        className="absolute inset-x-0 h-px opacity-70"
+        style={{
+          bottom: GRID_FLOOR_HEIGHT,
+          background: GRID_HORIZON,
+          boxShadow: "0 0 12px rgba(255, 0, 255, 0.7)",
+        }}
+      />
+    </div>
   );
 }
 
