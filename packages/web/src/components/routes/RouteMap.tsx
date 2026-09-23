@@ -23,7 +23,7 @@ import {
   formatHoursMinutes,
   type DistanceUnit,
 } from "../../utils/units";
-import { formatActivityDate } from "../../utils/formatActivityDate";
+import { useThemeDateFormat } from "../theme/useThemeDateFormat";
 import { resolveThemeColor } from "../../utils/colorTokens";
 import type { ThemeMap } from "../../themes/registry";
 import { applyBaseMap } from "./mapRecolor";
@@ -867,6 +867,7 @@ function RoutePopupCard({
   movingTime: number | undefined;
   onClose: () => void;
 }) {
+  const { formatActivityDate } = useThemeDateFormat();
   const distance = `${convertDistance(selected.distanceMeters, distanceUnit).toLocaleString(
     undefined,
     { maximumFractionDigits: 1 }

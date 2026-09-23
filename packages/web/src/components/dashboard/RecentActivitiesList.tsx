@@ -13,7 +13,7 @@ import { getTimeRangeCutoff as getCutoff } from "../../utils/chartUtils";
 import { parseRgb, resolveThemeColor, type Rgb } from "../../utils/colorTokens";
 import { useTheme } from "../../contexts/ThemeContext";
 import { toLocalDateString as toLocal } from "../../utils/dateUtils";
-import { formatActivityDate } from "../../utils/formatActivityDate";
+import { useThemeDateFormat } from "../theme/useThemeDateFormat";
 import { Button } from "../ui/button";
 import { Table } from "../ui/table";
 import { useSportConfig } from "../../hooks/useSportConfig";
@@ -108,6 +108,7 @@ export default function RecentActivitiesList({
   timeRange,
   pageSize: fallbackPageSize,
 }: RecentActivitiesListProps) {
+  const { formatActivityDate } = useThemeDateFormat();
   const { user } = useAuth();
   const { sportConfig } = useSportConfig();
   const navigate = useNavigate();

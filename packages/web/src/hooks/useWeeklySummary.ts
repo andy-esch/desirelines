@@ -19,7 +19,8 @@ import {
   minutesToHours,
   type MetricType,
 } from "../utils/units";
-import { formatDisplayDate, toLocalDateString } from "../utils/dateUtils";
+import { toLocalDateString } from "../utils/dateUtils";
+import { useThemeDateFormat } from "../components/theme/useThemeDateFormat";
 import { useQueries } from "@tanstack/react-query";
 import { UserConfigService } from "../services/userConfigService";
 import type { GoalsForYear } from "../types/generated/user_config";
@@ -73,6 +74,8 @@ export function useWeeklySummary(): {
     [visibleSports, sportConfig]
   );
 
+  const { formatDate } = useThemeDateFormat();
+
   // Compute this-week range
   const { mondayStr, todayStr, weekLabel } = useMemo(() => {
     const mon = getMondayOfCurrentWeek();
@@ -80,9 +83,9 @@ export function useWeeklySummary(): {
     return {
       mondayStr: toLocalDateString(mon),
       todayStr: toLocalDateString(tod),
-      weekLabel: `${formatDisplayDate(mon)} – ${formatDisplayDate(tod)}`,
+      weekLabel: `${formatDate(mon)} – ${formatDate(tod)}`,
     };
-  }, []);
+  }, [formatDate]);
 
   // Fetch daily data for this week
   const {

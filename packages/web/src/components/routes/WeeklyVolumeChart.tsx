@@ -5,7 +5,7 @@ import type { MapActivity } from "../../api/map";
 import { convertDistance, getDistanceLabel, type DistanceUnit } from "../../utils/units";
 import { weeklyVolume } from "../../utils/mapInsights";
 import { chartLabelToString } from "../../utils/chartUtils";
-import { formatActivityDate } from "../../utils/formatActivityDate";
+import { useThemeDateFormat } from "../theme/useThemeDateFormat";
 
 type WeeklyMetric = "distance" | "time";
 
@@ -28,6 +28,7 @@ const TOOLTIP_STYLE = {
  * `filteredActivities`.
  */
 export default function WeeklyVolumeChart({ activities, distanceUnit }: WeeklyVolumeChartProps) {
+  const { formatActivityDate } = useThemeDateFormat();
   const [metric, setMetric] = useState<WeeklyMetric>("distance");
   const unit = metric === "distance" ? getDistanceLabel(distanceUnit) : "h";
   const data = useMemo(
