@@ -12,7 +12,7 @@ import type { MapActivity } from "../../api/map";
 import { convertDistance, getDistanceLabel, type DistanceUnit } from "../../utils/units";
 import { cumulativeDistance } from "../../utils/mapInsights";
 import { chartLabelToString } from "../../utils/chartUtils";
-import { formatActivityDate } from "../../utils/formatActivityDate";
+import { useThemeDateFormat } from "../theme/useThemeDateFormat";
 
 export interface CumulativeDistanceChartProps {
   activities: MapActivity[];
@@ -35,6 +35,7 @@ export default function CumulativeDistanceChart({
   activities,
   distanceUnit,
 }: CumulativeDistanceChartProps) {
+  const { formatActivityDate } = useThemeDateFormat();
   const unit = getDistanceLabel(distanceUnit);
   const data = useMemo(
     () =>

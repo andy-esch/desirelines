@@ -43,7 +43,7 @@ import { CHART_CONFIG, DANGER_ZONE_CONFIG } from "../../constants/chartConfig";
 import { calculateCumulativeYAxisMax } from "../../utils/chartScaling";
 import ChartTooltip from "./ChartTooltip";
 import YAxisMarker from "./YAxisMarker";
-import { formatChartAxisDate, formatDisplayDate } from "../../utils/dateUtils";
+import { useThemeDateFormat } from "../theme/useThemeDateFormat";
 
 // ============================================================================
 // Types
@@ -182,6 +182,7 @@ function AchievementStar({
  * Renders the achievement legend overlay in the bottom-right corner.
  */
 function AchievementLegend({ achievements }: { achievements: GoalAchievement[] }) {
+  const { formatDate } = useThemeDateFormat();
   if (achievements.length === 0) return null;
 
   return (
@@ -207,7 +208,7 @@ function AchievementLegend({ achievements }: { achievements: GoalAchievement[] }
             <span style={{ color: "var(--color-chart-tooltip-label)" }}>
               {/* achievement.date is a UTC-midnight chart date; render it in UTC per the
                   chart pipeline's date convention (see useCumulativeChartData header). */}
-              {formatDisplayDate(achievement.date, {
+              {formatDate(achievement.date, {
                 month: "short",
                 day: "numeric",
                 timeZone: "UTC",
@@ -270,6 +271,7 @@ export function CumulativeChartPresenter({
   priorYearLines,
   dangerZone,
 }: CumulativeChartPresenterProps) {
+  const { formatAxisDate } = useThemeDateFormat();
   return (
     <div style={{ position: "relative", userSelect: "none" }}>
       <ResponsiveContainer width="100%" height={CHART_CONFIG.height}>
@@ -290,7 +292,7 @@ export function CumulativeChartPresenter({
             type="number"
             domain={[startDate.getTime(), displayEndDate.getTime()]}
             allowDataOverflow
-            tickFormatter={formatChartAxisDate}
+            tickFormatter={formatAxisDate}
             stroke={CHART_CONFIG.axis.stroke}
             tick={CHART_CONFIG.tick}
             interval="preserveStartEnd"
