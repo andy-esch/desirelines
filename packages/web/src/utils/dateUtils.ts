@@ -1,4 +1,4 @@
-import { type DateStyle, dottedDate, pad2 } from "./dateStyle";
+import type { ThemeStructure } from "../themes/registry";
 
 /**
  * Date Utilities
@@ -310,4 +310,91 @@ export function generateDateRange(from: string, to: string): string[] {
   }
 
   return dates;
+}
+
+// ---------------------------------------------------------------------------
+// Theme spelling
+//
+// A theme spells dates one of two ways, and components reach these through
+// `useThemeDateFormat()` rather than calling them directly — the hook binds the active
+// style, and `dateFormatterUse.test.ts` keeps the direct route closed.
+// ---------------------------------------------------------------------------
+
+/**
+ * How a theme spells dates. The retro designs use two: `Sep 12, 2026`, and a dotted form
+ * that reads as a readout, `2026.09.12`.
+ *
+ * The formatters take this as an argument rather than reading the active theme themselves:
+ * several of them are passed to charts as bare `tickFormatter` functions, where no hook can
+ * run, and keeping them pure keeps them testable without a DOM. `useThemeDateFormat()` binds
+ * the active style at the component boundary.
+ */
+export type DateStyle = ThemeStructure["dateFormat"];
+
+/** Two digits, for dotted dates only: it keeps a column of them the same width. */
+export function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+/**
+ * The dotted spelling of whatever parts the caller asked for, so a dotted theme honours the
+ * same `year` / `month` / `day` choices the short spelling makes — a caller asking for month
+ * and year gets `2026.09`, not a day it never requested.
+ */
+export function dottedDate(date: Date, options: Intl.DateTimeFormatOptions): string {
+  const parts: string[] = [];
+  if (options.year) parts.push(String(date.getFullYear()));
+  if (options.month) parts.push(pad2(date.getMonth() + 1));
+  if (options.day) parts.push(pad2(date.getDate()));
+  // Nothing recognisable asked for (a weekday-only label, say): leave it to Intl.
+  if (parts.length === 0) return date.toLocaleDateString("en-US", options);
+  return parts.join(".");
+}
+
+/**
+ * A month label: `Jan` / `Jan '26`, or dotted `01` / `2026.01`.
+ *
+ * Kept here rather than in the chart that needs it, because a month is a date and the theme
+ * spells it: the chart was building the short form by hand and had no dotted form at all.
+ *
+ * @param month - `YYYY-MM`
+ */
+export function formatMonthLabel(month: string, showYear: boolean, style: DateStyle): string {
+  // Fixed offsets into "YYYY-MM" rather than destructuring split(), whose elements type as
+  // possibly-undefined.
+  const year = month.slice(0, 4);
+  const monthNumber = Number(month.slice(5, 7));
+  if (style === "dotted") {
+    return showYear ? `${year}.${pad2(monthNumber)}` : pad2(monthNumber);
+  }
+  const name = new Date(Number(year), monthNumber - 1, 1).toLocaleString("en-US", {
+    month: "short",
+  });
+  return showYear ? `${name} '${year.slice(2)}` : name;
+}
+
+/**
+ * Format an athlete-local activity date (`YYYY-MM-DD…`) for display. Parses the
+ * Y-M-D parts directly (no `Date` string parsing) so there's no timezone shift.
+ * `year` includes the year (e.g. the click popover); omit it for compact lists.
+ *
+ * `style` is the theme's date style; components get it from `useThemeDateFormat()` rather
+ * than passing it by hand. Dotted pads the month and day, which is the one place padding is
+ * wanted: it keeps a column of dates the same width. Counts are never padded.
+ */
+export function formatActivityDate(
+  startDateLocal: string,
+  opts?: { year?: boolean; style?: DateStyle }
+): string {
+  const [y, m, d] = startDateLocal.slice(0, 10).split("-").map(Number);
+  if (!y || !m || !d) return startDateLocal.slice(0, 10);
+  if (opts?.style === "dotted") {
+    const md = `${pad2(m)}.${pad2(d)}`;
+    return opts.year ? `${y}.${md}` : md;
+  }
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    ...(opts?.year ? { year: "numeric" as const } : {}),
+  });
 }

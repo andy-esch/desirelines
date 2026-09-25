@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import tailwindCss from "../../css/tailwind.css?raw";
-import { SUNSET_STOPS, GRID_FLOOR_HEIGHT } from "./HeroDecoration";
+import { SUNSET_STOPS, GRID_FLOOR_HEIGHT, projectedPlaneHeight } from "./HeroDecoration";
 
 const miamiBlock = tailwindCss.match(/\[data-theme="miami"\]\s*\{([^}]*)\}/)?.[1] ?? "";
 const slot = (name: string) =>
@@ -53,5 +53,25 @@ describe("Arcade grid", () => {
     const ground = arcadeSlot("--color-bg-body");
     expect(ink).toMatch(/^#[0-9a-f]{6}$/i);
     expect(contrast(ink, ground)).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+describe("plane projection", () => {
+  it("matches what the browser draws, so the derivation can be trusted", () => {
+    // Measured in headless Chrome at the values the floor uses: the transformed plane's
+    // bounding box stood 98px above the hero's base. jsdom cannot compute a 3D transform,
+    // so this is the one place that number is checked against a real renderer.
+    expect(projectedPlaneHeight(360, 67, 700)).toBeCloseTo(98, 0);
+  });
+
+  it("converges on the horizon rather than growing with the plane", () => {
+    // Perspective divides by depth, so a deeper plane cannot rise past perspective/tan(pitch).
+    const horizon = 360 / Math.tan((67 * Math.PI) / 180);
+    expect(projectedPlaneHeight(360, 67, 100_000)).toBeLessThan(horizon);
+    expect(projectedPlaneHeight(360, 67, 100_000)).toBeGreaterThan(horizon * 0.95);
+  });
+
+  it("lies flatter as the pitch steepens", () => {
+    expect(projectedPlaneHeight(360, 78, 700)).toBeLessThan(projectedPlaneHeight(360, 67, 700));
   });
 });

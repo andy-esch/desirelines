@@ -1,10 +1,10 @@
 import { useMemo } from "react";
 import {
   chartAxisDateFormatter,
+  formatActivityDate as formatActivityDateWithStyle,
   formatDisplayDate as formatDisplayDateWithStyle,
+  formatMonthLabel as formatMonthLabelWithStyle,
 } from "../../utils/dateUtils";
-import { formatActivityDate as formatActivityDateWithStyle } from "../../utils/formatActivityDate";
-import { formatMonthLabel as formatMonthLabelWithStyle } from "../../utils/dateStyle";
 import { useThemeStructure } from "./useThemeStructure";
 
 /**
