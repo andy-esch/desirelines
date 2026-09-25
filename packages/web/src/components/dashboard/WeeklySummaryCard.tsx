@@ -12,7 +12,7 @@ import { useThemeStructure } from "../theme/useThemeStructure";
  *
  * Design:
  * - Sport color dots match sparkline spectrum colors
- * - Weekly goal % shows inline as a badge
+ * - Weekly goal % shows inline as the theme's status symbol (a % badge in Legacy light)
  * - Shows "No activity yet this week" if all zeros
  */
 export default function WeeklySummaryCard() {
@@ -155,8 +155,11 @@ function getAchievementStatus(pct: number): GoalStatus {
 }
 
 /**
- * NEON-themed achievement badge styles.
- * Uses the app's NEON color palette with characteristic glow effects.
+ * The badge colors, one per achievement band.
+ *
+ * Fixed neon primitives rather than theme roles, `--color-brand-cyan` included: only the
+ * "badge" status style reads these, and only Legacy light uses it (the retro themes draw
+ * symbols instead), so they keep that theme's look and leave with it.
  */
 function getAchievementStyle(pct: number): CSSProperties {
   // >= 100%: Neon green (goal achieved)

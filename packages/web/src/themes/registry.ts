@@ -188,7 +188,7 @@ const ARCADE_FONTS: readonly ThemeFont[] = [
   { family: "Michroma", weights: [400] },
 ];
 
-/** Legacy themes show the stock Mapbox styles. */
+/** Legacy light shows the stock Mapbox styles. */
 const STOCK_MAP: ThemeMap = { palette: null, labelFont: null };
 
 /** Legacy light keeps the pre-retro structure until Memphis replaces it. */

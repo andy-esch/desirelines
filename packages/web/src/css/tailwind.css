@@ -42,10 +42,11 @@
 
   /* === Accent: Cyan — primary interactive color ===
      `--color-brand-cyan` is the PRIMITIVE: the fixed full-brightness value, the same
-     in both themes. `--color-accent-cyan` is the SEMANTIC token derived from it, and
-     it flips to a WCAG-safe teal in light mode. Chrome that must stay bright in both
-     themes (logo, avatar, glows) references the primitive directly; anything that
-     should adapt to the theme references the accent. */
+     in every theme. `--color-accent-cyan` is the SEMANTIC token: each theme sets its
+     own cyan, and Legacy light mutes it to a WCAG-safe teal. Only chrome that must not
+     follow the theme references the primitive directly: the header, pinned dark in
+     every theme, and what sits in it (the avatar, the account menu). Anything inside a
+     themed surface, glows included, takes a role token instead. */
   --color-brand-cyan: #00d4ff;
   --color-accent-cyan: var(--color-brand-cyan);
   --color-accent-cyan-glow: rgba(0, 212, 255, 0.15);
@@ -1130,6 +1131,8 @@
 /* ==========================================================================
    Page Background Utilities — neon gradient backgrounds per page type. Every stop scales
    with the theme's --page-wash-strength slot, so a theme turns the washes off with 0.
+   Only Legacy light turns them on, which is why their stops name fixed primitives rather
+   than theme roles: they keep that theme's look and leave with it.
    ========================================================================== */
 
 @utility page-bg-dashboard {
