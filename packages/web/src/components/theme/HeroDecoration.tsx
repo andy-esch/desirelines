@@ -50,6 +50,9 @@ const SUNSET_BLINDS = [
  */
 const GRID_PERSPECTIVE = 360;
 const GRID_PITCH_DEGREES = 67;
+/** The plane's own depth. Shorter than the hero is tall, so the grid lies down rather than
+ * standing up: at a steep pitch a long plane pushes its far end well above the horizon. */
+const GRID_PLANE_DEPTH = 700;
 const GRID_PLANE_TRANSFORM = `perspective(${GRID_PERSPECTIVE}px) rotateX(${GRID_PITCH_DEGREES}deg)`;
 
 /** The floor's own surface, darkest at the horizon so the fade has something to sit on. */
@@ -79,13 +82,10 @@ const GRID_HORIZON =
 const GRID_GLOW =
   "radial-gradient(ellipse 55% 70% at 50% 100%, rgba(180, 0, 255, 0.22), transparent 70%)";
 
-/** The plane's own depth. Shorter than the hero is tall, so the grid lies down rather than
- * standing up: at a steep pitch a long plane pushes its far end well above the horizon. */
-const GRID_PLANE_DEPTH = 700;
-
 /**
  * How far up the screen a plane of `depth` reaches when it is pitched back by `pitch` under
- * `perspective`, hinged at its bottom edge.
+ * `perspective`, hinged at its bottom edge — which is why `GridPlane` sets `origin-bottom`:
+ * the transform origin is also where the perspective is seen from.
  *
  * Perspective divides by depth, so the far end of the plane converges rather than rising
  * linearly: a point `d` up the plane sits `d·cos(pitch)` up in space and `d·sin(pitch)`
