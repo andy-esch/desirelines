@@ -215,6 +215,78 @@ export function isSameDay(date1: Date, date2: Date): boolean {
 }
 
 /**
+ * Generate an array of date strings from start to end (inclusive).
+ *
+ * Useful for creating dense date arrays that include days with no data.
+ *
+ * @param from - Start date in YYYY-MM-DD format
+ * @param to - End date in YYYY-MM-DD format
+ * @returns Array of date strings in YYYY-MM-DD format
+ *
+ * @example
+ * ```ts
+ * generateDateRange("2026-01-01", "2026-01-05");
+ * // ["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04", "2026-01-05"]
+ * ```
+ */
+export function generateDateRange(from: string, to: string): string[] {
+  const dates: string[] = [];
+  const start = parseLocalDate(from);
+  const end = parseLocalDate(to);
+
+  if (!start || !end) {
+    return [];
+  }
+
+  const current = new Date(start);
+  while (current <= end) {
+    dates.push(toLocalDateString(current));
+    current.setDate(current.getDate() + 1);
+  }
+
+  return dates;
+}
+
+// ---------------------------------------------------------------------------
+// Theme spelling
+//
+// A theme spells dates one of two ways, and components reach these through
+// `useThemeDateFormat()` rather than calling them directly — the hook binds the active
+// style, and `dateFormatterUse.test.ts` keeps the direct route closed.
+// ---------------------------------------------------------------------------
+
+/**
+ * How a theme spells dates. The retro designs use two: `Sep 12, 2026`, and a dotted form
+ * that reads as a readout, `2026.09.12`.
+ *
+ * The formatters take this as an argument rather than reading the active theme themselves:
+ * several of them are passed to charts as bare `tickFormatter` functions, where no hook can
+ * run, and keeping them pure keeps them testable without a DOM. `useThemeDateFormat()` binds
+ * the active style at the component boundary.
+ */
+export type DateStyle = ThemeStructure["dateFormat"];
+
+/** Two digits, for dotted dates only: it keeps a column of them the same width. */
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+/**
+ * The dotted spelling of whatever parts the caller asked for, so a dotted theme honours the
+ * same `year` / `month` / `day` choices the short spelling makes — a caller asking for month
+ * and year gets `2026.09`, not a day it never requested.
+ */
+function dottedDate(date: Date, options: Intl.DateTimeFormatOptions): string {
+  const parts: string[] = [];
+  if (options.year) parts.push(String(date.getFullYear()));
+  if (options.month) parts.push(pad2(date.getMonth() + 1));
+  if (options.day) parts.push(pad2(date.getDate()));
+  // Nothing recognisable asked for (a weekday-only label, say): leave it to Intl.
+  if (parts.length === 0) return date.toLocaleDateString("en-US", options);
+  return parts.join(".");
+}
+
+/**
  * Format a date for display (e.g., "Jan 15").
  *
  * @param date - Date to format
@@ -277,78 +349,6 @@ export function chartAxisDateFormatter(style: DateStyle): (timestamp: number) =>
       timeZone: "UTC",
     }).format(date);
   };
-}
-
-/**
- * Generate an array of date strings from start to end (inclusive).
- *
- * Useful for creating dense date arrays that include days with no data.
- *
- * @param from - Start date in YYYY-MM-DD format
- * @param to - End date in YYYY-MM-DD format
- * @returns Array of date strings in YYYY-MM-DD format
- *
- * @example
- * ```ts
- * generateDateRange("2026-01-01", "2026-01-05");
- * // ["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04", "2026-01-05"]
- * ```
- */
-export function generateDateRange(from: string, to: string): string[] {
-  const dates: string[] = [];
-  const start = parseLocalDate(from);
-  const end = parseLocalDate(to);
-
-  if (!start || !end) {
-    return [];
-  }
-
-  const current = new Date(start);
-  while (current <= end) {
-    dates.push(toLocalDateString(current));
-    current.setDate(current.getDate() + 1);
-  }
-
-  return dates;
-}
-
-// ---------------------------------------------------------------------------
-// Theme spelling
-//
-// A theme spells dates one of two ways, and components reach these through
-// `useThemeDateFormat()` rather than calling them directly — the hook binds the active
-// style, and `dateFormatterUse.test.ts` keeps the direct route closed.
-// ---------------------------------------------------------------------------
-
-/**
- * How a theme spells dates. The retro designs use two: `Sep 12, 2026`, and a dotted form
- * that reads as a readout, `2026.09.12`.
- *
- * The formatters take this as an argument rather than reading the active theme themselves:
- * several of them are passed to charts as bare `tickFormatter` functions, where no hook can
- * run, and keeping them pure keeps them testable without a DOM. `useThemeDateFormat()` binds
- * the active style at the component boundary.
- */
-export type DateStyle = ThemeStructure["dateFormat"];
-
-/** Two digits, for dotted dates only: it keeps a column of them the same width. */
-export function pad2(n: number): string {
-  return String(n).padStart(2, "0");
-}
-
-/**
- * The dotted spelling of whatever parts the caller asked for, so a dotted theme honours the
- * same `year` / `month` / `day` choices the short spelling makes — a caller asking for month
- * and year gets `2026.09`, not a day it never requested.
- */
-export function dottedDate(date: Date, options: Intl.DateTimeFormatOptions): string {
-  const parts: string[] = [];
-  if (options.year) parts.push(String(date.getFullYear()));
-  if (options.month) parts.push(pad2(date.getMonth() + 1));
-  if (options.day) parts.push(pad2(date.getDate()));
-  // Nothing recognisable asked for (a weekday-only label, say): leave it to Intl.
-  if (parts.length === 0) return date.toLocaleDateString("en-US", options);
-  return parts.join(".");
 }
 
 /**
