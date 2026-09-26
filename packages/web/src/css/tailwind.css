@@ -257,9 +257,6 @@
     font-family: var(--font-display);
   }
 
-  code {
-    font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
-  }
 
   a {
     color: var(--color-accent-cyan);
