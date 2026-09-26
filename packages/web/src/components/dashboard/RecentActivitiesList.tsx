@@ -8,6 +8,7 @@ import NeonSpinner from "../NeonSpinner";
 import { MapPinIcon } from "../ui/MapPinIcon";
 import type { TimeRange } from "../../utils/dataNormalization";
 import { convertDistance, formatDistance, formatImpactPct } from "../../utils/units";
+import { MissingValue } from "../theme/MissingValue";
 
 import { getTimeRangeCutoff as getCutoff } from "../../utils/chartUtils";
 import { parseRgb, resolveThemeColor, type Rgb } from "../../utils/colorTokens";
@@ -376,15 +377,17 @@ export default function RecentActivitiesList({
                     }}
                     title={impactTooltip}
                   >
-                    {formatImpactPct(impactPct)}
+                    {formatImpactPct(impactPct) ?? <MissingValue />}
                   </td>
                   <td
                     className="text-muted-text text-right px-1 py-0 align-middle"
                     style={{ whiteSpace: "nowrap" }}
                   >
-                    {activity.distanceMeters
-                      ? formatDistance(activity.distanceMeters, distanceUnit)
-                      : ""}
+                    {activity.distanceMeters ? (
+                      formatDistance(activity.distanceMeters, distanceUnit)
+                    ) : (
+                      <MissingValue />
+                    )}
                   </td>
                   <td
                     className="text-muted-text text-right px-1 py-0 align-middle"

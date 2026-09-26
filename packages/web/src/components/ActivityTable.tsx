@@ -19,6 +19,7 @@ import { MapPinIcon } from "./ui/MapPinIcon";
 import { Button } from "./ui/button";
 import { Panel } from "./theme/Panel";
 import { Alert } from "./ui/alert";
+import { MissingValue } from "./theme/MissingValue";
 import { Table } from "./ui/table";
 import { SportLabel } from "./theme/SportLabel";
 
@@ -64,11 +65,6 @@ function formatDuration(seconds: number): string {
     return `${hours}:${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   }
   return `${minutes}:${secs.toString().padStart(2, "0")}`;
-}
-
-/** The dash a cell shows for a value the activity doesn't have, in the theme's color for it. */
-function MissingValue() {
-  return <span className="text-[color:var(--missing-value-color,currentColor)]">-</span>;
 }
 
 /** Calculate and format pace (running) or speed (cycling), or null where there is none */
@@ -222,7 +218,7 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                           ? (convertDistance(activity.distanceMeters, distanceUnit) / goalTarget) *
                             100
                           : null
-                    )}
+                    ) ?? <MissingValue />}
                   </td>
                 )}
                 <td className="text-right pe-6">

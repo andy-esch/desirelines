@@ -1,4 +1,5 @@
 import { useThemeDateFormat } from "../theme/useThemeDateFormat";
+import { MissingValue } from "../theme/MissingValue";
 
 export interface ChartTooltipProps {
   /** Whether the tooltip is active (hovered) */
@@ -56,7 +57,10 @@ export const ChartTooltip = ({
   // Find prior year entries (only those with a numeric value at this date),
   // sorted most recent year first (e.g. 2025, 2024, 2023…)
   const priorYearEntries = payload
-    .filter((p) => p.dataKey?.startsWith("prior_") && typeof p.value === "number")
+    .filter(
+      (p): p is typeof p & { value: number } =>
+        p.dataKey?.startsWith("prior_") === true && typeof p.value === "number"
+    )
     .sort((a, b) => {
       const yearA = Number(a.dataKey?.replace("prior_", "") ?? 0);
       const yearB = Number(b.dataKey?.replace("prior_", "") ?? 0);
@@ -118,7 +122,7 @@ export const ChartTooltip = ({
               fontSize: "14px",
             }}
           >
-            {hasActualData ? `${actualValue.toFixed(decimals)} ${unit}` : "—"}
+            {hasActualData ? `${actualValue.toFixed(decimals)} ${unit}` : <MissingValue />}
           </span>
           {hasActualData && (
             <span
@@ -144,7 +148,6 @@ export const ChartTooltip = ({
             }}
           >
             {priorYearEntries.map((entry, index) => {
-              const value = typeof entry.value === "number" ? entry.value.toFixed(decimals) : "—";
               const color = entry.stroke || entry.color || "var(--color-chart-neutral)";
               return (
                 <div
@@ -159,7 +162,7 @@ export const ChartTooltip = ({
                 >
                   <span style={{ color }}>{entry.name}</span>
                   <span style={{ color: "var(--color-chart-tooltip-muted)" }}>
-                    {value} {unit}
+                    {entry.value.toFixed(decimals)} {unit}
                   </span>
                 </div>
               );

@@ -328,6 +328,7 @@ active theme's `structure`, unless a `ThemeStructureProvider` overrides it for a
 | `Stat`, `StatRow` | `--stat-*`, `--font-display`, `--display-weight`, `statRowStyle` | A row frames its stats as separate cards, one divided panel, or outline boxes. |
 | `Meter` | `--meter-*`, `--color-meter-*`, `--track-*`, `--color-pace-tick`, `meterPartialCurrent`, `goalTrackStyle` | Segmented (months, weeks) or continuous with an optional pace tick. `indeterminate` animates the segments for loading, and stops under reduced motion. |
 | `StatusSymbol` | `--status-*`, `--color-status-*`, `statusSymbolStyle` | A goal status as an SVG symbol plus text, or the old colored badge where a theme keeps badges. The words always show. |
+| `MissingValue` | `--missing-value-color` | A value that isn't there, anywhere it would show: an em dash, and "none" to a screen reader. A theme that leaves the slot `initial` keeps the surrounding text's color. |
 
 The component slots and tokens: `--panel-accent-{1,2,3}-ink` (header-bar label color per
 accent), `--stat-label-size`, `--stat-label-tracking`, `--stat-label-case`, `--stat-sub-size`,
@@ -365,6 +366,9 @@ be announced.
 cells take `--th-size`, `--th-weight`, `--th-color`, `--th-tracking`, `--th-case` and `--th-rule`, body
 rows `--row-rule`, and the table `--table-text-size`).
 A sport in a row is a `SportLabel`; a status or count pill is `Badge` with `size="compact"`.
+A value that isn't there (no distance for a yoga session, no pace yet) is `MissingValue`: an em
+dash in `--missing-value-color` that screen readers hear as "none". A value still loading keeps
+its loading placeholder instead.
 
 **shadcn/Base UI primitives** (`src/components/ui/`) take colors from the `@theme inline`
 alias block in `tailwind.css` (`bg-card`, `border-input`, `bg-primary`) and
