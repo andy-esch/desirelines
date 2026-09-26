@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Map, Source, Layer, NavigationControl, Popup } from "react-map-gl/mapbox";
 import type { MapRef, ErrorEvent, MapMouseEvent } from "react-map-gl/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
+import "./RouteMap.css";
 import type {
   CircleLayerSpecification,
   ExpressionSpecification,
