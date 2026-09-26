@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { TAILWIND_CSS, THEME_FILES, stripComments } from "../test/themeCss";
-import { THEME_SLOTS, type ThemeSlot } from "./contract";
+import { THEME_SLOTS, slotSpec } from "./contract";
 
 /**
  * Every token the stylesheets define has a reader.
@@ -124,7 +124,7 @@ describe("theme tokens", () => {
     );
     expect(additive).toContain("--stepper-gap");
     const notLengths = [...additive].flatMap((name) => {
-      const kind = THEME_SLOTS.get(name as ThemeSlot)?.kind;
+      const kind = slotSpec(name)?.kind;
       return kind === undefined || kind === "length" || kind === "lengths" || kind === "percentage"
         ? []
         : [`${name} is a ${kind}`];

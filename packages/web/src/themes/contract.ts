@@ -383,6 +383,11 @@ export const THEME_SLOTS: ReadonlyMap<ThemeSlot, ThemeSlotSpec> = new Map(
   )
 );
 
+/** The contract's spec for a token name, or undefined when it isn't a theme slot. */
+export function slotSpec(name: string): ThemeSlotSpec | undefined {
+  return THEME_SLOTS.get(name as ThemeSlot);
+}
+
 /**
  * Text that must stay legible on what it sits on, in every theme.
  *

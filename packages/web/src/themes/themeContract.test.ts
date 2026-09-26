@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { FIXED_COLORS, THEME_CONTRACT, THEME_SLOTS } from "./contract";
+import { FIXED_COLORS, THEME_CONTRACT, THEME_SLOTS, slotSpec } from "./contract";
 import {
   TAILWIND_CSS,
   THEME_FILES,
@@ -27,7 +27,7 @@ describe("the theme contract", () => {
         .filter((slot) => !tokens.has(slot))
         .map((slot) => `${id} is missing ${slot}`),
       ...[...tokens.keys()]
-        .filter((name) => !THEME_SLOTS.has(name as never))
+        .filter((name) => !slotSpec(name))
         .map((name) => `${id} sets ${name}, which the contract doesn't list`),
     ]);
     expect(gaps).toEqual([]);
@@ -58,9 +58,7 @@ describe("the theme contract", () => {
         /(--color-[\w-]+)\s*:/g
       ),
     ].map(([, name = ""]) => name);
-    expect(registered.filter((name) => !THEME_SLOTS.has(name as never)).sort()).toEqual(
-      [...FIXED_COLORS].sort()
-    );
+    expect(registered.filter((name) => !slotSpec(name)).sort()).toEqual([...FIXED_COLORS].sort());
   });
 });
 
@@ -146,7 +144,7 @@ describe("the style guide", () => {
       const members = [...THEME_SLOTS].filter(([, spec]) => spec.group === group).map(([s]) => s);
       const names = [...row.matchAll(/`(--[\w-]+)`/g)].map(([, name = ""]) => name);
       return [
-        ...names.filter((name) => !members.includes(name as never)).map((n) => `${group}: ${n}`),
+        ...names.filter((name) => slotSpec(name)?.group !== group).map((n) => `${group}: ${n}`),
         ...suffixesIn(row)
           .filter(
             (suffix) => !members.some((slot) => slot.endsWith(suffix) && documents(row, slot))
