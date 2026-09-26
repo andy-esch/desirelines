@@ -303,6 +303,15 @@ than in React, so a migrated visitor never sees the old theme paint first.
 `ThemeProvider` applies the attribute eagerly on change (not only in an effect), because
 consumers that read resolved token values would otherwise render one theme behind.
 
+**Across devices.** Signed in, the choice is also `preferences.theme` in the user's config,
+and `ThemeSync` (`src/contexts/ThemeSync.tsx`) keeps the two in step. On sign-in a synced
+theme is applied, and with none the device's choice is written; a change from another device
+is applied and never written back; a change made here is written by
+`UserConfigService.updateTheme`, the field's one writer, since a preferences save leaves the
+stored theme alone. Empty, `dark` and `light` read as no choice (`readSyncedTheme`): they are
+defaults older saves wrote, not picks. Signed out, nothing syncs. localStorage stays the
+device's copy either way, because the first-paint script reads it.
+
 **Fonts.** `src/themes/fontPreloads.ts` preloads the woff2 files of the applied theme's
 `fonts` before the app renders, so a headline doesn't paint in the fallback face first. The
 URLs come from Vite `?url` imports, so they point at the same hashed files the stylesheet

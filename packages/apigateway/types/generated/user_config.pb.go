@@ -542,7 +542,7 @@ type Preferences struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Theme         string         `protobuf:"bytes,1,opt,name=theme,proto3" json:"theme,omitempty"` // "light" or "dark"
+	Theme         string         `protobuf:"bytes,1,opt,name=theme,proto3" json:"theme,omitempty"` // Theme id (e.g. "miami") or "system"; empty when never chosen
 	DefaultYear   int32          `protobuf:"varint,2,opt,name=default_year,json=defaultYear,proto3" json:"default_year,omitempty"`
 	ChartDefaults *ChartDefaults `protobuf:"bytes,3,opt,name=chart_defaults,json=chartDefaults,proto3" json:"chart_defaults,omitempty"`
 	// Unit preferences (backward-compatible additions - no schema version bump needed)
@@ -552,7 +552,7 @@ type Preferences struct {
 	// Timezone for display (IANA format, e.g., "America/New_York")
 	// Default: browser timezone
 	Timezone string `protobuf:"bytes,7,opt,name=timezone,proto3" json:"timezone,omitempty"`
-	// Sports to show in the UI (default: ["cycling", "running", "yoga"])
+	// Sports to show in the UI (default: the web app's DEFAULT_PREFERENCES.visibleSports)
 	// Empty array treated as default. Invalid keys filtered on read.
 	VisibleSports []string `protobuf:"bytes,8,rep,name=visible_sports,json=visibleSports,proto3" json:"visible_sports,omitempty"`
 }

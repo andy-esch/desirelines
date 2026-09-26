@@ -27,7 +27,10 @@ export interface SubscribeDocumentOptions<T> {
  * Options for setDocument
  */
 export interface SetDocumentOptions<T> {
-  /** When true, shallow-merge `data` into the existing document instead of overwriting. */
+  /**
+   * When true, merge `data` into the existing document instead of overwriting it: maps
+   * merge key by key at every depth, and anything else (arrays included) is replaced.
+   */
   merge?: boolean;
   /**
    * Zod schema for runtime validation. When provided, `data` is validated
@@ -56,9 +59,9 @@ export interface DatabaseService {
    * Set a document (creates or overwrites)
    * @param path Document path
    * @param data Document data
-   * @param options Optional settings — `merge` shallow-merges into the
-   *   existing doc; `schema` validates `data` before the write (throws on
-   *   failure, write does not happen).
+   * @param options Optional settings — `merge` merges into the existing doc
+   *   (maps key by key, at every depth); `schema` validates `data` before the
+   *   write (throws on failure, write does not happen).
    */
   setDocument<T>(path: string, data: T, options?: SetDocumentOptions<T>): Promise<void>;
 

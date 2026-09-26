@@ -23,9 +23,13 @@ export const COMMON_TIMEZONES = [
 /**
  * Default user preferences.
  * Used when no preferences exist yet in Firestore.
+ *
+ * `theme` is empty, the synced value for "no choice": these stand in for preferences not
+ * stored yet, where any theme would pass for one the user picked. Preference saves leave
+ * the theme out; `ThemeSync` owns it.
  */
 export const DEFAULT_PREFERENCES: Preferences = {
-  theme: "dark",
+  theme: "",
   defaultYear: new Date().getFullYear(),
   distanceUnit: "miles",
   elevationUnit: "feet",

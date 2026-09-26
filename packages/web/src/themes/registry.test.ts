@@ -8,6 +8,7 @@ import {
   VISIBLE_THEMES,
   isThemeId,
   parseThemePreference,
+  readSyncedTheme,
   resolveTheme,
 } from "./registry";
 
@@ -74,6 +75,26 @@ describe("parseThemePreference", () => {
       expect(parseThemePreference(raw)).toBe(DEFAULT_THEME_PREFERENCE);
     }
   );
+});
+
+describe("readSyncedTheme", () => {
+  it("reads every theme id and 'system' as a choice", () => {
+    for (const theme of THEMES) expect(readSyncedTheme(theme.id)).toBe(theme.id);
+    expect(readSyncedTheme("system")).toBe("system");
+  });
+
+  it.each([null, undefined, "", "dark", "light"])("reads %j as no choice", (raw) => {
+    // "dark" and "light" are what preference saves wrote as a default, not picks.
+    expect(readSyncedTheme(raw)).toBeNull();
+  });
+
+  it.each(["neon", "constructor", "__proto__"])("falls back to the default for %j", (raw) => {
+    expect(readSyncedTheme(raw)).toBe(DEFAULT_THEME_PREFERENCE);
+  });
+
+  it("still maps a retired theme id onto its replacement", () => {
+    expect(readSyncedTheme("legacy-dark")).toBe("arcade");
+  });
 });
 
 describe("resolveTheme", () => {

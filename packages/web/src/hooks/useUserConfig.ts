@@ -11,6 +11,7 @@ import {
 import { useAuth } from "./useAuth";
 import { useServices } from "../contexts/ServiceContext";
 import { logApiError } from "../api/errors";
+import { DEFAULT_PREFERENCES } from "../constants/settings";
 
 // Discriminator for the supported configuration sections
 type ConfigType = "goals" | "annotations" | "preferences";
@@ -66,10 +67,7 @@ function readFromLocalStorage(
   } else if (configType === "annotations") {
     return (defaultValue as AnnotationsForYear) || { annotations: [] };
   } else if (configType === "preferences") {
-    return (
-      (defaultValue as Preferences) ||
-      ({ theme: "light", defaultYear: new Date().getFullYear() } as Preferences)
-    );
+    return (defaultValue as Preferences) || DEFAULT_PREFERENCES;
   }
   return null;
 }
