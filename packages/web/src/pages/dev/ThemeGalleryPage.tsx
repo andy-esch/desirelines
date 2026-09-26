@@ -9,6 +9,8 @@ import { RETRO_BASE_MAPS } from "../../themes/baseMaps";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { Input } from "../../components/ui/input";
+import { Slider } from "../../components/ui/slider";
+import { ToggleGroup, ToggleGroupItem } from "../../components/ui/toggle-group";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import KPICard from "../../components/dashboard/KPICard";
 import SportFilterPills from "../../components/SportFilterPills";
@@ -420,6 +422,20 @@ function ThemePanel({ theme }: { theme: ThemeDefinition }) {
           <SportBadge color={SPORT_COLORS.cycling ?? DEFAULT_SPORT_COLOR}>Cycling</SportBadge>
         </div>
         <Input placeholder="Input" aria-label={`Sample input, ${theme.label} theme`} />
+        <ToggleGroup defaultValue={["full-year"]} aria-label={`Sample range, ${theme.label} theme`}>
+          <ToggleGroupItem value="30d">30D</ToggleGroupItem>
+          <ToggleGroupItem value="ytd">YTD</ToggleGroupItem>
+          <ToggleGroupItem value="full-year">Full year</ToggleGroupItem>
+        </ToggleGroup>
+        {/* The slider reads the theme's structure for its track (segmented in Arcade). */}
+        <ThemeStructureProvider structure={theme.structure}>
+          <Slider
+            defaultValue={[20, 60]}
+            min={0}
+            max={100}
+            aria-label={`Sample slider, ${theme.label} theme`}
+          />
+        </ThemeStructureProvider>
         <div>
           <span id={sportsLabelId} className="text-sm text-muted-text">
             Sport chips

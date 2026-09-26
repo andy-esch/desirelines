@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Select — shadcn-style wrapper over Base UI's Select, themed via the `@theme`
- * alias shim (bg-popover / border-border / ring-ring / …). Anatomy:
+ * alias shim (bg-popover / border-border / …) and the control slots. Anatomy:
  *   <Select value onValueChange>
  *     <SelectTrigger><SelectValue/></SelectTrigger>
  *     <SelectContent><SelectItem value>…</SelectItem></SelectContent>
