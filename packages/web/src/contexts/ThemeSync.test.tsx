@@ -195,8 +195,8 @@ describe("ThemeSync", () => {
     });
 
     it("lands both the theme and a new user's migrated demo preferences", async () => {
-      // The sign-in migration writes the demo preferences, theme and all, as the theme is
-      // written; whichever lands last, both survive.
+      // The sign-in migration saves the demo preferences, a stale "dark" among them, as the
+      // theme is written. The save leaves the theme out, so whichever lands last, both survive.
       localStorage.setItem(
         "userConfig_anonymous_preferences",
         JSON.stringify({ ...DEFAULT_PREFERENCES, theme: "dark", distanceUnit: "kilometers" })

@@ -144,7 +144,7 @@ export interface Preferences {
    */
   timezone: string;
   /**
-   * Sports to show in the UI (default: ["cycling", "running", "yoga"])
+   * Sports to show in the UI (default: the web app's DEFAULT_PREFERENCES.visibleSports)
    * Empty array treated as default. Invalid keys filtered on read.
    */
   visibleSports: string[];

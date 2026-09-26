@@ -482,7 +482,8 @@ export class UserConfigService {
     year: number
   ): Promise<void>;
   /**
-   * Update preferences
+   * Update preferences, all but the theme: `data.theme` is ignored and the stored one kept.
+   * Write the theme with `updateTheme`.
    */
   async updateConfigSection(configType: "preferences", data: Preferences): Promise<void>;
   /**
@@ -531,6 +532,7 @@ export class UserConfigService {
         // snapshot, so a theme written here could put a default or stale one back over the
         // choice another device (or the theme write in flight on sign-in) just made.
         const { theme: _theme, ...rest } = data as Preferences;
+        // Short of `theme` on purpose, which the proto type can't express.
         config.preferences = rest as Preferences;
       }
 

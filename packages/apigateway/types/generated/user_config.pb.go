@@ -552,7 +552,7 @@ type Preferences struct {
 	// Timezone for display (IANA format, e.g., "America/New_York")
 	// Default: browser timezone
 	Timezone string `protobuf:"bytes,7,opt,name=timezone,proto3" json:"timezone,omitempty"`
-	// Sports to show in the UI (default: ["cycling", "running", "yoga"])
+	// Sports to show in the UI (default: the web app's DEFAULT_PREFERENCES.visibleSports)
 	// Empty array treated as default. Invalid keys filtered on read.
 	VisibleSports []string `protobuf:"bytes,8,rep,name=visible_sports,json=visibleSports,proto3" json:"visible_sports,omitempty"`
 }
