@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { TAILWIND_CSS, THEME_FILES, stripComments } from "../test/themeCss";
+import { THEME_SLOTS, type ThemeSlot } from "./contract";
 
 /**
  * Every token the stylesheets define has a reader.
@@ -52,6 +53,22 @@ const components = Object.entries(sources)
   .map(([path, text]) => withoutComments(path, text))
   .join("\n");
 
+/**
+ * Every custom property something declares: a stylesheet, an inline style or an arbitrary
+ * Tailwind property in a component, or the runtime list below.
+ */
+const declared = new Set([
+  ...Object.entries(sources)
+    .filter(([path]) => path.endsWith(".css"))
+    .flatMap(([, css]) =>
+      [...stripComments(css).matchAll(/(--[\w-]+)\s*:/g)].map(([, n = ""]) => n)
+    ),
+  ...[...components.matchAll(/["'`[](--[\w-]+)["'`]?\s*:/g)].map(([, name = ""]) => name),
+]);
+
+/** Custom properties a library sets on the element at runtime: Base UI's popup sizing. */
+const RUNTIME = new Set(["--anchor-width", "--available-height", "--available-width"]);
+
 const COLOR_UTILITY =
   "(?:bg|text|border(?:-[trblxy])?|ring|ring-offset|outline|divide|fill|stroke|from|via|to|shadow|placeholder|decoration|accent|caret)";
 
@@ -95,9 +112,10 @@ describe("theme tokens", () => {
     expect(stale).toEqual([]);
   });
 
-  it("hold a length with a unit wherever a reader adds or subtracts one", () => {
-    // `calc(0 - 1px)` is invalid, so a bare 0 in a slot read that way silently drops the
-    // declaration: the stepper lost its 1px border overlap to exactly that.
+  it("are lengths wherever a reader adds or subtracts them", () => {
+    // `calc(0 - 1px)` is invalid, so a slot read that way must hold a length with a unit,
+    // which the contract's length kinds require. The stepper once lost its 1px border
+    // overlap to a bare 0.
     const additive = new Set(
       [
         ...readable.matchAll(/var\((--[\w-]+)\)(?:\s+|_)[-+](?:\s+|_)/g),
@@ -105,14 +123,38 @@ describe("theme tokens", () => {
       ].map(([, name = ""]) => name)
     );
     expect(additive).toContain("--stepper-gap");
-    const unitless = [...THEME_FILES].flatMap(([id, file]) =>
-      [...stripComments(file).matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)]
-        .filter(
-          ([, name = "", value = ""]) => additive.has(name) && /^-?[\d.]+$/.test(value.trim())
-        )
-        .map(([, name, value]) => `${id} ${name}: ${value}`)
+    const notLengths = [...additive].flatMap((name) => {
+      const kind = THEME_SLOTS.get(name as ThemeSlot)?.kind;
+      return kind === undefined || kind === "length" || kind === "lengths" || kind === "percentage"
+        ? []
+        : [`${name} is a ${kind}`];
+    });
+    expect(notLengths).toEqual([]);
+  });
+
+  it("are defined wherever something reads them", () => {
+    const reads = new Set(
+      [
+        ...readable.matchAll(/var\(\s*(--[\w-]+)/g),
+        ...readable.matchAll(/\((?:[\w-]+:)?(--[\w-]+)\)/g),
+        ...components.matchAll(/["'`](--[\w-]+)["'`](?!\s*[:\]])/g),
+      ]
+        .map(([, name = ""]) => name)
+        // A name built in a template literal (`--color-goal-${n}`) ends at its dash.
+        .filter((name) => !name.startsWith("--tw-") && !name.endsWith("-"))
     );
-    expect(unitless).toEqual([]);
+    const undefinedReads = [...reads].filter((name) => !declared.has(name) && !RUNTIME.has(name));
+    expect(undefinedReads).toEqual([]);
+  });
+
+  it("read a slot a theme may leave unset only with a fallback", () => {
+    // A slot set to `initial` is unset, so a read without a fallback makes the property
+    // invalid and it falls back to inherited or initial values instead of the default the
+    // slot stands for.
+    const bare = [...THEME_SLOTS]
+      .filter(([, spec]) => spec.initial)
+      .flatMap(([slot]) => (new RegExp(`\\((?:[\\w-]+:)?${slot}\\)`).test(readable) ? [slot] : []));
+    expect(bare).toEqual([]);
   });
 
   it("would catch a token nothing reads", () => {

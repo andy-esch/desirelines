@@ -66,3 +66,30 @@ export function themeToken(themeId: string, token: string): string {
   const block = themeBlocksIn(THEME_FILES.get(themeId) ?? "").find((b) => b.id === themeId);
   return block?.tokens.get(token) ?? "";
 }
+
+/** Every custom property `tailwind.css` declares, with the last value it gives. */
+export function tailwindDeclarations(): ReadonlyMap<string, string> {
+  return new Map(
+    [...stripComments(TAILWIND_CSS).matchAll(/(--[\w-]+)\s*:\s*([^;{}]+);/g)].map(
+      ([, name = "", value = ""]) => [name, value.trim().replace(/\s+/g, " ")]
+    )
+  );
+}
+
+/**
+ * A theme value with each `var(--x)` replaced by what the theme sets for `--x`, or failing
+ * that what `tailwind.css` sets: the value the browser computes at the theme's root. A
+ * reference to a token neither sets is left as written.
+ */
+export function resolveVars(themeId: string, value: string): string {
+  const tokens = themeBlocksIn(THEME_FILES.get(themeId) ?? "")[0]?.tokens ?? new Map();
+  const declared = tailwindDeclarations();
+  let resolved = value.replace(/\s+/g, " ");
+  for (let depth = 0; depth < 8 && /var\(--[\w-]+\)/.test(resolved); depth++) {
+    resolved = resolved.replace(
+      /var\((--[\w-]+)\)/g,
+      (ref, name: string) => tokens.get(name)?.replace(/\s+/g, " ") ?? declared.get(name) ?? ref
+    );
+  }
+  return resolved;
+}

@@ -125,7 +125,7 @@
   --nav-tracking: 0.14em;
   --nav-case: uppercase;
   --nav-active-bg: transparent;
-  --nav-active-radius: 0;
+  --nav-active-radius: 0px;
   --nav-active-underline: 2px solid #ff2ec4;
   --nav-active-shadow: none;
   --nav-color: #c9b8e0;
@@ -149,8 +149,8 @@
   --hero-title-shadow: 0 0 26px rgba(255, 46, 196, 0.75), 2px 2px 0 #00e5ff;
   --hero-number-size: 2.375rem;
   --hero-number-glow: 18px;
-  --glass-blur: 0;
-  --glass-blur-sm: 0;
+  --glass-blur: 0px;
+  --glass-blur-sm: 0px;
   --progress-shine: none;
 
   /* Panels */
