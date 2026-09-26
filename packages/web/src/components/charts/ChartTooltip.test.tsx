@@ -45,6 +45,19 @@ describe("ChartTooltip", () => {
     expect(screen.getByText("2800.0")).toBeInTheDocument();
   });
 
+  it("shows a missing value for the actual line on a date it hasn't reached", () => {
+    render(
+      <ChartTooltip
+        active={true}
+        payload={[{ name: "Goal Line", value: 2800, dataKey: "goal_1" }]}
+        label="2025-10-22"
+        compact
+      />
+    );
+
+    expect(screen.getByText("—").parentElement?.className).toContain("--missing-value-color");
+  });
+
   it("formats values with specified decimals", () => {
     render(
       <ChartTooltip

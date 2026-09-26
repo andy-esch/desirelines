@@ -11,6 +11,7 @@ import { SparklineSkeleton } from "../Skeleton";
 import { useMultiSportChartData } from "../../hooks/useMultiSportChartData";
 import type { TuningParams } from "../../utils/demoDataGenerator";
 import type { TimeRange } from "../../utils/dataNormalization";
+import { MissingValue } from "../theme/MissingValue";
 import { Panel } from "../theme/Panel";
 import { useThemeStructure } from "../theme/useThemeStructure";
 import { useThemeDateFormat } from "../theme/useThemeDateFormat";
@@ -100,15 +101,15 @@ interface UnifiedSparklineTooltipProps {
  * Format a raw metric value for display in tooltip.
  * Distance sports show converted value with unit (e.g., "5.2 mi").
  * Time sports show minutes (e.g., "45 min").
- * Session-based sports show just the count.
+ * Session-based sports show just the count. A day without the sport has no value: null.
  */
 function formatMetricValue(
   rawValue: number,
   isDistance: boolean,
   isTime: boolean,
   distanceUnit: DistanceUnit
-): string {
-  if (rawValue === 0) return "-";
+): string | null {
+  if (rawValue === 0) return null;
 
   if (isDistance) {
     const converted = convertDistance(rawValue, distanceUnit);
@@ -204,7 +205,12 @@ function UnifiedSparklineTooltip({
                 fontWeight: hasActivity ? 500 : 400,
               }}
             >
-              {formatMetricValue(rawValue, meta.isDistanceSport, meta.isTimeSport, distanceUnit)}
+              {formatMetricValue(
+                rawValue,
+                meta.isDistanceSport,
+                meta.isTimeSport,
+                distanceUnit
+              ) ?? <MissingValue />}
             </span>
           </div>
         );

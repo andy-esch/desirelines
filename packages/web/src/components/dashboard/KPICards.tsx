@@ -1,5 +1,6 @@
 import React from "react";
 import KPICard from "./KPICard";
+import { MissingValue } from "../theme/MissingValue";
 import { StatRow } from "../theme/Stat";
 import type { MetricUnit } from "../../utils/units";
 import type { YearContext } from "../../utils/yearContext";
@@ -66,9 +67,11 @@ function KPICards({
   const hasData = !isLoading && currentValue > 0;
 
   // Helper functions for cleaner rendering — all branch on `hasData` first
-  // to separate loading/empty state from data display logic.
+  // to separate loading/empty state from data display logic. Loading keeps its
+  // placeholder; no data is a missing value.
+  const noValue = isLoading ? "--" : <MissingValue />;
   const getCurrentValueDisplay = () => {
-    if (!hasData) return "--";
+    if (!hasData) return noValue;
     return (
       <>
         {currentValue.toFixed(0)} <span className="text-lg">{unit}</span>
@@ -100,7 +103,7 @@ function KPICards({
   };
 
   const getNextGoalValue = () => {
-    if (!hasData) return "--";
+    if (!hasData) return noValue;
     return `${nextGoalProgress.toFixed(0)}%`;
   };
 
@@ -120,11 +123,11 @@ function KPICards({
   };
 
   const getPaceToGoalValue = () => {
-    if (!hasData) return "--";
+    if (!hasData) return noValue;
     if (yearContext.shouldShowPacing && paceNeededForNextGoal > 0) {
       return paceNeededForNextGoal.toFixed(1);
     }
-    return "—";
+    return <MissingValue />;
   };
 
   const getPaceToGoalSubtitle = () => {

@@ -35,6 +35,29 @@ function activity(id: number): ActivitySummary {
   };
 }
 
+describe("RecentActivitiesList missing values", () => {
+  it("marks an activity's missing distance and goal share", () => {
+    mockUseActivities.mockReturnValue({
+      activities: [{ ...activity(1), distanceMeters: 0 }],
+      isLoading: false,
+      error: null,
+      hasMore: false,
+      isLoadingMore: false,
+      loadMore: vi.fn(),
+      retry: vi.fn(),
+    });
+
+    render(<RecentActivitiesList timeRange="4weeks" pageSize={5} />);
+
+    // No distance, and no goal to take a share of, so both cells are missing values.
+    const dashes = screen.getAllByText("—");
+    expect(dashes).toHaveLength(2);
+    for (const dash of dashes) {
+      expect(dash.parentElement?.className).toContain("--missing-value-color");
+    }
+  });
+});
+
 describe("RecentActivitiesList pagination", () => {
   beforeEach(() => vi.clearAllMocks());
 

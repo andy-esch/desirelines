@@ -202,7 +202,7 @@ values.
 | Panels | `--radius`, `--panel-bg`, `-border-width`, `-radius`, `-shadow`, `-shadow-emphasis`, `-header-padding`, `-body-padding`, `-accent-1/2/3`, `-accent-1/2/3-ink` | Cards and panels, including the base radius the shadcn scale derives from, the three frame accents and the ink of a title in each |
 | Controls | `--control-height`, `-radius`, `-font-size`, `-case`, `-focus-ring`; `--toggle-gap`, `-frame-border-width`, `-frame-border-color`, `-frame-padding`, `-frame-radius`, `-item-border-width`, `-item-radius`, `-item-color`, `-font-size`, `-tracking`, `-case`; `--color-toggle-pressed`, `-pressed-border`, `-pressed-text`, `--toggle-pressed-glow`, `-pressed-text-glow`; `--button-radius`, `-case`, `-tracking`; `--stepper-gap` | Inputs, selects, toggle groups, buttons and steppers (height and font size are the default size; `sm` and `lg` buttons and caller overrides keep fixed sizes). A pressed toggle's fill, border and text default to the accent through `initial`; the glow is a single inset shadow, `0 0 #0000` for none |
 | Sliders and chips | `--slider-track-height`, `-track-radius`, `-track-bg`, `-fill-glow`, `-handle-size`, `-handle-radius`, `-handle-border-width`; `--color-slider-fill`; `--chip-radius`, `-border-strength`, `-hover-strength`, `-dot-radius` | Range sliders and sport chips (strengths are how much sport color mixes in) |
-| Tables | `--th-size`, `--th-weight`, `--th-color`, `--th-tracking`, `--th-case`, `--th-rule`, `--row-rule`, `--row-padding`, `--row-hover-bg`, `--missing-value-color`, `--sport-mark-radius` | Table headers, row rules and hover, empty cells, sport marks |
+| Tables | `--th-size`, `--th-weight`, `--th-color`, `--th-tracking`, `--th-case`, `--th-rule`, `--row-rule`, `--row-padding`, `--row-hover-bg`, `--missing-value-color`, `--sport-mark-radius` | Table headers, row rules and hover, sport marks, and the color of a missing value wherever `MissingValue` shows one |
 | Goals and meters | `--track-height`, `-bg`, `-border`, `-fill-height`, `-fill-glow`, `-radius`; `--pace-tick-width`, `-height`; `--meter-segment-width`, `-segment-height`, `--meter-gap`, `--meter-radius`, `-done-glow`, `-current-glow`; `--color-meter-done`, `-current`, `-todo`; `--color-pace-tick`; `--cell-empty-border`, `--cell-radius` | Goal tracks (the fill glows in its own color by `--track-fill-glow`) and their pace tick, segmented meters (the segments done, the current one and those to come), heatmap cells |
 | Status | `--status-size`, `-tracking`, `-case`; `--color-status-good`, `-warn`, `-bad` | Goal status labels, and their colors for on track, slightly behind and behind |
 | Charts | `--chart-baseline`, `--chart-tick-size`, `--chart-actual-glow`, `--chart-average-dash`, `--chart-bar-radius`, `--chart-bar-gap`, `--chart-hover-column`, `--tooltip-radius` | Chart chrome beyond the color tokens: the x axis line, tick labels, the actual line's glow (a `filter`, `none` for crisp), the average line's dash, the top corners of a bar stack, the gap between stacked sports, the hovered column, and every chart tooltip's corner. Recharts can't take `var()` for the dash or the bar radius, so those two are read off the chart's element with `useThemeTokenValue` |
@@ -328,6 +328,7 @@ active theme's `structure`, unless a `ThemeStructureProvider` overrides it for a
 | `Stat`, `StatRow` | `--stat-*`, `--font-display`, `--display-weight`, `statRowStyle` | A row frames its stats as separate cards, one divided panel, or outline boxes. |
 | `Meter` | `--meter-*`, `--color-meter-*`, `--track-*`, `--color-pace-tick`, `meterPartialCurrent`, `goalTrackStyle` | Segmented (months, weeks) or continuous with an optional pace tick. `indeterminate` animates the segments for loading, and stops under reduced motion. |
 | `StatusSymbol` | `--status-*`, `--color-status-*`, `statusSymbolStyle` | A goal status as an SVG symbol plus text, or the old colored badge where a theme keeps badges. The words always show. |
+| `MissingValue` | `--missing-value-color` | A value that isn't there, anywhere it would show: an em dash, and "none" to a screen reader. A theme that leaves the slot `initial` keeps the surrounding text's color. |
 
 The component slots and tokens: `--panel-accent-{1,2,3}-ink` (header-bar label color per
 accent), `--stat-label-size`, `--stat-label-tracking`, `--stat-label-case`, `--stat-sub-size`,
@@ -365,6 +366,9 @@ be announced.
 cells take `--th-size`, `--th-weight`, `--th-color`, `--th-tracking`, `--th-case` and `--th-rule`, body
 rows `--row-rule`, and the table `--table-text-size`).
 A sport in a row is a `SportLabel`; a status or count pill is `Badge` with `size="compact"`.
+A value that isn't there (no distance for a yoga session, no pace yet) is `MissingValue`: an em
+dash in `--missing-value-color` that screen readers hear as "none". A value still loading keeps
+its loading placeholder instead.
 
 **shadcn/Base UI primitives** (`src/components/ui/`) take colors from the `@theme inline`
 alias block in `tailwind.css` (`bg-card`, `border-input`, `bg-primary`) and

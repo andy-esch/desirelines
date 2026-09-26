@@ -1,5 +1,7 @@
+import type { ReactNode } from "react";
 import type { MetricUnit } from "../../utils/units";
 import { tint } from "../../utils/colorTokens";
+import { MissingValue } from "../theme/MissingValue";
 
 interface ProgressSummaryProps {
   /** Current cumulative value (distance or session count) */
@@ -19,9 +21,9 @@ export default function ProgressSummary({
   unit,
   isLoading = false,
 }: ProgressSummaryProps) {
-  const formatValue = (value: number): string => {
+  const formatValue = (value: number): ReactNode => {
     if (isLoading) return "--";
-    if (value === 0) return "--"; // No data yet for this metric
+    if (value === 0) return <MissingValue />; // No data yet for this metric
     return `${value.toLocaleString(undefined, { maximumFractionDigits: 0 })} ${unit}`;
   };
 

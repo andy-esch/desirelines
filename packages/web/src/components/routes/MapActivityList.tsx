@@ -163,7 +163,7 @@ export default function MapActivityList({
                   onClick={() => onSelect(a)}
                   className={cn(
                     "flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-cyan/50"
+                    "focus-visible:outline-none focus-visible:control-focus-ring"
                   )}
                 >
                   <span

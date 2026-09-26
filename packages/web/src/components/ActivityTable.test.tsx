@@ -202,7 +202,7 @@ describe("ActivityTable", () => {
       render(<ActivityTable {...defaultProps} />);
 
       // Yoga activity has no elevation
-      const cells = screen.getAllByText("-");
+      const cells = screen.getAllByText("—");
       expect(cells.length).toBeGreaterThan(0);
     });
 
@@ -225,16 +225,18 @@ describe("ActivityTable", () => {
 
       // Yoga has no distance, elevation or pace.
       const yoga = screen.getByText("Yoga Session").closest("tr")!;
-      const dashes = within(yoga).getAllByText("-");
+      const dashes = within(yoga).getAllByText("—");
       expect(dashes).toHaveLength(3);
-      for (const dash of dashes) expect(dash.className).toContain("--missing-value-color");
+      for (const dash of dashes) {
+        expect(dash.parentElement?.className).toContain("--missing-value-color");
+      }
     });
 
     it("shows dash for pace on yoga activities", () => {
       render(<ActivityTable {...defaultProps} />);
 
       // Yoga has no distance, so no pace
-      const cells = screen.getAllByText("-");
+      const cells = screen.getAllByText("—");
       expect(cells.length).toBeGreaterThan(0);
     });
   });

@@ -117,7 +117,7 @@ export default function MapInsightsDrawer({
           "absolute z-30 inline-flex items-center justify-center rounded-md [border:var(--map-chrome-edge)]",
           "bg-(--map-chrome-bg) text-body-text shadow-lg backdrop-blur-(--glass-blur)",
           "transition-all duration-200 ease-out hover:border-accent-cyan/50 hover:text-accent-cyan",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-cyan/50",
+          "focus-visible:outline-none focus-visible:control-focus-ring",
           "motion-reduce:transition-none",
           // Mobile: bottom-dock pill, left edge just right of center. Fixed width
           // (matching the Filters pill) so the two anchor symmetrically around center.

@@ -75,8 +75,9 @@ export function formatDistance(meters: number, unit: DistanceUnit, decimals = 1)
   return `${value.toFixed(decimals)} ${label}`;
 }
 
-export function formatImpactPct(pct: number | null): string {
-  if (pct == null) return "—";
+/** A share of the goal as a percent, or null where there is none (render `MissingValue`). */
+export function formatImpactPct(pct: number | null): string | null {
+  if (pct == null) return null;
   if (pct < 0.1) return "<0.1%";
   return `${pct.toFixed(1)}%`;
 }

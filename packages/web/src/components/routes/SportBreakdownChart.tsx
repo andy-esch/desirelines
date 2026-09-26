@@ -103,7 +103,7 @@ export default function SportBreakdownChart({
                   style={{ "--bar": color } as CSSProperties}
                   className={cn(
                     "group block w-full rounded-md px-1.5 py-1 text-left transition-opacity",
-                    "hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-cyan/50",
+                    "hover:bg-accent focus-visible:outline-none focus-visible:control-focus-ring",
                     dimmed && "opacity-40 hover:opacity-100"
                   )}
                 >

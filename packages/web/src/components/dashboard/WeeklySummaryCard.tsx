@@ -5,6 +5,7 @@ import { tint } from "../../utils/colorTokens";
 import Skeleton from "../Skeleton";
 import { StatusSymbol, type GoalStatus } from "../theme/StatusSymbol";
 import { Panel } from "../theme/Panel";
+import { MissingValue } from "../theme/MissingValue";
 import { useThemeStructure } from "../theme/useThemeStructure";
 
 /**
@@ -93,13 +94,11 @@ export default function WeeklySummaryCard() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium">
-                  {sport.weeklyTotal > 0
-                    ? formatMetricDisplayValue(
-                        sport.weeklyTotal,
-                        sport.metricType,
-                        sport.metricUnit
-                      )
-                    : "—"}
+                  {sport.weeklyTotal > 0 ? (
+                    formatMetricDisplayValue(sport.weeklyTotal, sport.metricType, sport.metricUnit)
+                  ) : (
+                    <MissingValue />
+                  )}
                 </span>
                 {/* Badges only mark progress; symbols also say when a sport has none. */}
                 {sport.weeklyTotal === 0 && statusSymbolStyle !== "badge" && (

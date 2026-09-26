@@ -443,6 +443,13 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = [
   // Tables, goals and charts, which sit in panels.
   { text: ["--th-color", "--color-body-text"], on: ["--panel-bg"], min: 4.5 },
   { text: ["--missing-value-color", "--color-body-text"], on: ["--panel-bg"], min: 4.5 },
+  // A missing value also shows on the page (the sidebar summary) and in chart tooltips.
+  { text: ["--missing-value-color", "--color-body-text"], on: ["--color-bg-body"], min: 4.5 },
+  {
+    text: ["--missing-value-color", "--color-chart-tooltip-muted"],
+    on: ["--color-chart-tooltip-bg"],
+    min: 4.5,
+  },
   { text: ["--color-status-good"], on: ["--panel-bg"], min: 4.5 },
   { text: ["--color-status-warn"], on: ["--panel-bg"], min: 4.5 },
   { text: ["--color-status-bad"], on: ["--panel-bg"], min: 4.5 },
@@ -486,6 +493,7 @@ export const MARK_PAIRS: readonly MarkPair[] = [
   { mark: FOCUS_RING, on: ["--color-surface-raised"] },
   { mark: FOCUS_RING, on: ["--panel-bg"] },
   { mark: FOCUS_RING, on: ["--color-header-bg"] },
+  { mark: FOCUS_RING, on: ["--map-chrome-bg"] },
   // An input's or select's border, which is what outlines it: its fill is close to the
   // page's.
   { mark: ["--color-control-border"], on: ["--color-bg-body"] },

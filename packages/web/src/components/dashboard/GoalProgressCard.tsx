@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { useDashboardGoalData, type SportGoalData } from "../../hooks/useDashboardGoalData";
 import { PACE_THRESHOLDS } from "../../utils/goalCalculations";
@@ -7,6 +8,7 @@ import RaceTrack, { RaceTrackLegend } from "../RaceTrack";
 import Skeleton from "../Skeleton";
 import { Panel } from "../theme/Panel";
 import { Meter } from "../theme/Meter";
+import { MissingValue } from "../theme/MissingValue";
 import { useThemeStructure } from "../theme/useThemeStructure";
 
 /**
@@ -109,7 +111,7 @@ function SportProgressRow({ sport, yearContext, raceTrack }: SportProgressRowPro
   );
 
   // Natural phrasing: "43.3 mi ahead" / "On track" / "10.8 mi behind"
-  let statusDisplay = status;
+  let statusDisplay: ReactNode = status ?? <MissingValue />;
   if (delta !== null && status !== "On Track") {
     const formatted = formatMetricDisplayValue(Math.abs(delta), sport.metricType, sport.metricUnit);
     const direction = delta >= 0 ? "ahead" : "behind";
@@ -199,7 +201,8 @@ function GoalTrackLegend({ showPace }: { showPace: boolean }) {
 }
 
 interface DashboardStatus {
-  label: string;
+  /** Null on the year's first day with nothing logged, when there's no pace to judge yet. */
+  label: string | null;
   /** Delta between current value and prorated goal (positive = ahead, negative = behind). null when no delta applies. */
   delta: number | null;
 }
@@ -219,7 +222,7 @@ function getStatusForDashboard(
 
   // Calculate pace ratio: actual vs expected at this point
   const proratedGoal = targetGoal * getYearElapsedShare(yearContext);
-  if (proratedGoal === 0) return { label: currentValue > 0 ? "Ahead" : "—", delta: null };
+  if (proratedGoal === 0) return { label: currentValue > 0 ? "Ahead" : null, delta: null };
   const paceRatio = currentValue / proratedGoal;
   const delta = currentValue - proratedGoal;
 

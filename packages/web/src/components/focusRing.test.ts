@@ -8,13 +8,7 @@ import { describe, it, expect } from "vitest";
  */
 
 /** Files that still draw their own focus ring, each with the reason. */
-const OWN_RING_FOR_NOW: Readonly<Record<string, string>> = {
-  "routes/MapActivityList.tsx": "routes-map list rows, not yet moved to the shared ring",
-  "routes/MapFilterDrawer.tsx": "routes-map drawer, not yet moved to the shared ring",
-  "routes/MapInsightsDrawer.tsx": "routes-map drawer tab, not yet moved to the shared ring",
-  "routes/RegionBreakdownChart.tsx": "routes-map rows, not yet moved to the shared ring",
-  "routes/SportBreakdownChart.tsx": "routes-map rows, not yet moved to the shared ring",
-};
+const OWN_RING_FOR_NOW: Readonly<Record<string, string>> = {};
 
 const sources = import.meta.glob<string>(["./**/*.tsx", "!./**/*.test.tsx"], {
   query: "?raw",
