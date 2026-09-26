@@ -542,7 +542,7 @@ type Preferences struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Theme         string         `protobuf:"bytes,1,opt,name=theme,proto3" json:"theme,omitempty"` // "light" or "dark"
+	Theme         string         `protobuf:"bytes,1,opt,name=theme,proto3" json:"theme,omitempty"` // Theme id (e.g. "miami") or "system"; empty when never chosen
 	DefaultYear   int32          `protobuf:"varint,2,opt,name=default_year,json=defaultYear,proto3" json:"default_year,omitempty"`
 	ChartDefaults *ChartDefaults `protobuf:"bytes,3,opt,name=chart_defaults,json=chartDefaults,proto3" json:"chart_defaults,omitempty"`
 	// Unit preferences (backward-compatible additions - no schema version bump needed)

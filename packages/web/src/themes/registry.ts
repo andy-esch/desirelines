@@ -342,6 +342,24 @@ export function parseThemePreference(raw: string | null | undefined): ThemePrefe
   return DEFAULT_THEME_PREFERENCE;
 }
 
+/**
+ * Values in a signed-in user's synced `preferences.theme` that record no choice. Empty is
+ * the proto default. `dark` and `light` were the defaults every preferences save wrote
+ * before the theme synced, long after the picker stopped offering them, so they say nothing
+ * about what the user picked.
+ */
+const UNSET_SYNCED_THEMES: readonly string[] = ["", "dark", "light"];
+
+/**
+ * Read the synced theme (see `ThemeSync`): null when it records no choice, so the device's
+ * own choice fills it. Anything else reads as a stored preference does, unknown ids falling
+ * back to the default.
+ */
+export function readSyncedTheme(raw: string | null | undefined): ThemePreference | null {
+  if (raw == null || UNSET_SYNCED_THEMES.includes(raw)) return null;
+  return parseThemePreference(raw);
+}
+
 /** The theme a preference applies, given the OS color scheme. */
 export function resolveTheme(
   preference: ThemePreference,

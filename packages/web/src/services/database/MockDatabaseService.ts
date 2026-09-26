@@ -7,13 +7,25 @@
 
 import type { DatabaseService, SetDocumentOptions } from "./DatabaseService";
 
+const isMap = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** Firestore's `merge: true`: maps merge key by key; anything else, arrays included, replaces. */
+function mergeInto(existing: unknown, incoming: unknown): unknown {
+  if (!isMap(existing) || !isMap(incoming)) return incoming;
+  const merged = { ...existing };
+  for (const [key, value] of Object.entries(incoming)) {
+    merged[key] = mergeInto(existing[key], value);
+  }
+  return merged;
+}
+
 export class MockDatabaseService implements DatabaseService {
   private data = new Map<string, unknown>();
   private listeners = new Map<string, Set<(data: unknown) => void>>();
 
   getDocument<T>(path: string): Promise<T | null> {
-    const data = this.data.get(path);
-    return Promise.resolve((data as T) ?? null);
+    return Promise.resolve(this.read<T>(path));
   }
 
   setDocument<T>(path: string, data: T, options?: SetDocumentOptions<T>): Promise<void> {
@@ -28,12 +40,8 @@ export class MockDatabaseService implements DatabaseService {
       }
     }
 
-    if (options?.merge) {
-      const existing = this.data.get(path) ?? {};
-      this.data.set(path, { ...existing, ...(data as object) });
-    } else {
-      this.data.set(path, data);
-    }
+    const stored = structuredClone(data);
+    this.data.set(path, options?.merge ? mergeInto(this.data.get(path) ?? {}, stored) : stored);
     this.notifyListeners(path);
     return Promise.resolve();
   }
@@ -57,7 +65,7 @@ export class MockDatabaseService implements DatabaseService {
     this.listeners.get(path)!.add(typedCallback);
 
     // Immediately call with current data (matches Firestore behavior)
-    callback((this.data.get(path) as T) ?? null);
+    callback(this.read<T>(path));
 
     return () => {
       const pathListeners = this.listeners.get(path);
@@ -70,12 +78,20 @@ export class MockDatabaseService implements DatabaseService {
     };
   }
 
+  /**
+   * A copy of the stored document, as Firestore hands out a fresh object per read: a caller
+   * that edits what it read (as a read-modify-write does) mustn't change what's stored.
+   */
+  private read<T>(path: string): T | null {
+    const data = this.data.get(path);
+    return data === undefined ? null : structuredClone(data as T);
+  }
+
   private notifyListeners(path: string): void {
     const pathListeners = this.listeners.get(path);
     if (!pathListeners) return;
 
-    const data = this.data.get(path) ?? null;
-    pathListeners.forEach((callback) => callback(data));
+    pathListeners.forEach((callback) => callback(this.read(path)));
   }
 
   // ============================================
@@ -86,7 +102,7 @@ export class MockDatabaseService implements DatabaseService {
    * Set mock data for a path (triggers subscription callbacks)
    */
   setMockData<T>(path: string, data: T): void {
-    this.data.set(path, data);
+    this.data.set(path, structuredClone(data));
     this.notifyListeners(path);
   }
 }

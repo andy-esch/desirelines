@@ -524,14 +524,16 @@ describe("UserConfigService", () => {
       );
     });
 
-    it("should update preferences", async () => {
+    it("should update preferences, leaving the theme to updateTheme", async () => {
       const mockDocSnap = {
         exists: () => false,
       };
       vi.mocked(firestore.getDoc).mockResolvedValue(mockDocSnap as any);
 
       const newPreferences: Preferences = {
-        theme: "light",
+        // A save carries whatever theme its snapshot or defaults held; the merge must keep
+        // the stored one instead.
+        theme: "legacy-light",
         defaultYear: 2025,
         distanceUnit: "",
         elevationUnit: "",
@@ -546,7 +548,6 @@ describe("UserConfigService", () => {
         mockDocRef,
         expect.objectContaining({
           preferences: {
-            theme: "light",
             defaultYear: 2025,
             distanceUnit: "",
             elevationUnit: "",
@@ -691,6 +692,34 @@ describe("UserConfigService", () => {
       await service.updateConfigSection("goals", validGoals, 2025, "cycling");
 
       expect(firestore.setDoc).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("updateTheme", () => {
+    it("merges the theme alone, with the fields the rules require", async () => {
+      await service.updateTheme("arcade");
+
+      expect(firestore.getDoc).not.toHaveBeenCalled();
+      expect(firestore.setDoc).toHaveBeenCalledWith(
+        mockDocRef,
+        {
+          schemaVersion: expect.any(String),
+          userId: "test-user",
+          lastUpdated: expect.any(String),
+          preferences: { theme: "arcade" },
+        },
+        { merge: true }
+      );
+    });
+
+    it("rejects a theme that isn't a string, before writing", async () => {
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      await expect(service.updateTheme(1 as unknown as string)).rejects.toThrow(
+        /Data validation failed/
+      );
+      expect(firestore.setDoc).not.toHaveBeenCalled();
+      consoleErrorSpy.mockRestore();
     });
   });
 

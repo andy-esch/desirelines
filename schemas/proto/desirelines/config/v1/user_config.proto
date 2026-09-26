@@ -88,7 +88,7 @@ enum AnnotationType {
 
 // User preferences (global, not year-specific)
 message Preferences {
-  string theme = 1; // "light" or "dark"
+  string theme = 1; // Theme id (e.g. "miami") or "system"; empty when never chosen
   int32 default_year = 2;
   ChartDefaults chart_defaults = 3;
 

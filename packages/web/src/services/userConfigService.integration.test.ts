@@ -186,9 +186,10 @@ describe("UserConfigService Integration Tests", () => {
 
       const service = new UserConfigService();
 
-      // Write preferences
+      // Write preferences. The theme has its own writer, and a preferences save leaves
+      // it as stored rather than writing the one it carries.
       const testPrefs: Preferences = {
-        theme: "dark",
+        theme: "arcade",
         defaultYear: 2025,
         distanceUnit: "miles",
         elevationUnit: "feet",
@@ -196,12 +197,45 @@ describe("UserConfigService Integration Tests", () => {
         timezone: "",
         visibleSports: [],
       };
-      await service.updateConfigSection("preferences", testPrefs);
+      await service.updateTheme("arcade");
+      await service.updateConfigSection("preferences", { ...testPrefs, theme: "" });
 
       // Read back
       const retrieved = await service.getConfigSection("preferences");
 
       expect(retrieved).toEqual(testPrefs);
+    });
+
+    it("should write the theme alone, creating the document and keeping other preferences", async () => {
+      const userCred = await signInAnonymously(testAuth);
+      currentUserId = userCred.user.uid;
+
+      const service = new UserConfigService();
+
+      // A new user: the rules require schemaVersion, userId and lastUpdated on create.
+      await service.updateTheme("miami");
+      expect((await service.getConfigSection("preferences"))?.theme).toBe("miami");
+
+      await service.updateConfigSection("preferences", {
+        theme: "",
+        defaultYear: 2025,
+        distanceUnit: "kilometers",
+        elevationUnit: "meters",
+        defaultSport: "running",
+        timezone: "Europe/Paris",
+        visibleSports: ["running"],
+      });
+      await service.updateTheme("arcade");
+
+      expect(await service.getConfigSection("preferences")).toEqual({
+        theme: "arcade",
+        defaultYear: 2025,
+        distanceUnit: "kilometers",
+        elevationUnit: "meters",
+        defaultSport: "running",
+        timezone: "Europe/Paris",
+        visibleSports: ["running"],
+      });
     });
 
     it("should update existing configuration", async () => {

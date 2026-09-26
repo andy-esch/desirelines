@@ -146,6 +146,17 @@ export const UserConfigSchema = z
   .passthrough();
 
 /**
+ * What `updateTheme` writes: the fields the Firestore rules require on every write, and
+ * the theme. A merge leaves the rest of the document as stored, so the write is checked
+ * on its own rather than as a whole config.
+ */
+const ThemeWriteSchema = UserConfigSchema.pick({
+  schemaVersion: true,
+  userId: true,
+  lastUpdated: true,
+}).extend({ preferences: PreferencesSchema.pick({ theme: true }) });
+
+/**
  * Compile-time drift guard: tsc will error here if the Zod schema's output
  * type diverges from the proto-generated UserConfig (e.g., proto adds a
  * required field that the schema doesn't produce).
@@ -515,8 +526,12 @@ export class UserConfigService {
         }
         config.annotations[year.toString()] = data as AnnotationsForYear;
       } else if (configType === "preferences") {
-        // Global data (preferences)
-        config.preferences = data as Preferences;
+        // Global data (preferences), less the theme: `updateTheme` is its one writer, and the
+        // merge keeps the stored value. Callers build a save from defaults and their own
+        // snapshot, so a theme written here could put a default or stale one back over the
+        // choice another device (or the theme write in flight on sign-in) just made.
+        const { theme: _theme, ...rest } = data as Preferences;
+        config.preferences = rest as Preferences;
       }
 
       // Update timestamp
@@ -537,6 +552,33 @@ export class UserConfigService {
     } catch (error) {
       logger.error("Error updating user config:", error);
       throw createUserFriendlyError(error, "save your changes");
+    }
+  }
+
+  /**
+   * Write the theme preference and nothing else.
+   *
+   * Unlike `updateConfigSection`, this doesn't read and rewrite the document: the merge
+   * sets `preferences.theme` and leaves every other preference as stored, so a theme
+   * change can't race a concurrent preferences save (or the sign-in migration) into
+   * dropping its fields. The rules require `schemaVersion`, `userId` and `lastUpdated` on
+   * every write, which also lets this create the document for a new user.
+   */
+  async updateTheme(theme: string): Promise<void> {
+    try {
+      await this.databaseService.setDocument(
+        this.getDocPath(),
+        {
+          schemaVersion: CURRENT_SCHEMA_VERSION,
+          userId: this.userId,
+          lastUpdated: new Date().toISOString(),
+          preferences: { theme },
+        },
+        { merge: true, schema: ThemeWriteSchema }
+      );
+    } catch (error) {
+      logger.error("Error updating user config:", error);
+      throw createUserFriendlyError(error, "save your theme");
     }
   }
 

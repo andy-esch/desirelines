@@ -126,7 +126,7 @@ export interface Annotation {
 
 /** User preferences (global, not year-specific) */
 export interface Preferences {
-  /** "light" or "dark" */
+  /** Theme id (e.g. "miami") or "system"; empty when never chosen */
   theme: string;
   defaultYear: number;
   chartDefaults?:
