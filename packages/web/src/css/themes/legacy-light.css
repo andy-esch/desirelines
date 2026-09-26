@@ -31,7 +31,6 @@
   --color-map-chrome-accent: var(--color-accent-cyan);
 
   --color-accent-magenta: #c026d3;
-  --color-accent-magenta-glow: rgba(192, 38, 211, 0.15);
 
   --color-body-text: #1e293b;
 
@@ -172,13 +171,11 @@
   --panel-radius: 0.625rem;
   --panel-shadow: none;
   --panel-shadow-emphasis: none;
-  --panel-padding: 0.5rem;
   --panel-header-padding: 0.75rem 1rem;
   --panel-body-padding: 1rem;
   --panel-accent-1: var(--color-panel-border);
   --panel-accent-2: var(--color-panel-border);
   --panel-accent-3: var(--color-panel-border);
-  --divider-style: solid;
 
   /* Controls */
   --control-height: 2.25rem;

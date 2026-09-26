@@ -97,7 +97,6 @@
 
   /* === Accent: Magenta — secondary accent === */
   --color-accent-magenta: #ff00ff;
-  --color-accent-magenta-glow: rgba(255, 0, 255, 0.15);
 
   /* === Neon — full-brightness PRIMITIVES for charts, skeletons, animations ===
      These never flip by theme: full-brightness neon is the brand, and it reads on
@@ -181,7 +180,6 @@
   /* The brightest header ink; used at partial alpha for dimmed text and hover fills
      (e.g. text-header-ink/50, bg-header-ink/10). */
   --color-header-ink: #ffffff;
-  --color-header-text-hover: var(--color-header-ink);
   --color-header-accent: #00d4ff;
 
   /* === Surface colors — overlays, borders, hover states === */

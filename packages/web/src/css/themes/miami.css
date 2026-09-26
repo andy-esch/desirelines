@@ -29,7 +29,6 @@
   --color-map-chrome-accent: #00e5ff;
 
   --color-accent-magenta: #ff2ec4;
-  --color-accent-magenta-glow: rgba(255, 46, 196, 0.15);
 
   --color-body-text: #f2eaff;
 
@@ -150,13 +149,11 @@
   --panel-radius: 6px;
   --panel-shadow: none;
   --panel-shadow-emphasis: none;
-  --panel-padding: 0.875rem;
   --panel-header-padding: 0.625rem 0.875rem;
   --panel-body-padding: 0.875rem;
   --panel-accent-1: rgba(255, 46, 196, 0.22);
   --panel-accent-2: rgba(255, 46, 196, 0.22);
   --panel-accent-3: rgba(255, 46, 196, 0.22);
-  --divider-style: solid;
 
   /* Controls */
   --control-height: 1.875rem;
