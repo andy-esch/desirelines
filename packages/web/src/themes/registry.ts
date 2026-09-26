@@ -188,11 +188,11 @@ const ARCADE_FONTS: readonly ThemeFont[] = [
   { family: "Michroma", weights: [400] },
 ];
 
-/** Legacy themes show the stock Mapbox styles. */
+/** Legacy light shows the stock Mapbox styles. */
 const STOCK_MAP: ThemeMap = { palette: null, labelFont: null };
 
-/** Legacy themes keep today's structure until they are deleted. */
-const LEGACY_STRUCTURE: ThemeStructure = {
+/** Legacy light keeps the pre-retro structure until Memphis replaces it. */
+const LEGACY_LIGHT_STRUCTURE: ThemeStructure = {
   showPageKicker: false,
   heroDecoration: "none",
   sectionLabelPlacement: "card-header",
@@ -215,8 +215,8 @@ const LEGACY_STRUCTURE: ThemeStructure = {
   dateFormat: "short",
 };
 
-/** Legacy body text is the system sans stack, so only the display face is a web font. */
-const LEGACY_FONTS: readonly ThemeFont[] = [
+/** Legacy light body text is the system sans stack, so only the display face is a web font. */
+const LEGACY_LIGHT_FONTS: readonly ThemeFont[] = [
   { family: "Space Grotesk Variable", weights: [300, 400, 500, 600, 700] },
 ];
 
@@ -230,8 +230,8 @@ export const THEMES = [
     hidden: false,
     background: "#f0f4f8",
     swatches: ["#f0f4f8", "#0891b2", "#c026d3"],
-    fonts: LEGACY_FONTS,
-    structure: LEGACY_STRUCTURE,
+    fonts: LEGACY_LIGHT_FONTS,
+    structure: LEGACY_LIGHT_STRUCTURE,
   },
   {
     id: "miami",
@@ -287,7 +287,12 @@ export const SYSTEM_THEME_IDS: Readonly<Record<ThemeScheme, ThemeId>> = {
  */
 export const MIAMI_MIGRATION = {
   storageKey: "theme-migrated-miami",
-  /** Stored preferences that become Miami, after the aliases below are applied. */
+  /**
+   * Stored preferences that become Miami, after the aliases below are applied. Down to the
+   * one value that means "never chose": a retired theme id goes through the aliases instead.
+   * Once the flag has been set in every browser that will return, this migration can go, and
+   * the aliases keep older values working on their own.
+   */
   from: ["system"],
   to: "miami",
 } as const;

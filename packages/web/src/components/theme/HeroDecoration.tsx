@@ -48,7 +48,12 @@ const SUNSET_BLINDS = [
  * the far end inward: without the overhang the grid would narrow away from the page edges
  * near the horizon.
  */
-const GRID_PLANE_TRANSFORM = "perspective(360px) rotateX(67deg)";
+const GRID_PERSPECTIVE = 360;
+const GRID_PITCH_DEGREES = 67;
+/** The plane's own depth. Shorter than the hero is tall, so the grid lies down rather than
+ * standing up: at a steep pitch a long plane pushes its far end well above the horizon. */
+const GRID_PLANE_DEPTH = 700;
+const GRID_PLANE_TRANSFORM = `perspective(${GRID_PERSPECTIVE}px) rotateX(${GRID_PITCH_DEGREES}deg)`;
 
 /** The floor's own surface, darkest at the horizon so the fade has something to sit on. */
 const GRID_FILL =
@@ -78,17 +83,31 @@ const GRID_GLOW =
   "radial-gradient(ellipse 55% 70% at 50% 100%, rgba(180, 0, 255, 0.22), transparent 70%)";
 
 /**
- * How far up the hero the floor reaches: the plane's projected height, measured in the
- * browser at the pitch and depth below. Three things hang off it — the distance fade, the
- * horizon line, and the test that keeps the floor inside the hero's bottom padding, which
- * content never enters. Place the horizon by eye instead and it floats above where the grid
- * actually ends, which is how the first version looked wrong.
+ * How far up the screen a plane of `depth` reaches when it is pitched back by `pitch` under
+ * `perspective`, hinged at its bottom edge — which is why `GridPlane` sets `origin-bottom`:
+ * the transform origin is also where the perspective is seen from.
+ *
+ * Perspective divides by depth, so the far end of the plane converges rather than rising
+ * linearly: a point `d` up the plane sits `d·cos(pitch)` up in space and `d·sin(pitch)`
+ * away, and the projection scales that by `perspective / (perspective + away)`. The whole
+ * plane therefore stops short of `perspective / tan(pitch)`, its horizon.
  */
-export const GRID_FLOOR_HEIGHT = 98;
+export function projectedPlaneHeight(perspective: number, pitchDegrees: number, depth: number) {
+  const pitch = (pitchDegrees * Math.PI) / 180;
+  return (depth * Math.cos(pitch) * perspective) / (perspective + depth * Math.sin(pitch));
+}
 
-/** The plane's own depth. Shorter than the hero is tall, so the grid lies down rather than
- * standing up: at a steep pitch a long plane pushes its far end well above the horizon. */
-const GRID_PLANE_DEPTH = 700;
+/**
+ * How far up the hero the floor reaches. The distance fade, the horizon line and the test
+ * that keeps the floor inside the hero's bottom padding all hang off this.
+ *
+ * Derived from the plane's own geometry rather than measured once and typed in: the first
+ * version carried a number read off a browser, and changing the pitch would have floated the
+ * horizon above where the grid ends with nothing to catch it.
+ */
+export const GRID_FLOOR_HEIGHT = Math.round(
+  projectedPlaneHeight(GRID_PERSPECTIVE, GRID_PITCH_DEGREES, GRID_PLANE_DEPTH)
+);
 
 /** One layer of the floor, sharing the plane's geometry. */
 function GridPlane({
