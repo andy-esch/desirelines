@@ -11,14 +11,38 @@
  */
 import { useMemo } from "react";
 import { useThemeDateFormat } from "../theme/useThemeDateFormat";
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useThemeTokenValue } from "../theme/useThemeTokenValue";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Rectangle,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+  type BarShapeProps,
+} from "recharts";
 import type { SportConfig } from "../../api/activities";
-import type { ChartData } from "../../utils/activityBuckets";
+import type { ChartData, ChartRow } from "../../utils/activityBuckets";
 import { CHART_CONFIG } from "../../constants/chartConfig";
 import { SPORT_COLORS, DEFAULT_SPORT_COLOR, getSportDisplayName } from "../../utils/sportConfig";
 
 function sportColor(sport: string): string {
   return SPORT_COLORS[sport] ?? DEFAULT_SPORT_COLOR;
+}
+
+/**
+ * The series on top of a month's stack: the last one, in stacking order, with any volume.
+ * Only that segment takes the theme's bar radius, so a stack is rounded once at its top
+ * rather than at every sport.
+ */
+export function topOfStack(row: ChartRow, series: ChartData["series"]): string | undefined {
+  for (let i = series.length - 1; i >= 0; i--) {
+    const value = row[series[i]!.key];
+    if (typeof value === "number" && value > 0) return series[i]!.key;
+  }
+  return undefined;
 }
 
 /** "2026-05" → "May" (or "May '26" when the range spans multiple years). */
@@ -47,16 +71,22 @@ export default function ActivityVolumeChart({
   const { rows, series } = data;
 
   const showYear = useMemo(() => new Set(rows.map((r) => r.month.slice(0, 4))).size > 1, [rows]);
+  const topSeries = useMemo(
+    () => new Map(rows.map((r) => [r.month, topOfStack(r, series)])),
+    [rows, series]
+  );
+  const [chartRef, barRadiusValue] = useThemeTokenValue<HTMLDivElement>("--chart-bar-radius", "0");
+  const barRadius = parseFloat(barRadiusValue) || 0;
 
   return (
-    <div>
+    <div ref={chartRef}>
       <ResponsiveContainer width="100%" height={CHART_CONFIG.height}>
         <BarChart data={rows} margin={CHART_CONFIG.margin}>
           <CartesianGrid stroke={CHART_CONFIG.grid.stroke} vertical={CHART_CONFIG.grid.vertical} />
           <XAxis
             dataKey="month"
             tickFormatter={(m: string) => formatMonth(m, showYear)}
-            stroke={CHART_CONFIG.axis.stroke}
+            stroke={CHART_CONFIG.baseline.stroke}
             tick={CHART_CONFIG.tick}
           />
           <YAxis
@@ -104,13 +134,23 @@ export default function ActivityVolumeChart({
               dataKey={s.key}
               stackId="volume"
               fill={sportColor(s.sport)}
-              // Thin ring around each stacked fill, doing two jobs at once. Dark: it
-              // resolves to the page ground and just separates segments. Light: it goes
+              // Ring around each stacked fill, doing two jobs at once. Dark: it resolves
+              // to the panel ground, so its width is the gap between sports. Light: it goes
               // to ink, giving the neon fill a boundary that clears 3:1 against
               // #f0f4f8 — which --color-bg-body could not do, being light there.
               stroke="var(--color-chart-mark-outline)"
-              strokeWidth={1}
+              strokeWidth="var(--chart-bar-gap)"
               isAnimationActive={false}
+              shape={(bar: BarShapeProps) => (
+                <Rectangle
+                  {...bar}
+                  radius={
+                    topSeries.get((bar.payload as ChartRow).month) === s.key
+                      ? [barRadius, barRadius, 0, 0]
+                      : 0
+                  }
+                />
+              )}
             />
           ))}
         </BarChart>

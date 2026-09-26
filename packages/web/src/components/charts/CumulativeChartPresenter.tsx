@@ -44,6 +44,7 @@ import { calculateCumulativeYAxisMax } from "../../utils/chartScaling";
 import ChartTooltip from "./ChartTooltip";
 import YAxisMarker from "./YAxisMarker";
 import { useThemeDateFormat } from "../theme/useThemeDateFormat";
+import { useThemeTokenValue } from "../theme/useThemeTokenValue";
 
 // ============================================================================
 // Types
@@ -272,8 +273,12 @@ export function CumulativeChartPresenter({
   dangerZone,
 }: CumulativeChartPresenterProps) {
   const { formatAxisDate } = useThemeDateFormat();
+  const [chartRef, averageDash] = useThemeTokenValue<HTMLDivElement>(
+    CHART_CONFIG.averageDash.token,
+    CHART_CONFIG.averageDash.fallback
+  );
   return (
-    <div style={{ position: "relative", userSelect: "none" }}>
+    <div ref={chartRef} style={{ position: "relative", userSelect: "none" }}>
       <ResponsiveContainer width="100%" height={CHART_CONFIG.height}>
         <LineChart
           data={mergedData}
@@ -293,7 +298,7 @@ export function CumulativeChartPresenter({
             domain={[startDate.getTime(), displayEndDate.getTime()]}
             allowDataOverflow
             tickFormatter={formatAxisDate}
-            stroke={CHART_CONFIG.axis.stroke}
+            stroke={CHART_CONFIG.baseline.stroke}
             tick={CHART_CONFIG.tick}
             interval="preserveStartEnd"
           />
@@ -374,6 +379,7 @@ export function CumulativeChartPresenter({
             dataKey="actual"
             stroke={CHART_COLORS.ACTUAL_DATA_LINE}
             strokeWidth={CHART_CONFIG.strokeWidth.actual}
+            style={CHART_CONFIG.actualLineStyle}
             dot={false}
             name={`${year} Data: ${totalDistanceTraveled.toFixed(1)} ${unitLabel}`}
             isAnimationActive={isAnimationActive}
@@ -403,7 +409,7 @@ export function CumulativeChartPresenter({
             dataKey="average"
             stroke={CHART_COLORS.AVERAGE_LINE}
             strokeWidth={CHART_CONFIG.strokeWidth.goal}
-            strokeDasharray="5 5"
+            strokeDasharray={averageDash}
             dot={false}
             name={`Current Average (Est: ${estimatedYearEnd.toFixed(0)} ${unitLabel})`}
             isAnimationActive={isAnimationActive}
