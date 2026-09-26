@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { contrastRatio as contrast, themeToken } from "../../test/themeCss";
+import { themeToken } from "../../test/themeCss";
+import { contrastRatio as contrast } from "../../test/contrast";
 import { SUNSET_STOPS, GRID_FLOOR_HEIGHT, projectedPlaneHeight } from "./HeroDecoration";
 
 const slot = (name: string) => themeToken("miami", name);

@@ -7,8 +7,8 @@ import {
   stripComments,
   themeBlocksIn,
   themeRegistrations,
-  contrastRatio,
 } from "../test/themeCss";
+import { contrastRatio } from "../test/contrast";
 
 /**
  * Guards the CSS half of each theme against the theme list (see the header comment in
@@ -93,10 +93,14 @@ describe("theme CSS files", () => {
   });
 
   it("keeps a pressed toggle's text readable on what it sits on", () => {
-    // Arcade shipped with its pressed item drawn black on black. The floor is the 3:1 that
-    // tells a pressed item apart; Legacy light's white on teal (about 3.7:1) predates it.
-    // `initial` falls back to the accent, as the toggle's own var() fallbacks do, and a
-    // transparent fill shows the toggle frame's surface.
+    // Arcade shipped with its pressed item drawn black on black. Toggle labels are small
+    // text, so the floor is WCAG's 4.5:1. `initial` falls back to the accent, as the
+    // toggle's own var() fallbacks do, and a transparent fill shows the toggle frame's
+    // surface.
+    const floors: Readonly<Record<string, number>> = {
+      // White on teal, about 3.7:1, predates the check; the theme leaves with Memphis.
+      "legacy-light": 3.5,
+    };
     for (const [id, tokens] of blocks) {
       const set = (name: string) => {
         const value = tokens.get(name);
@@ -105,7 +109,9 @@ describe("theme CSS files", () => {
       const fill = set("--color-toggle-pressed") ?? set("--color-accent-cyan") ?? "";
       const ground = fill === "transparent" ? (set("--color-surface-raised") ?? "") : fill;
       const text = set("--color-toggle-pressed-text") ?? set("--color-accent-cyan-text") ?? "";
-      expect(contrastRatio(text, ground), `${id}: ${text} on ${ground}`).toBeGreaterThanOrEqual(3);
+      expect(contrastRatio(text, ground), `${id}: ${text} on ${ground}`).toBeGreaterThanOrEqual(
+        floors[id] ?? 4.5
+      );
     }
   });
 

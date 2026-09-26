@@ -354,8 +354,9 @@ geometry and type from the control slots: `Button`, `Input`, `SelectTrigger` and
 `Combobox` chips box read `--control-height`, `--control-radius` (`--button-radius` for
 buttons) and `--control-font-size`; `ToggleGroup` reads `--toggle-*`; `Slider` reads
 `--slider-*`. Every control draws focus with `focus-visible:control-focus-ring`, a utility
-in `tailwind.css` that reads `--control-focus-ring`. New primitives follow the same split.
-Things to watch:
+in `tailwind.css` that reads `--control-focus-ring`; `focusRing.test.ts` fails on a `ring-*`
+focus style, which shadcn's generated primitives include. New primitives follow the same
+split. Things to watch:
 
 - Keep color in utilities, not slots. A slot whose value is `var(--color-…)` resolves where
   the theme block defines it, so a subtree that remaps a color token (the routes-map chrome

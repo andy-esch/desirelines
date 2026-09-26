@@ -9,7 +9,7 @@ import {
   filterValidSports,
   normalizeSports,
 } from "./sportConfig";
-import { parseRgb } from "./colorTokens";
+import { contrastRatio } from "../test/contrast";
 import { THEMES } from "../themes/registry";
 import { RETRO_BASE_MAPS } from "../themes/baseMaps";
 
@@ -258,14 +258,6 @@ describe("SPORT_COLORS palette invariants", () => {
     const [A, B] = [lab(a), lab(b)];
     return Math.hypot(A[0]! - B[0]!, A[1]! - B[1]!, A[2]! - B[2]!);
   };
-  const luminance = (rgb: number[]) => {
-    const [r, g, b] = rgb.map(lin) as [number, number, number];
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  };
-  const contrast = (a: number[], b: number[]) => {
-    const [la, lb] = [luminance(a), luminance(b)];
-    return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
-  };
 
   it("keeps every pair separable under deuteranopia and protanopia", () => {
     const entries = Object.entries(SPORT_COLORS).map(([s, c]) => [s, parse(c)] as const);
@@ -286,14 +278,11 @@ describe("SPORT_COLORS palette invariants", () => {
     expect(failures, `pairs below 12 dE: ${failures.join(", ")}`).toEqual([]);
   });
 
-  const belowThreeToOne = (color: string) => {
-    const ground = parseRgb(color);
-    if (!ground) throw new Error(`unparseable ground ${color}`);
-    return Object.entries(SPORT_COLORS)
-      .map(([s, c]) => [s, contrast(parse(c), [ground.r, ground.g, ground.b])] as const)
+  const belowThreeToOne = (color: string) =>
+    Object.entries(SPORT_COLORS)
+      .map(([s, c]) => [s, contrastRatio(c, color)] as const)
       .filter(([, r]) => r < 3)
       .map(([s, r]) => `${s} = ${r.toFixed(2)}:1`);
-  };
 
   // Light themes can fall back to --color-chart-mark-outline; dark themes cannot, because
   // that token resolves to the page ground there. So the floor binds on every dark theme.
