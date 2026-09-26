@@ -252,7 +252,8 @@ function VolumeTooltip({
               style={{
                 width: "8px",
                 height: "8px",
-                borderRadius: "2px",
+                // A sport mark, so it takes the theme's shape: square in Arcade.
+                borderRadius: "min(var(--sport-mark-radius), 2px)",
                 backgroundColor: sportColor(r.meta.sport),
                 // Same outline as the bars and legend. This one earns its keep on the
                 // near-white light tooltip, where an 8px neon square is ~1.3:1; in dark

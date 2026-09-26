@@ -193,7 +193,7 @@ function AchievementLegend({ achievements }: { achievements: GoalAchievement[] }
         bottom: 50,
         right: 10,
         backgroundColor: "var(--color-surface-overlay)",
-        borderRadius: 4,
+        borderRadius: "var(--tooltip-radius)",
         padding: "6px 10px",
         fontSize: 11,
       }}

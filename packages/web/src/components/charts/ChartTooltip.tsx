@@ -229,7 +229,7 @@ export const ChartTooltip = ({
                   style={{
                     width: "8px",
                     height: "8px",
-                    borderRadius: "2px",
+                    borderRadius: "min(var(--radius), 2px)",
                     backgroundColor: color,
                     flexShrink: 0,
                   }}
