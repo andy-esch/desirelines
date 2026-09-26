@@ -486,6 +486,7 @@ export const MARK_PAIRS: readonly MarkPair[] = [
   { mark: FOCUS_RING, on: ["--color-surface-raised"] },
   { mark: FOCUS_RING, on: ["--panel-bg"] },
   { mark: FOCUS_RING, on: ["--color-header-bg"] },
+  { mark: FOCUS_RING, on: ["--map-chrome-bg"] },
   // An input's or select's border, which is what outlines it: its fill is close to the
   // page's.
   { mark: ["--color-control-border"], on: ["--color-bg-body"] },

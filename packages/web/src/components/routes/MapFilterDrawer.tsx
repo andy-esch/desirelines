@@ -286,7 +286,7 @@ export default function MapFilterDrawer({
           "bg-(--map-chrome-bg) px-4 py-2 text-sm font-medium text-body-text shadow-lg backdrop-blur-(--glass-blur)",
           "transition-all duration-200 ease-out",
           "hover:border-accent-cyan/50 hover:text-accent-cyan focus-visible:outline-none",
-          "focus-visible:ring-2 focus-visible:ring-accent-cyan/50 motion-reduce:transition-none",
+          "focus-visible:control-focus-ring motion-reduce:transition-none",
           // Mobile: bottom dock, right edge just left of center. Fixed width (matching
           // the Insights pill) so the two anchor symmetrically around center and the
           // active-filter badge can't shift the pair. Safe-area-aware.
