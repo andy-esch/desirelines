@@ -263,7 +263,8 @@ The checks run with the web tests. `themeContract.test.ts` fails on a slot the f
 out or adds, a value of the wrong kind (a bare `0` where a length needs a unit, a malformed
 color), `initial` in a slot that doesn't allow it, or a slot this guide's table doesn't list;
 each failure names the theme and the slot. `themeContrast.test.ts` measures the contract's
-text-on-surface pairs in every theme. `themeTokenUse.test.ts` fails on a token nothing reads
+text-on-surface pairs in every theme, and its non-text marks (the focus ring, input borders, a
+pressed toggle) at WCAG 1.4.11's 3:1; a boundary it leaves out is listed with the reason. `themeTokenUse.test.ts` fails on a token nothing reads
 or a read of a token nothing defines. `themeCss.test.ts` fails on a theme without a file, a
 file without a theme or an import, a file holding anything but its own block, or a
 `background` that doesn't match `--color-bg-body`; `sportConfig.test.ts` holds `SPORT_COLORS` to 3:1 against every
