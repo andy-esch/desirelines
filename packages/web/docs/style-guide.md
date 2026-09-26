@@ -72,7 +72,7 @@ component may use Tailwind's built-in palette utilities** (`text-white`, `bg-bla
 in the next. `colorUtilities.test.ts` fails on either. The one exception is a fallback literal
 for a data color that failed to arrive (e.g. a chart tooltip's `#888`).
 
-To re-theme the app, edit layer 1 and the theme blocks. That is the whole point of the
+To re-theme the app, edit layer 1 and the theme files. That is the whole point of the
 layering; if a change requires touching component files, the layering has been violated.
 
 ### Helpers
@@ -152,26 +152,26 @@ a field on the theme's list entry.
 
 A theme is two halves that must agree:
 
-1. **A CSS block** — `[data-theme="<id>"] { … }` in `src/css/tailwind.css`, redefining the
-   full set of theme-varying tokens. Every block defines the *same* set: `data-theme` can
-   also theme a subtree (the dev gallery does), and a block that omitted a token would
-   silently inherit the outer theme's value there. Tokens derived from another token (a
-   `color-mix` of the accent, say) are redefined too, because custom properties resolve
-   `var()` where they are declared.
+1. **A CSS file** — `src/css/themes/<id>.css`, imported from `src/css/tailwind.css`, holding
+   one `[data-theme="<id>"] { … }` block that redefines the full set of theme-varying tokens,
+   and nothing else. Every file defines the *same* set: `data-theme` can also theme a subtree
+   (the dev gallery does), and a block that omitted a token would silently inherit the outer
+   theme's value there. Tokens derived from another token (a `color-mix` of the accent, say)
+   are redefined too, because custom properties resolve `var()` where they are declared.
 2. **A list entry** — in `src/themes/registry.ts`: `id`, `label`, `scheme` (`dark` / `light`,
    which sets `color-scheme` and, for a stored `system` preference, which theme applies), `mapStyle` (the routes
    map's Mapbox style), `map` (a base-map palette and label font applied over that style;
-   `null` fields keep the stock style), `hidden`, `background` (must equal the block's
-   `--color-bg-body`),
-   picker `swatches`, `fonts` (the faces to preload, which must appear in the block's font
-   stacks), and `structure` (the choices that change markup; see "Theme slots").
+   `null` fields keep the stock style), `hidden`, `background` (must equal the file's
+   `--color-bg-body`), picker `swatches`, `fonts` (the faces to preload, which must appear
+   in the file's font stacks), and `structure` (the choices that change markup; see "Theme
+   slots").
 
 ### Theme slots
 
 Beyond colors, a theme sets **slots**: non-color CSS variables for type, shape, depth and
 decoration, plus a few **structure fields** on its list entry for choices that add or remove
 markup. Components read slots and fields; they never check which theme is active. Every
-block defines every slot. Legacy light carries the pre-retro values, so a slot a component
+theme file defines every slot. Legacy light carries the pre-retro values, so a slot a component
 doesn't read yet changes nothing there. The dev gallery lists each theme's resolved slot
 values.
 
@@ -234,20 +234,21 @@ rendered the neon at full strength.
 ### Adding a theme
 
 1. Add the entry with `hidden: true`, so it stays out of the picker while in progress.
-2. Add the CSS block, copying an existing block's token list and changing the values.
+2. Copy an existing theme's file to `src/css/themes/<id>.css`, change the id in its selector
+   and the values, and add its `@import` to `tailwind.css` beside the others.
 3. Review it at `/dev/themes` (dev server only), where every theme — hidden ones included —
    renders side by side.
 4. Release it by flipping `hidden` to `false`.
 
-The checks run with the web tests: `themeCss.test.ts` fails on a theme without a block, a
-block without a theme, blocks with differing token sets, or a `background` that doesn't
-match `--color-bg-body`; `sportConfig.test.ts` holds `SPORT_COLORS` to 3:1 against every
+The checks run with the web tests: `themeCss.test.ts` fails on a theme without a file, a
+file without a theme or an import, a file holding anything but its own block, files with
+differing token sets, or a `background` that doesn't match `--color-bg-body`; `sportConfig.test.ts` holds `SPORT_COLORS` to 3:1 against every
 dark theme's background and every base-map palette's land, park and water; `bootScript.test.ts` keeps the first-paint script in step with
 `ThemeProvider`.
 
 ### Retiring a theme
 
-A theme being phased out stays **values only** until it is deleted: a CSS block and a list
+A theme being phased out stays **values only** until it is deleted: a theme file and a list
 entry, nothing else — no selectors or tokens of its own, no id checks. When a shared change
 can't be expressed through the shared tokens, the retiring theme takes the shared default
 and drifts from how it used to look. The first time it would need a special case, delete
@@ -399,7 +400,8 @@ Adding a new effect means adding a utility here, never a literal in a component.
 
 | File | Purpose |
 | --- | --- |
-| `src/css/tailwind.css` | **Source of truth** — primitives, role tokens, theme blocks, component classes |
+| `src/css/tailwind.css` | **Source of truth** — primitives, token registration, component classes; imports the theme files |
+| `src/css/themes/<id>.css` | One theme's values: its `[data-theme]` block and nothing else |
 | `src/themes/registry.ts` | The theme list — ids, labels, scheme, map style, release state |
 | `src/themes/bootScript.ts` | First-paint theme script, generated into `index.html` at build |
 | `src/pages/dev/ThemeGalleryPage.tsx` | Dev-only side-by-side theme gallery at `/dev/themes` |

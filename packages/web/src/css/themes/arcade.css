@@ -1,0 +1,275 @@
+/* Arcade: cyan and magenta on black, outline panels and a laser-grid horizon, Plex Mono
+   with a Michroma display face. Carries the neon look Legacy dark had.
+
+   Every file in this directory defines the same tokens; the rules for a theme file are
+   above the imports in ../tailwind.css. */
+[data-theme="arcade"] {
+  --color-bg-body: #000000;
+
+  --color-muted-text: #7f9aa0;
+  --color-subtle-text: #a3a5a6;
+  --color-surface-raised: #000000;
+  --color-control-border: rgba(0, 255, 255, 0.3);
+  --color-divider: rgba(180, 0, 255, 0.22);
+  --color-panel-border: #00ffff;
+  --color-panel-border-hover: #00ffff;
+  --color-fill-muted: #10292d;
+  /* Empty heatmap cells are drawn by --cell-empty-border, not a fill: the grid floor and
+     the black ground read through them. */
+  --color-intensity-0: transparent;
+
+  --color-on-accent: #000000;
+
+  --color-accent-cyan: #00ffff;
+  --color-accent-cyan-glow: rgba(0, 255, 255, 0.15);
+  --color-accent-cyan-text: #000000;
+
+  --color-neon-accent: #00ffff;
+  --color-neon-accent-border: color-mix(in srgb, var(--color-neon-accent) 45%, transparent);
+  --color-neon-accent-glow: color-mix(in srgb, var(--color-neon-accent) 35%, transparent);
+
+  --color-map-chrome-accent: #00ffff;
+
+  --color-accent-magenta: #ff00ff;
+  --color-accent-magenta-glow: rgba(255, 0, 255, 0.15);
+
+  --color-body-text: #dfe0e2;
+
+  --color-chip-hairline: rgba(0, 255, 255, 0.22);
+
+  --color-chart-grid: rgba(0, 255, 255, 0.12);
+  --color-chart-mark-outline: #000000;
+  --color-chart-axis: rgba(255, 0, 255, 0.5);
+  --color-chart-tick: #5d7a80;
+  --color-chart-actual-line: #ffffff;
+  --color-chart-tooltip-bg: #000000;
+  --color-chart-tooltip-border: #00ffff;
+  --color-chart-tooltip-text: #dfe0e2;
+  --color-chart-tooltip-muted: #a3a5a6;
+  --color-chart-tooltip-label: #7f9aa0;
+  --color-chart-tooltip-divider: rgba(0, 255, 255, 0.3);
+
+  --color-success: #00ff80;
+  --color-danger: #ff5f1f;
+  --color-warning: #ffc800;
+
+  --color-header-bg: #000000;
+  --color-header-border: rgba(255, 0, 255, 0.45);
+  --color-header-text: #7f9aa0;
+  --color-header-text-muted: #5d7a80;
+  --color-header-accent: #00ffff;
+
+  --color-surface-hover: rgba(0, 255, 255, 0.06);
+  --color-surface-border: rgba(180, 0, 255, 0.22);
+  --color-surface-overlay: rgba(0, 0, 0, 0.8);
+  --color-surface-shadow: rgba(0, 0, 0, 0.45);
+
+  /* --- Non-color slots, from the approved Arcade design (see "Theme slots" in the style
+     guide for what each controls). --- */
+
+  /* Typography */
+  --font-body: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --font-display: "Michroma", "Arial Narrow", sans-serif;
+  --font-chart: "IBM Plex Mono", ui-monospace, monospace;
+  --display-weight: 400;
+  --page-title-size: 1.75rem;
+  --page-title-color: #00ffff;
+  --page-title-shadow: 0 0 16px rgba(0, 255, 255, 0.85);
+  --page-title-glow-size: 16px;
+  /* No offset shadow: the glow carries the title. Zero-sized and transparent rather than
+     `none`, so the composed list in PageTitle stays a valid shadow. */
+  --page-title-offset-shadow: 0 0 0 transparent;
+  --page-title-case: uppercase;
+  --page-title-leading: 1;
+  --display-text-gradient: none;
+  --display-text-fill: currentColor;
+  --kicker-size: 0.65625rem;
+  --kicker-tracking: 0.34em;
+  --kicker-color: #ff00ff;
+  --label-size: 0.65625rem;
+  --label-tracking: 0.3em;
+  --label-weight: 400;
+  --label-color: #ff00ff;
+  --label-case: uppercase;
+  --data-label-case: uppercase;
+  --table-text-size: 0.75rem;
+  --stat-value-size: 1.5rem;
+  --stat-value-size-wide: 1.625rem;
+  --stat-value-shadow: 0 0 12px rgba(0, 255, 255, 0.7);
+
+  /* Wordmark */
+  --wordmark-font: "Michroma", "Arial Narrow", sans-serif;
+  --wordmark-size: 1.0625rem;
+  --wordmark-weight: 400;
+  --wordmark-tracking: 0.06em;
+  --wordmark-case: uppercase;
+  --wordmark-color: #00ffff;
+  --wordmark-color-2: #00ffff;
+  --wordmark-slash-color: #ff00ff;
+  --wordmark-slash-size: 1em;
+  --wordmark-slash-weight: 400;
+  --wordmark-shadow: 0 0 12px rgba(0, 255, 255, 0.85);
+
+  /* Header */
+  --header-height: 52px;
+  --header-border: 1px solid rgba(255, 0, 255, 0.45);
+  --header-accent-line: none;
+  --header-shadow-scrolled: none;
+  --nav-size: 0.6875rem;
+  --nav-tracking: 0.24em;
+  --nav-case: uppercase;
+  --nav-active-bg: transparent;
+  --nav-active-radius: 0;
+  /* The active item is carried by its glow, not a rule under it. */
+  --nav-active-underline: none;
+  --nav-active-shadow: 0 0 10px rgba(0, 255, 255, 0.7);
+  --nav-color: #7f9aa0;
+  --nav-active-color: #00ffff;
+  --nav-active-hover-bg: transparent;
+  --avatar-radius: 0;
+  --avatar-border: 1px solid #00ffff;
+  --avatar-glow: inset 0 0 10px rgba(0, 255, 255, 0.3), 0 0 10px rgba(0, 255, 255, 0.35);
+  --demo-rule: none;
+  --demo-bg: transparent;
+  --demo-border: 1px solid rgba(0, 255, 255, 0.22);
+  --header-date-color: #5d7a80;
+
+  /* Backgrounds and decoration */
+  --page-wash-strength: 0;
+  --sport-wash-strength: 0;
+  --hero-padding: 38px 32px 176px;
+  --hero-ink: #a3a5a6;
+  --hero-title-size: 2.25rem;
+  --hero-title-color: #00ffff;
+  --hero-title-shadow: 0 0 16px rgba(0, 255, 255, 0.85);
+  --hero-number-size: 1.625rem;
+  --hero-number-glow: 12px;
+  --glass-blur: 0;
+  --glass-blur-sm: 0;
+  --progress-shine: none;
+
+  /* Panels: outline only, no fill, no radius. */
+  --radius: 0;
+  --panel-bg: transparent;
+  --panel-border-width: 1px;
+  --panel-radius: 0;
+  /* One inset glow for every panel, in the first accent. Panels carry their own accent on
+     the border and the header-bar label; a per-accent glow would need a slot per accent. */
+  --panel-shadow: inset 0 0 24px rgba(0, 255, 255, 0.1);
+  --panel-shadow-emphasis: inset 0 0 24px rgba(255, 0, 255, 0.12), 0 0 30px rgba(255, 0, 255, 0.14);
+  --panel-padding: 0.75rem;
+  --panel-header-padding: 0.5625rem 0.875rem;
+  --panel-body-padding: 0.75rem;
+  --panel-accent-1: #00ffff;
+  --panel-accent-2: #ff00ff;
+  --panel-accent-3: #b400ff;
+  --divider-style: solid;
+
+  /* Controls */
+  --control-height: 1.5rem;
+  --control-radius: 0;
+  --control-font-size: 0.71875rem;
+  --control-case: uppercase;
+  --control-focus-ring: 0 0 0 1px #00ffff, 0 0 10px rgba(0, 255, 255, 0.5);
+  --toggle-gap: 6px;
+  --toggle-frame-border-width: 0px;
+  --toggle-frame-padding: 0px;
+  --toggle-frame-radius: 0;
+  --toggle-item-border-width: 1px;
+  --toggle-item-radius: 0;
+  --toggle-font-size: 0.65625rem;
+  --toggle-tracking: 0.16em;
+  --toggle-case: uppercase;
+  --toggle-frame-border-color: transparent;
+  --toggle-item-color: #7f9aa0;
+  /* Separate outlined boxes rather than a filled pill: the pressed item keeps the ground
+     and takes the accent on its text and border. */
+  --color-toggle-pressed: transparent;
+  --button-radius: 0;
+  --button-case: uppercase;
+  --button-tracking: 0.18em;
+  --stepper-gap: 4px;
+  --slider-track-height: 8px;
+  --slider-track-radius: 0;
+  --slider-handle-size: 12px;
+  --slider-handle-radius: 0;
+  --slider-handle-border-width: 1px;
+  --slider-track-bg: #10292d;
+  --slider-fill-glow: 0 0 8px rgba(0, 255, 255, 0.7);
+  --color-slider-fill: #00ffff;
+  --chip-radius: 0;
+  --chip-border-strength: 35%;
+  --chip-hover-strength: 8%;
+  --chip-dot-radius: 0;
+
+  /* Tables and lists */
+  --th-size: 0.59375rem;
+  --th-weight: 400;
+  --th-color: #6a4a86;
+  --th-tracking: 0.18em;
+  --th-case: uppercase;
+  --th-rule: none;
+  --row-rule: 1px solid rgba(180, 0, 255, 0.22);
+  --row-padding: 0.625rem 0.5rem;
+  --row-hover-bg: rgba(0, 255, 255, 0.06);
+  --missing-value-color: #5d7a80;
+  --sport-mark-radius: 0;
+
+  /* Status, goals and meters */
+  --track-height: 8px;
+  --track-bg: transparent;
+  --track-border: 1px solid rgba(0, 255, 255, 0.35);
+  --track-fill-height: 4px;
+  --track-fill-glow: 10px;
+  --track-radius: 0;
+  --pace-tick-width: 2px;
+  --pace-tick-height: 18px;
+  /* The year meter is 52 weeks rather than 12 months, so its segments are narrow and tall. */
+  --meter-segment-width: 5px;
+  --meter-segment-height: 12px;
+  --meter-gap: 2px;
+  --meter-radius: 0;
+  --cell-empty-border: 1px solid #16363c;
+  --cell-radius: 0;
+
+  /* Charts */
+  --chart-baseline: rgba(255, 0, 255, 0.5);
+  --chart-tick-size: 10px;
+  --chart-actual-glow: drop-shadow(0 0 5px rgba(0, 255, 255, 0.8));
+  --chart-average-dash: 5 5;
+  --chart-bar-radius: 0;
+  --chart-bar-gap: 2px;
+  --chart-hover-column: rgba(0, 255, 255, 0.06);
+  --tooltip-radius: 0;
+
+  /* Map chrome */
+  --map-chrome-bg: #000000;
+  --map-chrome-edge: 1px solid rgba(255, 0, 255, 0.45);
+  --map-chrome-shadow: none;
+  --popup-radius: 0;
+  --popup-border: 1px solid #ff00ff;
+  --popup-shadow: inset 0 0 18px rgba(255, 0, 255, 0.12), 0 0 22px rgba(255, 0, 255, 0.3);
+
+  /* Theme components (src/components/theme). */
+  --panel-accent-1-ink: #00ffff;
+  --panel-accent-2-ink: #ff00ff;
+  /* The purple panel's label is tinted up: #b400ff on black is too dim to read at 10.5px. */
+  --panel-accent-3-ink: #c88cff;
+  --stat-label-size: 0.59375rem;
+  --stat-label-tracking: 0.24em;
+  --stat-label-case: uppercase;
+  --stat-sub-size: 0.75rem;
+  --stat-sub-color: #7f9aa0;
+  --color-meter-done: #00ffff;
+  --color-meter-current: #ff00ff;
+  --color-meter-todo: #10292d;
+  --meter-done-glow: 0 0 6px rgba(0, 255, 255, 0.55);
+  --meter-current-glow: 0 0 8px rgba(255, 0, 255, 0.9);
+  --color-pace-tick: #ffffff;
+  --color-status-good: #00ffff;
+  --color-status-warn: #ffc800;
+  --color-status-bad: #ff5f1f;
+  --status-size: 0.65625rem;
+  --status-tracking: 0.14em;
+  --status-case: uppercase;
+}

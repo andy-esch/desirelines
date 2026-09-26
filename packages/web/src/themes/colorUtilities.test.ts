@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import tailwindCss from "../css/tailwind.css?raw";
+import { TAILWIND_CSS, THEME_FILES } from "../test/themeCss";
 
 /**
  * Components color through theme tokens only. Tailwind's built-in palette utilities
@@ -46,7 +46,9 @@ describe("theme-token-only colors", () => {
 
   it("references no retired color tokens", () => {
     expect(findAll(RETIRED_TOKENS)).toEqual([]);
-    expect(tailwindCss.match(/--color-(?:slate|on-neon|sport-on)\b[\w-]*/g) ?? []).toEqual([]);
+    for (const css of [TAILWIND_CSS, ...THEME_FILES.values()]) {
+      expect(css.match(/--color-(?:slate|on-neon|sport-on)\b[\w-]*/g) ?? []).toEqual([]);
+    }
   });
 
   it("would catch the utilities it guards against", () => {

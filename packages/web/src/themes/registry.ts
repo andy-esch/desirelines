@@ -2,16 +2,17 @@
  * Theme list — the single TypeScript source for which themes exist.
  *
  * A theme is two halves that must agree:
- *   1. a `[data-theme="<id>"]` variable block in `css/tailwind.css`, which carries every
- *      visual value; and
+ *   1. a file, `css/themes/<id>.css`, holding the theme's `[data-theme="<id>"]` variable
+ *      block, which carries every visual value; and
  *   2. an entry here, which carries what CSS cannot: the label, light/dark scheme, the
  *      Mapbox style and its recolor, whether it is released, the ground color the first-paint script
  *      needs before the stylesheet has loaded, the faces to preload, and the structural
  *      choices components read.
  *
- * `themeCss.test.ts` fails if the two drift (a theme without a block, a block without a
- * theme, a mismatched ground color, or fonts the block doesn't use). Components never branch on a theme id; anything
- * that differs between themes is a token value or a field on this entry.
+ * `themeCss.test.ts` fails if the two drift (a theme without a file, a file without a
+ * theme or an import in `tailwind.css`, a mismatched ground color, or fonts the file doesn't
+ * use). Components never branch on a theme id; anything that differs between themes is a
+ * token value or a field on this entry.
  *
  * This module is also imported by `vite.config.ts` to generate the first-paint script,
  * so it must stay free of browser globals and CSS imports.

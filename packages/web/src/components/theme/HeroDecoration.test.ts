@@ -1,10 +1,8 @@
 import { describe, it, expect } from "vitest";
-import tailwindCss from "../../css/tailwind.css?raw";
+import { themeToken } from "../../test/themeCss";
 import { SUNSET_STOPS, GRID_FLOOR_HEIGHT, projectedPlaneHeight } from "./HeroDecoration";
 
-const miamiBlock = tailwindCss.match(/\[data-theme="miami"\]\s*\{([^}]*)\}/)?.[1] ?? "";
-const slot = (name: string) =>
-  miamiBlock.match(new RegExp(`${name}\\s*:\\s*([^;]+);`))?.[1]?.trim() ?? "";
+const slot = (name: string) => themeToken("miami", name);
 
 const channel = (hex: string, i: number) => {
   const c = parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16) / 255;
@@ -36,9 +34,7 @@ describe("Miami sunset", () => {
 });
 
 describe("Arcade grid", () => {
-  const arcadeBlock = tailwindCss.match(/\[data-theme="arcade"\]\s*\{([^}]*)\}/)?.[1] ?? "";
-  const arcadeSlot = (name: string) =>
-    arcadeBlock.match(new RegExp(`${name}\\s*:\\s*([^;]+);`))?.[1]?.trim() ?? "";
+  const arcadeSlot = (name: string) => themeToken("arcade", name);
 
   it("keeps the floor inside the hero padding that content never enters", () => {
     // The plane is drawn from the bottom up; the hero reserves its bottom padding for it, so

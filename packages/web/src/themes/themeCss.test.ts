@@ -1,33 +1,43 @@
 import { describe, it, expect } from "vitest";
 import { THEMES } from "./registry";
-import tailwindCss from "../css/tailwind.css?raw";
+import { TAILWIND_CSS, THEME_FILES, stripComments, themeBlocksIn } from "../test/themeCss";
 
 /**
  * Guards the CSS half of each theme against the theme list (see the header comment in
- * registry.ts). Parses tailwind.css as text: theme blocks are flat variable lists, so a
- * regex is enough and keeps this test free of a CSS toolchain.
+ * registry.ts). A theme's CSS is one file, `css/themes/<id>.css`, holding its variable
+ * block and nothing else, and `tailwind.css` imports each one.
  */
-const css = tailwindCss.replace(/\/\*[\s\S]*?\*\//g, "");
+const css = stripComments(TAILWIND_CSS);
 
-const blocks = new Map<string, Map<string, string>>();
-const duplicateBlocks: string[] = [];
-for (const [, id, body] of css.matchAll(/\[data-theme="([^"]+)"\]\s*\{([^}]*)\}/g)) {
-  if (!id || body === undefined) continue;
-  if (blocks.has(id)) duplicateBlocks.push(id);
-  const declarations = new Map<string, string>();
-  for (const [, name, value] of body.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) {
-    if (name && value) declarations.set(name, value.trim());
-  }
-  blocks.set(id, declarations);
-}
+const blocks = new Map(
+  [...THEME_FILES].map(([id, file]) => [id, themeBlocksIn(file)[0]?.tokens ?? new Map()])
+);
 
-describe("theme CSS blocks", () => {
-  it("has exactly one block per theme in the list, and no others", () => {
-    expect(duplicateBlocks).toEqual([]);
-    expect([...blocks.keys()].sort()).toEqual(THEMES.map((t) => t.id).sort());
+describe("theme CSS files", () => {
+  it("has exactly one file per theme in the list, and no others", () => {
+    expect([...THEME_FILES.keys()].sort()).toEqual(THEMES.map((t) => t.id).sort());
   });
 
-  it("defines the same token set in every block, so nested themes never inherit", () => {
+  it("holds its own theme's block and nothing else, so a theme stays values only", () => {
+    for (const [id, file] of THEME_FILES) {
+      const found = themeBlocksIn(file);
+      expect(
+        found.map((b) => b.id),
+        `${id}.css`
+      ).toEqual([id]);
+      expect(stripComments(file).trim(), `${id}.css outside its block`).toBe(found[0]?.text);
+    }
+  });
+
+  it("is imported by tailwind.css, which declares no theme block of its own", () => {
+    const imports = [...css.matchAll(/@import\s+["']\.\/themes\/([^"']+)\.css["']/g)].map(
+      ([, id]) => id
+    );
+    expect(imports.sort()).toEqual([...THEME_FILES.keys()].sort());
+    expect(themeBlocksIn(css)).toEqual([]);
+  });
+
+  it("defines the same token set in every file, so nested themes never inherit", () => {
     const union = new Set([...blocks.values()].flatMap((decls) => [...decls.keys()]));
     const gaps = [...blocks].flatMap(([id, decls]) =>
       [...union].filter((name) => !decls.has(name)).map((name) => `${id} is missing ${name}`)
@@ -43,7 +53,7 @@ describe("theme CSS blocks", () => {
     }
   });
 
-  it("lists only fonts the block's body or display stack names", () => {
+  it("lists only fonts the file's body or display stack names", () => {
     for (const theme of THEMES) {
       const block = blocks.get(theme.id);
       const stacks = `${block?.get("--font-body") ?? ""} ${block?.get("--font-display") ?? ""}`;
@@ -53,7 +63,7 @@ describe("theme CSS blocks", () => {
     }
   });
 
-  it("imports the font packages for every family a block names first", () => {
+  it("imports the font packages for every family a file names first", () => {
     const leadFamily = (stack: string | undefined) => stack?.match(/^\s*["']?([^"',]+)/)?.[1];
     const webFamilies = new Set(
       [...blocks.values()]
@@ -78,6 +88,8 @@ describe("theme CSS blocks", () => {
   });
 
   it("no longer switches themes with the .dark class", () => {
-    expect(css).not.toMatch(/:not\(\.dark\)|html\.dark\b/);
+    for (const source of [css, ...[...THEME_FILES.values()].map(stripComments)]) {
+      expect(source).not.toMatch(/:not\(\.dark\)|html\.dark\b/);
+    }
   });
 });
