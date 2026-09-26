@@ -58,8 +58,11 @@ black panel borders with grey muted text, say):
 | `--color-intensity-0` | The calendar heatmap's "no activity" cell |
 
 Each theme also sets the status colors (`--color-success`, `--color-danger`,
-`--color-warning`) and the header chrome (`--color-header-bg`, `-border`, `-text`,
-`-text-muted`, `-accent`). Two tokens stay fixed across themes: the header's brightest ink
+`--color-warning`), the header chrome (`--color-header-bg`, `-border`, `-text`,
+`-text-muted`, `-accent`), and the chart data colors: `--color-goal-1` to `-5` running cool
+(conservative) to warm (stretch), `--color-chart-average-line`, `--color-chart-neutral` for
+prior years, and `--color-danger-zone` with its `-label` ink. `themeCss.test.ts` keeps each
+theme's five goal colors apart from each other. Two tokens stay fixed across themes: the header's brightest ink
 `--color-header-ink`, used at partial alpha (`text-header-ink/50`, `bg-header-ink/10`), and
 `--color-scrim` / `--color-on-scrim`, the darkening layer for modal backdrops, menu shadows and
 a label drawn over a bright fill (`bg-scrim/50`, `shadow-scrim/40`).
@@ -69,8 +72,9 @@ a label drawn over a bright fill (`bg-scrim/50`, `shadow-scrim/40`).
 **3. Components** consume roles only. **No component may name a raw color value, and no
 component may use Tailwind's built-in palette utilities** (`text-white`, `bg-black/50`,
 `border-slate-500`): they bypass the theme blocks, so they look right in one theme and wrong
-in the next. `colorUtilities.test.ts` fails on either. The one exception is a fallback literal
-for a data color that failed to arrive (e.g. a chart tooltip's `#888`).
+in the next. `colorUtilities.test.ts` fails on either. A data color that fails to arrive
+falls back to a token as well: a chart tooltip entry with no color of its own takes
+`--color-chart-neutral`.
 
 To re-theme the app, edit layer 1 and the theme files. That is the whole point of the
 layering; if a change requires touching component files, the layering has been violated.
@@ -189,7 +193,7 @@ values.
 | Sliders and chips | `--slider-track-height`, `-track-radius`, `-track-bg`, `-fill-glow`, `-handle-size`, `-handle-radius`, `-handle-border-width`; `--color-slider-fill`; `--chip-radius`, `-border-strength`, `-hover-strength`, `-dot-radius` | Range sliders and sport chips (strengths are how much sport color mixes in) |
 | Tables | `--th-size`, `--th-weight`, `--th-color`, `--th-tracking`, `--th-case`, `--th-rule`, `--row-rule`, `--row-padding`, `--row-hover-bg`, `--missing-value-color`, `--sport-mark-radius` | Table headers, row rules and hover, empty cells, sport marks |
 | Goals and meters | `--track-height`, `-bg`, `-border`, `-fill-height`, `-fill-glow`, `-radius`; `--pace-tick-width`, `-height`; `--meter-segment-width`, `-segment-height`, `--meter-gap`, `--meter-radius`; `--cell-empty-border`, `--cell-radius` | Goal tracks (the fill glows in its own color by `--track-fill-glow`) and their pace tick, segmented meters, heatmap cells |
-| Charts | `--chart-baseline`, `--chart-tick-size`, `--chart-actual-glow`, `--chart-average-dash`, `--chart-bar-radius`, `--chart-bar-gap`, `--chart-hover-column`, `--tooltip-radius` | Chart chrome beyond the color tokens |
+| Charts | `--chart-baseline`, `--chart-tick-size`, `--chart-actual-glow`, `--chart-average-dash`, `--chart-bar-radius`, `--chart-bar-gap`, `--chart-hover-column`, `--tooltip-radius` | Chart chrome beyond the color tokens: the x axis line, tick labels, the actual line's glow (a `filter`, `none` for crisp), the average line's dash, the top corners of a bar stack, the gap between stacked sports, the hovered column, and every chart tooltip's corner. Recharts can't take `var()` for the dash or the bar radius, so those two are read off the chart's element with `useThemeTokenValue` |
 | Map chrome | `--map-chrome-bg`, `-edge`, `-shadow`; `--popup-radius`, `--popup-border`, `--popup-shadow` | The routes-map drawers and their toggles (the edge is drawn on the map-facing side), and the route popup |
 
 Structure fields (`structure` on the list entry):
@@ -415,7 +419,7 @@ Adding a new effect means adding a utility here, never a literal in a component.
 
 ## Known drift
 
-Candidates for pull-back toward the direction, not yet scheduled:
+Candidates for pull-back toward the direction:
 
 - The shadcn migration left several primitives reading modern-neutral rather than neon.
 - Sparkline and map line marks are distinguished by hue alone (rule 6).

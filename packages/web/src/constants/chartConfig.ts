@@ -40,11 +40,45 @@ export const CHART_CONFIG = {
     stroke: "var(--color-chart-axis)",
   },
 
+  /** The x axis's line, which the retro themes draw as a brighter baseline than the grid */
+  baseline: {
+    stroke: "var(--chart-baseline)",
+  },
+
   /** Axis tick styling */
   tick: {
-    fontSize: 11,
+    fontSize: "var(--chart-tick-size)",
     fill: "var(--color-chart-tick)",
     fontFamily: "var(--font-chart)",
+  },
+
+  /**
+   * The actual line's glow, a CSS `filter`: `none` in themes that draw it crisp. Set as a
+   * style so it reaches the line's path; no other line glows.
+   */
+  actualLineStyle: {
+    filter: "var(--chart-actual-glow)",
+  },
+
+  /**
+   * The average line's dash. Recharts parses the pattern to animate the line drawing in,
+   * so it takes the token's resolved value (see useThemeTokenValue), with this until then.
+   */
+  averageDash: {
+    token: "--chart-average-dash",
+    fallback: "5 5",
+  },
+
+  /**
+   * Recharts' own tooltip box, for the small route charts that use it rather than
+   * ChartTooltip. Same surface and corner as every other chart tooltip.
+   */
+  tooltipContentStyle: {
+    background: "var(--color-chart-tooltip-bg)",
+    border: "1px solid var(--color-chart-tooltip-border)",
+    borderRadius: "var(--tooltip-radius)",
+    fontSize: 12,
+    color: "var(--color-chart-tooltip-text)",
   },
 
   /** Y-axis marker styling (only fontSize used; radius/fontWeight use component defaults) */

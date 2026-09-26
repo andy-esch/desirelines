@@ -16,12 +16,6 @@ import { TAILWIND_CSS, THEME_FILES, stripComments } from "../test/themeCss";
  * work that will read them, and leave this list when it lands.
  */
 const UNREAD_FOR_NOW: Readonly<Record<string, string>> = {
-  "--chart-actual-glow": "read by the retro chart treatment",
-  "--chart-average-dash": "read by the retro chart treatment",
-  "--chart-bar-gap": "read by the retro chart treatment",
-  "--chart-bar-radius": "read by the retro chart treatment",
-  "--chart-baseline": "read by the retro chart treatment",
-  "--chart-tick-size": "read by the retro chart treatment",
   "--chip-border-strength": "read by sport chips, which hard-code 55% today",
   "--chip-hover-strength": "read by sport chips, which hard-code 10% today",
   "--chip-dot-radius": "read by sport chips, which hard-code a round dot today",

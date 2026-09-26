@@ -3,7 +3,7 @@ import NeonSpinner from "../NeonSpinner";
 /**
  * Simple loading spinner for charts
  *
- * Displays a neon-colored spinner while chart data is loading.
+ * Shows the theme's loading indicator while chart data loads.
  * Uses sr-only text for screen reader accessibility.
  */
 export default function LoadingChart() {

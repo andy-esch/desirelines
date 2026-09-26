@@ -158,19 +158,20 @@
   --color-chart-tooltip-label: #8b7bb5;
   --color-chart-tooltip-divider: rgba(255, 46, 196, 0.2);
 
-  /* === Chart data colors: fixed across themes, like SPORT_COLORS ===
-     Goal lines run cool (conservative) to warm (stretch). The neutral is the ghost color
-     for prior-year lines and an unassigned RaceTrack; callers apply alpha with alpha(). */
-  --color-goal-1: var(--color-neon-cyan);
-  --color-goal-2: var(--color-neon-green);
-  --color-goal-3: var(--color-neon-magenta);
-  --color-goal-4: var(--color-neon-yellow);
-  --color-goal-5: rgb(255, 0, 128);
-  --color-chart-average-line: var(--color-neon-orange);
-  --color-chart-neutral: rgb(150, 150, 150);
-  /* The pacing charts' "zone of unachievability": line, and a deeper label ink. */
-  --color-danger-zone: #ff9800;
-  --color-danger-zone-label: #e65100;
+  /* === Chart data colors: set per theme, unlike SPORT_COLORS ===
+     Goal lines run cool (conservative) to warm (stretch) and must stay distinct from
+     each other in every theme. The neutral is the ghost color for prior-year lines and an
+     unassigned RaceTrack; callers apply alpha with alpha(). The danger zone is the pacing
+     charts' "zone of unachievability": its line, and the ink for its label. */
+  --color-goal-1: #00e5ff;
+  --color-goal-2: #3dffa8;
+  --color-goal-3: #ff2ec4;
+  --color-goal-4: #ffc800;
+  --color-goal-5: #ff5a4f;
+  --color-chart-average-line: #c9b8e0;
+  --color-chart-neutral: #8b7bb5;
+  --color-danger-zone: #ff8a3d;
+  --color-danger-zone-label: #ff8a3d;
   /* Outline on the routes-map density dots, separating overlapping sports. */
   --color-map-point-outline: #0b0f1a;
 

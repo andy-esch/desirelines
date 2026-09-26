@@ -6,6 +6,7 @@ import { convertDistance, getDistanceLabel, type DistanceUnit } from "../../util
 import { weeklyVolume } from "../../utils/mapInsights";
 import { chartLabelToString } from "../../utils/chartUtils";
 import { useThemeDateFormat } from "../theme/useThemeDateFormat";
+import { CHART_CONFIG } from "../../constants/chartConfig";
 
 type WeeklyMetric = "distance" | "time";
 
@@ -13,14 +14,6 @@ export interface WeeklyVolumeChartProps {
   activities: MapActivity[];
   distanceUnit: DistanceUnit;
 }
-
-const TOOLTIP_STYLE = {
-  background: "var(--color-chart-tooltip-bg)",
-  border: "1px solid var(--color-chart-tooltip-border)",
-  borderRadius: 6,
-  fontSize: 12,
-  color: "var(--color-chart-tooltip-text)",
-} as const;
 
 /**
  * Weekly volume — distance or moving-time per ISO week over the filtered set
@@ -91,8 +84,8 @@ export default function WeeklyVolumeChart({ activities, distanceUnit }: WeeklyVo
                   tickFormatter={(v: number) => String(Math.round(v))}
                 />
                 <Tooltip
-                  cursor={{ fill: "rgba(120,120,120,0.15)" }}
-                  contentStyle={TOOLTIP_STYLE}
+                  cursor={{ fill: "var(--chart-hover-column)" }}
+                  contentStyle={CHART_CONFIG.tooltipContentStyle}
                   formatter={(v) => [`${Math.round(Number(v))} ${unit}`, "Volume"]}
                   labelFormatter={(d) =>
                     `Week of ${formatActivityDate(chartLabelToString(d), { year: true })}`

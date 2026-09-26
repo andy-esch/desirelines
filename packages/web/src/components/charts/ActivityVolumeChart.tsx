@@ -11,9 +11,20 @@
  */
 import { useMemo } from "react";
 import { useThemeDateFormat } from "../theme/useThemeDateFormat";
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useThemeTokenValue } from "../theme/useThemeTokenValue";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Rectangle,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+  type BarShapeProps,
+} from "recharts";
 import type { SportConfig } from "../../api/activities";
-import type { ChartData } from "../../utils/activityBuckets";
+import type { ChartData, ChartRow } from "../../utils/activityBuckets";
 import { CHART_CONFIG } from "../../constants/chartConfig";
 import { SPORT_COLORS, DEFAULT_SPORT_COLOR, getSportDisplayName } from "../../utils/sportConfig";
 
@@ -21,7 +32,19 @@ function sportColor(sport: string): string {
   return SPORT_COLORS[sport] ?? DEFAULT_SPORT_COLOR;
 }
 
-/** "2026-05" → "May" (or "May '26" when the range spans multiple years). */
+/**
+ * The series on top of a month's stack: the last one, in stacking order, with any volume.
+ * Only that segment takes the theme's bar radius, so a stack is rounded once at its top
+ * rather than at every sport.
+ */
+export function topOfStack(row: ChartRow, series: ChartData["series"]): string | undefined {
+  for (let i = series.length - 1; i >= 0; i--) {
+    const value = row[series[i]!.key];
+    if (typeof value === "number" && value > 0) return series[i]!.key;
+  }
+  return undefined;
+}
+
 interface ActivityVolumeChartProps {
   data: ChartData;
   sportConfig: SportConfig | null;
@@ -47,16 +70,24 @@ export default function ActivityVolumeChart({
   const { rows, series } = data;
 
   const showYear = useMemo(() => new Set(rows.map((r) => r.month.slice(0, 4))).size > 1, [rows]);
+  // Built once per series list: the tooltip re-renders on every frame of a hover.
+  const seriesByKey = useMemo(() => new Map(series.map((s) => [s.key, s])), [series]);
+  const topSeries = useMemo(
+    () => new Map(rows.map((r) => [r.month, topOfStack(r, series)])),
+    [rows, series]
+  );
+  const [chartRef, barRadiusValue] = useThemeTokenValue<HTMLDivElement>("--chart-bar-radius", "0");
+  const barRadius = parseFloat(barRadiusValue) || 0;
 
   return (
-    <div>
+    <div ref={chartRef}>
       <ResponsiveContainer width="100%" height={CHART_CONFIG.height}>
         <BarChart data={rows} margin={CHART_CONFIG.margin}>
           <CartesianGrid stroke={CHART_CONFIG.grid.stroke} vertical={CHART_CONFIG.grid.vertical} />
           <XAxis
             dataKey="month"
             tickFormatter={(m: string) => formatMonth(m, showYear)}
-            stroke={CHART_CONFIG.axis.stroke}
+            stroke={CHART_CONFIG.baseline.stroke}
             tick={CHART_CONFIG.tick}
           />
           <YAxis
@@ -92,7 +123,7 @@ export default function ActivityVolumeChart({
             cursor={{ fill: "var(--chart-hover-column)" }}
             content={
               <VolumeTooltip
-                series={series}
+                seriesByKey={seriesByKey}
                 sportConfig={sportConfig}
                 formatValue={formatTooltipValue}
               />
@@ -104,13 +135,23 @@ export default function ActivityVolumeChart({
               dataKey={s.key}
               stackId="volume"
               fill={sportColor(s.sport)}
-              // Thin ring around each stacked fill, doing two jobs at once. Dark: it
-              // resolves to the page ground and just separates segments. Light: it goes
+              // Ring around each stacked fill, doing two jobs at once. Dark: it resolves
+              // to the panel ground, so its width is the gap between sports. Light: it goes
               // to ink, giving the neon fill a boundary that clears 3:1 against
               // #f0f4f8 — which --color-bg-body could not do, being light there.
               stroke="var(--color-chart-mark-outline)"
-              strokeWidth={1}
+              strokeWidth="var(--chart-bar-gap)"
               isAnimationActive={false}
+              shape={(bar: BarShapeProps) => (
+                <Rectangle
+                  {...bar}
+                  radius={
+                    topSeries.get((bar.payload as ChartRow).month) === s.key
+                      ? [barRadius, barRadius, 0, 0]
+                      : 0
+                  }
+                />
+              )}
             />
           ))}
         </BarChart>
@@ -141,50 +182,34 @@ interface TooltipPayloadEntry {
 
 /**
  * Custom tooltip: month header, per-sport rows, total. Uses the shared
- * `--color-chart-tooltip-*` tokens (same as ChartTooltip) so text/surface contrast
- * is correct in both light and dark themes — plain body-text on a fixed surface
- * inverted in light mode, which is what read as black-on-dark.
+ * `--color-chart-tooltip-*` tokens (same as ChartTooltip), so its text and surface
+ * follow the theme together; plain body text on a fixed surface is what once read as
+ * black-on-dark in a light theme.
  */
-let _seriesIndexFor: ChartData["series"] | null = null;
-let _seriesIndexCache = new Map<string, ChartData["series"][number]>();
-
-/** Cached `key -> series` lookup, rebuilt only when the series array changes. */
-function seriesIndex(series: ChartData["series"]) {
-  if (_seriesIndexFor !== series) {
-    _seriesIndexFor = series;
-    _seriesIndexCache = new Map(series.map((s) => [s.key, s]));
-  }
-  return _seriesIndexCache;
-}
-
 function VolumeTooltip({
   active,
   label,
   payload,
-  series,
+  seriesByKey,
   sportConfig,
   formatValue,
 }: {
   active?: boolean;
   label?: string;
   payload?: TooltipPayloadEntry[];
-  series: ChartData["series"];
+  seriesByKey: ReadonlyMap<string, ChartData["series"][number]>;
   sportConfig: SportConfig | null;
   formatValue: (value: number) => string;
 }) {
   const { formatMonth } = useThemeDateFormat();
   if (!active || !payload || payload.length === 0 || typeof label !== "string") return null;
 
-  // `series` is stable across a hover gesture but this component re-renders on
-  // every frame of it, so the lookup map is built once per series list rather
-  // than once per frame.
-  const byKey = seriesIndex(series);
   // flatMap rather than map+filter so `meta` narrows to non-null for the
   // consumers below; a boolean .filter() does not narrow, which is what forced
   // the `r.meta!` assertions at each use site.
   const rows = payload
     .flatMap((p) => {
-      const meta = byKey.get(p.dataKey);
+      const meta = seriesByKey.get(p.dataKey);
       return meta && p.value > 0 ? [{ meta, value: p.value }] : [];
     })
     .reverse(); // top-of-stack first, matching visual order
@@ -227,7 +252,8 @@ function VolumeTooltip({
               style={{
                 width: "8px",
                 height: "8px",
-                borderRadius: "2px",
+                // A sport mark, so it takes the theme's shape: square in Arcade.
+                borderRadius: "min(var(--sport-mark-radius), 2px)",
                 backgroundColor: sportColor(r.meta.sport),
                 // Same outline as the bars and legend. This one earns its keep on the
                 // near-white light tooltip, where an 8px neon square is ~1.3:1; in dark

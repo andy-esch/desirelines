@@ -47,6 +47,16 @@
   --color-chart-tooltip-muted: #64748b;
   --color-chart-tooltip-label: #94a3b8;
   --color-chart-tooltip-divider: rgba(8, 145, 178, 0.2);
+  /* Chart data: the pre-retro values, unchanged. */
+  --color-goal-1: var(--color-neon-cyan);
+  --color-goal-2: var(--color-neon-green);
+  --color-goal-3: var(--color-neon-magenta);
+  --color-goal-4: var(--color-neon-yellow);
+  --color-goal-5: rgb(255, 0, 128);
+  --color-chart-average-line: var(--color-neon-orange);
+  --color-chart-neutral: rgb(150, 150, 150);
+  --color-danger-zone: #ff9800;
+  --color-danger-zone-label: #e65100;
 
   --color-success: #00ff80;
   --color-danger: #dc3545;

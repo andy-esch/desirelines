@@ -247,7 +247,7 @@ export function PacingChartPresenter({
           domain={[startDate.getTime(), displayEndDate.getTime()]}
           scale="time"
           tickFormatter={formatAxisDate}
-          stroke={CHART_CONFIG.axis.stroke}
+          stroke={CHART_CONFIG.baseline.stroke}
           tick={CHART_CONFIG.tick}
           interval="preserveStartEnd"
         />
@@ -304,6 +304,7 @@ export function PacingChartPresenter({
           dataKey="actual"
           stroke={CHART_COLORS.ACTUAL_DATA_LINE}
           strokeWidth={CHART_CONFIG.strokeWidth.actual}
+          style={CHART_CONFIG.actualLineStyle}
           dot={false}
           name={`${year} Pacing Data`}
           isAnimationActive={isAnimationActive}

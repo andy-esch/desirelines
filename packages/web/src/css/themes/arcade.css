@@ -47,6 +47,18 @@
   --color-chart-tooltip-muted: #a3a5a6;
   --color-chart-tooltip-label: #7f9aa0;
   --color-chart-tooltip-divider: rgba(0, 255, 255, 0.3);
+  /* Chart data: goal lines keep the pre-retro neon (worst colorblind pair 7.7, deutan,
+     legal because every goal line is also labelled), a dashed neutral average, prior
+     years in muted, and the danger zone in the theme's orange. */
+  --color-goal-1: #00ffff;
+  --color-goal-2: #00ff80;
+  --color-goal-3: #ff00ff;
+  --color-goal-4: #ffc800;
+  --color-goal-5: #ff0080;
+  --color-chart-average-line: #a3a5a6;
+  --color-chart-neutral: #7f9aa0;
+  --color-danger-zone: #ff5f1f;
+  --color-danger-zone-label: #ff5f1f;
 
   --color-success: #00ff80;
   --color-danger: #ff5f1f;
