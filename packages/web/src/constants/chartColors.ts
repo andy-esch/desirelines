@@ -1,8 +1,8 @@
 /**
  * Chart Color Constants
  *
- * Centralized color definitions for chart visualizations.
- * Used by CumulativeMetricsChart and PacingMetricsChart components.
+ * Centralized color definitions for chart visualizations, as references to theme tokens.
+ * The goal colors also mark goals outside the charts (goal controls, the goal table).
  */
 
 export const CHART_COLORS = {

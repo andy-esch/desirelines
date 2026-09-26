@@ -419,7 +419,7 @@ Adding a new effect means adding a utility here, never a literal in a component.
 
 ## Known drift
 
-Candidates for pull-back toward the direction, not yet scheduled:
+Candidates for pull-back toward the direction:
 
 - The shadcn migration left several primitives reading modern-neutral rather than neon.
 - Sparkline and map line marks are distinguished by hue alone (rule 6).
