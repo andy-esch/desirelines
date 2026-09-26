@@ -28,7 +28,10 @@ export const sportChipClass = cn(
   // The pressed border is the mark outline, not transparent: a bright fill can sit at
   // ~1:1 against the light ground, so a transparent border let the whole chip melt into
   // the page.
-  "data-[pressed]:border-chart-mark-outline data-[pressed]:bg-[var(--chip)] data-[pressed]:text-on-accent"
+  "data-[pressed]:border-chart-mark-outline data-[pressed]:bg-[var(--chip)] data-[pressed]:text-on-accent",
+  // A chip is a toggle item, so it would also take the theme's pressed-toggle glows: on a
+  // sport fill those read as a stray accent halo, so a chip drops them.
+  "data-[pressed]:inset-shadow-none data-[pressed]:[text-shadow:none]"
 );
 
 /**

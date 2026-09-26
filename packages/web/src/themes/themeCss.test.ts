@@ -7,6 +7,7 @@ import {
   stripComments,
   themeBlocksIn,
   themeRegistrations,
+  contrastRatio,
 } from "../test/themeCss";
 
 /**
@@ -88,6 +89,23 @@ describe("theme CSS files", () => {
           expect(distance, `${id} goals ${i + 1} and ${i + j + 2}`).toBeGreaterThan(100);
         })
       );
+    }
+  });
+
+  it("keeps a pressed toggle's text readable on what it sits on", () => {
+    // Arcade shipped with its pressed item drawn black on black. The floor is the 3:1 that
+    // tells a pressed item apart; Legacy light's white on teal (about 3.7:1) predates it.
+    // `initial` falls back to the accent, as the toggle's own var() fallbacks do, and a
+    // transparent fill shows the toggle frame's surface.
+    for (const [id, tokens] of blocks) {
+      const set = (name: string) => {
+        const value = tokens.get(name);
+        return value && value !== "initial" ? value : undefined;
+      };
+      const fill = set("--color-toggle-pressed") ?? set("--color-accent-cyan") ?? "";
+      const ground = fill === "transparent" ? (set("--color-surface-raised") ?? "") : fill;
+      const text = set("--color-toggle-pressed-text") ?? set("--color-accent-cyan-text") ?? "";
+      expect(contrastRatio(text, ground), `${id}: ${text} on ${ground}`).toBeGreaterThanOrEqual(3);
     }
   });
 

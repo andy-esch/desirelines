@@ -38,8 +38,11 @@ function ToggleGroupItem({
         "inline-flex items-center justify-center gap-1.5 rounded-(--toggle-item-radius) border-(length:--toggle-item-border-width) border-border px-2.5 py-1 text-(length:--toggle-font-size) leading-[calc(1.25/0.875)] font-medium tracking-(--toggle-tracking) text-(color:--toggle-item-color) [text-transform:var(--toggle-case)] outline-none transition-colors",
         "hover:bg-accent hover:text-accent-foreground",
         "focus-visible:control-focus-ring",
-        // A theme may give pressed toggles their own color; otherwise they take the accent.
-        "data-[pressed]:border-[color:var(--color-toggle-pressed,var(--color-accent-cyan))] data-[pressed]:bg-[color:var(--color-toggle-pressed,var(--color-accent-cyan))] data-[pressed]:text-primary-foreground",
+        // A theme may give pressed toggles their own fill, border, text and glows; a slot set
+        // to `initial` falls back to the accent here, on the element, so a subtree that
+        // remaps the accent (the routes-map chrome) still applies. The glow is an inset
+        // shadow utility, which composes with the focus ring rather than replacing it.
+        "data-[pressed]:border-[color:var(--color-toggle-pressed-border,var(--color-toggle-pressed,var(--color-accent-cyan)))] data-[pressed]:bg-[color:var(--color-toggle-pressed,var(--color-accent-cyan))] data-[pressed]:text-[color:var(--color-toggle-pressed-text,var(--color-accent-cyan-text))] data-[pressed]:inset-shadow-(--toggle-pressed-glow) data-[pressed]:[text-shadow:var(--toggle-pressed-text-glow)]",
         "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
         className
       )}

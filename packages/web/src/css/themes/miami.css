@@ -184,6 +184,10 @@
   --toggle-frame-border-color: rgba(255, 46, 196, 0.3);
   --toggle-item-color: #c9b8e0;
   --color-toggle-pressed: #ff2ec4;
+  --color-toggle-pressed-border: initial;
+  --color-toggle-pressed-text: initial;
+  --toggle-pressed-glow: 0 0 #0000;
+  --toggle-pressed-text-glow: none;
   --button-radius: 4px;
   --button-case: uppercase;
   --button-tracking: 0.14em;

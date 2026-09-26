@@ -192,8 +192,14 @@
   --toggle-frame-border-color: transparent;
   --toggle-item-color: #7f9aa0;
   /* Separate outlined boxes rather than a filled pill: the pressed item keeps the ground
-     and takes the accent on its text and border. */
+     and takes the accent on its border and text, with an inner glow and a text glow. The
+     accent is written out because the fallback for an unset border is the fill, and for
+     unset text the ink that sits on an accent fill. */
   --color-toggle-pressed: transparent;
+  --color-toggle-pressed-border: #00ffff;
+  --color-toggle-pressed-text: #00ffff;
+  --toggle-pressed-glow: 0 0 10px rgba(0, 255, 255, 0.2);
+  --toggle-pressed-text-glow: 0 0 8px rgba(0, 255, 255, 0.6);
   --button-radius: 0;
   --button-case: uppercase;
   --button-tracking: 0.18em;
