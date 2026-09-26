@@ -12,15 +12,10 @@ import { TAILWIND_CSS, THEME_FILES, stripComments } from "../test/themeCss";
  */
 
 /**
- * Tokens with no reader yet, each with the reason. Most are designed values waiting on the
- * work that will read them, and leave this list when it lands.
+ * Tokens with no reader yet, each with the reason. A designed value can wait here for the
+ * work that will read it, and leaves when that work lands.
  */
 const UNREAD_FOR_NOW: Readonly<Record<string, string>> = {
-  "--chip-border-strength": "read by sport chips, which hard-code 55% today",
-  "--chip-hover-strength": "read by sport chips, which hard-code 10% today",
-  "--chip-dot-radius": "read by sport chips, which hard-code a round dot today",
-  "--stepper-gap": "read by the goal stepper's +/- buttons",
-  "--missing-value-color": "read by the dash shown for a missing value",
   // Tailwind scans this file for class names, so the comment avoids spelling the class out:
   // without this token, the scale's largest step would take Tailwind's fixed default
   // instead of following the theme's `--radius` like the steps below it.
@@ -98,6 +93,26 @@ describe("theme tokens", () => {
   it("leave the unread list once something reads them", () => {
     const stale = Object.keys(UNREAD_FOR_NOW).filter((t) => !defined.has(t) || isRead(t));
     expect(stale).toEqual([]);
+  });
+
+  it("hold a length with a unit wherever a reader adds or subtracts one", () => {
+    // `calc(0 - 1px)` is invalid, so a bare 0 in a slot read that way silently drops the
+    // declaration: the stepper lost its 1px border overlap to exactly that.
+    const additive = new Set(
+      [
+        ...readable.matchAll(/var\((--[\w-]+)\)(?:\s+|_)[-+](?:\s+|_)/g),
+        ...readable.matchAll(/(?:\s+|_)[-+](?:\s+|_)var\((--[\w-]+)\)/g),
+      ].map(([, name = ""]) => name)
+    );
+    expect(additive).toContain("--stepper-gap");
+    const unitless = [...THEME_FILES].flatMap(([id, file]) =>
+      [...stripComments(file).matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)]
+        .filter(
+          ([, name = "", value = ""]) => additive.has(name) && /^-?[\d.]+$/.test(value.trim())
+        )
+        .map(([, name, value]) => `${id} ${name}: ${value}`)
+    );
+    expect(unitless).toEqual([]);
   });
 
   it("would catch a token nothing reads", () => {

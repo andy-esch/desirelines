@@ -10,7 +10,7 @@ import {
   type DistanceUnit,
   type ElevationUnit,
 } from "../utils/units";
-import { SPORT_COLORS, getSportDisplayName } from "../utils/sportConfig";
+import { SPORT_COLORS, DEFAULT_SPORT_COLOR, getSportDisplayName } from "../utils/sportConfig";
 import { useSportConfig } from "../hooks/useSportConfig";
 import { useThemeDateFormat } from "./theme/useThemeDateFormat";
 import NeonSpinner from "./NeonSpinner";
@@ -66,15 +66,20 @@ function formatDuration(seconds: number): string {
   return `${minutes}:${secs.toString().padStart(2, "0")}`;
 }
 
-/** Calculate and format pace (running) or speed (cycling) */
+/** The dash a cell shows for a value the activity doesn't have, in the theme's color for it. */
+function MissingValue() {
+  return <span className="text-[color:var(--missing-value-color,currentColor)]">-</span>;
+}
+
+/** Calculate and format pace (running) or speed (cycling), or null where there is none */
 function formatPaceOrSpeed(
   distanceMeters: number,
   timeSeconds: number,
   sport: string,
   distanceUnit: DistanceUnit
-): string {
+): string | null {
   if (distanceMeters <= 0 || timeSeconds <= 0) {
-    return "-";
+    return null;
   }
 
   const distanceInUnits = convertDistance(distanceMeters, distanceUnit);
@@ -92,7 +97,7 @@ function formatPaceOrSpeed(
   }
 
   // Other sports (yoga, etc.) - no pace/speed
-  return "-";
+  return null;
 }
 
 const ActivityTable: React.FC<ActivityTableProps> = ({
@@ -179,22 +184,26 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                   </a>
                 </td>
                 <td>
-                  <SportLabel color={SPORT_COLORS[activity.sport] || "rgb(160, 174, 192)"} badge>
+                  <SportLabel color={SPORT_COLORS[activity.sport] ?? DEFAULT_SPORT_COLOR} badge>
                     {getSportDisplayName(activity.sport, sportConfig)}
                   </SportLabel>
                 </td>
                 <td className="text-right whitespace-nowrap">
-                  {activity.distanceMeters > 0
-                    ? formatDistance(activity.distanceMeters, distanceUnit)
-                    : "-"}
+                  {activity.distanceMeters > 0 ? (
+                    formatDistance(activity.distanceMeters, distanceUnit)
+                  ) : (
+                    <MissingValue />
+                  )}
                 </td>
                 <td className="text-right whitespace-nowrap">
                   {formatDuration(activity.movingTimeSeconds)}
                 </td>
                 <td className="text-right whitespace-nowrap">
-                  {activity.elevationMeters
-                    ? formatElevation(activity.elevationMeters, elevationUnit)
-                    : "-"}
+                  {activity.elevationMeters ? (
+                    formatElevation(activity.elevationMeters, elevationUnit)
+                  ) : (
+                    <MissingValue />
+                  )}
                 </td>
                 <td className="text-right whitespace-nowrap">
                   {formatPaceOrSpeed(
@@ -202,7 +211,7 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                     activity.movingTimeSeconds,
                     activity.sport,
                     distanceUnit
-                  )}
+                  ) ?? <MissingValue />}
                 </td>
                 {showImpact && goalTarget > 0 && (
                   <td className="text-right whitespace-nowrap text-muted-text">

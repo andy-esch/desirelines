@@ -135,7 +135,9 @@ const GoalControls: React.FC<GoalControlsProps> = ({
               )}
             </div>
 
-            <div className="flex items-stretch">
+            {/* One joined group, or separate boxes where the theme sets a --stepper-gap. Joined, the
+                input overlaps its neighbours by a pixel so their borders merge; apart, it doesn't. */}
+            <div className="flex items-stretch gap-(--stepper-gap)">
               <Button
                 variant="outline"
                 size="sm"
@@ -148,7 +150,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
               {editingId === goal.id ? (
                 <Input
                   type="number"
-                  className="-mx-px h-8 min-w-0 rounded-none text-center text-xs"
+                  className="mx-[min(0px,calc(var(--stepper-gap)_-_1px))] h-8 min-w-0 rounded-none text-center text-xs"
                   value={editValue}
                   onChange={(e) => {
                     setEditValue(e.target.value);
@@ -170,7 +172,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
               ) : (
                 <Input
                   type="text"
-                  className="-mx-px h-8 min-w-0 rounded-none text-center text-xs"
+                  className="mx-[min(0px,calc(var(--stepper-gap)_-_1px))] h-8 min-w-0 rounded-none text-center text-xs"
                   value={`${goal.value.toLocaleString()} ${unit}`}
                   onFocus={() => handleStartEdit(goal.id, goal.value)}
                   readOnly

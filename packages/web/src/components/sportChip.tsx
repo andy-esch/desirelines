@@ -22,9 +22,10 @@ import { cn } from "@/lib/utils";
  */
 export const sportChipClass = cn(
   "group rounded-(--chip-radius)",
-  "border border-[color-mix(in_srgb,var(--chip)_55%,var(--color-chip-hairline))]",
+  // The theme sets how much sport color tints the border and the hover fill.
+  "border border-[color-mix(in_srgb,var(--chip)_var(--chip-border-strength),var(--color-chip-hairline))]",
   "bg-transparent text-foreground",
-  "hover:bg-[color-mix(in_srgb,var(--chip)_10%,transparent)] hover:text-foreground",
+  "hover:bg-[color-mix(in_srgb,var(--chip)_var(--chip-hover-strength),transparent)] hover:text-foreground",
   // The pressed border is the mark outline, not transparent: a bright fill can sit at
   // ~1:1 against the light ground, so a transparent border let the whole chip melt into
   // the page.
@@ -45,7 +46,7 @@ export function SportChipDot() {
     <span
       aria-hidden="true"
       className={cn(
-        "sport-mark size-2 shrink-0 rounded-full bg-[var(--chip)]",
+        "sport-mark size-2 shrink-0 rounded-(--chip-dot-radius) bg-[var(--chip)]",
         "shadow-[0_0_7px_var(--chip),0_0_2px_var(--chip)]",
         "group-data-[pressed]:bg-on-accent group-data-[pressed]:shadow-none"
       )}

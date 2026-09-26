@@ -160,7 +160,7 @@
   --progress-shine: none;
 
   /* Panels: outline only, no fill, no radius. */
-  --radius: 0;
+  --radius: 0px;
   --panel-bg: transparent;
   --panel-border-width: 1px;
   --panel-radius: 0;
