@@ -58,7 +58,7 @@ function ComboboxChips({
     <BaseCombobox.Chips
       className={cn(
         "flex min-h-(--control-height) w-full flex-wrap items-center gap-1.5 rounded-(--control-radius) border border-input bg-card px-2 py-1.5",
-        "focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/40",
+        "focus-within:border-ring focus-within:control-focus-ring",
         className
       )}
       {...props}
@@ -81,7 +81,7 @@ function ComboboxChip({
     >
       {children}
       <BaseCombobox.ChipRemove
-        className="rounded-sm opacity-60 outline-none hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/40"
+        className="rounded-sm opacity-60 outline-none hover:opacity-100 focus-visible:control-focus-ring"
         aria-label="Remove"
       >
         <CloseIcon />

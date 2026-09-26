@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Select — shadcn-style wrapper over Base UI's Select, themed via the `@theme`
- * alias shim (bg-popover / border-border / ring-ring / …). Anatomy:
+ * alias shim (bg-popover / border-border / …) and the control slots. Anatomy:
  *   <Select value onValueChange>
  *     <SelectTrigger><SelectValue/></SelectTrigger>
  *     <SelectContent><SelectItem value>…</SelectItem></SelectContent>
@@ -26,7 +26,7 @@ function SelectTrigger({
     <BaseSelect.Trigger
       className={cn(
         "flex h-(--control-height) w-full items-center justify-between gap-2 rounded-(--control-radius) border border-input bg-card px-3 py-2 text-(length:--control-font-size) leading-[calc(1.25/0.875)] text-foreground [text-transform:var(--control-case)]",
-        "transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none",
+        "transition-colors focus-visible:border-ring focus-visible:control-focus-ring focus-visible:outline-none",
         "data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50",
         className
       )}

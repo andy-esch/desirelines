@@ -220,6 +220,16 @@ describe("ActivityTable", () => {
       expect(screen.getByText("8:03/mi")).toBeInTheDocument();
     });
 
+    it("draws each missing value in the theme's missing-value color", () => {
+      render(<ActivityTable {...defaultProps} />);
+
+      // Yoga has no distance, elevation or pace.
+      const yoga = screen.getByText("Yoga Session").closest("tr")!;
+      const dashes = within(yoga).getAllByText("-");
+      expect(dashes).toHaveLength(3);
+      for (const dash of dashes) expect(dash.className).toContain("--missing-value-color");
+    });
+
     it("shows dash for pace on yoga activities", () => {
       render(<ActivityTable {...defaultProps} />);
 

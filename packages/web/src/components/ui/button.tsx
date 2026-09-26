@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 const buttonVariants = cva(
   cn(
     "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-(--button-radius) text-(length:--control-font-size) leading-[calc(1.25/0.875)] font-medium tracking-(--button-tracking) [text-transform:var(--button-case)]",
-    "transition-colors outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40",
+    "transition-colors outline-none focus-visible:border-ring focus-visible:control-focus-ring",
     "disabled:pointer-events-none disabled:opacity-50"
   ),
   {
