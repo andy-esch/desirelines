@@ -222,8 +222,11 @@ that every web face a block leads with has an import.
 
 **Derived slot values.** A slot built with `color-mix()` over another token gets a fallback
 from the CSS build for browsers without `color-mix(in lab)` support, and that fallback uses
-the `@theme` default rather than the theme block's own token. Current browsers are
-unaffected. If a theme's derived slot must be exact everywhere, give it a literal value.
+the `@theme` default rather than the theme block's own token. So does an opacity modifier
+on a theme color (`bg-surface-raised/80`). The `@theme` values are the default theme's
+(`themeCss.test.ts` holds them there), so such a browser sees Miami's colors in those places
+whatever the theme. Current browsers are unaffected. If a theme's derived slot must be exact
+everywhere, give it a literal value.
 
 The page washes scale by `--page-wash-strength` with a nested mix,
 `color-mix(in srgb, color-mix(in srgb, <color> 18%, transparent) calc(100% * <strength>), transparent)`,

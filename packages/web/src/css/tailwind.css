@@ -21,10 +21,9 @@
    values only. themeCss.test.ts enforces that, the matching token sets, a file and an
    import here for every registry entry, and the ground color.
 
-   The @theme block below registers these tokens with Tailwind; its values are never the
-   ones a rendered page sees, because a theme block always applies. The blocks are
-   unlayered, so they win over those defaults, which Tailwind emits in its theme layer,
-   wherever these imports sit.
+   The @theme block below registers these tokens with Tailwind at the default theme's
+   values, and a theme block always applies over them: the blocks are unlayered, so they
+   win over the defaults Tailwind emits in its theme layer, wherever these imports sit.
 
    Tokens derived from another token (e.g. the neon-accent border) are redefined in each
    file too: custom properties resolve `var()` where they are declared, so a nested block
@@ -37,11 +36,14 @@
 /*
  * Tailwind Theme — registers every Desire Lines token with Tailwind, so each is available
  * as a utility (e.g., bg-bg-body, text-accent-cyan), and holds the values that are fixed
- * across themes. Where a theme file redefines a token, the value here is a placeholder.
+ * across themes. Where a theme file redefines a token, the value here is the default
+ * theme's, held there by themeCss.test.ts. A page never renders it, but the build bakes it
+ * into what an older browser without color-mix() gets for an opacity modifier on that
+ * color (bg-surface-raised/80), so it should be a value that belongs to a live theme.
  */
 @theme {
   /* === Background === */
-  --color-bg-body: #0f1724;
+  --color-bg-body: #160b2e;
 
   /* === Neutral roles: what a neutral is FOR, not what hue it is. Themes set each one
      independently: a theme can give panels a heavy black border while keeping muted text
@@ -54,15 +56,15 @@
        fill-muted                 neutral fills: secondary buttons, the active toggle
        intensity-0                the "no activity" cell of the calendar heatmap
      Values here only register the utilities; the theme files set what renders. */
-  --color-muted-text: #778899;
-  --color-subtle-text: #a0aec0;
-  --color-surface-raised: #2d3748;
-  --color-control-border: #4a5568;
-  --color-divider: #4a5568;
-  --color-panel-border: #778899;
-  --color-panel-border-hover: #a0aec0;
-  --color-fill-muted: #4a5568;
-  --color-intensity-0: #778899;
+  --color-muted-text: #8b7bb5;
+  --color-subtle-text: #c9b8e0;
+  --color-surface-raised: #1e1040;
+  --color-control-border: rgba(255, 46, 196, 0.3);
+  --color-divider: rgba(201, 184, 224, 0.12);
+  --color-panel-border: rgba(255, 46, 196, 0.22);
+  --color-panel-border-hover: rgba(255, 46, 196, 0.45);
+  --color-fill-muted: #2c1a52;
+  --color-intensity-0: #2c1a52;
 
   /* === Accent: Cyan — primary interactive color ===
      `--color-brand-cyan` is the PRIMITIVE: the fixed full-brightness value, the same
@@ -72,9 +74,9 @@
      every theme, and what sits in it (the avatar, the account menu). Anything inside a
      themed surface, glows included, takes a role token instead. */
   --color-brand-cyan: #00d4ff;
-  --color-accent-cyan: var(--color-brand-cyan);
-  --color-accent-cyan-glow: rgba(0, 212, 255, 0.15);
-  --color-accent-cyan-text: #1a202c;
+  --color-accent-cyan: #00e5ff;
+  --color-accent-cyan-glow: rgba(0, 229, 255, 0.15);
+  --color-accent-cyan-text: #160b2e;
 
   /* === Neon accent — DECORATIVE neon chrome: pill borders, glows, status dots ===
      A third role, deliberately separate from the two that already exist:
@@ -84,19 +86,19 @@
        - `SPORT_COLORS` encodes DATA and is never chrome.
      Light is a touch deeper (so it reads on the pale ground) with denser alphas, because
      a light backdrop swallows a thin glow that reads fine on dark. */
-  --color-neon-accent: var(--color-brand-cyan);
-  --color-neon-accent-border: color-mix(in srgb, var(--color-neon-accent) 40%, transparent);
-  --color-neon-accent-glow: color-mix(in srgb, var(--color-neon-accent) 15%, transparent);
+  --color-neon-accent: #ff2ec4;
+  --color-neon-accent-border: color-mix(in srgb, var(--color-neon-accent) 45%, transparent);
+  --color-neon-accent-glow: color-mix(in srgb, var(--color-neon-accent) 35%, transparent);
 
   /* === Map chrome accent — what the routes-map drawers remap `--color-accent-cyan` to,
      so their accents and the Base UI primitives inside them (which paint through
      `--color-primary` → `accent-cyan`) take a map-specific color. Dark themes use full
      neon cyan, which reads over the dark basemap; light themes keep the readable
      interactive accent, because neon cyan is illegible on pale glass. === */
-  --color-map-chrome-accent: var(--color-neon-cyan);
+  --color-map-chrome-accent: #00e5ff;
 
   /* === Accent: Magenta — secondary accent === */
-  --color-accent-magenta: #ff00ff;
+  --color-accent-magenta: #ff2ec4;
 
   /* === Neon — full-brightness PRIMITIVES for charts, skeletons, animations ===
      These never flip by theme: full-brightness neon is the brand, and it reads on
@@ -118,7 +120,7 @@
   /* Ink for text/marks sitting ON a bright neon fill (a pressed sport chip, an
      achievement badge). It can't be --color-bg-body: the fill is bright in every theme,
      but the ground is light in light themes. */
-  --color-on-accent: #0b1120;
+  --color-on-accent: #160b2e;
 
   /* Activity-intensity ramp (calendar heatmap): soft purple → neon magenta. */
   --color-intensity-1: rgb(180, 130, 200);
@@ -127,34 +129,34 @@
   --color-intensity-4: var(--color-neon-magenta);
 
   /* === Status — semantic feedback colors === */
-  --color-danger: #dc3545;
-  --color-success: #00ff80;
-  --color-warning: #ffc107;
+  --color-danger: #ff8a3d;
+  --color-success: #3dffa8;
+  --color-warning: #ffc800;
 
   /* === Body text === */
-  --color-body-text: #e2e8f0;
+  --color-body-text: #f2eaff;
 
   /* === Sport marks — scaffolding that keeps the full-brightness SPORT_COLORS
      legible without muting them. 10 of 16 fall under 3:1 on the light ground, so
      the neon moves into dots/fills/outlines and the LABEL goes neutral (and a label ON
      a neon fill uses --color-on-accent). === */
-  --color-chip-hairline: rgba(148, 163, 184, 0.28);
+  --color-chip-hairline: rgba(201, 184, 224, 0.25);
 
   /* === Chart colors — grid, axes, tooltips, data lines === */
-  --color-chart-grid: rgba(255, 255, 255, 0.12);
+  --color-chart-grid: rgba(242, 234, 255, 0.07);
   /* Outline on sport-colored marks. Dark: the page ground, which reads as the
      hairline separating stacked segments. Light: ink, so the neon fill has a
      boundary that clears 3:1 against #f0f4f8. */
-  --color-chart-mark-outline: #0f1724;
-  --color-chart-axis: #718096;
-  --color-chart-tick: #718096;
+  --color-chart-mark-outline: #1e1040;
+  --color-chart-axis: rgba(242, 234, 255, 0.18);
+  --color-chart-tick: #8b7bb5;
   --color-chart-actual-line: #ffffff;
-  --color-chart-tooltip-bg: rgba(45, 55, 72, 0.95);
-  --color-chart-tooltip-border: rgba(0, 212, 255, 0.4);
-  --color-chart-tooltip-text: #ffffff;
-  --color-chart-tooltip-muted: #a0aec0;
-  --color-chart-tooltip-label: #aaaaaa;
-  --color-chart-tooltip-divider: rgba(0, 212, 255, 0.2);
+  --color-chart-tooltip-bg: #1b0d36;
+  --color-chart-tooltip-border: rgba(255, 46, 196, 0.55);
+  --color-chart-tooltip-text: #f2eaff;
+  --color-chart-tooltip-muted: #c9b8e0;
+  --color-chart-tooltip-label: #8b7bb5;
+  --color-chart-tooltip-divider: rgba(255, 46, 196, 0.2);
 
   /* === Chart data colors: fixed across themes, like SPORT_COLORS ===
      Goal lines run cool (conservative) to warm (stretch). The neutral is the ghost color
@@ -173,20 +175,20 @@
   --color-map-point-outline: #0b0f1a;
 
   /* === Header — pinned dark regardless of theme === */
-  --color-header-bg: #2d3748;
-  --color-header-border: #4a5568;
-  --color-header-text: #e2e8f0;
-  --color-header-text-muted: #778899;
+  --color-header-bg: #0e0620;
+  --color-header-border: rgba(255, 46, 196, 0.35);
+  --color-header-text: #c9b8e0;
+  --color-header-text-muted: #8b7bb5;
   /* The brightest header ink; used at partial alpha for dimmed text and hover fills
      (e.g. text-header-ink/50, bg-header-ink/10). */
   --color-header-ink: #ffffff;
-  --color-header-accent: #00d4ff;
+  --color-header-accent: #ff2ec4;
 
   /* === Surface colors — overlays, borders, hover states === */
-  --color-surface-hover: rgba(255, 255, 255, 0.06);
-  --color-surface-border: rgba(255, 255, 255, 0.08);
-  --color-surface-overlay: rgba(0, 0, 0, 0.7);
-  --color-surface-shadow: rgba(0, 0, 0, 0.4);
+  --color-surface-hover: rgba(255, 46, 196, 0.07);
+  --color-surface-border: rgba(201, 184, 224, 0.12);
+  --color-surface-overlay: rgba(14, 6, 32, 0.8);
+  --color-surface-shadow: rgba(0, 0, 0, 0.45);
 
   /* === Scrim: a fixed darkening layer that does NOT flip with the theme: modal
      backdrops, drop shadows under floating menus, and the backing behind a label drawn
@@ -195,13 +197,11 @@
   --color-on-scrim: #ffffff;
 
   /* === Typography === */
-  --font-display:
-    "Space Grotesk Variable", "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
+  --font-display: "Archivo Black", "Arial Black", sans-serif;
 
   /* === Radius — base for shadcn/ui's --radius-{sm,md,lg,xl} scale (matches the
      0.375–0.625rem controls/cards already in this file) === */
-  --radius: 0.5rem;
+  --radius: 0.375rem;
 }
 
 /* ==========================================================================
@@ -256,7 +256,6 @@
   h3 {
     font-family: var(--font-display);
   }
-
 
   a {
     color: var(--color-accent-cyan);

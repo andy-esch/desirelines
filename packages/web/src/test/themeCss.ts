@@ -50,6 +50,17 @@ export function themeBlocksIn(css: string): ThemeBlock[] {
   );
 }
 
+/** The tokens `tailwind.css` registers in its `@theme` block, with the values given there. */
+export function themeRegistrations(): ReadonlyMap<string, string> {
+  const body = stripComments(TAILWIND_CSS).match(/@theme\s*\{([^}]*)\}/)?.[1] ?? "";
+  return new Map(
+    [...body.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)].map(([, name = "", value = ""]) => [
+      name,
+      value.trim(),
+    ])
+  );
+}
+
 /** A theme's value for a token, or `""` when its file does not define it. */
 export function themeToken(themeId: string, token: string): string {
   const block = themeBlocksIn(THEME_FILES.get(themeId) ?? "").find((b) => b.id === themeId);

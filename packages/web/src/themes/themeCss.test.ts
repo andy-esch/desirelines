@@ -1,6 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { THEMES } from "./registry";
-import { TAILWIND_CSS, THEME_FILES, stripComments, themeBlocksIn } from "../test/themeCss";
+import { DEFAULT_THEME_PREFERENCE, THEMES } from "./registry";
+import {
+  TAILWIND_CSS,
+  THEME_FILES,
+  stripComments,
+  themeBlocksIn,
+  themeRegistrations,
+} from "../test/themeCss";
 
 /**
  * Guards the CSS half of each theme against the theme list (see the header comment in
@@ -43,6 +49,21 @@ describe("theme CSS files", () => {
       [...union].filter((name) => !decls.has(name)).map((name) => `${id} is missing ${name}`)
     );
     expect(gaps).toEqual([]);
+  });
+
+  it("registers each theme token at the default theme's value", () => {
+    // Nothing renders these, but the build bakes them into the fallback an older browser
+    // gets for an opacity modifier (`bg-surface-raised/80`), so they must belong to a live
+    // theme rather than drift toward one that was deleted.
+    const defaults = blocks.get(DEFAULT_THEME_PREFERENCE);
+    expect(defaults, "the default theme has a file").toBeDefined();
+    const spaced = (value: string | undefined) => value?.replace(/\s+/g, " ");
+    const drifted = [...themeRegistrations()]
+      .filter(
+        ([name, value]) => defaults?.has(name) && spaced(value) !== spaced(defaults.get(name))
+      )
+      .map(([name, value]) => `${name} is ${value}, the default theme has ${defaults?.get(name)}`);
+    expect(drifted).toEqual([]);
   });
 
   it("matches each theme's background to its --color-bg-body", () => {
