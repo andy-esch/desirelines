@@ -30,6 +30,7 @@ not change with the theme.
 | `--color-neon-yellow` | `rgb(255, 200, 0)` |
 | `--color-neon-orange` | `rgb(255, 95, 31)` |
 | `--color-neon-lime` | `#39ff14` |
+| `--color-neon-yellow-pure` | `rgb(255, 255, 0)`, the logo slash only |
 
 **2. Roles** — what a color *means*. These flip with the theme. There are three separate
 accent roles and conflating them is the most common mistake:
@@ -68,10 +69,13 @@ Each theme also sets the status colors (`--color-success`, `--color-danger`,
 prior years, `--color-danger-zone` with its `-label` ink, the chart chrome (`--color-chart-grid`,
 `-axis`, `-tick`, `-actual-line`) and the tooltips (`--color-chart-tooltip-bg`, `-border`, `-text`,
 `-muted`, `-label`, `-divider`). `themeCss.test.ts` keeps each
-theme's five goal colors apart from each other. Two tokens stay fixed across themes: the header's brightest ink
-`--color-header-ink`, used at partial alpha (`text-header-ink/50`, `bg-header-ink/10`), and
+theme's five goal colors apart from each other. Besides the primitives, a few colors stay fixed across
+themes (`FIXED_COLORS` in `src/themes/contract.ts` lists them all): the header's brightest ink
+`--color-header-ink`, used at partial alpha (`text-header-ink/50`, `bg-header-ink/10`);
 `--color-scrim` / `--color-on-scrim`, the darkening layer for modal backdrops, menu shadows and
-a label drawn over a bright fill (`bg-scrim/50`, `shadow-scrim/40`).
+a label drawn over a bright fill (`bg-scrim/50`, `shadow-scrim/40`); the calendar heatmap's
+busier steps `--color-intensity-1` to `-4` (its empty step is the theme's `--color-intensity-0`);
+and `--color-map-point-outline`, the ring around route-map points.
 
 **Fonts:** `body` takes the theme's `--font-body`, and `h1` to `h3` take `--font-display`.
 

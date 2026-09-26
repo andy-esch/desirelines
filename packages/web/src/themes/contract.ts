@@ -419,6 +419,11 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = [
   { text: ["--panel-accent-2-ink"], on: ["--panel-bg"], min: 4.5 },
   { text: ["--panel-accent-3-ink"], on: ["--panel-bg"], min: 4.5 },
   { text: ["--stat-sub-color"], on: ["--panel-bg"], min: 4.5 },
+  // Accent and danger text: links and interactive labels, their hover, and error copy.
+  { text: ["--color-accent-cyan"], on: ["--color-bg-body"], min: 4.5 },
+  { text: ["--color-accent-cyan"], on: ["--panel-bg"], min: 4.5 },
+  { text: ["--color-accent-magenta"], on: ["--color-bg-body"], min: 4.5 },
+  { text: ["--color-danger"], on: ["--panel-bg"], min: 4.5 },
   // Controls: a primary button's label, toggle items in their frame, and the pressed item,
   // whose transparent fill (Arcade's) shows the frame.
   { text: ["--color-accent-cyan-text"], on: ["--color-accent-cyan"], min: 4.5 },

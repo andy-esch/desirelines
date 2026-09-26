@@ -128,7 +128,7 @@ describe("the style guide", () => {
     expect([...slotRows.keys()].sort()).toEqual(groups.sort());
   });
 
-  it("documents every slot in its group's row, and the colors in the color system", () => {
+  it("documents every slot in its group's row, and every color in the color system", () => {
     const undocumented = [...THEME_SLOTS].flatMap(([slot, { group }]) => {
       const found =
         group === "Colors"
@@ -136,7 +136,10 @@ describe("the style guide", () => {
           : documents(slotRows.get(group) ?? "", slot);
       return found ? [] : [`${slot} (${group})`];
     });
-    expect(undocumented).toEqual([]);
+    const fixed = FIXED_COLORS.filter(
+      (color) => !colorUnits.some((unit) => documents(unit, color))
+    ).map((color) => `${color} (fixed)`);
+    expect([...undocumented, ...fixed]).toEqual([]);
   });
 
   it("names nothing in the slot table that its group doesn't hold", () => {

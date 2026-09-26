@@ -14,12 +14,13 @@
 
    `data-theme` is set on <html> before first paint (src/themes/bootScript.ts) and can
    also be set on any element to theme a subtree (the dev theme gallery does this). So
-   every theme file redefines the SAME full set of theme-varying tokens: a nested block
-   that left one out would silently inherit the outer theme's value.
+   every theme file sets the full set of slots src/themes/contract.ts lists: a nested
+   block that left one out would silently inherit the outer theme's value.
+   themeContract.test.ts enforces the set and the kind of each value.
 
    A theme file holds its one `[data-theme="<id>"]` block and nothing else: a theme is
-   values only. themeCss.test.ts enforces that, the matching token sets, a file and an
-   import here for every registry entry, and the ground color.
+   values only. themeCss.test.ts enforces that, a file and an import here for every
+   registry entry, and the ground color.
 
    The @theme block below registers these tokens with Tailwind at the default theme's
    values, and a theme block always applies over them: the blocks are unlayered, so they
