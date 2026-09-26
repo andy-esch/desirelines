@@ -69,6 +69,18 @@ export const CHART_CONFIG = {
     fallback: "5 5",
   },
 
+  /**
+   * Recharts' own tooltip box, for the small route charts that use it rather than
+   * ChartTooltip. Same surface and corner as every other chart tooltip.
+   */
+  tooltipContentStyle: {
+    background: "var(--color-chart-tooltip-bg)",
+    border: "1px solid var(--color-chart-tooltip-border)",
+    borderRadius: "var(--tooltip-radius)",
+    fontSize: 12,
+    color: "var(--color-chart-tooltip-text)",
+  },
+
   /** Y-axis marker styling (only fontSize used; radius/fontWeight use component defaults) */
   marker: {
     fontSize: {

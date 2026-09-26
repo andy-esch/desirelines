@@ -72,8 +72,9 @@ a label drawn over a bright fill (`bg-scrim/50`, `shadow-scrim/40`).
 **3. Components** consume roles only. **No component may name a raw color value, and no
 component may use Tailwind's built-in palette utilities** (`text-white`, `bg-black/50`,
 `border-slate-500`): they bypass the theme blocks, so they look right in one theme and wrong
-in the next. `colorUtilities.test.ts` fails on either. The one exception is a fallback literal
-for a data color that failed to arrive (e.g. a chart tooltip's `#888`).
+in the next. `colorUtilities.test.ts` fails on either. A data color that fails to arrive
+falls back to a token as well: a chart tooltip entry with no color of its own takes
+`--color-chart-neutral`.
 
 To re-theme the app, edit layer 1 and the theme files. That is the whole point of the
 layering; if a change requires touching component files, the layering has been violated.

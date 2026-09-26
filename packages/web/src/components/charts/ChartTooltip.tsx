@@ -92,14 +92,14 @@ export const ChartTooltip = ({
   if (compact && targetGoal) {
     // Compact mode: actual + delta vs nearest goal, plus prior year values
     // Use goal's color for the delta to create visual connection
-    const goalColor = targetGoal.stroke || targetGoal.color || "#888";
+    const goalColor = targetGoal.stroke || targetGoal.color || "var(--color-chart-neutral)";
 
     return (
       <div
         style={{
           backgroundColor: "var(--color-chart-tooltip-bg)",
           border: "1px solid var(--color-chart-tooltip-border)",
-          borderRadius: "0.625rem",
+          borderRadius: "var(--tooltip-radius)",
           padding: "8px 12px",
           boxShadow: "0 2px 8px var(--color-surface-shadow)",
           fontSize: "12px",
@@ -145,7 +145,7 @@ export const ChartTooltip = ({
           >
             {priorYearEntries.map((entry, index) => {
               const value = typeof entry.value === "number" ? entry.value.toFixed(decimals) : "—";
-              const color = entry.stroke || entry.color || "#888";
+              const color = entry.stroke || entry.color || "var(--color-chart-neutral)";
               return (
                 <div
                   key={index}
@@ -176,7 +176,7 @@ export const ChartTooltip = ({
       style={{
         backgroundColor: "var(--color-chart-tooltip-bg)",
         border: "1px solid var(--color-chart-tooltip-border)",
-        borderRadius: "0.625rem",
+        borderRadius: "var(--tooltip-radius)",
         padding: "10px 12px",
         boxShadow: "0 2px 12px var(--color-surface-shadow)",
         fontFamily: "var(--font-chart)",
@@ -209,7 +209,7 @@ export const ChartTooltip = ({
             },
             index: number
           ) => {
-            const color = entry.stroke || entry.color || "#888";
+            const color = entry.stroke || entry.color || "var(--color-chart-neutral)";
             const value =
               typeof entry.value === "number" ? entry.value.toFixed(decimals) : (entry.value ?? "");
             // Shorten the label

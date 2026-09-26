@@ -4,6 +4,7 @@ import type { MapActivity } from "../../api/map";
 import { convertDistance, getDistanceLabel, type DistanceUnit } from "../../utils/units";
 import { distanceHistogram } from "../../utils/mapInsights";
 import { chartLabelToString } from "../../utils/chartUtils";
+import { CHART_CONFIG } from "../../constants/chartConfig";
 
 export interface DistanceHistogramChartProps {
   activities: MapActivity[];
@@ -11,14 +12,6 @@ export interface DistanceHistogramChartProps {
   /** Click a bin → set the distance filter to that range (cross-filter). */
   onSelectRange: (range: [number, number]) => void;
 }
-
-const TOOLTIP_STYLE = {
-  background: "var(--color-chart-tooltip-bg)",
-  border: "1px solid var(--color-chart-tooltip-border)",
-  borderRadius: 6,
-  fontSize: 12,
-  color: "var(--color-chart-tooltip-text)",
-} as const;
 
 /**
  * Distance histogram — activity counts per distance bin over the filtered set
@@ -71,8 +64,8 @@ export default function DistanceHistogramChart({
                   tickLine={false}
                 />
                 <Tooltip
-                  cursor={{ fill: "rgba(120,120,120,0.15)" }}
-                  contentStyle={TOOLTIP_STYLE}
+                  cursor={{ fill: "var(--chart-hover-column)" }}
+                  contentStyle={CHART_CONFIG.tooltipContentStyle}
                   formatter={(v) => [`${Number(v)} activities`, "Count"]}
                   labelFormatter={(l) => `${chartLabelToString(l)}+ ${unit}`}
                 />

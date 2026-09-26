@@ -13,19 +13,12 @@ import { convertDistance, getDistanceLabel, type DistanceUnit } from "../../util
 import { cumulativeDistance } from "../../utils/mapInsights";
 import { chartLabelToString } from "../../utils/chartUtils";
 import { useThemeDateFormat } from "../theme/useThemeDateFormat";
+import { CHART_CONFIG } from "../../constants/chartConfig";
 
 export interface CumulativeDistanceChartProps {
   activities: MapActivity[];
   distanceUnit: DistanceUnit;
 }
-
-const TOOLTIP_STYLE = {
-  background: "var(--color-chart-tooltip-bg)",
-  border: "1px solid var(--color-chart-tooltip-border)",
-  borderRadius: 6,
-  fontSize: 12,
-  color: "var(--color-chart-tooltip-text)",
-} as const;
 
 /**
  * Cumulative distance — running total over the filtered set, by day (recharts
@@ -75,7 +68,7 @@ export default function CumulativeDistanceChart({
                 tickFormatter={(v: number) => String(Math.round(v))}
               />
               <Tooltip
-                contentStyle={TOOLTIP_STYLE}
+                contentStyle={CHART_CONFIG.tooltipContentStyle}
                 formatter={(v) => [`${Math.round(Number(v)).toLocaleString()} ${unit}`, "Total"]}
                 labelFormatter={(d) => formatActivityDate(chartLabelToString(d), { year: true })}
               />

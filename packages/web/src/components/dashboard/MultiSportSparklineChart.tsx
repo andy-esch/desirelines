@@ -155,10 +155,11 @@ function UnifiedSparklineTooltip({
 
   return (
     <div
-      className="rounded p-2"
+      className="p-2"
       style={{
         background: "var(--color-chart-tooltip-bg)",
         border: "1px solid var(--color-chart-tooltip-border)",
+        borderRadius: "var(--tooltip-radius)",
         // --color-surface-shadow rather than Tailwind's shadow-sm: the token is
         // theme-aware (0.4 alpha in dark, 0.15 in light), which a fixed utility
         // class is not, and the rest of this tooltip is already tokenized.
@@ -327,7 +328,7 @@ export default function MultiSportSparklineChart({
                 />
               )}
               cursor={{
-                stroke: "rgba(100, 100, 100, 0.5)",
+                stroke: "var(--color-chart-axis)",
                 strokeWidth: 1,
               }}
             />
