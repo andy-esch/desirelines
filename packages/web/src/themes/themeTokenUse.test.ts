@@ -20,7 +20,6 @@ const UNREAD_FOR_NOW: Readonly<Record<string, string>> = {
   "--chip-hover-strength": "read by sport chips, which hard-code 10% today",
   "--chip-dot-radius": "read by sport chips, which hard-code a round dot today",
   "--stepper-gap": "read by the goal stepper's +/- buttons",
-  "--control-focus-ring": "read by focus styles on inputs, selects and buttons",
   "--missing-value-color": "read by the dash shown for a missing value",
   // Tailwind scans this file for class names, so the comment avoids spelling the class out:
   // without this token, the scale's largest step would take Tailwind's fixed default

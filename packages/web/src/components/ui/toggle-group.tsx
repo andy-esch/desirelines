@@ -37,7 +37,7 @@ function ToggleGroupItem({
       className={cn(
         "inline-flex items-center justify-center gap-1.5 rounded-(--toggle-item-radius) border-(length:--toggle-item-border-width) border-border px-2.5 py-1 text-(length:--toggle-font-size) leading-[calc(1.25/0.875)] font-medium tracking-(--toggle-tracking) text-(color:--toggle-item-color) [text-transform:var(--toggle-case)] outline-none transition-colors",
         "hover:bg-accent hover:text-accent-foreground",
-        "focus-visible:ring-2 focus-visible:ring-ring/40",
+        "focus-visible:control-focus-ring",
         // A theme may give pressed toggles their own color; otherwise they take the accent.
         "data-[pressed]:border-[color:var(--color-toggle-pressed,var(--color-accent-cyan))] data-[pressed]:bg-[color:var(--color-toggle-pressed,var(--color-accent-cyan))] data-[pressed]:text-primary-foreground",
         "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",

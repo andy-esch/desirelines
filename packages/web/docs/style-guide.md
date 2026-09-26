@@ -349,11 +349,13 @@ rows `--row-rule`, and the table `--table-text-size`).
 A sport in a row is a `SportLabel`; a status or count pill is `Badge` with `size="compact"`.
 
 **shadcn/Base UI primitives** (`src/components/ui/`) take colors from the `@theme inline`
-alias block in `tailwind.css` (`bg-card`, `border-input`, `data-[pressed]:bg-primary`) and
+alias block in `tailwind.css` (`bg-card`, `border-input`, `bg-primary`) and
 geometry and type from the control slots: `Button`, `Input`, `SelectTrigger` and the
 `Combobox` chips box read `--control-height`, `--control-radius` (`--button-radius` for
 buttons) and `--control-font-size`; `ToggleGroup` reads `--toggle-*`; `Slider` reads
-`--slider-*`. New primitives follow the same split. Two things to watch:
+`--slider-*`. Every control draws focus with `focus-visible:control-focus-ring`, a utility
+in `tailwind.css` that reads `--control-focus-ring`. New primitives follow the same split.
+Things to watch:
 
 - Keep color in utilities, not slots. A slot whose value is `var(--color-…)` resolves where
   the theme block defines it, so a subtree that remaps a color token (the routes-map chrome

@@ -17,7 +17,7 @@ function Input({ className, type, ...props }: InputProps) {
       className={cn(
         "flex h-(--control-height) w-full rounded-(--control-radius) border border-input bg-card px-3 py-1 text-(length:--control-font-size) leading-[calc(1.25/0.875)] text-foreground shadow-sm",
         "placeholder:text-muted-foreground",
-        "transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none",
+        "transition-colors focus-visible:border-ring focus-visible:control-focus-ring focus-visible:outline-none",
         "disabled:cursor-not-allowed disabled:opacity-50",
         "file:border-0 file:bg-transparent file:text-sm file:font-medium",
         className
