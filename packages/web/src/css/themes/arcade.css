@@ -9,7 +9,7 @@
   --color-muted-text: #7f9aa0;
   --color-subtle-text: #a3a5a6;
   --color-surface-raised: #000000;
-  --color-control-border: rgba(0, 255, 255, 0.3);
+  --color-control-border: rgba(0, 255, 255, 0.4);
   --color-divider: rgba(180, 0, 255, 0.22);
   --color-panel-border: #00ffff;
   --color-panel-border-hover: #00ffff;
@@ -220,7 +220,7 @@
   /* Tables and lists */
   --th-size: 0.59375rem;
   --th-weight: 400;
-  --th-color: #6a4a86;
+  --th-color: #9270b8;
   --th-tracking: 0.18em;
   --th-case: uppercase;
   --th-rule: none;

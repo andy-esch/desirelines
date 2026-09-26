@@ -16,9 +16,7 @@ const EXEMPT: Readonly<Record<string, string>> = {
 };
 
 /** Pairs a theme fails today, each with the reason. Keyed `<theme> <text> on <surface>`. */
-const FAILING_FOR_NOW: Readonly<Record<string, string>> = {
-  "arcade --th-color on --panel-bg": "the approved purple header (#6a4a86) is 2.9:1 on black",
-};
+const FAILING_FOR_NOW: Readonly<Record<string, string>> = {};
 
 const label = (pair: ContrastPair) => `${pair.text[0]} on ${pair.on[0]}`;
 

@@ -9,7 +9,7 @@
   --color-muted-text: #8b7bb5;
   --color-subtle-text: #c9b8e0;
   --color-surface-raised: #1e1040;
-  --color-control-border: rgba(255, 46, 196, 0.3);
+  --color-control-border: rgba(255, 46, 196, 0.7);
   --color-divider: rgba(201, 184, 224, 0.12);
   --color-panel-border: rgba(255, 46, 196, 0.22);
   --color-panel-border-hover: rgba(255, 46, 196, 0.45);
@@ -171,7 +171,7 @@
   --control-radius: 4px;
   --control-font-size: 0.78125rem;
   --control-case: none;
-  --control-focus-ring: 0 0 0 2px rgba(255, 46, 196, 0.45);
+  --control-focus-ring: 0 0 0 2px #ff2ec4;
   --toggle-gap: 2px;
   --toggle-frame-border-width: 1px;
   --toggle-frame-padding: 2px;
