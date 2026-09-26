@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { DEFAULT_THEME_PREFERENCE, THEMES } from "./registry";
+import { parseRgb } from "../utils/colorTokens";
 import {
   TAILWIND_CSS,
   THEME_FILES,
@@ -64,6 +65,30 @@ describe("theme CSS files", () => {
       )
       .map(([name, value]) => `${name} is ${value}, the default theme has ${defaults?.get(name)}`);
     expect(drifted).toEqual([]);
+  });
+
+  it("keeps each theme's five goal colors apart from each other", () => {
+    // A goal line is told apart by its color first, so two that nearly match read as one.
+    // The floor sits well under the closest pair any theme has today (about 120), so it
+    // catches a near-duplicate without standing in for the colorblind check the designs had.
+    const registered = themeRegistrations();
+    for (const [id, tokens] of blocks) {
+      const resolve = (value: string): string => {
+        const ref = value.match(/^var\((--[\w-]+)\)$/)?.[1];
+        return ref ? resolve(tokens.get(ref) ?? registered.get(ref) ?? "") : value;
+      };
+      const goals = [1, 2, 3, 4, 5].map((n) => {
+        const rgb = parseRgb(resolve(tokens.get(`--color-goal-${n}`) ?? ""));
+        expect(rgb, `${id} --color-goal-${n} is a color`).not.toBeNull();
+        return rgb!;
+      });
+      goals.forEach((a, i) =>
+        goals.slice(i + 1).forEach((b, j) => {
+          const distance = Math.hypot(a.r - b.r, a.g - b.g, a.b - b.b);
+          expect(distance, `${id} goals ${i + 1} and ${i + j + 2}`).toBeGreaterThan(100);
+        })
+      );
+    }
   });
 
   it("matches each theme's background to its --color-bg-body", () => {

@@ -6,26 +6,24 @@
  */
 
 export const CHART_COLORS = {
-  /** Actual data line — uses CSS variable to flip between dark/light themes */
+  /** Actual data line; each theme sets its color, and its glow is `--chart-actual-glow` */
   ACTUAL_DATA_LINE: "var(--color-chart-actual-line)",
 
-  /** Average pacing line (orange, used in CumulativeMetricsChart) */
+  /** Average pacing line in the cumulative chart: a dashed neutral in the retro themes */
   AVERAGE_LINE: "var(--color-chart-average-line)",
 } as const;
 
 /**
- * Goal Colors - Neon Theme
- *
- * Semantic progression from cool (conservative goals) to warm (stretch goals)
- * Array of colors for up to 5 goals.
- * Used consistently across all chart components.
+ * Goal colors for up to 5 goals, running cool (conservative) to warm (stretch). Each theme
+ * sets its own five, and themeCss.test.ts keeps them apart from each other. Used
+ * consistently across all chart components.
  */
 export const GOAL_COLORS = [
-  "var(--color-goal-1)", // Electric Cyan (conservative)
-  "var(--color-goal-2)", // Neon Green-Cyan (moderate)
-  "var(--color-goal-3)", // Bright Magenta (target)
-  "var(--color-goal-4)", // Neon Yellow-Orange (ambitious)
-  "var(--color-goal-5)", // Neon Pink-Red (stretch)
+  "var(--color-goal-1)", // conservative
+  "var(--color-goal-2)",
+  "var(--color-goal-3)",
+  "var(--color-goal-4)",
+  "var(--color-goal-5)", // stretch
 ] as const;
 
 /** Prior year ghost line styling: the neutral, at a fading opacity per year back */

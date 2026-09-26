@@ -58,8 +58,11 @@ black panel borders with grey muted text, say):
 | `--color-intensity-0` | The calendar heatmap's "no activity" cell |
 
 Each theme also sets the status colors (`--color-success`, `--color-danger`,
-`--color-warning`) and the header chrome (`--color-header-bg`, `-border`, `-text`,
-`-text-muted`, `-accent`). Two tokens stay fixed across themes: the header's brightest ink
+`--color-warning`), the header chrome (`--color-header-bg`, `-border`, `-text`,
+`-text-muted`, `-accent`), and the chart data colors: `--color-goal-1` to `-5` running cool
+(conservative) to warm (stretch), `--color-chart-average-line`, `--color-chart-neutral` for
+prior years, and `--color-danger-zone` with its `-label` ink. `themeCss.test.ts` keeps each
+theme's five goal colors apart from each other. Two tokens stay fixed across themes: the header's brightest ink
 `--color-header-ink`, used at partial alpha (`text-header-ink/50`, `bg-header-ink/10`), and
 `--color-scrim` / `--color-on-scrim`, the darkening layer for modal backdrops, menu shadows and
 a label drawn over a bright fill (`bg-scrim/50`, `shadow-scrim/40`).
