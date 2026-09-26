@@ -5,9 +5,15 @@ interface SettingRowProps {
   label: string;
   description?: string;
   /** Pass a render function to receive the descriptionId for aria-describedby */
-  children: ReactNode | ((descriptionId?: string, inputId?: string) => ReactNode);
+  children: ReactNode | ((descriptionId?: string, inputId?: string, labelId?: string) => ReactNode);
   /** If true, value is read-only (no edit control) */
   readOnly?: boolean;
+  /**
+   * The control is a group of inputs (a radio group) rather than one. A `<label for>` can't
+   * name a group, so the label renders as text whose id the render function receives third,
+   * for the group's `aria-labelledby`.
+   */
+  group?: boolean;
 }
 
 /**
@@ -18,11 +24,12 @@ interface SettingRowProps {
  * element gets an id so form controls can reference it via aria-describedby.
  * Pass the descriptionId to children via the `aria-describedby` attribute.
  */
-export function SettingRow({ label, description, children, readOnly }: SettingRowProps) {
+export function SettingRow({ label, description, children, readOnly, group }: SettingRowProps) {
   const id = useId();
   const inputId = `${id}-input`;
+  const labelId = `${id}-label`;
   const descriptionId = description && !readOnly ? `${id}-desc` : undefined;
-  const LabelTag = readOnly ? "div" : "label";
+  const LabelTag = readOnly || group ? "div" : "label";
 
   return (
     <div
@@ -33,7 +40,11 @@ export function SettingRow({ label, description, children, readOnly }: SettingRo
           leaves the side-by-side row too narrow for its own control, and the page clips
           the overflow rather than scrolling it. */}
       <div className="sm:me-6 sm:flex-1">
-        <LabelTag htmlFor={readOnly ? undefined : inputId} className="font-medium block">
+        <LabelTag
+          id={labelId}
+          htmlFor={readOnly || group ? undefined : inputId}
+          className="font-medium block"
+        >
           {label}
         </LabelTag>
         {description && (
@@ -43,7 +54,7 @@ export function SettingRow({ label, description, children, readOnly }: SettingRo
         )}
       </div>
       <div className={cn("flex items-center sm:justify-end", !readOnly && "sm:min-w-[200px]")}>
-        {typeof children === "function" ? children(descriptionId, inputId) : children}
+        {typeof children === "function" ? children(descriptionId, inputId, labelId) : children}
       </div>
     </div>
   );

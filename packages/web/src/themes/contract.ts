@@ -434,6 +434,8 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = [
     over: "--color-surface-raised",
     min: 4.5,
   },
+  // A chosen card's name in the Settings theme picker.
+  { text: ["--color-neon-accent"], on: ["--panel-bg"], min: 4.5 },
   // Header.
   { text: ["--color-header-text"], on: ["--color-header-bg"], min: 4.5 },
   { text: ["--color-header-text-muted"], on: ["--color-header-bg"], min: 4.5 },
@@ -507,6 +509,10 @@ export const MARK_PAIRS: readonly MarkPair[] = [
   { mark: ["--color-slider-fill", "--color-accent-cyan"], on: ["--map-chrome-bg"] },
   // A year meter's done segments.
   { mark: ["--color-meter-done"], on: ["--panel-bg"] },
+  // The Settings theme picker's chosen card: its border on the panel, and the check in its
+  // badge, which marks the choice without relying on color.
+  { mark: ["--color-neon-accent"], on: ["--panel-bg"] },
+  { mark: ["--color-on-accent"], on: ["--color-neon-accent"] },
 ];
 
 /**

@@ -5,6 +5,7 @@ import { useUserProfile } from "../hooks/useUserProfile";
 import { useUserConfig } from "../hooks/useUserConfig";
 import { SettingsSection } from "../components/settings/SettingsSection";
 import { SettingRow } from "../components/settings/SettingRow";
+import { ThemePicker } from "../components/settings/ThemePicker";
 import { GoalManagementTable } from "../components/settings/GoalManagementTable";
 import { SportVisibilitySettings } from "../components/settings/SportVisibilitySettings";
 import { CheckIcon } from "../components/icons";
@@ -225,6 +226,19 @@ export default function SettingsPage() {
         title="Display"
         description="Customize how data is displayed throughout the app"
       >
+        {/* Signed in, ThemeSync keeps the choice on the account; in demo mode it stays in
+            this browser. The caption says which. */}
+        <SettingRow
+          label="Theme"
+          description={
+            user ? "Saved to your account, so every device matches" : "Saved on this device"
+          }
+          group
+        >
+          {(descriptionId, _inputId, labelId) => (
+            <ThemePicker labelledBy={labelId} describedBy={descriptionId} />
+          )}
+        </SettingRow>
         <SettingRow label="Distance Unit" description="Used for all distance measurements">
           {(descriptionId, inputId) => (
             <PreferenceSelect

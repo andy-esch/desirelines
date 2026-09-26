@@ -159,7 +159,8 @@ component knows which theme is active.
 A retired theme leaves an entry in `LEGACY_PREFERENCE_ALIASES` rather than a dead id in
 someone's storage: a saved `legacy-dark` resolves to Arcade, which replaced it.
 
-The picker offers no "System" entry: the default no longer follows the OS color scheme, and
+Neither picker (the account menu's list and the Theme row in Settings → Display) offers a
+"System" entry: the default no longer follows the OS color scheme, and
 "Match system" returns with the light retro theme. **There are no `dark:` Tailwind utilities and no
 theme-id checks in components** — anything that differs between themes is a token value or
 a field on the theme's list entry.
@@ -257,7 +258,9 @@ rendered the neon at full strength.
    and the values, and add its `@import` to `tailwind.css` beside the others.
 3. Review it at `/dev/themes` (dev server only), where every theme — hidden ones included —
    renders side by side.
-4. Release it by flipping `hidden` to `false`.
+4. Release it by flipping `hidden` to `false`. It joins both pickers from its list entry: the
+   Settings card draws its thumbnail from `background`, the first accent in `swatches` and
+   `heroDecoration`. A new `heroDecoration` needs a miniature in `HeroDecorationPreview` too.
 
 The checks run with the web tests. `themeContract.test.ts` fails on a slot the file leaves
 out or adds, a value of the wrong kind (a bare `0` where a length needs a unit, a malformed
@@ -310,7 +313,9 @@ is applied and never written back; a change made here is written by
 `UserConfigService.updateTheme`, the field's one writer, since a preferences save leaves the
 stored theme alone. Empty, `dark` and `light` read as no choice (`readSyncedTheme`): they are
 defaults older saves wrote, not picks. Signed out, nothing syncs. localStorage stays the
-device's copy either way, because the first-paint script reads it.
+device's copy either way, because the first-paint script reads it. The Theme row in Settings
+says which applies: "Saved to your account, so every device matches" signed in, "Saved on
+this device" in demo mode.
 
 **Fonts.** `src/themes/fontPreloads.ts` preloads the woff2 files of the applied theme's
 `fonts` before the app renders, so a headline doesn't paint in the fallback face first. The
@@ -332,7 +337,8 @@ active theme's `structure`, unless a `ThemeStructureProvider` overrides it for a
 | `Section` | `--label-*`, `sectionLabelPlacement` | A heading, meta and actions over content that spans several panels. A single panel takes its title through `Panel`. |
 | `SectionLabel` | `--label-*` | Section and panel labels. |
 | `SportLabel`, `SportMark` | `--sport-mark-radius`, `--data-label-case`, `sportMarkStyle` | A sport's name in a row: a glowing dot or swatch before it, or a `SportBadge` (with `badge`) where the theme keeps badges. `SportMark` is the mark alone (e.g. beside the sport page title), and draws nothing where the theme uses badges. |
-| `HeroDecoration` | `heroDecoration` | The artwork behind the dashboard hero band. The recipes (Miami's sunset bands and blinds) are fixed in the component; the blinds use `--color-bg-body`. Bands too light for hero text sit a fixed distance from the bottom, inside `--hero-padding`, and `HeroDecoration.test.ts` checks text contrast on the rest. |
+| `HeroDecoration` | `heroDecoration` | The artwork behind the dashboard hero band. The recipes (Miami's sunset bands and blinds) are fixed in the component; the blinds use `--color-bg-body`. Bands too light for hero text sit a fixed distance from the bottom, inside `--hero-padding`, and `HeroDecoration.test.ts` checks text contrast on the rest. `HeroDecorationPreview` draws each recipe small for `ThemePreview`; a theme without one gets three plain bands of its own `--color-surface-raised`, `--color-divider` and `--color-chart-axis`. |
+| `ThemePreview` | the theme's own slots, `swatches`, `heroDecoration` | A theme drawn small (ground, two accent bars, its decoration) for the Settings theme picker. It renders inside the theme's own `data-theme`, so it looks like that theme whatever the page's theme is. The card around it is the page's: `--control-radius`, `--color-neon-accent` for the chosen card's border, glow, badge and name, `--color-on-accent` for the badge's check, `--control-case` for the name. The contract holds the chosen border and check to 3:1 and the name to 4.5:1. |
 | `PageTitle` | `--page-title-*`, `--kicker-*`, `--label-case`, `showPageKicker` | A page's `h1`, with an optional kicker line above it where the theme shows kickers. `glowColor` tints the glow (the sport page passes the sport's color), sized by `--page-title-glow-size` over `--page-title-offset-shadow`. |
 | `Stat`, `StatRow` | `--stat-*`, `--font-display`, `--display-weight`, `statRowStyle` | A row frames its stats as separate cards, one divided panel, or outline boxes. |
 | `Meter` | `--meter-*`, `--color-meter-*`, `--track-*`, `--color-pace-tick`, `meterPartialCurrent`, `goalTrackStyle` | Segmented (months, weeks) or continuous with an optional pace tick. `indeterminate` animates the segments for loading, and stops under reduced motion. |
