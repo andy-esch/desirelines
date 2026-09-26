@@ -1,3 +1,5 @@
+import type { ColorToken } from "../themes/contract";
+
 /**
  * Helpers for referencing the CSS color-token layer from TypeScript.
  *
@@ -37,7 +39,7 @@ export function alpha(color: string, pct: number): string {
  * @param token - CSS custom property name, including the leading `--`
  * @param pct - opacity as a percentage (0-100)
  */
-export function tint(token: string, pct: number): string {
+export function tint(token: ColorToken, pct: number): string {
   return alpha(`var(${token})`, pct);
 }
 
@@ -54,7 +56,7 @@ export function tint(token: string, pct: number): string {
  * @param token - CSS custom property name, including the leading `--`
  * @param fallback - returned when there is no DOM or the token is undefined
  */
-export function resolveThemeColor(token: string, fallback: string): string {
+export function resolveThemeColor(token: ColorToken, fallback: string): string {
   if (typeof document === "undefined") return fallback;
   const value = getComputedStyle(document.documentElement).getPropertyValue(token).trim();
   return value || fallback;

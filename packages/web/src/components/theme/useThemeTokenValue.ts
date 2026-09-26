@@ -1,6 +1,7 @@
 import { useContext, useLayoutEffect, useRef, useState } from "react";
 import { useTheme } from "../../contexts/ThemeContext";
 import { ThemeStructureContext } from "./useThemeStructure";
+import type { ThemeSlot } from "../../themes/contract";
 
 /**
  * A theme token's resolved value, for the few props that cannot take `var()`. Recharts
@@ -13,7 +14,7 @@ import { ThemeStructureContext } from "./useThemeStructure";
  * provider applies a new theme to the document before anything re-renders). Until the
  * element mounts, and wherever no stylesheet applies, such as in tests, it is `fallback`.
  */
-export function useThemeTokenValue<T extends Element>(token: string, fallback: string) {
+export function useThemeTokenValue<T extends Element>(token: ThemeSlot, fallback: string) {
   const ref = useRef<T>(null);
   const [value, setValue] = useState(fallback);
   const { theme } = useTheme();
