@@ -157,7 +157,7 @@
   /* Backgrounds and decoration */
   --page-wash-strength: 1;
   --sport-wash-strength: 1;
-  --hero-padding: 0;
+  --hero-padding: 0px;
   --hero-ink: var(--color-subtle-text);
   --hero-title-size: 2.25rem;
   --hero-title-color: var(--color-body-text);
@@ -249,8 +249,8 @@
   --track-fill-height: 20px;
   --track-fill-glow: 0px;
   --track-radius: 0.25rem;
-  --pace-tick-width: 0;
-  --pace-tick-height: 0;
+  --pace-tick-width: 0px;
+  --pace-tick-height: 0px;
   --meter-segment-width: 0.5rem;
   --meter-segment-height: 0.375rem;
   --meter-gap: 2px;
@@ -263,7 +263,7 @@
   --chart-tick-size: 11px;
   --chart-actual-glow: none;
   --chart-average-dash: 5 5;
-  --chart-bar-radius: 0;
+  --chart-bar-radius: 0px;
   --chart-bar-gap: 1px;
   --chart-hover-column: color-mix(in srgb, var(--color-chart-grid) 25%, transparent);
   --tooltip-radius: 0.625rem;

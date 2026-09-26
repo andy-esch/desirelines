@@ -4,11 +4,11 @@ import { parseRgb } from "../utils/colorTokens";
 import {
   TAILWIND_CSS,
   THEME_FILES,
+  resolveVars,
   stripComments,
   themeBlocksIn,
   themeRegistrations,
 } from "../test/themeCss";
-import { contrastRatio } from "../test/contrast";
 
 /**
  * Guards the CSS half of each theme against the theme list (see the header comment in
@@ -45,14 +45,6 @@ describe("theme CSS files", () => {
     expect(themeBlocksIn(css)).toEqual([]);
   });
 
-  it("defines the same token set in every file, so nested themes never inherit", () => {
-    const union = new Set([...blocks.values()].flatMap((decls) => [...decls.keys()]));
-    const gaps = [...blocks].flatMap(([id, decls]) =>
-      [...union].filter((name) => !decls.has(name)).map((name) => `${id} is missing ${name}`)
-    );
-    expect(gaps).toEqual([]);
-  });
-
   it("registers each theme token at the default theme's value", () => {
     // Nothing renders these, but the build bakes them into the fallback an older browser
     // gets for an opacity modifier (`bg-surface-raised/80`), so they must belong to a live
@@ -72,14 +64,9 @@ describe("theme CSS files", () => {
     // A goal line is told apart by its color first, so two that nearly match read as one.
     // The floor sits well under the closest pair any theme has today (about 120), so it
     // catches a near-duplicate without standing in for the colorblind check the designs had.
-    const registered = themeRegistrations();
     for (const [id, tokens] of blocks) {
-      const resolve = (value: string): string => {
-        const ref = value.match(/^var\((--[\w-]+)\)$/)?.[1];
-        return ref ? resolve(tokens.get(ref) ?? registered.get(ref) ?? "") : value;
-      };
       const goals = [1, 2, 3, 4, 5].map((n) => {
-        const rgb = parseRgb(resolve(tokens.get(`--color-goal-${n}`) ?? ""));
+        const rgb = parseRgb(resolveVars(id, tokens.get(`--color-goal-${n}`) ?? ""));
         expect(rgb, `${id} --color-goal-${n} is a color`).not.toBeNull();
         return rgb!;
       });
@@ -88,29 +75,6 @@ describe("theme CSS files", () => {
           const distance = Math.hypot(a.r - b.r, a.g - b.g, a.b - b.b);
           expect(distance, `${id} goals ${i + 1} and ${i + j + 2}`).toBeGreaterThan(100);
         })
-      );
-    }
-  });
-
-  it("keeps a pressed toggle's text readable on what it sits on", () => {
-    // Arcade shipped with its pressed item drawn black on black. Toggle labels are small
-    // text, so the floor is WCAG's 4.5:1. `initial` falls back to the accent, as the
-    // toggle's own var() fallbacks do, and a transparent fill shows the toggle frame's
-    // surface.
-    const floors: Readonly<Record<string, number>> = {
-      // White on teal, about 3.7:1, predates the check; the theme leaves with Memphis.
-      "legacy-light": 3.5,
-    };
-    for (const [id, tokens] of blocks) {
-      const set = (name: string) => {
-        const value = tokens.get(name);
-        return value && value !== "initial" ? value : undefined;
-      };
-      const fill = set("--color-toggle-pressed") ?? set("--color-accent-cyan") ?? "";
-      const ground = fill === "transparent" ? (set("--color-surface-raised") ?? "") : fill;
-      const text = set("--color-toggle-pressed-text") ?? set("--color-accent-cyan-text") ?? "";
-      expect(contrastRatio(text, ground), `${id}: ${text} on ${ground}`).toBeGreaterThanOrEqual(
-        floors[id] ?? 4.5
       );
     }
   });

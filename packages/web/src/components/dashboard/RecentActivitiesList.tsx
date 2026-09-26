@@ -20,6 +20,7 @@ import { useSportConfig } from "../../hooks/useSportConfig";
 import { SportLabel } from "../theme/SportLabel";
 import { useThemeStructure } from "../theme/useThemeStructure";
 import { SPORT_COLORS, DEFAULT_SPORT_COLOR, getSportDisplayName } from "../../utils/sportConfig";
+import type { ColorToken } from "../../themes/contract";
 
 /** Height of the thead row in px */
 const HEADER_HEIGHT = 22;
@@ -58,9 +59,9 @@ function formatDuration(seconds: number): string {
  * It previously interpolated from a hard-coded `#718096` and so stayed a dark-theme
  * gray on the light ground; the muted-text role is what this column wants.
  */
-const IMPACT_START_TOKEN = "--color-muted-text";
+const IMPACT_START_TOKEN: ColorToken = "--color-muted-text";
 const IMPACT_START_FALLBACK = "#778899";
-const IMPACT_END_TOKEN = "--color-neon-magenta";
+const IMPACT_END_TOKEN: ColorToken = "--color-neon-magenta";
 const IMPACT_END_FALLBACK = "#ff00ff";
 /** Impact percentage at which glow reaches full intensity */
 const IMPACT_FULL_PCT = 2;

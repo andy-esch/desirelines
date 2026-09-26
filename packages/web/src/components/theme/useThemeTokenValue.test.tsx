@@ -6,8 +6,9 @@ import { ThemeStructureProvider } from "./ThemeStructureProvider";
 import { THEMES } from "../../themes/registry";
 
 function Probe({ value }: { value?: string }) {
-  const [ref, resolved] = useThemeTokenValue<HTMLDivElement>("--probe", "fallback");
-  const style = value === undefined ? undefined : ({ "--probe": value } as CSSProperties);
+  const [ref, resolved] = useThemeTokenValue<HTMLDivElement>("--chart-bar-radius", "fallback");
+  const style =
+    value === undefined ? undefined : ({ "--chart-bar-radius": value } as CSSProperties);
   return (
     <div ref={ref} style={style} data-testid="probe">
       {resolved}

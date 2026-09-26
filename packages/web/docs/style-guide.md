@@ -30,13 +30,16 @@ not change with the theme.
 | `--color-neon-yellow` | `rgb(255, 200, 0)` |
 | `--color-neon-orange` | `rgb(255, 95, 31)` |
 | `--color-neon-lime` | `#39ff14` |
+| `--color-neon-yellow-pure` | `rgb(255, 255, 0)`, the logo slash only |
 
 **2. Roles** — what a color *means*. These flip with the theme. There are three separate
 accent roles and conflating them is the most common mistake:
 
 | Role | Token | Job |
 | --- | --- | --- |
-| Interactive | `--color-accent-cyan` | Links, buttons, focus. **Mutes to a WCAG-safe teal `#0891b2` in light** so controls stay legible. |
+| Interactive | `--color-accent-cyan` (+ `-text`, `-glow`) | Links, buttons, focus. **Mutes to a WCAG-safe teal `#0891b2` in light** so controls stay legible. `-text` is the label ink on an accent fill (a primary button); `-glow` a faint accent wash. |
+| Second interactive | `--color-accent-magenta` | Hover states and highlights that need an accent apart from the first. |
+| Map chrome | `--color-map-chrome-accent` | The accent inside the routes-map drawers: `MAP_CHROME_STYLE` puts it in place of `--color-accent-cyan` there, bright enough to read over the map. |
 | Decorative | `--color-neon-accent` (+ `-border`, `-glow`) | Pill borders, glows, status dots. **Stays bright in light (`#00b8e6`)** — it must not inherit the interactive mute. |
 | Data | `SPORT_COLORS` (`src/utils/sportConfig.ts`) | Encodes which sport a mark is. Never chrome. |
 
@@ -49,6 +52,7 @@ black panel borders with grey muted text, say):
 
 | Token | Job |
 | --- | --- |
+| `--color-bg-body` / `--color-body-text` | The page ground and the main text on it |
 | `--color-muted-text` / `--color-subtle-text` | Secondary copy; subtle reads one step stronger |
 | `--color-surface-raised` | Cards, popovers and pills lifted off the page ground |
 | `--color-control-border` | Form fields and outlined controls |
@@ -56,16 +60,22 @@ black panel borders with grey muted text, say):
 | `--color-panel-border` (+ `-hover`) | The outline of a panel or card |
 | `--color-fill-muted` | Neutral fills: secondary buttons, the active toggle |
 | `--color-intensity-0` | The calendar heatmap's "no activity" cell |
+| `--color-surface-hover` (+ `-border`, `-overlay`, `-shadow`) | A hovered row's wash, hairline borders, a translucent layer over a chart, and the color of drop shadows |
 
 Each theme also sets the status colors (`--color-success`, `--color-danger`,
 `--color-warning`), the header chrome (`--color-header-bg`, `-border`, `-text`,
 `-text-muted`, `-accent`), and the chart data colors: `--color-goal-1` to `-5` running cool
 (conservative) to warm (stretch), `--color-chart-average-line`, `--color-chart-neutral` for
-prior years, and `--color-danger-zone` with its `-label` ink. `themeCss.test.ts` keeps each
-theme's five goal colors apart from each other. Two tokens stay fixed across themes: the header's brightest ink
-`--color-header-ink`, used at partial alpha (`text-header-ink/50`, `bg-header-ink/10`), and
+prior years, `--color-danger-zone` with its `-label` ink, the chart chrome (`--color-chart-grid`,
+`-axis`, `-tick`, `-actual-line`) and the tooltips (`--color-chart-tooltip-bg`, `-border`, `-text`,
+`-muted`, `-label`, `-divider`). `themeCss.test.ts` keeps each
+theme's five goal colors apart from each other. Besides the primitives, a few colors stay fixed across
+themes (`FIXED_COLORS` in `src/themes/contract.ts` lists them all): the header's brightest ink
+`--color-header-ink`, used at partial alpha (`text-header-ink/50`, `bg-header-ink/10`);
 `--color-scrim` / `--color-on-scrim`, the darkening layer for modal backdrops, menu shadows and
-a label drawn over a bright fill (`bg-scrim/50`, `shadow-scrim/40`).
+a label drawn over a bright fill (`bg-scrim/50`, `shadow-scrim/40`); the calendar heatmap's
+busier steps `--color-intensity-1` to `-4` (its empty step is the theme's `--color-intensity-0`);
+and `--color-map-point-outline`, the ring around route-map points.
 
 **Fonts:** `body` takes the theme's `--font-body`, and `h1` to `h3` take `--font-display`.
 
@@ -158,7 +168,7 @@ A theme is two halves that must agree:
 
 1. **A CSS file** — `src/css/themes/<id>.css`, imported from `src/css/tailwind.css`, holding
    one `[data-theme="<id>"] { … }` block that redefines the full set of theme-varying tokens,
-   and nothing else. Every file defines the *same* set: `data-theme` can also theme a subtree
+   and nothing else. Every file defines the set `src/themes/contract.ts` lists: `data-theme` can also theme a subtree
    (the dev gallery does), and a block that omitted a token would silently inherit the outer
    theme's value there. Tokens derived from another token (a `color-mix` of the accent, say)
    are redefined too, because custom properties resolve `var()` where they are declared.
@@ -175,7 +185,8 @@ A theme is two halves that must agree:
 Beyond colors, a theme sets **slots**: non-color CSS variables for type, shape, depth and
 decoration, plus a few **structure fields** on its list entry for choices that add or remove
 markup. Components read slots and fields; they never check which theme is active. Every
-theme file defines every slot. Legacy light carries the pre-retro values, so a slot a component
+theme file defines every slot in `src/themes/contract.ts`, which gives each its group below
+and the kind of value it holds (a color, a length with a unit, a shadow…). Legacy light carries the pre-retro values, so a slot a component
 doesn't read yet changes nothing there. The dev gallery lists each theme's resolved slot
 values.
 
@@ -184,15 +195,16 @@ values.
 | Type | `--font-body`, `--font-display`, `--font-chart`, `--display-weight` | Faces for UI text, display text (wordmark, titles, big numbers) and chart labels |
 | Page titles | `--page-title-size`, `-leading`, `-color`, `-shadow`, `-glow-size`, `-offset-shadow`, `-case`; `--display-text-gradient`, `--display-text-fill` | The page `h1`, and `neon-gradient-text`: the gradient is `none` and the fill `currentColor` where display text is solid |
 | Labels | `--kicker-size`, `-tracking`, `-color`; `--label-size`, `-tracking`, `-weight`, `-color`, `-case`; `--data-label-case` | The line above a title, section labels, and the case of sport names in rows |
-| Numbers | `--table-text-size`, `--stat-value-size`, `--stat-value-size-wide`, `--stat-value-shadow` | Table text and big stat numbers (wide = from `md` up) |
+| Numbers | `--table-text-size`, `--stat-value-size`, `--stat-value-size-wide`, `--stat-value-shadow`; `--stat-label-size`, `-label-tracking`, `-label-case`, `-sub-size`, `-sub-color` | Table text, big stat numbers (wide = from `md` up), and the label above a stat and the line under it |
 | Wordmark | `--wordmark-font`, `-size`, `-weight`, `-tracking`, `-case`, `-color`, `-color-2`, `-slash-color`, `-slash-size`, `-slash-weight`, `-shadow` | The logo's two words and slash |
 | Header | `--header-height`, `-border`, `-accent-line`, `-shadow-scrolled`, `--header-date-color`; `--nav-size`, `-tracking`, `-case`, `-color`, `-active-color`, `-active-bg`, `-active-hover-bg`, `-active-radius`, `-active-underline`, `-active-shadow`; `--avatar-radius`, `-border`, `-glow`; `--demo-bg`, `--demo-border`, `--demo-rule` | The top bar and its bottom accent line, nav items (the underline shows in the header bar, not the mobile drawer), avatar and the demo banner's rule |
 | Backgrounds | `--page-wash-strength`, `--sport-wash-strength`, `--hero-padding`, `--hero-ink`, `--hero-title-size`, `-title-color`, `-title-shadow`, `--hero-number-size`, `-number-glow`, `--glass-blur`, `--glass-blur-sm`, `--progress-shine` | Page and sport gradient strength (0 turns a wash off), the dashboard hero's padding (content must clear the decoration's bottom edge), text on the decoration, headline and numbers, frosted-glass blur for map chrome and for small floating pills (0 makes them solid), progress-bar shine |
-| Panels | `--radius`, `--panel-bg`, `-border-width`, `-radius`, `-shadow`, `-shadow-emphasis`, `-header-padding`, `-body-padding`, `-accent-1/2/3` | Cards and panels, including the base radius the shadcn scale derives from |
+| Panels | `--radius`, `--panel-bg`, `-border-width`, `-radius`, `-shadow`, `-shadow-emphasis`, `-header-padding`, `-body-padding`, `-accent-1/2/3`, `-accent-1/2/3-ink` | Cards and panels, including the base radius the shadcn scale derives from, the three frame accents and the ink of a title in each |
 | Controls | `--control-height`, `-radius`, `-font-size`, `-case`, `-focus-ring`; `--toggle-gap`, `-frame-border-width`, `-frame-border-color`, `-frame-padding`, `-frame-radius`, `-item-border-width`, `-item-radius`, `-item-color`, `-font-size`, `-tracking`, `-case`; `--color-toggle-pressed`, `-pressed-border`, `-pressed-text`, `--toggle-pressed-glow`, `-pressed-text-glow`; `--button-radius`, `-case`, `-tracking`; `--stepper-gap` | Inputs, selects, toggle groups, buttons and steppers (height and font size are the default size; `sm` and `lg` buttons and caller overrides keep fixed sizes). A pressed toggle's fill, border and text default to the accent through `initial`; the glow is a single inset shadow, `0 0 #0000` for none |
 | Sliders and chips | `--slider-track-height`, `-track-radius`, `-track-bg`, `-fill-glow`, `-handle-size`, `-handle-radius`, `-handle-border-width`; `--color-slider-fill`; `--chip-radius`, `-border-strength`, `-hover-strength`, `-dot-radius` | Range sliders and sport chips (strengths are how much sport color mixes in) |
 | Tables | `--th-size`, `--th-weight`, `--th-color`, `--th-tracking`, `--th-case`, `--th-rule`, `--row-rule`, `--row-padding`, `--row-hover-bg`, `--missing-value-color`, `--sport-mark-radius` | Table headers, row rules and hover, empty cells, sport marks |
-| Goals and meters | `--track-height`, `-bg`, `-border`, `-fill-height`, `-fill-glow`, `-radius`; `--pace-tick-width`, `-height`; `--meter-segment-width`, `-segment-height`, `--meter-gap`, `--meter-radius`; `--cell-empty-border`, `--cell-radius` | Goal tracks (the fill glows in its own color by `--track-fill-glow`) and their pace tick, segmented meters, heatmap cells |
+| Goals and meters | `--track-height`, `-bg`, `-border`, `-fill-height`, `-fill-glow`, `-radius`; `--pace-tick-width`, `-height`; `--meter-segment-width`, `-segment-height`, `--meter-gap`, `--meter-radius`, `-done-glow`, `-current-glow`; `--color-meter-done`, `-current`, `-todo`; `--color-pace-tick`; `--cell-empty-border`, `--cell-radius` | Goal tracks (the fill glows in its own color by `--track-fill-glow`) and their pace tick, segmented meters (the segments done, the current one and those to come), heatmap cells |
+| Status | `--status-size`, `-tracking`, `-case`; `--color-status-good`, `-warn`, `-bad` | Goal status labels, and their colors for on track, slightly behind and behind |
 | Charts | `--chart-baseline`, `--chart-tick-size`, `--chart-actual-glow`, `--chart-average-dash`, `--chart-bar-radius`, `--chart-bar-gap`, `--chart-hover-column`, `--tooltip-radius` | Chart chrome beyond the color tokens: the x axis line, tick labels, the actual line's glow (a `filter`, `none` for crisp), the average line's dash, the top corners of a bar stack, the gap between stacked sports, the hovered column, and every chart tooltip's corner. Recharts can't take `var()` for the dash or the bar radius, so those two are read off the chart's element with `useThemeTokenValue` |
 | Map chrome | `--map-chrome-bg`, `-edge`, `-shadow`; `--popup-radius`, `--popup-border`, `--popup-shadow` | The routes-map drawers and their toggles (the edge is drawn on the map-facing side), and the route popup |
 
@@ -247,9 +259,14 @@ rendered the neon at full strength.
    renders side by side.
 4. Release it by flipping `hidden` to `false`.
 
-The checks run with the web tests: `themeCss.test.ts` fails on a theme without a file, a
-file without a theme or an import, a file holding anything but its own block, files with
-differing token sets, or a `background` that doesn't match `--color-bg-body`; `sportConfig.test.ts` holds `SPORT_COLORS` to 3:1 against every
+The checks run with the web tests. `themeContract.test.ts` fails on a slot the file leaves
+out or adds, a value of the wrong kind (a bare `0` where a length needs a unit, a malformed
+color), `initial` in a slot that doesn't allow it, or a slot this guide's table doesn't list;
+each failure names the theme and the slot. `themeContrast.test.ts` measures the contract's
+text-on-surface pairs in every theme. `themeTokenUse.test.ts` fails on a token nothing reads
+or a read of a token nothing defines. `themeCss.test.ts` fails on a theme without a file, a
+file without a theme or an import, a file holding anything but its own block, or a
+`background` that doesn't match `--color-bg-body`; `sportConfig.test.ts` holds `SPORT_COLORS` to 3:1 against every
 dark theme's background and every base-map palette's land, park and water; `bootScript.test.ts` keeps the first-paint script in step with
 `ThemeProvider`.
 

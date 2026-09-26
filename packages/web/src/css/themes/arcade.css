@@ -130,14 +130,14 @@
   --nav-tracking: 0.24em;
   --nav-case: uppercase;
   --nav-active-bg: transparent;
-  --nav-active-radius: 0;
+  --nav-active-radius: 0px;
   /* The active item is carried by its glow, not a rule under it. */
   --nav-active-underline: none;
   --nav-active-shadow: 0 0 10px rgba(0, 255, 255, 0.7);
   --nav-color: #7f9aa0;
   --nav-active-color: #00ffff;
   --nav-active-hover-bg: transparent;
-  --avatar-radius: 0;
+  --avatar-radius: 0px;
   --avatar-border: 1px solid #00ffff;
   --avatar-glow: inset 0 0 10px rgba(0, 255, 255, 0.3), 0 0 10px rgba(0, 255, 255, 0.35);
   --demo-rule: none;
@@ -155,15 +155,15 @@
   --hero-title-shadow: 0 0 16px rgba(0, 255, 255, 0.85);
   --hero-number-size: 1.625rem;
   --hero-number-glow: 12px;
-  --glass-blur: 0;
-  --glass-blur-sm: 0;
+  --glass-blur: 0px;
+  --glass-blur-sm: 0px;
   --progress-shine: none;
 
   /* Panels: outline only, no fill, no radius. */
   --radius: 0px;
   --panel-bg: transparent;
   --panel-border-width: 1px;
-  --panel-radius: 0;
+  --panel-radius: 0px;
   /* One inset glow for every panel, in the first accent. Panels carry their own accent on
      the border and the header-bar label; a per-accent glow would need a slot per accent. */
   --panel-shadow: inset 0 0 24px rgba(0, 255, 255, 0.1);
@@ -176,16 +176,16 @@
 
   /* Controls */
   --control-height: 1.5rem;
-  --control-radius: 0;
+  --control-radius: 0px;
   --control-font-size: 0.71875rem;
   --control-case: uppercase;
   --control-focus-ring: 0 0 0 1px #00ffff, 0 0 10px rgba(0, 255, 255, 0.5);
   --toggle-gap: 6px;
   --toggle-frame-border-width: 0px;
   --toggle-frame-padding: 0px;
-  --toggle-frame-radius: 0;
+  --toggle-frame-radius: 0px;
   --toggle-item-border-width: 1px;
-  --toggle-item-radius: 0;
+  --toggle-item-radius: 0px;
   --toggle-font-size: 0.65625rem;
   --toggle-tracking: 0.16em;
   --toggle-case: uppercase;
@@ -200,22 +200,22 @@
   --color-toggle-pressed-text: #00ffff;
   --toggle-pressed-glow: 0 0 10px rgba(0, 255, 255, 0.2);
   --toggle-pressed-text-glow: 0 0 8px rgba(0, 255, 255, 0.6);
-  --button-radius: 0;
+  --button-radius: 0px;
   --button-case: uppercase;
   --button-tracking: 0.18em;
   --stepper-gap: 4px;
   --slider-track-height: 8px;
-  --slider-track-radius: 0;
+  --slider-track-radius: 0px;
   --slider-handle-size: 12px;
-  --slider-handle-radius: 0;
+  --slider-handle-radius: 0px;
   --slider-handle-border-width: 1px;
   --slider-track-bg: #10292d;
   --slider-fill-glow: 0 0 8px rgba(0, 255, 255, 0.7);
   --color-slider-fill: #00ffff;
-  --chip-radius: 0;
+  --chip-radius: 0px;
   --chip-border-strength: 35%;
   --chip-hover-strength: 8%;
-  --chip-dot-radius: 0;
+  --chip-dot-radius: 0px;
 
   /* Tables and lists */
   --th-size: 0.59375rem;
@@ -228,7 +228,7 @@
   --row-padding: 0.625rem 0.5rem;
   --row-hover-bg: rgba(0, 255, 255, 0.06);
   --missing-value-color: #5d7a80;
-  --sport-mark-radius: 0;
+  --sport-mark-radius: 0px;
 
   /* Status, goals and meters */
   --track-height: 8px;
@@ -236,32 +236,32 @@
   --track-border: 1px solid rgba(0, 255, 255, 0.35);
   --track-fill-height: 4px;
   --track-fill-glow: 10px;
-  --track-radius: 0;
+  --track-radius: 0px;
   --pace-tick-width: 2px;
   --pace-tick-height: 18px;
   /* The year meter is 52 weeks rather than 12 months, so its segments are narrow and tall. */
   --meter-segment-width: 5px;
   --meter-segment-height: 12px;
   --meter-gap: 2px;
-  --meter-radius: 0;
+  --meter-radius: 0px;
   --cell-empty-border: 1px solid #16363c;
-  --cell-radius: 0;
+  --cell-radius: 0px;
 
   /* Charts */
   --chart-baseline: rgba(255, 0, 255, 0.5);
   --chart-tick-size: 10px;
   --chart-actual-glow: drop-shadow(0 0 5px rgba(0, 255, 255, 0.8));
   --chart-average-dash: 5 5;
-  --chart-bar-radius: 0;
+  --chart-bar-radius: 0px;
   --chart-bar-gap: 2px;
   --chart-hover-column: rgba(0, 255, 255, 0.06);
-  --tooltip-radius: 0;
+  --tooltip-radius: 0px;
 
   /* Map chrome */
   --map-chrome-bg: #000000;
   --map-chrome-edge: 1px solid rgba(255, 0, 255, 0.45);
   --map-chrome-shadow: none;
-  --popup-radius: 0;
+  --popup-radius: 0px;
   --popup-border: 1px solid #ff00ff;
   --popup-shadow: inset 0 0 18px rgba(255, 0, 255, 0.12), 0 0 22px rgba(255, 0, 255, 0.3);
 

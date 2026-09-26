@@ -6,6 +6,7 @@ import {
   type ThemeMap,
 } from "../../themes/registry";
 import { RETRO_BASE_MAPS } from "../../themes/baseMaps";
+import { THEME_CONTRACT, slotSpec } from "../../themes/contract";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { Input } from "../../components/ui/input";
@@ -28,7 +29,7 @@ import { SportBadge } from "../../components/SportBadge";
 /**
  * Dev-only theme gallery: every theme in the list — hidden ones included — rendered side
  * by side. Each panel sets `data-theme` on its own subtree, which is why every CSS theme
- * block defines the full token set (see themeCss.test.ts).
+ * block sets the full set of slots in `themes/contract.ts`.
  *
  * The review surface for theme and component work: check a change here in every theme
  * before checking it on real pages. Reached at /dev/themes; never bundled in production.
@@ -41,44 +42,14 @@ const SAMPLE_SPORTS = [
   { value: "watersports", label: "Watersports" },
 ];
 
-/**
- * The custom properties a theme block declares, read from the loaded stylesheets so the
- * swatch grid follows tailwind.css without a hand-kept list. The app stylesheet is in the
- * document before React renders, so a one-time read at mount is enough.
- *
- * Walks nested rules: the CSS build nests an `@supports` fallback inside the theme rule
- * after each `color-mix()` token, which turns every declaration after it into a nested
- * declarations rule — so reading only the theme rule's own `style` sees part of the block.
- */
-function readThemeTokenNames(themeId: string): string[] {
-  const found = new Set<string>();
-  const visit = (rules: CSSRuleList, inTheme: boolean) => {
-    for (const rule of Array.from(rules)) {
-      const collecting =
-        inTheme ||
-        (rule instanceof CSSStyleRule && rule.selectorText.includes(`data-theme="${themeId}"`));
-      if (collecting && "style" in rule) {
-        for (const name of Array.from(rule.style)) {
-          if (name.startsWith("--")) found.add(name);
-        }
-      }
-      if ("cssRules" in rule) visit((rule as CSSGroupingRule).cssRules, collecting);
-    }
-  };
-  for (const sheet of Array.from(document.styleSheets)) {
-    try {
-      visit(sheet.cssRules, false);
-    } catch {
-      // cross-origin sheet
-    }
-  }
-  return [...found];
-}
+/** The contract's role colors, and its other slots by their style-guide group. */
+const ROLE_COLORS = Object.keys(THEME_CONTRACT.Colors);
+const SLOT_GROUPS = Object.entries(THEME_CONTRACT)
+  .filter(([group]) => group !== "Colors")
+  .map(([group, slots]) => [group, Object.keys(slots)] as const);
+const SLOT_COUNT = SLOT_GROUPS.reduce((count, [, names]) => count + names.length, 0);
 
-function TokenSwatches({ names }: { names: string[] }) {
-  if (names.length === 0) {
-    return <p className="text-sm text-muted-text">No tokens found for this theme.</p>;
-  }
+function TokenSwatches({ names }: { names: readonly string[] }) {
   return (
     <ul className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-1.5 text-xs">
       {names.map((name) => (
@@ -96,10 +67,11 @@ function TokenSwatches({ names }: { names: string[] }) {
 }
 
 /**
- * Non-color slots with their resolved values. The values are read from the themed panel
- * once it is in the document, so they show what that theme's block actually applies.
+ * Slots with their resolved values, a color slot with a swatch too. The values are read from
+ * the themed panel once it is in the document, so they show what that theme's block
+ * actually applies.
  */
-function SlotValues({ names }: { names: string[] }) {
+function SlotValues({ names }: { names: readonly string[] }) {
   const [values, setValues] = useState<Record<string, string>>({});
   const measure = useCallback(
     (el: HTMLElement | null) => {
@@ -121,7 +93,14 @@ function SlotValues({ names }: { names: string[] }) {
           <dt>
             <code className="truncate block">{name}</code>
           </dt>
-          <dd className="m-0 min-w-0">
+          <dd className="m-0 min-w-0 flex items-center gap-1.5">
+            {slotSpec(name)?.kind === "color" && (
+              <span
+                aria-hidden="true"
+                className="size-3 shrink-0 rounded-sm border border-border"
+                style={{ background: `var(${name})` }}
+              />
+            )}
             <code className="truncate block text-muted-text" title={values[name]}>
               {values[name] ?? ""}
             </code>
@@ -356,13 +335,6 @@ function StructurePreview() {
 function ThemePanel({ theme }: { theme: ThemeDefinition }) {
   const [sports, setSports] = useState<string[]>(["cycling"]);
   const sportsLabelId = useId();
-  const [tokens] = useState(() => {
-    const names = readThemeTokenNames(theme.id);
-    return {
-      colors: names.filter((name) => name.startsWith("--color-")),
-      slots: names.filter((name) => !name.startsWith("--color-")),
-    };
-  });
 
   return (
     <section
@@ -381,15 +353,18 @@ function ThemePanel({ theme }: { theme: ThemeDefinition }) {
 
       <div>
         <h3 className="text-sm font-medium mb-2">Color tokens</h3>
-        <TokenSwatches names={tokens.colors} />
+        <TokenSwatches names={ROLE_COLORS} />
       </div>
 
       <details>
-        <summary className="text-sm font-medium cursor-pointer">
-          Slots ({tokens.slots.length})
-        </summary>
-        <div className="mt-2">
-          <SlotValues names={tokens.slots} />
+        <summary className="text-sm font-medium cursor-pointer">Slots ({SLOT_COUNT})</summary>
+        <div className="mt-2 flex flex-col gap-3">
+          {SLOT_GROUPS.map(([group, names]) => (
+            <div key={group}>
+              <h4 className="text-xs font-medium text-muted-text mb-1">{group}</h4>
+              <SlotValues names={names} />
+            </div>
+          ))}
         </div>
       </details>
 
