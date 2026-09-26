@@ -452,3 +452,65 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = [
   { text: ["--color-chart-tooltip-muted"], on: ["--color-chart-tooltip-bg"], min: 4.5 },
   { text: ["--color-chart-tooltip-label"], on: ["--color-chart-tooltip-bg"], min: 4.5 },
 ];
+
+/**
+ * Where a color is measured from: a color slot; a shadow or border slot, measured by the
+ * color of its first layer; or a color slot at partial strength.
+ */
+export type ColorSource = ThemeSlot | { readonly slot: ThemeColorSlot; readonly alpha: number };
+
+/**
+ * Non-text UI that must stand out from what it sits on, in every theme: WCAG 1.4.11's 3:1
+ * for a focus indicator, a control's state, and a part that identifies a control or a
+ * graphic. `mark` lists where the color comes from, then what it falls back to; `on` and
+ * `over` work as in {@link ContrastPair}.
+ */
+export interface MarkPair {
+  readonly mark: readonly [ColorSource, ...ColorSource[]];
+  readonly on: readonly [ThemeColorSlot, ...ThemeColorSlot[]];
+  readonly over?: ThemeColorSlot;
+}
+
+/** WCAG 1.4.11's floor for non-text contrast. */
+export const MARK_MIN = 3;
+
+/**
+ * Keyboard focus. A theme that leaves the ring `initial` gets the `control-focus-ring`
+ * utility's own fallback in `tailwind.css`: the accent at 40%.
+ */
+const FOCUS_RING = ["--control-focus-ring", { slot: "--color-accent-cyan", alpha: 0.4 }] as const;
+
+export const MARK_PAIRS: readonly MarkPair[] = [
+  // The focus ring, on each surface a control sits on.
+  { mark: FOCUS_RING, on: ["--color-bg-body"] },
+  { mark: FOCUS_RING, on: ["--color-surface-raised"] },
+  { mark: FOCUS_RING, on: ["--panel-bg"] },
+  { mark: FOCUS_RING, on: ["--color-header-bg"] },
+  // An input's or select's border, which is what outlines it: its fill is close to the
+  // page's.
+  { mark: ["--color-control-border"], on: ["--color-bg-body"] },
+  { mark: ["--color-control-border"], on: ["--color-surface-raised"] },
+  // A pressed toggle's border, or its fill where it has no border of its own, in its frame.
+  {
+    mark: ["--color-toggle-pressed-border", "--color-toggle-pressed", "--color-accent-cyan"],
+    on: ["--color-surface-raised"],
+  },
+  // A slider's filled track and handle, in the routes-map drawer that holds the sliders.
+  { mark: ["--color-slider-fill", "--color-accent-cyan"], on: ["--map-chrome-bg"] },
+  // A year meter's done segments.
+  { mark: ["--color-meter-done"], on: ["--panel-bg"] },
+];
+
+/**
+ * Boundaries and fills the mark pairs leave out, each with the reason: none of them is
+ * what identifies a control, its state, or a graphic's value.
+ */
+export const UNMEASURED_MARKS: Readonly<Partial<Record<ThemeSlot, string>>> = {
+  "--color-panel-border": "panels hold content; they aren't controls",
+  "--toggle-frame-border-color":
+    "the frame groups toggles its items' labels identify; the pressed item is measured",
+  "--color-chip-hairline":
+    "a sport chip is identified by its label and dot, and a selected chip by its sport fill, which the sport palette's tests hold to 3:1",
+  "--slider-track-bg": "a slider's filled track and handle carry its value, and are measured",
+  "--color-meter-todo": "a meter's done segments are measured, and its text states the same count",
+};
