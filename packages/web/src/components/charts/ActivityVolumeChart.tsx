@@ -45,7 +45,6 @@ export function topOfStack(row: ChartRow, series: ChartData["series"]): string |
   return undefined;
 }
 
-/** "2026-05" → "May" (or "May '26" when the range spans multiple years). */
 interface ActivityVolumeChartProps {
   data: ChartData;
   sportConfig: SportConfig | null;
@@ -71,6 +70,8 @@ export default function ActivityVolumeChart({
   const { rows, series } = data;
 
   const showYear = useMemo(() => new Set(rows.map((r) => r.month.slice(0, 4))).size > 1, [rows]);
+  // Built once per series list: the tooltip re-renders on every frame of a hover.
+  const seriesByKey = useMemo(() => new Map(series.map((s) => [s.key, s])), [series]);
   const topSeries = useMemo(
     () => new Map(rows.map((r) => [r.month, topOfStack(r, series)])),
     [rows, series]
@@ -122,7 +123,7 @@ export default function ActivityVolumeChart({
             cursor={{ fill: "var(--chart-hover-column)" }}
             content={
               <VolumeTooltip
-                series={series}
+                seriesByKey={seriesByKey}
                 sportConfig={sportConfig}
                 formatValue={formatTooltipValue}
               />
@@ -181,50 +182,34 @@ interface TooltipPayloadEntry {
 
 /**
  * Custom tooltip: month header, per-sport rows, total. Uses the shared
- * `--color-chart-tooltip-*` tokens (same as ChartTooltip) so text/surface contrast
- * is correct in both light and dark themes — plain body-text on a fixed surface
- * inverted in light mode, which is what read as black-on-dark.
+ * `--color-chart-tooltip-*` tokens (same as ChartTooltip), so its text and surface
+ * follow the theme together; plain body text on a fixed surface is what once read as
+ * black-on-dark in a light theme.
  */
-let _seriesIndexFor: ChartData["series"] | null = null;
-let _seriesIndexCache = new Map<string, ChartData["series"][number]>();
-
-/** Cached `key -> series` lookup, rebuilt only when the series array changes. */
-function seriesIndex(series: ChartData["series"]) {
-  if (_seriesIndexFor !== series) {
-    _seriesIndexFor = series;
-    _seriesIndexCache = new Map(series.map((s) => [s.key, s]));
-  }
-  return _seriesIndexCache;
-}
-
 function VolumeTooltip({
   active,
   label,
   payload,
-  series,
+  seriesByKey,
   sportConfig,
   formatValue,
 }: {
   active?: boolean;
   label?: string;
   payload?: TooltipPayloadEntry[];
-  series: ChartData["series"];
+  seriesByKey: ReadonlyMap<string, ChartData["series"][number]>;
   sportConfig: SportConfig | null;
   formatValue: (value: number) => string;
 }) {
   const { formatMonth } = useThemeDateFormat();
   if (!active || !payload || payload.length === 0 || typeof label !== "string") return null;
 
-  // `series` is stable across a hover gesture but this component re-renders on
-  // every frame of it, so the lookup map is built once per series list rather
-  // than once per frame.
-  const byKey = seriesIndex(series);
   // flatMap rather than map+filter so `meta` narrows to non-null for the
   // consumers below; a boolean .filter() does not narrow, which is what forced
   // the `r.meta!` assertions at each use site.
   const rows = payload
     .flatMap((p) => {
-      const meta = byKey.get(p.dataKey);
+      const meta = seriesByKey.get(p.dataKey);
       return meta && p.value > 0 ? [{ meta, value: p.value }] : [];
     })
     .reverse(); // top-of-stack first, matching visual order
