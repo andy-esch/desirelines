@@ -1,5 +1,18 @@
-import { describe, it, expect } from "vitest";
-import { countGoalsOnPace } from "./DashboardHero";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import DashboardHero, { countGoalsOnPace } from "./DashboardHero";
+import { createYearContext } from "../../utils/yearContext";
+import type { SportGoalData } from "../../hooks/useDashboardGoalData";
+
+vi.mock("../../hooks/useDashboardGoalData", () => ({ useDashboardGoalData: vi.fn() }));
+vi.mock("../../hooks/useWeeklySummary", () => ({
+  useWeeklySummary: () => ({ sportTotals: [], weekLabel: "", isLoading: false, error: null }),
+}));
+vi.mock("../../hooks/useTrailingYearActivityCount", () => ({
+  useTrailingYearActivityCount: () => ({ count: 120, isLoading: false }),
+}));
+
+import { useDashboardGoalData } from "../../hooks/useDashboardGoalData";
 
 // Halfway through the year: linear pacing puts a 1,000 mi goal at 500 mi today.
 const HALFWAY = 0.5;
@@ -35,5 +48,43 @@ describe("countGoalsOnPace", () => {
       onPace: 1,
       total: 1,
     });
+  });
+});
+
+describe("DashboardHero goals on pace", () => {
+  const sport = (sportId: string, hasGoal: boolean): SportGoalData => ({
+    sport: sportId,
+    displayName: sportId,
+    color: "#000",
+    // Past its whole target, so on pace on any day of the year.
+    currentValue: 1200,
+    hasGoal,
+    targetGoal: hasGoal ? 1000 : 0,
+    metricUnit: "mi",
+    metricType: "distance",
+    impactGoal: hasGoal ? 1000 : 0,
+    impactGoalLabel: "",
+  });
+
+  function renderHero(sportData: SportGoalData[]) {
+    vi.mocked(useDashboardGoalData).mockReturnValue({
+      sportData,
+      yearContext: createYearContext(new Date().getFullYear()),
+      distanceUnit: "miles",
+      isLoading: false,
+      error: null,
+    });
+    render(<DashboardHero />);
+    return screen.getByText("Goals on pace").nextElementSibling as HTMLElement;
+  }
+
+  it("counts only the sports with a goal", () => {
+    expect(renderHero([sport("cycling", true), sport("running", false)])).toHaveTextContent("1/1");
+  });
+
+  it("shows the missing value, not 0/0, when no sport has a goal", () => {
+    const value = renderHero([sport("cycling", false), sport("running", false)]);
+    expect(value).toHaveTextContent("none");
+    expect(value).not.toHaveTextContent("/");
   });
 });

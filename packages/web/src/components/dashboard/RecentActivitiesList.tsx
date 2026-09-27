@@ -165,7 +165,7 @@ export default function RecentActivitiesList({
       : fallbackPageSize;
 
   // Goal data for impact % column + distance unit preference
-  const { sportData, distanceUnit } = useDashboardGoalData();
+  const { sportData, distanceUnit, isLoading: goalsLoading } = useDashboardGoalData();
   const goalLookup = useMemo(() => {
     const lookup: Record<string, SportGoalData> = {};
     for (const g of sportData) {
@@ -319,6 +319,10 @@ export default function RecentActivitiesList({
                 }
                 const goalLabel = goal.impactGoalLabel ? `${goal.impactGoalLabel} goal` : "goal";
                 impactTooltip = `vs. ${Math.round(goal.impactGoal).toLocaleString()} ${goal.metricUnit} ${goalLabel}`;
+              } else if (goal && !goal.hasGoal && !goalsLoading) {
+                // No goal, so no share: say where one is set. Not while the goals load,
+                // when every sport briefly has none.
+                impactTooltip = `No ${goal.displayName} goal. Set one on the ${goal.displayName} page to see each activity's share.`;
               }
               return (
                 <tr key={activity.id} style={{ height: ROW_HEIGHT }}>

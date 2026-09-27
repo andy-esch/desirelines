@@ -10,6 +10,9 @@ import * as demoDataModule from "../utils/demoDataGenerator";
 import type { SportConfig } from "../api/activities";
 import type React from "react";
 import { TestServiceProvider } from "../contexts/ServiceContext";
+import * as activitiesApi from "../api/activities";
+import { ACCOUNT_USER, accountServices, storedGoal } from "../test/fixtures/userConfig";
+import { goalMetersToDisplay } from "../utils/units";
 
 // Mock dependencies
 vi.mock("./useAuth");
@@ -344,6 +347,62 @@ describe("useDashboardGoalData", () => {
 
       const cycling = result.current.sportData.find((s) => s.sport === "cycling");
       expect(cycling?.metricUnit).toBe("km");
+    });
+  });
+
+  describe("signed in", () => {
+    const year = new Date().getFullYear();
+
+    function renderSignedIn(goalsBySport: Parameters<typeof accountServices>[1]) {
+      vi.spyOn(useAuthModule, "useAuth").mockReturnValue({
+        user: ACCOUNT_USER,
+        loading: false,
+        error: null,
+        signIn: vi.fn(),
+        signOut: vi.fn(),
+      });
+      vi.spyOn(activitiesApi, "fetchMultiSportMetrics").mockResolvedValue({
+        cycling: [{ date: `${year}-03-01`, distance: 1_000_000 }],
+        running: [{ date: `${year}-03-01`, distance: 500_000 }],
+        yoga: [{ date: `${year}-03-01`, time: 600 }],
+      });
+      const services = accountServices(year, goalsBySport);
+      return renderHook(() => useDashboardGoalData(), {
+        wrapper: ({ children }) => (
+          <TestServiceProvider {...services}>
+            <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+          </TestServiceProvider>
+        ),
+      });
+    }
+
+    it("measures a sport with saved goals against them", async () => {
+      const { result } = renderSignedIn({
+        cycling: [storedGoal("base", 3_000_000, "Base"), storedGoal("target", 4_000_000, "Target")],
+      });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      const cycling = result.current.sportData.find((s) => s.sport === "cycling")!;
+      expect(cycling.hasGoal).toBe(true);
+      expect(cycling.targetGoal).toBeCloseTo(goalMetersToDisplay(4_000_000, "miles"), 6);
+      expect(cycling.impactGoal).toBeCloseTo(goalMetersToDisplay(3_000_000, "miles"), 6);
+      expect(cycling.impactGoalLabel).toBe("Base");
+    });
+
+    it("gives a sport without saved goals no goal, not a default to measure against", async () => {
+      const { result } = renderSignedIn({ cycling: [storedGoal("target", 4_000_000, "Target")] });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      for (const sport of ["running", "yoga"]) {
+        const data = result.current.sportData.find((s) => s.sport === sport)!;
+        expect(data.currentValue).toBeGreaterThan(0);
+        expect(data).toMatchObject({
+          hasGoal: false,
+          targetGoal: 0,
+          impactGoal: 0,
+          impactGoalLabel: "",
+        });
+      }
     });
   });
 });

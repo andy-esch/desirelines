@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import GoalProgressCard, { getStatusForDashboard } from "./GoalProgressCard";
 import { renderWithRouter } from "../../test/renderWithRouter";
 import { ThemeStructureProvider } from "../theme/ThemeStructureProvider";
@@ -40,6 +40,7 @@ function cycling(currentValue: number, overrides: Partial<SportGoalData> = {}): 
     displayName: "Cycling",
     color: "#00f0ff",
     currentValue,
+    hasGoal: true,
     targetGoal: 1000,
     metricUnit: "mi",
     metricType: "distance",
@@ -194,5 +195,59 @@ describe("GoalProgressCard", () => {
     returnGoalData([], { error: new Error("boom") });
     await renderCard();
     expect(screen.getByText("Unable to load goal progress")).toBeInTheDocument();
+  });
+
+  describe("a sport without a goal", () => {
+    const running = cycling(1204, {
+      sport: "running",
+      displayName: "Running",
+      hasGoal: false,
+      targetGoal: 0,
+      impactGoal: 0,
+      impactGoalLabel: "",
+    });
+
+    it.each(["miami", "legacy-light"] as const)(
+      "says No goal and links to where one is set, in %s",
+      async (theme) => {
+        returnGoalData([cycling(400), running]);
+        await renderCard(theme);
+
+        expect(screen.getByText("No goal")).toBeInTheDocument();
+        expect(screen.getByText(/1,204 mi/)).toBeInTheDocument();
+        expect(screen.getByRole("link", { name: "Set a goal for Running" })).toHaveAttribute(
+          "href",
+          "/running/2026"
+        );
+      }
+    );
+
+    it("draws no track, status or target for it", async () => {
+      returnGoalData([cycling(400), running]);
+      await renderCard("miami");
+
+      // The row is the sport, "No goal", and the year's total with the link: nothing else.
+      const row = screen.getByText("No goal").closest<HTMLElement>("div.flex-col")!;
+      expect(row).toHaveTextContent(/^RunningNo goal1,204 mi · Set a goal$/);
+      expect(within(row).queryByRole("progressbar")).toBeNull();
+      // Cycling, which has a goal, keeps its track and status.
+      expect(
+        screen.getByRole("progressbar", { name: "Cycling goal progress" })
+      ).toBeInTheDocument();
+      expect(screen.getByText("On Track")).toBeInTheDocument();
+    });
+
+    it("leaves the track legend out when no sport has a goal", async () => {
+      returnGoalData([running]);
+      await renderCard("miami");
+      expect(screen.queryByText("Pace today")).toBeNull();
+      expect(screen.queryByText("You")).toBeNull();
+    });
+
+    it("keeps the legend while another sport has a goal", async () => {
+      returnGoalData([cycling(400), running]);
+      await renderCard("miami");
+      expect(screen.getByText("Pace today")).toBeInTheDocument();
+    });
   });
 });

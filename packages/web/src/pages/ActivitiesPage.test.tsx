@@ -40,6 +40,7 @@ vi.mock("../hooks/useDashboardGoalData", () => ({
         displayName: "Cycling",
         color: "#000",
         currentValue: 1200,
+        hasGoal: true,
         targetGoal: 3500,
         metricUnit: "mi",
         metricType: "distance",
@@ -346,6 +347,7 @@ describe("ActivitiesPage", () => {
             displayName: "Cycling",
             color: "#000",
             currentValue: 1200,
+            hasGoal: true,
             targetGoal: 3500,
             metricUnit: "mi",
             metricType: "distance",
@@ -367,8 +369,9 @@ describe("ActivitiesPage", () => {
     });
 
     it("withholds the Impact column until the goals resolve", async () => {
-      // impactGoal falls back to a non-zero metricConfig default, so rendering
-      // mid-load would show a percentage of a goal the athlete never set.
+      // The goal is converted with the athlete's unit and the sport's primary
+      // metric, which load separately: rendering mid-load would show a
+      // percentage and then silently restate it.
       vi.mocked(useDashboardGoalData).mockReturnValueOnce({
         sportData: [],
         yearContext: createYearContext(2026),
@@ -392,6 +395,37 @@ describe("ActivitiesPage", () => {
 
     it("hides the Impact column when several sports are selected", async () => {
       await renderActivitiesPage("/activities?sports=cycling,running");
+
+      await screen.findByRole("heading", { name: "Activities" });
+      expect(screen.queryByRole("columnheader", { name: /impact/i })).not.toBeInTheDocument();
+    });
+
+    it("hides the Impact column for a sport the athlete set no goal for", async () => {
+      // The goal fields are what the transform returned before it knew a sport
+      // could have no goal: a default goal the athlete never chose. The page
+      // must go by hasGoal, not by whether a number is there.
+      vi.mocked(useDashboardGoalData).mockReturnValueOnce({
+        sportData: [
+          {
+            sport: "cycling",
+            displayName: "Cycling",
+            color: "#000",
+            currentValue: 1200,
+            hasGoal: false,
+            targetGoal: 2500,
+            metricUnit: "mi",
+            metricType: "distance",
+            impactGoal: 2500,
+            impactGoalLabel: "",
+          },
+        ],
+        yearContext: createYearContext(2026),
+        distanceUnit: "miles",
+        isLoading: false,
+        error: null,
+      });
+
+      await renderActivitiesPage("/activities?sports=cycling");
 
       await screen.findByRole("heading", { name: "Activities" });
       expect(screen.queryByRole("columnheader", { name: /impact/i })).not.toBeInTheDocument();

@@ -20,6 +20,7 @@ function total(
     displayName: sport[0]!.toUpperCase() + sport.slice(1),
     color: "#00f0ff",
     weeklyTotal,
+    hasGoal: true,
     weeklyGoal: 50,
     achievementPct: (weeklyTotal / 50) * 100,
     metricUnit: "mi",
@@ -119,6 +120,24 @@ describe("WeeklySummaryCard", () => {
       expect(running.queryByText(/%/)).toBeNull();
     });
   });
+
+  it.each(["miami", "legacy-light"] as const)(
+    "shows a sport without a goal its total and no share of a goal, in %s",
+    (theme) => {
+      returnSummary([
+        total("cycling", 20),
+        total("running", 22, { hasGoal: false, weeklyGoal: 0, achievementPct: 0 }),
+      ]);
+      renderCard(theme);
+
+      const running = within(row("Running"));
+      expect(running.getByText("22.0 mi")).toBeInTheDocument();
+      expect(running.queryByText(/%/)).toBeNull();
+      expect(row("Running").querySelector("[data-status]")).toBeNull();
+      // Cycling, which has a goal, keeps its share.
+      expect(within(row("Cycling")).getByText(/40%/)).toBeInTheDocument();
+    }
+  );
 
   it("says so when no sport has anything this week", () => {
     returnSummary([total("cycling", 0), total("running", 0)]);

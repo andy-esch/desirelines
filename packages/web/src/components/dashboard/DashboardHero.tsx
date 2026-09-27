@@ -10,11 +10,13 @@ import { getIsoWeek, getMonthShareOfYear } from "../../utils/yearClock";
 import { getYearElapsedShare } from "../../utils/yearContext";
 import { HeroDecoration } from "../theme/HeroDecoration";
 import { Meter } from "../theme/Meter";
+import { MissingValue } from "../theme/MissingValue";
 import { useThemeStructure } from "../theme/useThemeStructure";
 
 /**
  * Goals with a target that are on pace today: achieved, or at least the on-track share of
- * where linear pacing puts them. Sports without a target don't count toward the total.
+ * where linear pacing puts them. Sports without a target, including those with no goal
+ * (whose target is 0), don't count toward the total.
  */
 export function countGoalsOnPace(
   sports: Pick<SportGoalData, "currentValue" | "targetGoal">[],
@@ -129,11 +131,12 @@ export default function DashboardHero({
             value={countLoading ? pending : count.toLocaleString()}
             className="text-(color:--hero-title-color)"
           />
+          {/* With no goals set there's nothing to be on pace for: the missing value, not 0/0. */}
           <HeroNumber
             label="Goals on pace"
-            value={goalsLoading ? pending : goals.onPace}
+            value={goalsLoading ? pending : goals.total === 0 ? <MissingValue /> : goals.onPace}
             suffix={
-              goalsLoading ? undefined : (
+              goalsLoading || goals.total === 0 ? undefined : (
                 <span className="text-[0.53em] text-(color:--hero-ink)">/{goals.total}</span>
               )
             }

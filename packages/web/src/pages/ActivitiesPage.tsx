@@ -55,18 +55,16 @@ const ActivitiesPage = () => {
   // would need its own goal and the one column cannot say which it used — the
   // per-row Sport badge already carries that distinction.
   //
-  // Held back until the goals resolve: transformToSportGoalData seeds impactGoal
-  // from metricConfig.defaultGoalValue (dashboardUtils.ts:79) rather than zero,
-  // so an unguarded render shows percentages measured against 2,500 mi and then
-  // silently restates them against the athlete's real goal.
+  // Only for a sport with a goal: without one there's nothing to take a share of.
+  // Held back until everything the goal is converted with resolves too: the
+  // athlete's distance unit and the sport's primary metric load separately, and
+  // an early render would show percentages and then silently restate them.
   const { sportData, isLoading: goalsLoading } = useDashboardGoalData();
-  const goalData = useMemo(
-    () =>
-      !goalsLoading && selectedSports.length === 1
-        ? sportData.find((g) => g.sport === selectedSports[0])
-        : undefined,
-    [goalsLoading, sportData, selectedSports]
-  );
+  const goalData = useMemo(() => {
+    if (goalsLoading || selectedSports.length !== 1) return undefined;
+    const goal = sportData.find((g) => g.sport === selectedSports[0]);
+    return goal?.hasGoal ? goal : undefined;
+  }, [goalsLoading, sportData, selectedSports]);
 
   // Calculate date range based on selection
   const dateRange = useMemo(() => calculateDateRange(selectedRange), [selectedRange]);
@@ -178,10 +176,10 @@ const ActivitiesPage = () => {
                 // Name impactGoal, not targetGoal: the percentage above is a
                 // share of impactGoal, and impactGoalLabel is *its* label — the
                 // two are a pair. Rounded like the dashboard's equivalent
-                // tooltip (RecentActivitiesList.tsx:310) since the converted
-                // value carries fractions. The label is the athlete's own and
-                // may be empty (dashboardUtils.ts:100), so the parenthetical is
-                // dropped rather than rendered as "3,000 mi () goal".
+                // tooltip in RecentActivitiesList, since the converted value
+                // carries fractions. The label is the athlete's own and may be
+                // empty, so the parenthetical is dropped rather than rendered
+                // as "3,000 mi () goal".
                 goalLabel: goalData.impactGoalLabel
                   ? `${Math.round(goalData.impactGoal).toLocaleString()} ${goalData.metricUnit} (${goalData.impactGoalLabel})`
                   : `${Math.round(goalData.impactGoal).toLocaleString()} ${goalData.metricUnit}`,
