@@ -54,7 +54,10 @@ export function ThemePicker({ labelledBy, describedBy }: ThemePickerProps) {
             >
               <ThemePreview theme={theme} />
               {selected && (
-                <span className="absolute right-[5px] top-[5px] flex size-4 items-center justify-center rounded-[var(--control-radius)] bg-[var(--color-neon-accent)] text-[var(--color-on-accent)]">
+                <span
+                  aria-hidden="true"
+                  className="absolute right-[5px] top-[5px] flex size-4 items-center justify-center rounded-[var(--control-radius)] bg-[var(--color-neon-accent)] text-[var(--color-on-accent)]"
+                >
                   <CheckIcon size={11} />
                 </span>
               )}

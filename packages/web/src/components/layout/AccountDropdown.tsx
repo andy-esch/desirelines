@@ -77,13 +77,12 @@ const ThemeSwatch = ({ colors }: { colors: readonly string[] }) => {
   );
 };
 
-const THEME_OPTIONS: readonly { value: ThemePreference; label: string; icon: React.ReactNode }[] = [
-  ...VISIBLE_THEMES.map((t) => ({
+const THEME_OPTIONS: readonly { value: ThemePreference; label: string; icon: React.ReactNode }[] =
+  VISIBLE_THEMES.map((t) => ({
     value: t.id,
     label: t.label,
     icon: <ThemeSwatch colors={t.swatches} />,
-  })),
-];
+  }));
 
 /**
  * Account dropdown menu for the header

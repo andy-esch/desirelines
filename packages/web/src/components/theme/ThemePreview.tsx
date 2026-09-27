@@ -3,7 +3,8 @@ import { HeroDecorationPreview } from "./HeroDecoration";
 
 /**
  * A theme drawn small, for picking it: its ground, two bars in its accent where text would
- * be, and its hero decoration in miniature (see the Settings design, decision 1).
+ * be, and its hero decoration in miniature. Built from the theme's list entry and slots, so
+ * no live render of the theme is needed.
  *
  * It renders inside the theme's own `data-theme`, so every slot it reads is that theme's
  * whichever theme the page is in. The frame around it (border, selection) belongs to the

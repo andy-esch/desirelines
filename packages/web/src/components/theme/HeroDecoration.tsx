@@ -203,7 +203,7 @@ export function HeroDecoration({ kind }: { kind: ThemeStructure["heroDecoration"
   );
 }
 
-/** The sunset drawn small: its three lowest bands at even heights, a sky/sea/sun stripe. */
+/** The sunset drawn small: every other band from the horizon down, at even heights. */
 export const SUNSET_PREVIEW_BANDS = [
   SUNSET_STOPS[2].color,
   SUNSET_STOPS[4].color,
