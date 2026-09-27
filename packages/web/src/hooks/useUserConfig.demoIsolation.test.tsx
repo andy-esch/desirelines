@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useUserConfig } from "./useUserConfig";
 import { TestServiceProvider } from "../contexts/ServiceContext";
 import { AuthProvider } from "../contexts/AuthContext";
+import { UserConfigProvider } from "../contexts/UserConfigProvider";
 import { ToastProvider } from "../contexts/ToastContext";
 import { MockAuthService } from "../services/auth/MockAuthService";
 import { MockDatabaseService } from "../services/database/MockDatabaseService";
@@ -77,13 +78,15 @@ function renderApp(signedIn: boolean, db = new MockDatabaseService()) {
       <ToastProvider>
         <TestServiceProvider authService={auth} databaseService={db}>
           <AuthProvider>
-            <GoalsConsumer report={(data) => (seen.goals = data)} />
-            <PrefsConsumer
-              report={(config) => {
-                seen.preferences = config.data;
-                savePreferences = config.updateData;
-              }}
-            />
+            <UserConfigProvider>
+              <GoalsConsumer report={(data) => (seen.goals = data)} />
+              <PrefsConsumer
+                report={(config) => {
+                  seen.preferences = config.data;
+                  savePreferences = config.updateData;
+                }}
+              />
+            </UserConfigProvider>
           </AuthProvider>
         </TestServiceProvider>
       </ToastProvider>

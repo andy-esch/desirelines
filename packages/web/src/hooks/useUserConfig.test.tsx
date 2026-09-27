@@ -4,9 +4,12 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useUserConfig, useFullUserConfig } from "./useUserConfig";
 import { UserConfigService, parseConfigData } from "../services/userConfigService";
-import type { GoalsForYear } from "../services/userConfigService";
+import type { GoalsForYear, UserConfig } from "../services/userConfigService";
 import { TestServiceProvider } from "../contexts/ServiceContext";
+import { UserConfigProvider } from "../contexts/UserConfigProvider";
 import { demoConfigKey } from "../services/demoStorage";
+import { configQueryKey } from "../services/config/configAdapter";
+import { withSection } from "../services/config/sections";
 import { DEFAULT_PREFERENCES } from "../constants/settings";
 
 // Mock UserConfigService and parseConfigData. parseConfigData defaults to an
@@ -17,7 +20,6 @@ vi.mock("../services/userConfigService", () => {
   const MockUserConfigService = vi.fn();
   MockUserConfigService.prototype.getConfigSection = vi.fn();
   MockUserConfigService.prototype.updateConfigSection = vi.fn();
-  MockUserConfigService.prototype.subscribeToConfigSection = vi.fn(() => vi.fn());
   MockUserConfigService.prototype.getConfig = vi.fn();
   MockUserConfigService.prototype.subscribeToConfig = vi.fn(() => vi.fn());
   // Identity-passing schema validator — tests pass already-shaped fixtures,
@@ -55,6 +57,11 @@ const localStorageMock = (() => {
     removeItem: vi.fn((key: string) => {
       delete store[key];
     }),
+    // The demo store gathers its sections by walking the keys.
+    key: (index: number) => Object.keys(store)[index] ?? null,
+    get length() {
+      return Object.keys(store).length;
+    },
   };
 })();
 Object.defineProperty(window, "localStorage", { value: localStorageMock });
@@ -72,10 +79,36 @@ const createWrapper = () => {
   });
   return ({ children }: { children: React.ReactNode }) => (
     <TestServiceProvider>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        <UserConfigProvider>{children}</UserConfigProvider>
+      </QueryClientProvider>
     </TestServiceProvider>
   );
 };
+
+/**
+ * The account's config listener: it sends `doc` as the first snapshot, as Firestore's does,
+ * and `report` and `fail` send what comes after.
+ */
+function serve(doc: UserConfig | null) {
+  const listener = {
+    report: (_doc: UserConfig | null) => {},
+    fail: (_error: Error) => {},
+  };
+  vi.mocked(UserConfigService.prototype.subscribeToConfig).mockImplementation(
+    (onConfig, onError) => {
+      listener.report = onConfig;
+      listener.fail = onError;
+      onConfig(doc);
+      return vi.fn();
+    }
+  );
+  return listener;
+}
+
+/** A document holding just 2025's cycling goals. */
+const goalsDoc = (goals: GoalsForYear) =>
+  withSection(null, { section: "goals", year: 2025, sport: "cycling" }, goals);
 
 // Tests give the service's methods their own results; clearAllMocks keeps those, and they
 // would leak into every later test. Reset each to what the mock factory made it.
@@ -84,7 +117,6 @@ function resetServiceMocks() {
   for (const method of [
     "getConfigSection",
     "updateConfigSection",
-    "subscribeToConfigSection",
     "getConfig",
     "subscribeToConfig",
   ]) {
@@ -128,12 +160,7 @@ describe("useUserConfig", () => {
         ],
       };
 
-      mockServiceInstance.getConfigSection.mockResolvedValue(mockGoals);
-      // Mock subscription to call back immediately
-      mockServiceInstance.subscribeToConfigSection.mockImplementation((_type: any, cb: any) => {
-        cb(mockGoals);
-        return vi.fn();
-      });
+      serve(goalsDoc(mockGoals));
 
       const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling"), {
         wrapper: createWrapper(),
@@ -156,7 +183,10 @@ describe("useUserConfig", () => {
       const storedGoals = {
         goals: [{ id: "ls", value: 500, label: "LS", createdAt: "", updatedAt: "", metric: "" }],
       };
-      localStorageMock.getItem.mockReturnValue(JSON.stringify(storedGoals));
+      localStorageMock.setItem(
+        demoConfigKey("goals", 2025, "cycling"),
+        JSON.stringify(storedGoals)
+      );
 
       const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling"), {
         wrapper: createWrapper(),
@@ -167,6 +197,7 @@ describe("useUserConfig", () => {
       expect(localStorageMock.getItem).toHaveBeenCalled();
       // Should NOT call service
       expect(mockServiceInstance.getConfigSection).not.toHaveBeenCalled();
+      expect(mockServiceInstance.subscribeToConfig).not.toHaveBeenCalled();
     });
 
     it("should write to localStorage when user is null", async () => {
@@ -257,7 +288,7 @@ describe("useUserConfig", () => {
           },
         ],
       };
-      localStorageMock.getItem.mockReturnValue('{"goals":"not an array"}');
+      localStorageMock.setItem(demoConfigKey("goals", 2025, "cycling"), '{"goals":"not an array"}');
       mockedParseConfigData.mockReturnValueOnce({
         ok: false,
         error: { issues: [] } as any,
@@ -290,7 +321,7 @@ describe("useUserConfig", () => {
       ["nothing saved", false, null],
       ["goals saved", true, goals("saved")],
     ])("signed in with %s, is %s", async (_, saved, stored) => {
-      mockServiceInstance.getConfigSection.mockResolvedValue(stored);
+      serve(stored ? goalsDoc(stored) : null);
       const { result } = renderHook(
         () => useUserConfig("goals", 2025, "cycling", goals("default")),
         { wrapper: createWrapper() }
@@ -319,7 +350,7 @@ describe("useUserConfig", () => {
         ["nothing saved", false, null],
         ["goals saved", true, JSON.stringify(goals("saved"))],
       ])("with %s, is %s", async (_, saved, stored) => {
-        localStorageMock.getItem.mockReturnValue(stored);
+        if (stored) localStorageMock.setItem(demoConfigKey("goals", 2025, "cycling"), stored);
         const { result } = renderHook(
           () => useUserConfig("goals", 2025, "cycling", goals("default")),
           { wrapper: createWrapper() }
@@ -330,7 +361,10 @@ describe("useUserConfig", () => {
       });
 
       it("is false for a saved section that fails validation, which shows the default", async () => {
-        localStorageMock.getItem.mockReturnValue('{"goals":"not an array"}');
+        localStorageMock.setItem(
+          demoConfigKey("goals", 2025, "cycling"),
+          '{"goals":"not an array"}'
+        );
         mockedParseConfigData.mockReturnValueOnce({ ok: false, error: { issues: [] } as any });
         const { result } = renderHook(
           () => useUserConfig("goals", 2025, "cycling", goals("default")),
@@ -390,17 +424,16 @@ describe("useUserConfig", () => {
     ] as const)(
       "caches an empty %s report as null and returns the default",
       async (configType, year, sport, defaultValue) => {
-        mockServiceInstance.getConfigSection.mockResolvedValue(null);
         // Report after the first load, as a live listener does, so its value is what's cached.
-        let report: (data: unknown) => void = () => {};
-        mockServiceInstance.subscribeToConfigSection.mockImplementation((_type: any, cb: any) => {
-          report = cb;
-          return vi.fn();
-        });
+        const listener = serve(
+          withSection(null, { section: "preferences" }, { theme: "x" } as any)
+        );
         const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
         const wrapper = ({ children }: { children: React.ReactNode }) => (
           <TestServiceProvider>
-            <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+            <QueryClientProvider client={queryClient}>
+              <UserConfigProvider>{children}</UserConfigProvider>
+            </QueryClientProvider>
           </TestServiceProvider>
         );
         const { result } = renderHook(
@@ -409,53 +442,58 @@ describe("useUserConfig", () => {
         );
 
         await waitFor(() => expect(result.current.loading).toBe(false));
-        act(() => report(null));
+        act(() => listener.report(null));
         await waitFor(() => expect(result.current.data).toEqual(defaultValue));
-        const cached = queryClient.getQueriesData({ queryKey: ["userConfig", configType] });
-        expect(cached.map(([, data]) => data)).toEqual([null]);
+        // The one document entry holds what was reported, never the default.
+        expect(queryClient.getQueryData(configQueryKey(mockUser.uid))).toBeNull();
       }
     );
 
     it("should unsubscribe on unmount", async () => {
       const unsubscribeMock = vi.fn();
-      mockServiceInstance.subscribeToConfigSection.mockReturnValue(unsubscribeMock);
-      mockServiceInstance.getConfigSection.mockResolvedValue({});
+      mockServiceInstance.subscribeToConfig.mockImplementation((onConfig: any) => {
+        onConfig(null);
+        return unsubscribeMock;
+      });
 
       const { unmount } = renderHook(() => useUserConfig("goals", 2025, "cycling"), {
         wrapper: createWrapper(),
       });
 
       // Wait for effect to run
-      await waitFor(() => expect(mockServiceInstance.subscribeToConfigSection).toHaveBeenCalled());
+      await waitFor(() => expect(mockServiceInstance.subscribeToConfig).toHaveBeenCalled());
 
       unmount();
       expect(unsubscribeMock).toHaveBeenCalled();
     });
 
-    it("should resubscribe when parameters change", async () => {
-      const unsubscribeMock1 = vi.fn();
-      const unsubscribeMock2 = vi.fn();
-      mockServiceInstance.subscribeToConfigSection
-        .mockReturnValueOnce(unsubscribeMock1)
-        .mockReturnValueOnce(unsubscribeMock2);
-      mockServiceInstance.getConfigSection.mockResolvedValue({});
-
-      const { rerender } = renderHook(({ year }) => useUserConfig("goals", year, "cycling"), {
-        initialProps: { year: 2025 },
-        wrapper: createWrapper(),
-      });
-
-      await waitFor(() =>
-        expect(mockServiceInstance.subscribeToConfigSection).toHaveBeenCalledTimes(1)
+    it("keeps its one listener when the section it reads changes", async () => {
+      // A listener per section used to be torn down and opened again for each new year or
+      // sport. The store's one listener serves every section, so nothing is resubscribed.
+      const goals2024: GoalsForYear = { goals: [], storageVersion: 2 };
+      serve(
+        withSection(
+          goalsDoc({ goals: [] }),
+          { section: "goals", year: 2024, sport: "cycling" },
+          goals2024
+        )
       );
+
+      const { result, rerender } = renderHook(
+        ({ year }) => useUserConfig("goals", year, "cycling"),
+        {
+          initialProps: { year: 2025 },
+          wrapper: createWrapper(),
+        }
+      );
+
+      await waitFor(() => expect(mockServiceInstance.subscribeToConfig).toHaveBeenCalledTimes(1));
 
       // Change year
       rerender({ year: 2024 });
 
-      await waitFor(() =>
-        expect(mockServiceInstance.subscribeToConfigSection).toHaveBeenCalledTimes(2)
-      );
-      expect(unsubscribeMock1).toHaveBeenCalled();
+      await waitFor(() => expect(result.current.data).toEqual(goals2024));
+      expect(mockServiceInstance.subscribeToConfig).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -486,12 +524,7 @@ describe("useUserConfig", () => {
         ],
       };
 
-      mockServiceInstance.getConfigSection.mockResolvedValue(initialGoals);
-      // Subscription returns initial data
-      mockServiceInstance.subscribeToConfigSection.mockImplementation((_type: any, cb: any) => {
-        cb(initialGoals); // Simulate initial data from subscription
-        return vi.fn();
-      });
+      serve(goalsDoc(initialGoals));
       mockServiceInstance.updateConfigSection.mockResolvedValue(undefined);
 
       const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling"), {
@@ -550,11 +583,7 @@ describe("useUserConfig", () => {
       };
       const error = new Error("Failed to save");
 
-      mockServiceInstance.getConfigSection.mockResolvedValue(initialGoals);
-      mockServiceInstance.subscribeToConfigSection.mockImplementation((_type: any, cb: any) => {
-        cb(initialGoals);
-        return vi.fn();
-      });
+      serve(goalsDoc(initialGoals));
       mockServiceInstance.updateConfigSection.mockRejectedValue(error);
 
       const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling"), {
@@ -605,11 +634,7 @@ describe("useUserConfig", () => {
     };
 
     it("is rolled back on an empty section", async () => {
-      mockServiceInstance.getConfigSection.mockResolvedValue(null);
-      mockServiceInstance.subscribeToConfigSection.mockImplementation((_type: any, cb: any) => {
-        cb(null);
-        return vi.fn();
-      });
+      serve(null);
       mockServiceInstance.updateConfigSection.mockRejectedValue(new Error("Failed to save"));
       const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling"), {
         wrapper: createWrapper(),
@@ -670,7 +695,10 @@ describe("useFullUserConfig", () => {
   it("should call updateSection correctly", async () => {
     const mockConfig = { goals: {}, annotations: {}, preferences: {} };
     mockServiceInstance.getConfig.mockResolvedValue(mockConfig);
-    mockServiceInstance.subscribeToConfig.mockReturnValue(vi.fn());
+    mockServiceInstance.subscribeToConfig.mockImplementation((cb: any) => {
+      cb(mockConfig);
+      return vi.fn();
+    });
 
     const { result } = renderHook(() => useFullUserConfig(), { wrapper: createWrapper() });
     await waitFor(() => expect(result.current.loading).toBe(false));

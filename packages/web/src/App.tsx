@@ -5,6 +5,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { UIStateProvider } from "./contexts/UIStateContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { ThemeSync } from "./contexts/ThemeSync";
+import { UserConfigProvider } from "./contexts/UserConfigProvider";
 import { ToastProvider } from "./contexts/ToastContext";
 import type { createAppRouter } from "./router";
 
@@ -18,10 +19,12 @@ function App({ router }: AppProps) {
       <ToastProvider>
         <ServiceProvider>
           <AuthProvider>
-            <ThemeSync />
-            <UIStateProvider>
-              <RouterProvider router={router} />
-            </UIStateProvider>
+            <UserConfigProvider>
+              <ThemeSync />
+              <UIStateProvider>
+                <RouterProvider router={router} />
+              </UIStateProvider>
+            </UserConfigProvider>
           </AuthProvider>
         </ServiceProvider>
       </ToastProvider>

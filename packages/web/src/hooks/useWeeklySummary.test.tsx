@@ -10,6 +10,7 @@ import * as useDailySportDataModule from "./useDailySportData";
 import type { SportConfig } from "../api/activities";
 import type React from "react";
 import { TestServiceProvider } from "../contexts/ServiceContext";
+import { UserConfigProvider } from "../contexts/UserConfigProvider";
 import { ACCOUNT_USER, accountServices, storedGoal } from "../test/fixtures/userConfig";
 import { goalMetersToDisplay } from "../utils/units";
 import { getDaysInYear } from "../utils/yearContext";
@@ -76,7 +77,9 @@ describe("useWeeklySummary", () => {
   function wrapper({ children }: { children: React.ReactNode }) {
     return (
       <TestServiceProvider>
-        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        <QueryClientProvider client={queryClient}>
+          <UserConfigProvider>{children}</UserConfigProvider>
+        </QueryClientProvider>
       </TestServiceProvider>
     );
   }
@@ -419,7 +422,9 @@ describe("useWeeklySummary", () => {
       return renderHook(() => useWeeklySummary(), {
         wrapper: ({ children }) => (
           <TestServiceProvider {...services}>
-            <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+            <QueryClientProvider client={queryClient}>
+              <UserConfigProvider>{children}</UserConfigProvider>
+            </QueryClientProvider>
           </TestServiceProvider>
         ),
       });

@@ -5,7 +5,11 @@
  * Use setMockData() and clearMockData() to control test state.
  */
 
-import type { DatabaseService, SetDocumentOptions } from "./DatabaseService";
+import type {
+  DatabaseService,
+  SetDocumentOptions,
+  SubscribeDocumentOptions,
+} from "./DatabaseService";
 
 const isMap = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -26,6 +30,7 @@ function mergeInto(existing: unknown, incoming: unknown): unknown {
 export class MockDatabaseService implements DatabaseService {
   private data = new Map<string, unknown>();
   private listeners = new Map<string, Set<(data: unknown) => void>>();
+  private errorListeners = new Map<(data: unknown) => void, (error: Error) => void>();
 
   getDocument<T>(path: string): Promise<T | null> {
     return Promise.resolve(this.read<T>(path));
@@ -58,7 +63,10 @@ export class MockDatabaseService implements DatabaseService {
   subscribeToDocument<T>(
     path: string,
     callback: (data: T | null) => void,
-    _onError?: (error: Error) => void
+    onError?: (error: Error) => void,
+    // Not applied: the in-memory data isn't parsed. Use `failListeners` for a snapshot
+    // that doesn't validate.
+    _options?: SubscribeDocumentOptions<T>
   ): () => void {
     if (!this.listeners.has(path)) {
       this.listeners.set(path, new Set());
@@ -66,11 +74,13 @@ export class MockDatabaseService implements DatabaseService {
 
     const typedCallback = callback as (data: unknown) => void;
     this.listeners.get(path)!.add(typedCallback);
+    if (onError) this.errorListeners.set(typedCallback, onError);
 
     // Immediately call with current data (matches Firestore behavior)
     callback(this.read<T>(path));
 
     return () => {
+      this.errorListeners.delete(typedCallback);
       const pathListeners = this.listeners.get(path);
       if (pathListeners) {
         pathListeners.delete(typedCallback);
@@ -107,5 +117,13 @@ export class MockDatabaseService implements DatabaseService {
   setMockData<T>(path: string, data: T): void {
     this.data.set(path, structuredClone(data));
     this.notifyListeners(path);
+  }
+
+  /**
+   * Report `error` to every listener on a path, as Firestore does when a listener fails
+   * for good or a snapshot doesn't validate. The stored data is left as it was.
+   */
+  failListeners(path: string, error: Error): void {
+    this.listeners.get(path)?.forEach((callback) => this.errorListeners.get(callback)?.(error));
   }
 }

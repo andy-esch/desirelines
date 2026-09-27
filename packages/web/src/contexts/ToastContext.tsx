@@ -75,3 +75,8 @@ export function useToast(): ToastContextValue {
   if (!ctx) throw new Error("useToast must be used within ToastProvider");
   return ctx;
 }
+
+/** The toasts, or null outside a `ToastProvider`: for providers that can go without them. */
+export function useOptionalToast(): ToastContextValue | null {
+  return useContext(ToastContext);
+}

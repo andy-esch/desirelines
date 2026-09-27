@@ -14,12 +14,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { signInAnonymously, signOut } from "firebase/auth";
 import { doc, getDoc, deleteDoc } from "firebase/firestore";
-import type {
-  GoalsForYear,
-  SportGoalsForYear,
-  AnnotationsForYear,
-  Preferences,
-} from "../types/generated/user_config";
+import type { GoalsForYear, AnnotationsForYear, Preferences } from "../types/generated/user_config";
 import { AnnotationType } from "../types/generated/user_config";
 import { testAuth, testDb } from "../test/integration-setup";
 
@@ -407,23 +402,15 @@ describe("UserConfigService Integration Tests", () => {
 
       const service = new UserConfigService();
 
-      // Set up subscription
-      const updates: (
-        | GoalsForYear
-        | SportGoalsForYear
-        | AnnotationsForYear
-        | Preferences
-        | { [key: string]: SportGoalsForYear }
-        | { [key: string]: AnnotationsForYear }
-        | null
-      )[] = [];
-      const unsubscribe = service.subscribeToConfigSection(
-        "goals",
-        (data) => {
-          updates.push(data);
+      // Set up the document listener the store uses, and read the section from each copy.
+      const updates: (GoalsForYear | null)[] = [];
+      const unsubscribe = service.subscribeToConfig(
+        (config) => {
+          updates.push(config?.goals?.["2025"]?.sports?.["cycling"] ?? null);
         },
-        2025,
-        "cycling"
+        (error) => {
+          throw error;
+        }
       );
 
       // Wait for initial null callback

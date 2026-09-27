@@ -6,6 +6,7 @@ import { ThemeProvider, useTheme } from "./ThemeContext";
 import { ToastProvider } from "./ToastContext";
 import { TestServiceProvider } from "./ServiceContext";
 import { AuthProvider } from "./AuthContext";
+import { UserConfigProvider } from "./UserConfigProvider";
 import { MockAuthService } from "../services/auth/MockAuthService";
 import { MockDatabaseService } from "../services/database/MockDatabaseService";
 import { DEFAULT_PREFERENCES } from "../constants/settings";
@@ -90,8 +91,10 @@ function renderSync({
         <ToastProvider>
           <TestServiceProvider authService={auth} databaseService={db}>
             <AuthProvider>
-              <ThemeSync />
-              <Probe />
+              <UserConfigProvider>
+                <ThemeSync />
+                <Probe />
+              </UserConfigProvider>
             </AuthProvider>
           </TestServiceProvider>
         </ToastProvider>
@@ -330,8 +333,11 @@ describe("ThemeSync", () => {
         demo: "legacy-light",
         cached: "system",
         prepare: (db) => {
-          vi.spyOn(db, "getDocument").mockRejectedValue(new Error("offline"));
-          vi.spyOn(db, "subscribeToDocument").mockReturnValue(() => {});
+          // The store's first read is the listener's first snapshot, which fails.
+          vi.spyOn(db, "subscribeToDocument").mockImplementation((_path, _onData, onError) => {
+            onError?.(new Error("offline"));
+            return () => {};
+          });
         },
       });
       await settle();

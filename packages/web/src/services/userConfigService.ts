@@ -419,10 +419,9 @@ export class UserConfigService {
   }
 
   /**
-   * Drill into a config section by year/sport. Shared by getConfigSection
-   * (which returns the value) and subscribeToConfigSection (which passes it to
-   * a callback) so the goals/annotations nesting and the `as` casts live in
-   * exactly one place. Returns null when the section or requested year is absent.
+   * Drill into a config section by year/sport, for `getConfigSection`. Returns null when the
+   * section or requested year is absent. (The store reads sections with
+   * `services/config/sections.ts`, from the one document it holds.)
    */
   private selectConfigSection(
     config: UserConfig,
@@ -577,59 +576,26 @@ export class UserConfigService {
   }
 
   /**
-   * Subscribe to real-time config updates
-   * Returns an unsubscribe function to stop listening
+   * Subscribe to real-time config updates. Returns an unsubscribe function.
+   *
+   * `onConfig` gets each snapshot, parsed once, or null when there's no document. `onError`
+   * gets a listener that failed for good (after the database service's retries) or a
+   * document that didn't validate. The two stay apart: an error isn't an empty document, and
+   * treating it as one would show every section as unsaved, and invite saves over it.
    */
-  subscribeToConfig(callback: (config: UserConfig | null) => void): () => void {
+  subscribeToConfig(
+    onConfig: (config: UserConfig | null) => void,
+    onError: (error: Error) => void
+  ): () => void {
     return this.databaseService.subscribeToDocument<UserConfig>(
       this.getDocPath(),
-      callback,
+      onConfig,
       (error) => {
         logger.error("Error in config subscription:", error);
-        callback(null);
+        onError(createUserFriendlyError(error, "keep your settings in sync"));
       },
       { schema: UserConfigSchema }
     );
-  }
-
-  /**
-   * Subscribe to a specific config section.
-   *
-   * For goals:
-   * - With year + sport: callback receives GoalsForYear | null
-   * - With year only: callback receives SportGoalsForYear | null (all sports for year)
-   * - Without year: callback receives { [year: string]: SportGoalsForYear } | null (all years, all sports)
-   *
-   * For annotations:
-   * - With year: callback receives AnnotationsForYear | null
-   * - Without year: callback receives { [year: string]: AnnotationsForYear } | null
-   *
-   * For preferences:
-   * - callback receives Preferences | null
-   */
-  subscribeToConfigSection(
-    configType: "goals" | "annotations" | "preferences",
-    callback: (
-      data:
-        | GoalsForYear
-        | SportGoalsForYear
-        | AnnotationsForYear
-        | Preferences
-        | { [key: string]: SportGoalsForYear }
-        | { [key: string]: AnnotationsForYear }
-        | null
-    ) => void,
-    year?: number,
-    sport?: string
-  ): () => void {
-    return this.subscribeToConfig((config) => {
-      if (!config) {
-        callback(null);
-        return;
-      }
-
-      callback(this.selectConfigSection(config, configType, year, sport));
-    });
   }
 }
 

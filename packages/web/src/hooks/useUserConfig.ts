@@ -1,52 +1,28 @@
-import { useEffect, useMemo, useCallback } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  UserConfigService,
-  parseConfigData,
-  type UserConfig,
-  type GoalsForYear,
-  type AnnotationsForYear,
-  type Preferences,
+import { useCallback } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type {
+  UserConfig,
+  GoalsForYear,
+  AnnotationsForYear,
+  Preferences,
 } from "../services/userConfigService";
 import { useAuth } from "./useAuth";
-import { useServices } from "../contexts/ServiceContext";
+import { useConfigDocument } from "./useConfigDocument";
 import { logApiError } from "../api/errors";
 import { DEFAULT_PREFERENCES } from "../constants/settings";
-import { readDemoSection, saveDemoSection } from "../services/demoStorage";
+import type { ConfigAdapter } from "../services/config/configAdapter";
+import {
+  selectSection,
+  toSectionRef,
+  withSection,
+  type ConfigSection,
+  type SectionRef,
+} from "../services/config/sections";
 
 // Discriminator for the supported configuration sections
 type ConfigType = "goals" | "annotations" | "preferences";
 // Union type for all supported configuration sections
 type ConfigData = GoalsForYear | AnnotationsForYear | Preferences;
-
-/**
- * Read a demo section and validate it against the section's Zod schema, so demo-mode reads
- * can't surface partially-written or corrupted blobs to the rest of the app. Invalid data is
- * logged and treated like a missing entry: null, as for a section nothing was saved to. The
- * hook applies the default where it returns, as it does signed in.
- */
-function readDemoConfig(
-  configType: ConfigType,
-  year: number | undefined,
-  sport: string | undefined
-): ConfigData | null {
-  const stored = readDemoSection(configType, year, sport);
-  if (!stored) return null;
-  try {
-    const parsed = JSON.parse(stored) as unknown;
-    const result = parseConfigData(configType, parsed);
-    if (result.ok) {
-      return result.data;
-    }
-    logApiError(
-      result.error,
-      `[useUserConfig] demo ${configType} failed schema validation; using defaults`
-    );
-  } catch (err) {
-    logApiError(err, `[useUserConfig] demo ${configType} isn't valid JSON; using defaults`);
-  }
-  return null;
-}
 
 /** What the demo shows for a section with nothing saved, when the caller passes no default. */
 function demoFallback(configType: ConfigType): ConfigData | null {
@@ -55,26 +31,45 @@ function demoFallback(configType: ConfigType): ConfigData | null {
   return null;
 }
 
+/** The error for a goals or annotations save without the year (and sport) it's saved under. */
+function unplacedSectionError(configType: ConfigType): Error {
+  return new Error(`${configType} are saved per year${configType === "goals" ? " and sport" : ""}`);
+}
+
 /**
- * Hook for accessing user config with real-time Firestore sync.
+ * The store holds only the session's own document, v1: an explicit `userId` or `version`
+ * must name it. Kept for the signature; nothing passes either.
+ */
+function assertSessionDocument(uid: string | undefined, userId?: string, version?: string) {
+  if (userId !== undefined && uid !== undefined && userId !== uid) {
+    throw new Error("useUserConfig: userId doesn't match the signed-in account");
+  }
+  if (version !== undefined && version !== "v1") {
+    throw new Error(`useUserConfig: only the v1 config is held, not ${version}`);
+  }
+}
+
+/**
+ * One section of the session's user config, read from and saved through the store
+ * (`UserConfigProvider`): one cache entry for the whole document and one listener, however
+ * many components call this.
  *
  * Type-safe return based on configType:
  * - "goals" → data is GoalsForYear | null (requires year and sport)
  * - "annotations" → data is AnnotationsForYear | null (requires year)
  * - "preferences" → data is Preferences | null
  *
- * Signed out, the hook reads and writes the demo's own storage
- * (`services/demoStorage.ts`); signed in, the account's Firestore document.
- * The two never mix: signing in imports nothing from the demo, and signed-in
- * code never reads a demo key.
+ * Signed out, the store holds the demo's own storage (`services/demoStorage.ts`); signed
+ * in, the account's Firestore document. The two never mix: signing in imports nothing from
+ * the demo, and signed-in code never reads a demo key.
  *
- * `defaultValue` only shapes what the hook returns: the query cache holds what
- * is saved, null for an empty section, signed in or out. `isSaved` says which
- * `data` is: something saved, or the default standing in for it (always false
- * while loading).
+ * `defaultValue` only shapes what the hook returns: the cache holds what is saved, and a
+ * section with nothing saved is absent from it, signed in or out. `isSaved` says which
+ * `data` is: something saved, or the default standing in for it (false while loading, and
+ * while the first load has failed, when what's saved isn't known).
  *
- * Demo-mode reads (`readDemoConfig` above) are validated with the same Zod
- * schemas, so corrupted demo storage can't surface junk to consumers.
+ * A save updates the section in the cache at once and rolls back only that section if it
+ * fails, so it can't undo another section's save made in between.
  */
 
 // Overload for "goals" - year and sport are required
@@ -136,7 +131,7 @@ export function useUserConfig(
 
 // Implementation
 export function useUserConfig(
-  configType: "goals" | "annotations" | "preferences",
+  configType: ConfigType,
   year?: number,
   sport?: string,
   defaultValue?: ConfigData,
@@ -153,140 +148,51 @@ export function useUserConfig(
   clearSaveError: () => void;
   isSaved: boolean;
 } {
-  const { user, loading: authLoading } = useAuth();
-  const { authService, databaseService } = useServices();
+  const { user } = useAuth();
+  assertSessionDocument(user?.uid, userId, version);
+  const { doc, adapter, loading, error } = useConfigDocument();
   const queryClient = useQueryClient();
+  const ref = toSectionRef(configType, year, sport);
+  const saved = ref ? selectSection(doc, ref) : null;
 
-  const effectiveUserId = userId ?? user?.uid ?? "anonymous";
-  const effectiveVersion = version ?? "v1";
-  const isDemoMode = !user;
-
-  // Memoize configService to avoid recreating on every render
-  const configService = useMemo(() => {
-    if (isDemoMode) return null;
-    return new UserConfigService(userId, effectiveVersion, { authService, databaseService });
-  }, [userId, effectiveVersion, isDemoMode, authService, databaseService]);
-
-  // Query Key includes all dependencies
-  const queryKey = useMemo(
-    () => ["userConfig", configType, year, sport, effectiveUserId, effectiveVersion],
-    [configType, year, sport, effectiveUserId, effectiveVersion]
-  );
-
-  // READ QUERY
-  const { data, isLoading, error } = useQuery({
-    queryKey,
-    queryFn: async () => {
-      // Demo mode
-      if (isDemoMode) {
-        return readDemoConfig(configType, year, sport);
-      }
-
-      // Firestore Mode
-      if (!configService) throw new Error("Config service not initialized");
-
-      // We need to cast types here because getConfigSection has overloads
-      if (configType === "goals" && year !== undefined && sport !== undefined) {
-        return configService.getConfigSection("goals", year, sport);
-      } else if (configType === "annotations" && year !== undefined) {
-        return configService.getConfigSection("annotations", year);
-      } else if (configType === "preferences") {
-        return configService.getConfigSection("preferences");
-      }
-      return null;
-    },
-    enabled: !authLoading,
-    staleTime: Infinity, // Real-time subscription handles updates
-  });
-
-  // REAL-TIME SUBSCRIPTION
-  //
-  // The cache holds what Firestore holds: null for an empty section, never the caller's
-  // `defaultValue`, which is applied only where the hook returns.
-  useEffect(() => {
-    // Skip in demo mode or before the config service is ready
-    if (isDemoMode || !configService) return;
-
-    let unsubscribe: () => void;
-
-    // Subscribe based on config type
-    if (configType === "goals" && year !== undefined && sport !== undefined) {
-      unsubscribe = configService.subscribeToConfigSection(
-        "goals",
-        (newData) => {
-          queryClient.setQueryData(queryKey, newData ?? null);
-        },
-        year,
-        sport
-      );
-    } else if (configType === "annotations" && year !== undefined) {
-      unsubscribe = configService.subscribeToConfigSection(
-        "annotations",
-        (newData) => {
-          queryClient.setQueryData(queryKey, newData ?? null);
-        },
-        year
-      );
-    } else if (configType === "preferences") {
-      unsubscribe = configService.subscribeToConfigSection("preferences", (newData) => {
-        queryClient.setQueryData(queryKey, newData ?? null);
-      });
-    }
-
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
-  }, [configType, year, sport, configService, isDemoMode, queryClient, queryKey]);
-
-  // WRITE MUTATION
   const mutation = useMutation({
     mutationFn: async (newData: ConfigData) => {
-      if (isDemoMode) {
-        saveDemoSection(configType, newData, year, sport);
-        return newData;
-      }
-
-      if (!configService) throw new Error("Config service not initialized");
-
-      if (configType === "goals" && year !== undefined && sport !== undefined) {
-        await configService.updateConfigSection("goals", newData as GoalsForYear, year, sport);
-      } else if (configType === "annotations" && year !== undefined) {
-        await configService.updateConfigSection("annotations", newData as AnnotationsForYear, year);
-      } else if (configType === "preferences") {
-        await configService.updateConfigSection("preferences", newData as Preferences);
-      }
-      return newData;
+      if (!adapter) throw new Error("Your settings haven't loaded yet. Please try again.");
+      if (!ref) throw unplacedSectionError(configType);
+      await adapter.saveSection(ref, newData);
     },
-    onMutate: async (newData) => {
-      // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
-      await queryClient.cancelQueries({ queryKey });
-
-      // Snapshot the previous value
-      const previousData = queryClient.getQueryData(queryKey);
-
-      // Optimistically update to the new value. A Firestore preferences save leaves the
-      // stored theme in place (`updateTheme` is its writer), so the cached theme stays too:
-      // the payload's theme, from a stale snapshot or "" from defaults, would read to
-      // `ThemeSync` as a change and prompt it to act on it.
-      queryClient.setQueryData(
-        queryKey,
-        !isDemoMode && configType === "preferences"
-          ? {
-              ...(newData as Preferences),
-              theme: (previousData as Preferences | null | undefined)?.theme ?? "",
-            }
-          : newData
+    onMutate: async (
+      newData: ConfigData
+    ): Promise<
+      { adapter: ConfigAdapter; ref: SectionRef; previous: ConfigSection | null } | undefined
+    > => {
+      if (!adapter || !ref) return undefined;
+      // So a load finishing now can't put the pre-save copy over the optimistic one.
+      await queryClient.cancelQueries({ queryKey: adapter.queryKey });
+      const before = queryClient.getQueryData<UserConfig | null>(adapter.queryKey);
+      const previous = selectSection(before, ref);
+      // An account's preferences save leaves the stored theme in place (`updateTheme` is its
+      // writer), so the cached theme stays too: the payload's theme, from a stale snapshot or
+      // "" from defaults, would read to `ThemeSync` as a change and prompt it to act on it.
+      const shown =
+        adapter.kind === "account" && ref.section === "preferences"
+          ? { ...(newData as Preferences), theme: (previous as Preferences | null)?.theme ?? "" }
+          : newData;
+      queryClient.setQueryData<UserConfig | null>(
+        adapter.queryKey,
+        withSection(before, ref, shown)
       );
-
-      // Return a context object with the snapshotted value
-      return { previousData };
+      return { adapter, ref, previous };
     },
     onError: (_err, _newData, context) => {
-      // Put back what was cached before the save, nothing included: a failed first save
-      // (an empty section caches null) must not stay on screen as if it had been saved.
-      if (context) queryClient.setQueryData(queryKey, context.previousData ?? null);
+      // Put back what this section held before the save, and only this section: a failed
+      // first save (nothing was saved there) must not stay on screen as if it had been.
+      if (!context) return;
+      queryClient.setQueryData<UserConfig | null>(context.adapter.queryKey, (current) =>
+        withSection(current, context.ref, context.previous)
+      );
     },
-    // No onSettled needed because subscription will update with server data
+    // No onSettled: the listener brings the saved document, and the demo's copy is the save.
   });
 
   const clearSaveError = useCallback(() => {
@@ -294,16 +200,16 @@ export function useUserConfig(
   }, [mutation]);
 
   return {
-    data: data ?? defaultValue ?? (isDemoMode ? demoFallback(configType) : null),
-    loading: isLoading || authLoading, // Treat auth loading as loading
-    error: error || null,
+    data: saved ?? defaultValue ?? (adapter?.kind === "demo" ? demoFallback(configType) : null),
+    loading,
+    error,
     updateData: async (newData: ConfigData) => {
       await mutation.mutateAsync(newData);
     },
     isSaving: mutation.isPending,
     saveError: mutation.error || null,
     clearSaveError,
-    isSaved: data != null,
+    isSaved: saved !== null,
   };
 }
 
@@ -311,10 +217,11 @@ export function useUserConfig(
  * Hook for accessing the full user configuration
  * Use this when you need access to multiple config sections
  *
- * @param userId - Optional userId override. If not provided, uses authenticated user's UID
- *   (or "anonymous" for unauthenticated users). Providing an explicit userId when authenticated
- *   will throw an error unless it matches the authenticated user's UID.
- * @param version - Config version (defaults to "v1")
+ * Reads the store's one document, so it adds no listener of its own. Signed out it has no
+ * document to show: the demo keeps its sections apart, through `useUserConfig`.
+ *
+ * @param userId - Optional; must be the signed-in account's uid when given.
+ * @param version - Config version: only "v1" is held.
  *
  * @example
  * ```tsx
@@ -342,54 +249,11 @@ export function useFullUserConfig(
     sport?: string
   ) => Promise<void>;
 } {
-  const { user, loading: authLoading } = useAuth();
-  const { authService, databaseService } = useServices();
-  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  assertSessionDocument(user?.uid, userId, version);
+  const { doc, adapter, loading, error } = useConfigDocument();
+  const isAccount = adapter?.kind === "account";
 
-  // Signed out, the demo has no Firestore config to show
-  const isDemoMode = !user;
-  const effectiveUserId = userId ?? user?.uid ?? "anonymous";
-
-  // Memoize configService to avoid recreating on every render
-  const configService = useMemo(() => {
-    if (isDemoMode) {
-      return null;
-    }
-    return new UserConfigService(userId, version, { authService, databaseService });
-  }, [userId, version, isDemoMode, authService, databaseService]);
-
-  const queryKey = useMemo(
-    () => ["fullUserConfig", effectiveUserId, version],
-    [effectiveUserId, version]
-  );
-
-  // READ
-  const {
-    data: config,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey,
-    queryFn: async () => {
-      if (isDemoMode || !configService) return null;
-      return configService.getConfig();
-    },
-    enabled: !authLoading,
-    staleTime: Infinity,
-  });
-
-  // REAL-TIME SUBSCRIPTION
-  useEffect(() => {
-    if (isDemoMode || !configService) return;
-
-    const unsubscribe = configService.subscribeToConfig((fullConfig) => {
-      queryClient.setQueryData(queryKey, fullConfig);
-    });
-
-    return unsubscribe;
-  }, [configService, isDemoMode, queryClient, queryKey]);
-
-  // MUTATION
   const mutation = useMutation({
     mutationFn: async ({
       configType,
@@ -397,32 +261,25 @@ export function useFullUserConfig(
       year,
       sport,
     }: {
-      configType: "goals" | "annotations" | "preferences";
-      data: GoalsForYear | AnnotationsForYear | Preferences;
+      configType: ConfigType;
+      data: ConfigData;
       year?: number | undefined;
       sport?: string | undefined;
     }) => {
-      if (isDemoMode) {
+      if (!isAccount || !adapter) {
         logApiError(new Error("Fixture mode: Changes not persisted"), "useFullUserConfig");
         return;
       }
-
-      if (!configService) throw new Error("Config service not initialized");
-
-      if (configType === "goals" && year !== undefined && sport !== undefined) {
-        await configService.updateConfigSection("goals", data as GoalsForYear, year, sport);
-      } else if (configType === "annotations" && year !== undefined) {
-        await configService.updateConfigSection("annotations", data as AnnotationsForYear, year);
-      } else if (configType === "preferences") {
-        await configService.updateConfigSection("preferences", data as Preferences);
-      }
+      const ref = toSectionRef(configType, year, sport);
+      if (!ref) throw unplacedSectionError(configType);
+      await adapter.saveSection(ref, data);
     },
   });
 
   const updateSection = useCallback(
     async (
-      configType: "goals" | "annotations" | "preferences",
-      data: GoalsForYear | AnnotationsForYear | Preferences,
+      configType: ConfigType,
+      data: ConfigData,
       year?: number,
       sport?: string
     ): Promise<void> => {
@@ -432,8 +289,8 @@ export function useFullUserConfig(
   );
 
   return {
-    config: config ?? null,
-    loading: isLoading || authLoading,
+    config: isAccount ? (doc ?? null) : null,
+    loading,
     error: error || mutation.error,
     updateSection,
   };

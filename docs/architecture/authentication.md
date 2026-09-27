@@ -75,7 +75,7 @@ Auth middleware (`middleware/auth.go`):
 
 ## Firestore User Config
 
-User settings (goals, annotations) stored in Firestore at `users/{userId}/config/v1`.
+User settings (preferences, goals, annotations) stored in Firestore at `users/{userId}/config/v1`.
 
 **Security Rules** (`firestore.rules` at repo root):
 
@@ -85,14 +85,13 @@ match /users/{userId}/config/{document=**} {
 }
 ```
 
-**userId Resolution**:
+**Whose config**: the web client holds one session's config in one store
+(`UserConfigProvider`), with one cache entry for the whole document and one listener.
 
-```typescript
-const effectiveUserId = userId ?? user?.uid ?? "default";
-```
-
-- Authenticated: Uses Firebase UID (= Strava athlete ID)
-- Unauthenticated: Uses `"default"` (demo mode with client-side generated data)
+- Signed in: the document at `users/{uid}/config/v1`, the uid being the Firebase UID
+  (= Strava athlete ID).
+- Signed out: the demo's own storage on the device, under `demo.` keys in localStorage.
+  It never reads the account's document, and the account never reads it.
 
 ## Local Development
 
@@ -141,5 +140,6 @@ See `docs/guides/frontend-local-dev.md` for detailed setup instructions.
 | Auth error route | `packages/web/src/routes/auth/error.tsx` |
 | API client | `packages/web/src/api/client.ts` |
 | User config | `packages/web/src/services/userConfigService.ts` |
+| User config store | `packages/web/src/contexts/UserConfigProvider.tsx`, `packages/web/src/services/config/` |
 | Firestore rules | `firestore.rules` |
 | Terraform config | `terraform/modules/desirelines/cloud_run.tf` |

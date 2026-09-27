@@ -1,10 +1,10 @@
 import { useMemo } from "react";
 import { useAuth } from "./useAuth";
 import { useCurrentYear } from "./useCurrentYear";
-import { useServices } from "../contexts/ServiceContext";
 import { useVisibleSports } from "./useVisibleSports";
 import { useSportConfig } from "./useSportConfig";
 import { useUserConfig } from "./useUserConfig";
+import { useConfigDocument } from "./useConfigDocument";
 import { useDailySportData } from "./useDailySportData";
 import { SPORT_COLORS, DEFAULT_SPORT_COLOR } from "../utils/sportConfig";
 import { generateDemoGoals } from "../utils/demoDataGenerator";
@@ -21,9 +21,7 @@ import {
 } from "../utils/units";
 import { toLocalDateString } from "../utils/dateUtils";
 import { useThemeDateFormat } from "../components/theme/useThemeDateFormat";
-import { useQueries } from "@tanstack/react-query";
-import { UserConfigService } from "../services/userConfigService";
-import type { GoalsForYear } from "../types/generated/user_config";
+import { selectSection } from "../services/config/sections";
 
 export interface WeeklySportTotal {
   sport: string;
@@ -66,7 +64,7 @@ export function useWeeklySummary(): {
   error: Error | null;
 } {
   const { user, loading: authLoading } = useAuth();
-  const { authService, databaseService } = useServices();
+  const { doc: userConfig, loading: goalsLoading, error: goalsError } = useConfigDocument();
   const { visibleSports, isLoading: prefsLoading } = useVisibleSports();
   const { sportConfig, isLoading: configLoading } = useSportConfig();
   const { data: prefs } = useUserConfig("preferences");
@@ -104,39 +102,19 @@ export function useWeeklySummary(): {
     sports: validSports,
   });
 
-  // --- Goals (same pattern as useDashboardGoalData) ---
+  // --- Goals: the demo's generated ones, or the account's from the config store ---
 
   const demoGoals = useMemo(() => {
     if (user) return null;
     return Object.fromEntries(validSports.map((sport) => [sport, generateDemoGoals(sport)]));
   }, [user, validSports]);
 
-  const effectiveUserId = user?.uid ?? "default";
-  const configService = useMemo(() => {
-    if (!user) return null;
-    return new UserConfigService(undefined, "v1", { authService, databaseService });
-  }, [user, authService, databaseService]);
-
-  const goalsQueries = useQueries({
-    queries: validSports.map((sport) => ({
-      queryKey: ["userConfig", "goals", currentYear, sport, effectiveUserId, "v1"],
-      queryFn: async (): Promise<GoalsForYear | null> => {
-        if (!configService) return null;
-        return configService.getConfigSection("goals", currentYear, sport);
-      },
-      enabled: !authLoading && !!user,
-      staleTime: Infinity,
-    })),
-  });
-
   // For prorating a yearly goal down to this week
   const daysInYear = getDaysInYear(currentYear);
 
   // Combine into WeeklySportTotal array
   const sportTotals = useMemo(() => {
-    // `index` is still needed to line each sport up with its goals query — it is no
-    // longer used for color, which is now fixed per sport.
-    return validSports.map((sport, index) => {
+    return validSports.map((sport) => {
       const primaryMetric = getPrimaryMetric(sport, sportConfig);
       const metricCfg = getMetricConfigByMetricId(primaryMetric, userSettings);
       const isDistance = primaryMetric === "distance_meters";
@@ -168,7 +146,7 @@ export function useWeeklySummary(): {
       // Get yearly goal to prorate
       let yearlyGoal: number | null = null;
       if (user) {
-        const goalsData = goalsQueries[index]?.data;
+        const goalsData = selectSection(userConfig, { section: "goals", year: currentYear, sport });
         if (goalsData?.goals?.length) {
           const goalValue = getTargetGoalValue(goalsData.goals);
           if (goalValue !== null) {
@@ -208,18 +186,16 @@ export function useWeeklySummary(): {
     dailyData,
     user,
     demoGoals,
-    goalsQueries,
+    userConfig,
+    currentYear,
     userSettings,
     daysInYear,
   ]);
 
   const isLoading =
-    prefsLoading ||
-    configLoading ||
-    authLoading ||
-    dataLoading ||
-    (!!user && goalsQueries.some((q) => q.isLoading));
-  const error = dataError ?? (goalsQueries.find((q) => q.error)?.error as Error | null) ?? null;
+    prefsLoading || configLoading || authLoading || dataLoading || (!!user && goalsLoading);
+  // As on the goals card: goals that couldn't be loaded are an error, not "no goal".
+  const error = dataError ?? (user && userConfig === undefined ? goalsError : null) ?? null;
 
   return {
     sportTotals,

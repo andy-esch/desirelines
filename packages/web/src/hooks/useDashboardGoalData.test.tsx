@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useDashboardGoalData } from "./useDashboardGoalData";
 import * as useAuthModule from "./useAuth";
@@ -10,6 +10,9 @@ import * as demoDataModule from "../utils/demoDataGenerator";
 import type { SportConfig } from "../api/activities";
 import type React from "react";
 import { TestServiceProvider } from "../contexts/ServiceContext";
+import { UserConfigProvider } from "../contexts/UserConfigProvider";
+import { UserConfigService } from "../services/userConfigService";
+import { MockAuthService } from "../services/auth/MockAuthService";
 import * as activitiesApi from "../api/activities";
 import { ACCOUNT_USER, accountServices, storedGoal } from "../test/fixtures/userConfig";
 import { goalMetersToDisplay } from "../utils/units";
@@ -59,7 +62,9 @@ describe("useDashboardGoalData", () => {
   function wrapper({ children }: { children: React.ReactNode }) {
     return (
       <TestServiceProvider>
-        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        <QueryClientProvider client={queryClient}>
+          <UserConfigProvider>{children}</UserConfigProvider>
+        </QueryClientProvider>
       </TestServiceProvider>
     );
   }
@@ -367,14 +372,46 @@ describe("useDashboardGoalData", () => {
         yoga: [{ date: `${year}-03-01`, time: 600 }],
       });
       const services = accountServices(year, goalsBySport);
-      return renderHook(() => useDashboardGoalData(), {
+      const rendered = renderHook(() => useDashboardGoalData(), {
         wrapper: ({ children }) => (
           <TestServiceProvider {...services}>
-            <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+            <QueryClientProvider client={queryClient}>
+              <UserConfigProvider>{children}</UserConfigProvider>
+            </QueryClientProvider>
           </TestServiceProvider>
         ),
       });
+      return { ...rendered, db: services.databaseService };
     }
+
+    it("shows a goal saved elsewhere at once, with no reload or read of its own", async () => {
+      // The sport page's save lands in the account's document; the store's one listener
+      // brings it here. The dashboard used to hold its own copy, with no listener.
+      const { result, db } = renderSignedIn({
+        cycling: [storedGoal("target", 4_000_000, "Target")],
+      });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      const reads = vi.spyOn(db, "getDocument");
+
+      await act(() =>
+        new UserConfigService(undefined, "v1", {
+          authService: new MockAuthService(ACCOUNT_USER),
+          databaseService: db,
+        }).updateConfigSection(
+          "goals",
+          { goals: [storedGoal("target", 5_000_000, "Target")], storageVersion: 2 },
+          year,
+          "running"
+        )
+      );
+
+      await waitFor(() =>
+        expect(result.current.sportData.find((s) => s.sport === "running")!.hasGoal).toBe(true)
+      );
+      const running = result.current.sportData.find((s) => s.sport === "running")!;
+      expect(running.targetGoal).toBeCloseTo(goalMetersToDisplay(5_000_000, "miles"), 6);
+      expect(reads).not.toHaveBeenCalled();
+    });
 
     it("measures a sport with saved goals against them", async () => {
       const { result } = renderSignedIn({

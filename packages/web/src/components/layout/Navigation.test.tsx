@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Navigation from "./Navigation";
 import { TestServiceProvider } from "../../contexts/ServiceContext";
 import { TestAuthProvider } from "../../contexts/AuthContext";
+import { UserConfigProvider } from "../../contexts/UserConfigProvider";
 import { renderWithRouter } from "../../test/renderWithRouter";
 
 const renderNav = async (ui: React.ReactElement, { route = "/" } = {}) => {
@@ -16,7 +17,9 @@ const renderNav = async (ui: React.ReactElement, { route = "/" } = {}) => {
     wrapper: ({ children }) => (
       <TestServiceProvider>
         <TestAuthProvider>
-          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+          <QueryClientProvider client={queryClient}>
+            <UserConfigProvider>{children}</UserConfigProvider>
+          </QueryClientProvider>
         </TestAuthProvider>
       </TestServiceProvider>
     ),
