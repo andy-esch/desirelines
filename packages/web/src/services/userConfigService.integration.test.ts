@@ -279,6 +279,61 @@ describe("UserConfigService Integration Tests", () => {
       expect(retrieved).toEqual(updatedGoals);
     });
 
+    describe("concurrent saves to different sections", () => {
+      const goals = (id: string): GoalsForYear => ({
+        goals: [
+          {
+            id,
+            value: 1000,
+            label: id,
+            createdAt: "2025-01-01T00:00:00.000Z",
+            updatedAt: "2025-01-01T00:00:00.000Z",
+            metric: "",
+          },
+        ],
+      });
+      const prefs = (distanceUnit: string): Preferences => ({
+        theme: "",
+        defaultYear: 2025,
+        distanceUnit,
+        elevationUnit: "feet",
+        defaultSport: "cycling",
+        timezone: "",
+        visibleSports: [],
+      });
+
+      // Each pair starts together, so a save that read the document first would read it
+      // before the other's write, and put that stale copy back when it landed second.
+      it("keeps both first saves of a new account", async () => {
+        const userCred = await signInAnonymously(testAuth);
+        currentUserId = userCred.user.uid;
+        const service = new UserConfigService();
+
+        await Promise.all([
+          service.updateConfigSection("goals", goals("cycling"), 2025, "cycling"),
+          service.updateConfigSection("preferences", prefs("kilometers")),
+        ]);
+
+        expect(await service.getConfigSection("goals", 2025, "cycling")).toEqual(goals("cycling"));
+        expect((await service.getConfigSection("preferences"))?.distanceUnit).toBe("kilometers");
+      });
+
+      it("keeps a preferences change saved alongside a goals save", async () => {
+        const userCred = await signInAnonymously(testAuth);
+        currentUserId = userCred.user.uid;
+        const service = new UserConfigService();
+        await service.updateConfigSection("preferences", prefs("miles"));
+
+        await Promise.all([
+          service.updateConfigSection("preferences", prefs("kilometers")),
+          service.updateConfigSection("goals", goals("running"), 2025, "running"),
+        ]);
+
+        expect((await service.getConfigSection("preferences"))?.distanceUnit).toBe("kilometers");
+        expect(await service.getConfigSection("goals", 2025, "running")).toEqual(goals("running"));
+      });
+    });
+
     it("should return null for non-existent configuration", async () => {
       const userCred = await signInAnonymously(testAuth);
       currentUserId = userCred.user.uid;

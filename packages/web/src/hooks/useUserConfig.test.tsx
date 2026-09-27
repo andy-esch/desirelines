@@ -26,7 +26,11 @@ vi.mock("../services/userConfigService", () => {
     ok: true as const,
     data: data as object,
   }));
-  return { UserConfigService: MockUserConfigService, parseConfigData };
+  // Only an absent section counts as empty here; the theme-only rule has its own tests.
+  const hasPreferencesBesidesTheme = vi.fn(
+    (prefs: unknown) => prefs !== null && prefs !== undefined
+  );
+  return { UserConfigService: MockUserConfigService, parseConfigData, hasPreferencesBesidesTheme };
 });
 
 const mockedParseConfigData = vi.mocked(parseConfigData);
@@ -84,6 +88,11 @@ describe("useUserConfig", () => {
     // Default to authenticated state
     mockAuthState = { user: mockUser, loading: false };
     localStorageMock.clear();
+    // Tests override these reads and writes; clearAllMocks keeps an override, and it would
+    // leak into every later test. Reset each to the in-memory store it was made with.
+    localStorageMock.getItem.mockReset();
+    localStorageMock.setItem.mockReset();
+    localStorageMock.removeItem.mockReset();
   });
 
   afterEach(() => {
@@ -247,6 +256,41 @@ describe("useUserConfig", () => {
   });
 
   describe("Subscription Lifecycle", () => {
+    // The cache holds what Firestore holds; the sign-in migration reads it to tell an empty
+    // account from a populated one, so a default cached here would read as stored data.
+    it.each([
+      ["goals", 2025, "cycling", { goals: [], storageVersion: 2 }],
+      ["annotations", 2025, undefined, { annotations: [] }],
+      ["preferences", undefined, undefined, { theme: "", distanceUnit: "kilometers" }],
+    ] as const)(
+      "caches an empty %s report as null and returns the default",
+      async (configType, year, sport, defaultValue) => {
+        mockServiceInstance.getConfigSection.mockResolvedValue(null);
+        // Report after the first load, as a live listener does, so its value is what's cached.
+        let report: (data: unknown) => void = () => {};
+        mockServiceInstance.subscribeToConfigSection.mockImplementation((_type: any, cb: any) => {
+          report = cb;
+          return vi.fn();
+        });
+        const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        const wrapper = ({ children }: { children: React.ReactNode }) => (
+          <TestServiceProvider>
+            <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+          </TestServiceProvider>
+        );
+        const { result } = renderHook(
+          () => useUserConfig(configType as any, year as any, sport as any, defaultValue as any),
+          { wrapper }
+        );
+
+        await waitFor(() => expect(result.current.loading).toBe(false));
+        act(() => report(null));
+        await waitFor(() => expect(result.current.data).toEqual(defaultValue));
+        const cached = queryClient.getQueriesData({ queryKey: ["userConfig", configType] });
+        expect(cached.map(([, data]) => data)).toEqual([null]);
+      }
+    );
+
     it("should unsubscribe on unmount", async () => {
       const unsubscribeMock = vi.fn();
       mockServiceInstance.subscribeToConfigSection.mockReturnValue(unsubscribeMock);
@@ -348,9 +392,8 @@ describe("useUserConfig", () => {
         "cycling"
       );
 
-      // Verify optimistic update persisted
-      // Note: Skipping data assertion due to test environment race condition
-      // expect(result.current.data).toEqual(newGoals);
+      // The optimistic value shows (React Query renders it a tick after `act`) and stays.
+      await waitFor(() => expect(result.current.data).toEqual(newGoals));
     });
   });
 
@@ -405,10 +448,69 @@ describe("useUserConfig", () => {
         }
       });
 
-      // Should revert to initial
-      expect(result.current.data).toEqual(initialGoals);
-      // Verify saveError is set
+      // Once the error has rendered (React Query renders a tick after `act`), the data is
+      // back to the initial goals.
       await waitFor(() => expect(result.current.saveError).toEqual(error));
+      expect(result.current.data).toEqual(initialGoals);
+    });
+  });
+
+  describe("a failed first save", () => {
+    // Nothing is cached before it but null, which the rollback must restore too.
+    const newGoals: GoalsForYear = {
+      goals: [
+        {
+          id: "new",
+          value: 1000,
+          label: "New",
+          createdAt: "2025-01-01T00:00:00Z",
+          updatedAt: "2025-01-01T00:00:00Z",
+          metric: "",
+        },
+      ],
+    };
+    // React Query renders its updates on a later tick than `act` flushes, so each test waits
+    // for the error to render; the rollback runs before the error is set.
+    const saveAndFail = async (result: {
+      current: { updateData: (d: GoalsForYear) => Promise<void> };
+    }) => {
+      await act(async () => {
+        await result.current.updateData(newGoals).catch(() => {});
+      });
+    };
+
+    it("is rolled back on an empty section", async () => {
+      mockServiceInstance.getConfigSection.mockResolvedValue(null);
+      mockServiceInstance.subscribeToConfigSection.mockImplementation((_type: any, cb: any) => {
+        cb(null);
+        return vi.fn();
+      });
+      mockServiceInstance.updateConfigSection.mockRejectedValue(new Error("Failed to save"));
+      const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling"), {
+        wrapper: createWrapper(),
+      });
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      await saveAndFail(result);
+
+      await waitFor(() => expect(result.current.saveError).toBeInstanceOf(Error));
+      expect(result.current.data).toBeNull();
+    });
+
+    it("is rolled back in demo mode when localStorage refuses the write", async () => {
+      mockAuthState = { user: null, loading: false };
+      localStorageMock.setItem.mockImplementationOnce(() => {
+        throw new Error("QuotaExceededError");
+      });
+      const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling"), {
+        wrapper: createWrapper(),
+      });
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      await saveAndFail(result);
+
+      await waitFor(() => expect(result.current.saveError).toBeInstanceOf(Error));
+      expect(result.current.data).toBeNull();
     });
   });
 

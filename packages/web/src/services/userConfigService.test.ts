@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { UserConfigService, parseConfigData } from "./userConfigService";
+import {
+  UserConfigService,
+  parseConfigData,
+  hasPreferencesBesidesTheme,
+} from "./userConfigService";
 import type {
   UserConfig,
   GoalsForYear,
@@ -331,7 +335,9 @@ describe("UserConfigService", () => {
   });
 
   describe("updateConfigSection", () => {
-    it("should update goals for specific year", async () => {
+    it("writes that year and sport's goals and nothing else, without reading the document", async () => {
+      // Stored: another year's goals. A save that read the document and wrote it back would
+      // carry them too, and put a stale copy over any change that landed in between.
       const mockExistingConfig: UserConfig = {
         schemaVersion: "2.1",
         userId: "test-user",
@@ -378,58 +384,22 @@ describe("UserConfigService", () => {
 
       await service.updateConfigSection("goals", newGoals, 2025, "cycling");
 
+      expect(firestore.getDoc).not.toHaveBeenCalled();
       expect(firestore.setDoc).toHaveBeenCalledWith(
         mockDocRef,
-        expect.objectContaining({
+        {
           schemaVersion: "2.1",
           userId: "test-user",
-          goals: {
-            "2024": {
-              sports: {
-                cycling: {
-                  goals: [
-                    {
-                      id: "2024-1",
-                      value: 800,
-                      label: "2024 Goal",
-                      createdAt: "2024-01-01T00:00:00Z",
-                      updatedAt: "2024-01-01T00:00:00Z",
-                      metric: "",
-                    },
-                  ],
-                },
-              },
-            },
-            "2025": {
-              sports: {
-                cycling: {
-                  goals: [
-                    {
-                      id: "2025-1",
-                      value: 1000,
-                      label: "2025 Goal",
-                      createdAt: "2025-01-01T00:00:00Z",
-                      updatedAt: "2025-01-01T00:00:00Z",
-                      metric: "",
-                    },
-                  ],
-                },
-              },
-            },
-          },
-          annotations: {},
           lastUpdated: expect.any(String),
-        }),
+          goals: { "2025": { sports: { cycling: newGoals } } },
+        },
         { merge: true }
       );
     });
 
-    it("should create new config when it does not exist", async () => {
-      const mockDocSnap = {
-        exists: () => false,
-      };
-      vi.mocked(firestore.getDoc).mockResolvedValue(mockDocSnap as any);
-
+    it("creates the document for a new user without empty sections", async () => {
+      // An empty map in a merge write replaces the stored field, so a first save that carried
+      // `annotations: {}` or `goals: {}` would wipe a section another save had just written.
       const newGoals: GoalsForYear = {
         goals: [
           {
@@ -445,42 +415,19 @@ describe("UserConfigService", () => {
 
       await service.updateConfigSection("goals", newGoals, 2025, "cycling");
 
-      expect(firestore.setDoc).toHaveBeenCalledWith(
-        mockDocRef,
-        expect.objectContaining({
-          schemaVersion: "2.1",
-          userId: "test-user",
-          goals: {
-            "2025": {
-              sports: {
-                cycling: {
-                  goals: [
-                    {
-                      id: "2025-new",
-                      value: 1000,
-                      label: "2025 Goal",
-                      createdAt: "2025-01-01T00:00:00Z",
-                      updatedAt: "2025-01-01T00:00:00Z",
-                      metric: "",
-                    },
-                  ],
-                },
-              },
-            },
-          },
-          annotations: {},
-          lastUpdated: expect.any(String),
-        }),
-        { merge: true }
-      );
+      const written = vi.mocked(firestore.setDoc).mock.calls[0]![1];
+      // The fields the rules require on create.
+      expect(written).toMatchObject({ schemaVersion: "2.1", userId: "test-user" });
+      expect(written).toHaveProperty("lastUpdated");
+      expect(Object.keys(written).sort()).toEqual([
+        "goals",
+        "lastUpdated",
+        "schemaVersion",
+        "userId",
+      ]);
     });
 
-    it("should update annotations for specific year", async () => {
-      const mockDocSnap = {
-        exists: () => false,
-      };
-      vi.mocked(firestore.getDoc).mockResolvedValue(mockDocSnap as any);
-
+    it("writes that year's annotations and nothing else", async () => {
       const newAnnotations: AnnotationsForYear = {
         annotations: [
           {
@@ -501,35 +448,17 @@ describe("UserConfigService", () => {
 
       expect(firestore.setDoc).toHaveBeenCalledWith(
         mockDocRef,
-        expect.objectContaining({
-          annotations: {
-            "2025": {
-              annotations: [
-                {
-                  id: "ann1",
-                  startDate: "2025-01-01",
-                  endDate: "",
-                  label: "Test",
-                  description: "",
-                  stravaActivityId: "",
-                  type: 0,
-                  createdAt: "2025-01-01T00:00:00Z",
-                  updatedAt: "2025-01-01T00:00:00Z",
-                },
-              ],
-            },
-          },
-        }),
+        {
+          schemaVersion: "2.1",
+          userId: "test-user",
+          lastUpdated: expect.any(String),
+          annotations: { "2025": newAnnotations },
+        },
         { merge: true }
       );
     });
 
-    it("should update preferences, leaving the theme to updateTheme", async () => {
-      const mockDocSnap = {
-        exists: () => false,
-      };
-      vi.mocked(firestore.getDoc).mockResolvedValue(mockDocSnap as any);
-
+    it("writes the preferences and nothing else, leaving the theme to updateTheme", async () => {
       const newPreferences: Preferences = {
         // A save carries whatever theme its snapshot or defaults held; the merge must keep
         // the stored one instead.
@@ -546,7 +475,10 @@ describe("UserConfigService", () => {
 
       expect(firestore.setDoc).toHaveBeenCalledWith(
         mockDocRef,
-        expect.objectContaining({
+        {
+          schemaVersion: "2.1",
+          userId: "test-user",
+          lastUpdated: expect.any(String),
           preferences: {
             defaultYear: 2025,
             distanceUnit: "",
@@ -555,17 +487,12 @@ describe("UserConfigService", () => {
             timezone: "",
             visibleSports: [],
           },
-        }),
+        },
         { merge: true }
       );
     });
 
     it("should use merge option to avoid overwriting other fields", async () => {
-      const mockDocSnap = {
-        exists: () => false,
-      };
-      vi.mocked(firestore.getDoc).mockResolvedValue(mockDocSnap as any);
-
       const newGoals: GoalsForYear = {
         goals: [
           {
@@ -587,12 +514,19 @@ describe("UserConfigService", () => {
       });
     });
 
-    it("should update lastUpdated timestamp", async () => {
-      const mockDocSnap = {
-        exists: () => false,
-      };
-      vi.mocked(firestore.getDoc).mockResolvedValue(mockDocSnap as any);
+    it("refuses, without writing, goals given no sport or annotations given no year", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const save = service.updateConfigSection.bind(service) as (
+        ...args: unknown[]
+      ) => Promise<void>;
 
+      await expect(save("goals", { goals: [] }, 2025)).rejects.toThrow();
+      await expect(save("annotations", { annotations: [] })).rejects.toThrow();
+
+      expect(firestore.setDoc).not.toHaveBeenCalled();
+    });
+
+    it("should update lastUpdated timestamp", async () => {
       const beforeUpdate = new Date().toISOString();
       await service.updateConfigSection("goals", { goals: [] }, 2025, "cycling");
       const afterUpdate = new Date().toISOString();
@@ -608,7 +542,7 @@ describe("UserConfigService", () => {
     it("should handle errors and rethrow", async () => {
       const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       const error = new Error("Firestore write error");
-      vi.mocked(firestore.getDoc).mockRejectedValue(error);
+      vi.mocked(firestore.setDoc).mockRejectedValueOnce(error);
 
       await expect(
         service.updateConfigSection("goals", { goals: [] }, 2025, "cycling")
@@ -619,7 +553,7 @@ describe("UserConfigService", () => {
     it("should log error when update fails", async () => {
       const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       const error = new Error("Update failed");
-      vi.mocked(firestore.getDoc).mockRejectedValue(error);
+      vi.mocked(firestore.setDoc).mockRejectedValueOnce(error);
 
       await expect(
         service.updateConfigSection("goals", { goals: [] }, 2025, "cycling")
@@ -640,9 +574,6 @@ describe("UserConfigService", () => {
      */
     it("rejects writes whose Goal.metric is the wrong type", async () => {
       const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-      const mockDocSnap = { exists: () => false };
-      vi.mocked(firestore.getDoc).mockResolvedValue(mockDocSnap as any);
-
       const malformedGoals = {
         goals: [
           {
@@ -672,10 +603,7 @@ describe("UserConfigService", () => {
       consoleErrorSpy.mockRestore();
     });
 
-    it("permits writes when the merged document validates", async () => {
-      const mockDocSnap = { exists: () => false };
-      vi.mocked(firestore.getDoc).mockResolvedValue(mockDocSnap as any);
-
+    it("permits writes when the section validates", async () => {
       const validGoals: GoalsForYear = {
         goals: [
           {
@@ -999,6 +927,38 @@ describe("UserConfigService", () => {
 
       expect(mockUnsubscribe).toHaveBeenCalled();
     });
+  });
+});
+
+describe("hasPreferencesBesidesTheme", () => {
+  it.each([
+    ["no section", null],
+    ["an empty section", {}],
+    ["the theme alone", { theme: "arcade" }],
+    [
+      "the theme with every other field at its default",
+      {
+        theme: "miami",
+        defaultYear: 0,
+        distanceUnit: "",
+        elevationUnit: "",
+        defaultSport: "",
+        timezone: "",
+        visibleSports: [],
+      },
+    ],
+  ])("is false for %s", (_label, preferences) => {
+    expect(hasPreferencesBesidesTheme(preferences)).toBe(false);
+  });
+
+  it.each([
+    ["a distance unit", { theme: "arcade", distanceUnit: "kilometers" }],
+    ["visible sports", { visibleSports: ["cycling"] }],
+    ["a default year", { defaultYear: 2025 }],
+    ["a field the schema doesn't know", { theme: "arcade", somethingNew: true }],
+    ["preferences it can't read", { distanceUnit: 5 }],
+  ])("is true for %s", (_label, preferences) => {
+    expect(hasPreferencesBesidesTheme(preferences)).toBe(true);
   });
 });
 

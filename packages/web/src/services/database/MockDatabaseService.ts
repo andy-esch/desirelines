@@ -10,9 +10,12 @@ import type { DatabaseService, SetDocumentOptions } from "./DatabaseService";
 const isMap = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-/** Firestore's `merge: true`: maps merge key by key; anything else, arrays included, replaces. */
+/**
+ * Firestore's `merge: true`: maps merge key by key; anything else replaces, arrays included,
+ * and so does an empty map, which Firestore writes as a value rather than merging nothing.
+ */
 function mergeInto(existing: unknown, incoming: unknown): unknown {
-  if (!isMap(existing) || !isMap(incoming)) return incoming;
+  if (!isMap(existing) || !isMap(incoming) || Object.keys(incoming).length === 0) return incoming;
   const merged = { ...existing };
   for (const [key, value] of Object.entries(incoming)) {
     merged[key] = mergeInto(existing[key], value);
