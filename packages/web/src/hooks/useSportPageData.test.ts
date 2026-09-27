@@ -174,7 +174,7 @@ describe("useSportPageData", () => {
     // `running` has a metricConfig overrides block, so getMetricConfig returns a
     // fresh merged object on every call. The defaultGoalsForYear memo must still
     // be stable (it depends on the primitive config fields, not the object), or
-    // it churns the value passed into useUserConfig every render.
+    // the goals shown with nothing saved change identity on every render.
     vi.mocked(useUserConfig).mockReturnValue({
       data: { distanceUnit: "miles", elevationUnit: "feet" },
       isLoading: false,

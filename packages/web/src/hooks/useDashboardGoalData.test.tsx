@@ -358,7 +358,10 @@ describe("useDashboardGoalData", () => {
   describe("signed in", () => {
     const year = new Date().getFullYear();
 
-    function renderSignedIn(goalsBySport: Parameters<typeof accountServices>[1]) {
+    function renderSignedIn(
+      goalsBySport: Parameters<typeof accountServices>[1],
+      prepare?: (db: ReturnType<typeof accountServices>["databaseService"]) => void
+    ) {
       vi.spyOn(useAuthModule, "useAuth").mockReturnValue({
         user: ACCOUNT_USER,
         loading: false,
@@ -372,6 +375,7 @@ describe("useDashboardGoalData", () => {
         yoga: [{ date: `${year}-03-01`, time: 600 }],
       });
       const services = accountServices(year, goalsBySport);
+      prepare?.(services.databaseService);
       const rendered = renderHook(() => useDashboardGoalData(), {
         wrapper: ({ children }) => (
           <TestServiceProvider {...services}>
@@ -411,6 +415,19 @@ describe("useDashboardGoalData", () => {
       const running = result.current.sportData.find((s) => s.sport === "running")!;
       expect(running.targetGoal).toBeCloseTo(goalMetersToDisplay(5_000_000, "miles"), 6);
       expect(reads).not.toHaveBeenCalled();
+    });
+
+    it("reports goals that couldn't be loaded as an error, not as no goal", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const { result } = renderSignedIn({}, (db) =>
+        vi.spyOn(db, "subscribeToDocument").mockImplementation((_path, _onData, onError) => {
+          onError?.(new Error("permission-denied"));
+          return () => {};
+        })
+      );
+
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      expect(result.current.error).toBeInstanceOf(Error);
     });
 
     it("measures a sport with saved goals against them", async () => {

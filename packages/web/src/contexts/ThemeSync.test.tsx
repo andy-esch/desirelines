@@ -324,6 +324,25 @@ describe("ThemeSync", () => {
       expect(sync.writes).not.toHaveBeenCalled();
     });
 
+    it("writes nothing while its listener is failing, and writes the change made meanwhile once it recovers", async () => {
+      // A failing listener used to hand on an empty document, whose missing theme read as
+      // one to fill in from this device. Now the store keeps its last copy and an error.
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const sync = renderSync({ stored: storedConfig("arcade") });
+      await settle();
+      expect(sync.preference()).toBe("arcade");
+
+      act(() => sync.db.failListeners(PATH, new Error("offline")));
+      await settle();
+      sync.choose("legacy-light");
+      await settle();
+      expect(sync.writes).not.toHaveBeenCalled();
+
+      act(() => sync.db.setMockData(PATH, storedConfig("arcade")));
+      await settle();
+      expect((await storedPreferences(sync.db))?.theme).toBe("legacy-light");
+    });
+
     it("shows the account's cached theme, and writes nothing, while the first read has failed", async () => {
       // Writing on a failed read would take "nothing synced" on faith and could overwrite the
       // choice another device made.

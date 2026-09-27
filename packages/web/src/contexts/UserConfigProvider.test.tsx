@@ -15,6 +15,7 @@ import {
   type Preferences,
 } from "../services/userConfigService";
 import { DEFAULT_PREFERENCES } from "../constants/settings";
+import { configQueryKey } from "../services/config/configAdapter";
 import { ACCOUNT_CONFIG_PATH as PATH, ACCOUNT_USER, storedGoal } from "../test/fixtures/userConfig";
 import useUserConfigSource from "../hooks/useUserConfig.ts?raw";
 
@@ -79,12 +80,12 @@ function Consumers() {
 }
 
 function renderStore(db: MockDatabaseService) {
-  return render(
-    <QueryClientProvider
-      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
-    >
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const auth = new MockAuthService(ACCOUNT_USER);
+  render(
+    <QueryClientProvider client={queryClient}>
       <ToastProvider>
-        <TestServiceProvider authService={new MockAuthService(ACCOUNT_USER)} databaseService={db}>
+        <TestServiceProvider authService={auth} databaseService={db}>
           <AuthProvider>
             <UserConfigProvider>
               <Consumers />
@@ -94,6 +95,7 @@ function renderStore(db: MockDatabaseService) {
       </ToastProvider>
     </QueryClientProvider>
   );
+  return { queryClient, auth };
 }
 
 const loaded = () => waitFor(() => expect(seen.cycling?.loading).toBe(false));
@@ -169,6 +171,23 @@ describe("UserConfigProvider", () => {
       expect(screen.getByRole("alert")).toHaveTextContent("may be out of date");
     });
 
+    it("says so once while it keeps failing, and again only after it has recovered", async () => {
+      // A document that stays malformed fails on every change to it.
+      db.setMockData(PATH, STORED);
+      renderStore(db);
+      await loaded();
+
+      act(() => db.failListeners(PATH, new Error("a snapshot didn't validate")));
+      act(() => db.failListeners(PATH, new Error("a snapshot didn't validate")));
+      await waitFor(() => expect(seen.cycling!.error).not.toBeNull());
+      expect(screen.getAllByRole("alert")).toHaveLength(1);
+
+      act(() => db.setMockData(PATH, STORED));
+      await waitFor(() => expect(seen.cycling!.error).toBeNull());
+      act(() => db.failListeners(PATH, new Error("offline")));
+      await waitFor(() => expect(screen.getAllByRole("alert")).toHaveLength(2));
+    });
+
     it("clears the error with the next good snapshot", async () => {
       db.setMockData(PATH, STORED);
       renderStore(db);
@@ -218,6 +237,23 @@ describe("UserConfigProvider", () => {
     await waitFor(() => expect(seen.cycling!.saveError).toBeInstanceOf(Error));
     expect(seen.cycling!.data).toEqual(goals("cycling"));
     expect(seen.prefsB!.data?.timezone).toBe("Europe/Paris");
+  });
+
+  it("drops the account's copy when it signs out, for the next session to start from its own", async () => {
+    db.setMockData(PATH, STORED);
+    const { queryClient, auth } = renderStore(db);
+    await loaded();
+    expect(queryClient.getQueryData(configQueryKey(ACCOUNT_USER.uid))).toBeDefined();
+
+    await act(() => auth.signOut());
+
+    await waitFor(() =>
+      expect(queryClient.getQueryData(configQueryKey(ACCOUNT_USER.uid))).toBeUndefined()
+    );
+    // The demo's session reads its own storage, with none of the account's in it.
+    await waitFor(() => expect(seen.cycling!.loading).toBe(false));
+    expect(seen.cycling!.data).toBeNull();
+    expect(seen.prefsA!.data?.distanceUnit).toBe(DEFAULT_PREFERENCES.distanceUnit);
   });
 
   it("serves a save to every consumer of that section at once", async () => {

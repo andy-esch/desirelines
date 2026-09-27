@@ -11,10 +11,11 @@
  * Most derivations are left unmemoized — the React Compiler handles these.
  * Exception where explicit memoization is retained:
  *   - defaultGoalsForYear (useMemo): contains new Date().toISOString() calls that
- *     produce fresh values each render, making the object perpetually unstable
- *     and defeating useUserConfig's default-value comparison. The compiler's
- *     preserve-manual-memoization rule is suppressed here since the compiler
- *     cannot auto-memoize impure Date() calls.
+ *     produce fresh values each render, making the object perpetually unstable.
+ *     With nothing saved it is the goals the page shows, so an unstable one would
+ *     re-run everything keyed on the goals (the migration and metric checks) on
+ *     every render. The compiler's preserve-manual-memoization rule is suppressed
+ *     here since the compiler cannot auto-memoize impure Date() calls.
  */
 import { useState, useMemo, useEffect, useRef } from "react";
 import {
@@ -237,7 +238,8 @@ export function useSportPageData(sport: string, year: number): SportPageData {
 
   // Goals management
   // Explicit useMemo: contains new Date().toISOString() which would make the object
-  // perpetually unstable, causing useUserConfig to re-trigger on every render.
+  // perpetually unstable. With nothing saved these are the goals shown, and the effects
+  // keyed on the goals would re-run on every render.
   const defaultGoalsForYear: GoalsForYear = useMemo(() => {
     const now = new Date().toISOString();
     const goalMetric = getPrimaryMetric(sport, sportConfig);
