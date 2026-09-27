@@ -66,7 +66,7 @@ function Slider({
               index={i}
               getAriaValueText={getAriaValueText}
               className={cn(
-                "size-(--slider-handle-size) rounded-(--slider-handle-radius) border-(length:--slider-handle-border-width) border-[color:var(--color-slider-fill,var(--color-accent-cyan))] bg-card shadow-sm outline-none",
+                "size-(--slider-handle-size) rounded-(--slider-handle-radius) border-(length:--slider-handle-border-width) border-[color:var(--color-slider-fill,var(--color-accent-cyan))] bg-card shadow-sm",
                 // Keyboard focus lands on the range input Base UI renders inside the thumb,
                 // so the thumb draws the ring when it holds that input, not when it's focused.
                 "transition-[transform,border-color,background-color] has-[:focus-visible]:control-focus-ring",

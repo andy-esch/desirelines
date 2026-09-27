@@ -85,7 +85,7 @@ export default function RegionBreakdownChart({
                   aria-pressed={isSelected}
                   className={cn(
                     "group block w-full rounded-md px-1.5 py-1 text-left transition-opacity",
-                    "hover:bg-accent focus-visible:outline-none focus-visible:control-focus-ring",
+                    "hover:bg-accent",
                     dimmed && "opacity-40 hover:opacity-100"
                   )}
                 >

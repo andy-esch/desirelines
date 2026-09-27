@@ -201,7 +201,7 @@ values.
 | Header | `--header-height`, `-border`, `-accent-line`, `-shadow-scrolled`, `--header-date-color`; `--nav-size`, `-tracking`, `-case`, `-color`, `-active-color`, `-active-bg`, `-active-hover-bg`, `-active-radius`, `-active-underline`, `-active-shadow`; `--avatar-radius`, `-border`, `-glow`; `--demo-bg`, `--demo-border`, `--demo-rule` | The top bar and its bottom accent line, nav items (the underline shows in the header bar, not the mobile drawer), avatar and the demo banner's rule |
 | Backgrounds | `--page-wash-strength`, `--sport-wash-strength`, `--hero-padding`, `--hero-ink`, `--hero-title-size`, `-title-color`, `-title-shadow`, `--hero-number-size`, `-number-glow`, `--glass-blur`, `--glass-blur-sm`, `--progress-shine` | Page and sport gradient strength (0 turns a wash off), the dashboard hero's padding (content must clear the decoration's bottom edge), text on the decoration, headline and numbers, frosted-glass blur for map chrome and for small floating pills (0 makes them solid), progress-bar shine |
 | Panels | `--radius`, `--panel-bg`, `-border-width`, `-radius`, `-shadow`, `-shadow-emphasis`, `-header-padding`, `-body-padding`, `-accent-1/2/3`, `-accent-1/2/3-ink` | Cards and panels, including the base radius the shadcn scale derives from, the three frame accents and the ink of a title in each |
-| Controls | `--control-height`, `-radius`, `-font-size`, `-case`, `-focus-ring`; `--toggle-gap`, `-frame-border-width`, `-frame-border-color`, `-frame-padding`, `-frame-radius`, `-item-border-width`, `-item-radius`, `-item-color`, `-font-size`, `-tracking`, `-case`; `--color-toggle-pressed`, `-pressed-border`, `-pressed-text`, `--toggle-pressed-glow`, `-pressed-text-glow`; `--button-radius`, `-case`, `-tracking`; `--stepper-gap` | Inputs, selects, toggle groups, buttons and steppers (height and font size are the default size; `sm` and `lg` buttons and caller overrides keep fixed sizes). A pressed toggle's fill, border and text default to the accent through `initial`; the glow is a single inset shadow, `0 0 #0000` for none |
+| Controls | `--control-height`, `-radius`, `-font-size`, `-case`, `-focus-color`, `-focus-width`, `-focus-glow`; `--toggle-gap`, `-frame-border-width`, `-frame-border-color`, `-frame-padding`, `-frame-radius`, `-item-border-width`, `-item-radius`, `-item-color`, `-font-size`, `-tracking`, `-case`; `--color-toggle-pressed`, `-pressed-border`, `-pressed-text`, `--toggle-pressed-glow`, `-pressed-text-glow`; `--button-radius`, `-case`, `-tracking`; `--stepper-gap` | Inputs, selects, toggle groups, buttons and steppers (height and font size are the default size; `sm` and `lg` buttons and caller overrides keep fixed sizes). A pressed toggle's fill, border and text default to the accent through `initial`; the glow is a single inset shadow, `0 0 #0000` for none. The focus ring is an outline in `--control-focus-color` (`initial` for the accent at 40%) and `--control-focus-width`, 2px clear of the element, with `--control-focus-glow` around the element |
 | Sliders and chips | `--slider-track-height`, `-track-radius`, `-track-bg`, `-fill-glow`, `-handle-size`, `-handle-radius`, `-handle-border-width`; `--color-slider-fill`; `--chip-radius`, `-border-strength`, `-hover-strength`, `-dot-radius` | Range sliders and sport chips (strengths are how much sport color mixes in) |
 | Tables | `--th-size`, `--th-weight`, `--th-color`, `--th-tracking`, `--th-case`, `--th-rule`, `--row-rule`, `--row-padding`, `--row-hover-bg`, `--missing-value-color`, `--sport-mark-radius` | Table headers, row rules and hover, sport marks, and the color of a missing value wherever `MissingValue` shows one |
 | Goals and meters | `--track-height`, `-bg`, `-border`, `-fill-height`, `-fill-glow`, `-radius`; `--pace-tick-width`, `-height`; `--meter-segment-width`, `-segment-height`, `--meter-gap`, `--meter-radius`, `-done-glow`, `-current-glow`; `--color-meter-done`, `-current`, `-todo`; `--color-pace-tick`; `--cell-empty-border`, `--cell-radius` | Goal tracks (the fill glows in its own color by `--track-fill-glow`) and their pace tick, segmented meters (the segments done, the current one and those to come), heatmap cells |
@@ -390,10 +390,15 @@ alias block in `tailwind.css` (`bg-card`, `border-input`, `bg-primary`) and
 geometry and type from the control slots: `Button`, `Input`, `SelectTrigger` and the
 `Combobox` chips box read `--control-height`, `--control-radius` (`--button-radius` for
 buttons) and `--control-font-size`; `ToggleGroup` reads `--toggle-*`; `Slider` reads
-`--slider-*`. Every control draws focus with `focus-visible:control-focus-ring`, a utility
-in `tailwind.css` that reads `--control-focus-ring`; `focusRing.test.ts` fails on a `ring-*`
-focus style, which shadcn's generated primitives include. New primitives follow the same
-split. Things to watch:
+`--slider-*`. Keyboard focus draws the theme's ring on every element, primitives or not: a
+base `:focus-visible` rule in `tailwind.css` applies the `control-focus-ring` utility, an
+outline 2px clear of the element so it stands apart from a chosen border or a pressed fill.
+An element that shows focus landing somewhere else uses the utility with a variant
+(`peer-focus-visible:` for a card around a hidden radio, `focus-within:` for the combobox's
+chips box, `has-[:focus-visible]:` for a slider thumb). `focusRing.test.ts` fails on a `ring-*`
+focus style, which shadcn's generated primitives include, and on an `outline-none` without a
+stated reason (a menu item shows focus as its highlighted row instead). New primitives follow
+the same split. Things to watch:
 
 - Keep color in utilities, not slots. A slot whose value is `var(--color-…)` resolves where
   the theme block defines it, so a subtree that remaps a color token (the routes-map chrome
@@ -403,9 +408,10 @@ split. Things to watch:
   and set the slot to `initial` in themes that keep the accent: `initial` leaves it unset, so
   the fallback resolves on the element and follows the remap.
 - Give a pressed or selected state a glow only through a shadow utility (`inset-shadow-*`,
-  `shadow-*`). Tailwind composes those with the focus ring, which sits on its ring layer; a
-  raw `box-shadow` (`[box-shadow:…]`, a component class) replaces the lot and hides the ring
-  on the focused item.
+  `shadow-*`). Tailwind composes those with the focus ring's glow (`--control-focus-glow`,
+  Arcade's), which sits on its ring layer; a raw `box-shadow` (`[box-shadow:…]`, a component
+  class) replaces the lot and drops that glow on the focused item. The ring itself is an
+  outline, so it still shows.
 - Popups render in a portal on `<body>`. Select, combobox, popover and tooltip content sits
   outside the drawer or `data-theme` subtree that opened it, so a token remap on that
   subtree (`MAP_CHROME_STYLE`, the gallery's theme panels) doesn't reach the popup. Apply

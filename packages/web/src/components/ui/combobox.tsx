@@ -81,7 +81,7 @@ function ComboboxChip({
     >
       {children}
       <BaseCombobox.ChipRemove
-        className="rounded-sm opacity-60 outline-none hover:opacity-100 focus-visible:control-focus-ring"
+        className="rounded-sm opacity-60 hover:opacity-100"
         aria-label="Remove"
       >
         <CloseIcon />
