@@ -188,6 +188,48 @@ describe("SettingsPage", () => {
     expect(screen.getByText("Timezone")).toBeInTheDocument();
   });
 
+  it.each([
+    [
+      "signed in",
+      { uid: "u1", email: "a@b.com", displayName: "Jane", photoURL: null },
+      "Saved to your account, so every device matches",
+    ],
+    ["in demo mode", null, "Saved on this device"],
+  ])("leads Display with the theme picker, saying where it saves %s", async (_, user, caption) => {
+    mockUseAuth.mockReturnValue({
+      user,
+      loading: false,
+      error: null,
+      signIn: vi.fn(),
+      signOut: vi.fn(),
+    });
+    mockUseUserProfile.mockReturnValue({
+      displayName: "Jane Doe",
+      loading: false,
+      profile: null,
+      error: null,
+    });
+    mockUseUserConfig.mockReturnValue({
+      data: null,
+      updateData: vi.fn(),
+      loading: false,
+      error: null,
+      isSaving: false,
+      saveError: null,
+      clearSaveError: vi.fn(),
+    });
+
+    await renderWithRouter(<SettingsPage />);
+
+    const picker = screen.getByRole("radiogroup", { name: "Theme" });
+    expect(picker).toHaveAccessibleDescription(caption);
+    // First in Display, ahead of the unit dropdowns.
+    const distance = screen.getByRole("combobox", { name: "Distance Unit" });
+    expect(
+      picker.compareDocumentPosition(distance) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
   it("labels each display preference and saves the chosen option", async () => {
     const user = userEvent.setup();
     const updateData = vi.fn().mockResolvedValue(undefined);
