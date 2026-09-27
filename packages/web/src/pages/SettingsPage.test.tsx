@@ -81,6 +81,7 @@ describe("SettingsPage", () => {
       isSaving: false,
       saveError: null,
       clearSaveError: vi.fn(),
+      isSaved: false,
     });
 
     await renderWithRouter(<SettingsPage />);
@@ -116,6 +117,7 @@ describe("SettingsPage", () => {
       isSaving: false,
       saveError: null,
       clearSaveError: vi.fn(),
+      isSaved: false,
     });
 
     await renderWithRouter(<SettingsPage />);
@@ -147,6 +149,7 @@ describe("SettingsPage", () => {
       isSaving: false,
       saveError: null,
       clearSaveError: vi.fn(),
+      isSaved: false,
     });
 
     await renderWithRouter(<SettingsPage />);
@@ -178,6 +181,7 @@ describe("SettingsPage", () => {
       isSaving: false,
       saveError: null,
       clearSaveError: vi.fn(),
+      isSaved: false,
     });
 
     await renderWithRouter(<SettingsPage />);
@@ -217,6 +221,7 @@ describe("SettingsPage", () => {
       isSaving: false,
       saveError: null,
       clearSaveError: vi.fn(),
+      isSaved: false,
     });
 
     await renderWithRouter(<SettingsPage />);
@@ -254,6 +259,7 @@ describe("SettingsPage", () => {
       isSaving: false,
       saveError: null,
       clearSaveError: vi.fn(),
+      isSaved: false,
     });
 
     await renderWithRouter(<SettingsPage />);
@@ -296,6 +302,7 @@ describe("SettingsPage", () => {
       isSaving: false,
       saveError: null,
       clearSaveError: vi.fn(),
+      isSaved: true,
     });
 
     await renderWithRouter(<SettingsPage />);
@@ -334,6 +341,7 @@ describe("SettingsPage", () => {
       isSaving: false,
       saveError: null,
       clearSaveError: vi.fn(),
+      isSaved: true,
     });
 
     await renderWithRouter(<SettingsPage />);
@@ -371,6 +379,7 @@ describe("SettingsPage", () => {
       isSaving: true,
       saveError: null,
       clearSaveError: vi.fn(),
+      isSaved: false,
     });
 
     await renderWithRouter(<SettingsPage />);
@@ -403,6 +412,7 @@ describe("SettingsPage", () => {
       isSaving: false,
       saveError: null,
       clearSaveError: vi.fn(),
+      isSaved: false,
     });
 
     await renderWithRouter(<SettingsPage />);

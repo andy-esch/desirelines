@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
+import { cn } from "@/lib/utils";
 import { useDashboardGoalData, type SportGoalData } from "../../hooks/useDashboardGoalData";
 import { PACE_THRESHOLDS } from "../../utils/goalCalculations";
 import { formatMetricDisplayValue } from "../../utils/units";
@@ -27,6 +28,8 @@ import { useThemeStructure } from "../theme/useThemeStructure";
  * - Status text (Ahead/On Track/Behind) per sport
  * - Metric values below track (current / goal)
  * - Legend explaining the markers
+ * - A sport without a goal says "No goal" and links to its page to set one, with no track
+ *   or status: there's nothing to measure against
  */
 export default function GoalProgressCard() {
   const { sportData, yearContext, isLoading, error } = useDashboardGoalData();
@@ -79,11 +82,13 @@ export default function GoalProgressCard() {
             />
           ))}
 
-          {raceTrack ? (
-            <RaceTrackLegend className="pt-2 mt-1" showPace={yearContext.shouldShowPacing} />
-          ) : (
-            <GoalTrackLegend showPace={yearContext.shouldShowPacing} />
-          )}
+          {/* The legend names the track's marks, so it goes with the tracks. */}
+          {sportData.some((sport) => sport.hasGoal) &&
+            (raceTrack ? (
+              <RaceTrackLegend className="pt-2 mt-1" showPace={yearContext.shouldShowPacing} />
+            ) : (
+              <GoalTrackLegend showPace={yearContext.shouldShowPacing} />
+            ))}
         </>
       )}
     </Panel>
@@ -98,6 +103,10 @@ interface SportProgressRowProps {
 }
 
 function SportProgressRow({ sport, yearContext, raceTrack }: SportProgressRowProps) {
+  if (!sport.hasGoal) {
+    return <NoGoalRow sport={sport} year={yearContext.year} raceTrack={raceTrack} />;
+  }
+
   // Calculate positions as percentages
   const youPosition = sport.targetGoal > 0 ? (sport.currentValue / sport.targetGoal) * 100 : 0;
 
@@ -182,6 +191,49 @@ function SportProgressRow({ sport, yearContext, raceTrack }: SportProgressRowPro
   );
 }
 
+/**
+ * A sport the athlete hasn't set a goal for: this year's total, and where goals are set.
+ * The sport's page shows suggested goals until one is saved.
+ */
+function NoGoalRow({
+  sport,
+  year,
+  raceTrack,
+}: {
+  sport: SportGoalData;
+  year: number;
+  /** Match the theme's goal rows: the race track's spacing and status, or the goal track's. */
+  raceTrack: boolean;
+}) {
+  const params = { sport: sport.sport, year: String(year) };
+  return (
+    <div className={cn("flex flex-col gap-1", raceTrack ? "mb-2" : "mb-4")}>
+      <div className="flex justify-between items-baseline gap-3">
+        <Link to="/$sport/$year" params={params} className="text-sm text-body-text">
+          {sport.displayName}
+        </Link>
+        <span
+          className={
+            raceTrack
+              ? "text-sm text-muted-text"
+              : "text-(length:--status-size) tracking-(--status-tracking) [text-transform:var(--status-case)] text-subtle-text"
+          }
+        >
+          No goal
+        </span>
+      </div>
+      <span className="text-xs text-muted-text">
+        {formatMetricDisplayValue(sport.currentValue, sport.metricType, sport.metricUnit)}
+        {" · "}
+        {/* Named for its sport, since every row without a goal has one of these. */}
+        <Link to="/$sport/$year" params={params} aria-label={`Set a goal for ${sport.displayName}`}>
+          Set a goal
+        </Link>
+      </span>
+    </div>
+  );
+}
+
 /** Names the goal track's two marks: the progress fill and today's pace tick. */
 function GoalTrackLegend({ showPace }: { showPace: boolean }) {
   return (
@@ -201,13 +253,17 @@ function GoalTrackLegend({ showPace }: { showPace: boolean }) {
 }
 
 interface DashboardStatus {
-  /** Null on the year's first day with nothing logged, when there's no pace to judge yet. */
+  /**
+   * Null with nothing logged before any of the year has elapsed, when there's no pace to
+   * judge yet. Not on the year's first day: that day counts as elapsed, so nothing logged by
+   * then is behind.
+   */
   label: string | null;
   /** Delta between current value and prorated goal (positive = ahead, negative = behind). null when no delta applies. */
   delta: number | null;
 }
 
-function getStatusForDashboard(
+export function getStatusForDashboard(
   currentValue: number,
   targetGoal: number,
   yearContext: Pick<YearContext, "year" | "daysElapsed" | "isPastYear">

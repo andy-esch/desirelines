@@ -10,6 +10,9 @@ import * as useDailySportDataModule from "./useDailySportData";
 import type { SportConfig } from "../api/activities";
 import type React from "react";
 import { TestServiceProvider } from "../contexts/ServiceContext";
+import { ACCOUNT_USER, accountServices, storedGoal } from "../test/fixtures/userConfig";
+import { goalMetersToDisplay } from "../utils/units";
+import { getDaysInYear } from "../utils/yearContext";
 
 // Mock dependencies
 vi.mock("./useAuth");
@@ -398,6 +401,55 @@ describe("useWeeklySummary", () => {
       expect(cycling?.metricUnit).toBe("km");
       // 80000 meters = 80 km
       expect(cycling?.weeklyTotal).toBeCloseTo(80, 0);
+    });
+  });
+
+  describe("signed in", () => {
+    const year = new Date().getFullYear();
+
+    function renderSignedIn(goalsBySport: Parameters<typeof accountServices>[1]) {
+      vi.spyOn(useAuthModule, "useAuth").mockReturnValue({
+        user: ACCOUNT_USER,
+        loading: false,
+        error: null,
+        signIn: vi.fn(),
+        signOut: vi.fn(),
+      });
+      const services = accountServices(year, goalsBySport);
+      return renderHook(() => useWeeklySummary(), {
+        wrapper: ({ children }) => (
+          <TestServiceProvider {...services}>
+            <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+          </TestServiceProvider>
+        ),
+      });
+    }
+
+    it("prorates the athlete's own goal for a sport that has one", async () => {
+      const { result } = renderSignedIn({
+        cycling: [storedGoal("target", 3_650_000, "Target")],
+      });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      const cycling = result.current.sportTotals.find((s) => s.sport === "cycling")!;
+      expect(cycling.hasGoal).toBe(true);
+      expect(cycling.weeklyGoal).toBeCloseTo(
+        (goalMetersToDisplay(3_650_000, "miles") * 7) / getDaysInYear(year),
+        6
+      );
+    });
+
+    it("gives a sport without a saved goal no goal, not a default to measure against", async () => {
+      const { result } = renderSignedIn({
+        cycling: [storedGoal("target", 3_650_000, "Target")],
+      });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      const running = result.current.sportTotals.find((s) => s.sport === "running")!;
+      expect(running.weeklyTotal).toBeGreaterThan(0);
+      expect(running.hasGoal).toBe(false);
+      expect(running.weeklyGoal).toBe(0);
+      expect(running.achievementPct).toBe(0);
     });
   });
 });

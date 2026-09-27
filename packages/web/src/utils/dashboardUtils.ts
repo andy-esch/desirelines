@@ -2,11 +2,7 @@ import type { MetricsEntry } from "../api/activities";
 import type { SportConfig } from "../api/activities";
 import type { GoalsForYear } from "../types/generated/user_config";
 import type { UserSettings } from "../utils/units";
-import {
-  getMetricConfig,
-  getMetricConfigByMetricId,
-  getMetricFieldName,
-} from "../config/metricConfig";
+import { getMetricConfigByMetricId, getMetricFieldName } from "../config/metricConfig";
 import { getSportDisplayName, getPrimaryMetric } from "../utils/sportConfig";
 import { getTargetGoalValue } from "../utils/goalCalculations";
 import {
@@ -22,10 +18,17 @@ export interface SportGoalData {
   displayName: string;
   color: string;
   currentValue: number;
+  /**
+   * Whether there's a goal to measure against: one the athlete saved for the sport and year,
+   * or the demo's. Without one, `targetGoal` and `impactGoal` are 0, never a default the
+   * athlete didn't choose, and the dashboard says "No goal".
+   */
+  hasGoal: boolean;
+  /** The target goal in display units; 0 without a goal. */
   targetGoal: number;
   metricUnit: string;
   metricType: MetricType;
-  /** Smallest (least conservative) goal value in display units, for impact calculations */
+  /** Smallest (least conservative) goal value in display units, for impact calculations; 0 without a goal. */
   impactGoal: number;
   /** Label of the smallest goal (e.g. "Conservative") */
   impactGoalLabel: string;
@@ -47,14 +50,14 @@ interface TransformOptions {
  * Logic Breakdown:
  * 1. Identifies the primary metric for the sport (distance vs time vs sessions).
  * 2. Calculates the current YTD value from the metrics timeseries.
- * 3. Determines the target goal value (prioritizing user-set goals over defaults).
+ * 3. Determines the target goal value from the athlete's saved goals, or the demo's.
  * 4. Calculates the "impact goal" (most conservative goal) for status indicators.
+ *    Without goals, both are 0 and `hasGoal` is false.
  * 5. Attaches the sport's fixed identity color from `SPORT_COLORS`.
  */
 export function transformToSportGoalData(options: TransformOptions): SportGoalData {
   const { sport, metrics, goalsData, demoGoals, sportConfig, userSettings, isAuthMode } = options;
 
-  const metricConfig = getMetricConfig(sport, sportConfig);
   const primaryMetric = getPrimaryMetric(sport, sportConfig);
   const metricCfg = getMetricConfigByMetricId(primaryMetric, userSettings);
   const fieldName = getMetricFieldName(primaryMetric);
@@ -76,8 +79,11 @@ export function transformToSportGoalData(options: TransformOptions): SportGoalDa
   }
 
   // --- 2. Target & Impact Goals ---
-  let targetGoal = metricConfig.defaultGoalValue;
-  let impactGoal = targetGoal;
+  // Zero until a goal sets them. A default here would be measured against as if the
+  // athlete had chosen it: a percentage in the Impact column, a pace on the goals card.
+  let hasGoal = false;
+  let targetGoal = 0;
+  let impactGoal = 0;
   let impactGoalLabel = "";
 
   // One conversion rule for both goals: the target and the impact goal were
@@ -90,6 +96,7 @@ export function transformToSportGoalData(options: TransformOptions): SportGoalDa
   };
 
   if (isAuthMode && goalsData?.goals?.length) {
+    hasGoal = true;
     const goalValue = getTargetGoalValue(goalsData.goals);
     if (goalValue !== null) {
       targetGoal = goalToDisplayValue(goalValue);
@@ -99,6 +106,7 @@ export function transformToSportGoalData(options: TransformOptions): SportGoalDa
     impactGoal = goalToDisplayValue(minGoal.value);
     impactGoalLabel = minGoal.label ?? "";
   } else if (!isAuthMode && demoGoals) {
+    hasGoal = true;
     targetGoal = demoGoals.target;
     impactGoal = demoGoals.conservative;
     impactGoalLabel = "Conservative";
@@ -109,6 +117,7 @@ export function transformToSportGoalData(options: TransformOptions): SportGoalDa
     displayName: getSportDisplayName(sport, sportConfig),
     color: SPORT_COLORS[sport] ?? DEFAULT_SPORT_COLOR,
     currentValue,
+    hasGoal,
     targetGoal,
     metricUnit: metricCfg.chartLabel,
     metricType: isDistance ? "distance" : isTime ? "time" : "sessions",

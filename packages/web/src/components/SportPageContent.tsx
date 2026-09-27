@@ -50,6 +50,10 @@ export interface SportPageContentProps {
   /** Goals to pass to charts (pre-filtered: empty when not viewing primary metric) */
   chartGoals: Goals;
   onGoalsChange: (goals: Goals) => Promise<void>;
+  /** The goals shown are suggestions, none saved yet; the demo's never are. */
+  goalsSuggested?: boolean | undefined;
+  /** Save the suggested goals as they are. */
+  onSaveSuggestedGoals?: (() => Promise<void>) | undefined;
   isGoalsSaving: boolean;
   goalsSaveError: Error | null;
   onClearGoalsSaveError?: (() => void) | undefined;
@@ -107,6 +111,8 @@ export default function SportPageContent({
   goals,
   chartGoals,
   onGoalsChange,
+  goalsSuggested = false,
+  onSaveSuggestedGoals,
   isGoalsSaving,
   goalsSaveError,
   onClearGoalsSaveError,
@@ -174,6 +180,8 @@ export default function SportPageContent({
               sport={sport}
               primaryMetric={primaryMetric}
               sportConfig={sportConfig}
+              suggested={goalsSuggested}
+              onSaveSuggested={onSaveSuggestedGoals}
               isSaving={isGoalsSaving}
               saveError={goalsSaveError}
               onClearSaveError={onClearGoalsSaveError}

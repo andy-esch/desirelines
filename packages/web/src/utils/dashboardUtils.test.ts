@@ -82,4 +82,56 @@ describe("dashboardUtils", () => {
     expect(result.impactGoal).toBeCloseTo(3.1, 1);
     expect(result.impactGoalLabel).toBe("Base");
   });
+
+  describe("without goals", () => {
+    const signedInWith = (goalsData: Parameters<typeof transformToSportGoalData>[0]["goalsData"]) =>
+      transformToSportGoalData({
+        sport: "cycling",
+        metrics: [{ date: "2026-03-01", distance: 160934.4 }],
+        goalsData,
+        demoGoals: undefined,
+        sportConfig: mockSportConfig,
+        userSettings,
+        isAuthMode: true,
+      });
+
+    // Before, both fell back to the sport's default goal (2,500 mi), which the Impact
+    // column and the goals card then measured against as if the athlete had set it.
+    it.each([
+      ["nothing saved", null],
+      ["an empty goal list", { goals: [] }],
+      ["goals still loading", undefined],
+    ])("has no goal for a signed-in athlete with %s", (_, goalsData) => {
+      expect(signedInWith(goalsData)).toMatchObject({
+        currentValue: expect.closeTo(100, 3) as number,
+        hasGoal: false,
+        targetGoal: 0,
+        impactGoal: 0,
+        impactGoalLabel: "",
+      });
+    });
+
+    it("has a goal once the athlete saves one", () => {
+      const result = signedInWith({
+        goals: [
+          { id: "1", value: 1609344, label: "Target", createdAt: "", updatedAt: "", metric: "" },
+        ],
+      });
+      expect(result.hasGoal).toBe(true);
+      expect(result.targetGoal).toBeCloseTo(1000, 2);
+    });
+
+    it("always has the demo's goals in demo mode", () => {
+      const result = transformToSportGoalData({
+        sport: "cycling",
+        metrics: [],
+        goalsData: undefined,
+        demoGoals: { conservative: 100, target: 200, stretch: 300 },
+        sportConfig: mockSportConfig,
+        userSettings,
+        isAuthMode: false,
+      });
+      expect(result.hasGoal).toBe(true);
+    });
+  });
 });

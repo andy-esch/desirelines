@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import RecentActivitiesList from "./RecentActivitiesList";
 import { THEMES } from "../../themes/registry";
@@ -9,7 +9,7 @@ import type { ActivitySummary } from "../../api/activities";
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => vi.fn() }));
 vi.mock("../../hooks/useAuth", () => ({ useAuth: () => ({ user: { uid: "u1" } }) }));
 vi.mock("../../hooks/useDashboardGoalData", () => ({
-  useDashboardGoalData: () => ({ sportData: [], distanceUnit: "kilometers" }),
+  useDashboardGoalData: vi.fn(() => ({ sportData: [], distanceUnit: "kilometers" })),
 }));
 vi.mock("../../contexts/ThemeContext", async () => {
   const { THEMES } = await import("../../themes/registry");
@@ -19,6 +19,8 @@ vi.mock("../../hooks/useActivities", () => ({ useActivities: vi.fn() }));
 vi.mock("../../hooks/useSportConfig", () => ({ useSportConfig: () => ({ sportConfig: null }) }));
 
 import { useActivities } from "../../hooks/useActivities";
+import { useDashboardGoalData, type SportGoalData } from "../../hooks/useDashboardGoalData";
+import { createYearContext } from "../../utils/yearContext";
 const mockUseActivities = vi.mocked(useActivities);
 
 function activity(id: number): ActivitySummary {
@@ -55,6 +57,62 @@ describe("RecentActivitiesList missing values", () => {
     for (const dash of dashes) {
       expect(dash.parentElement?.className).toContain("--missing-value-color");
     }
+  });
+});
+
+describe("RecentActivitiesList Impact column", () => {
+  const cyclingGoal = (hasGoal: boolean): SportGoalData => ({
+    sport: "cycling",
+    displayName: "Cycling",
+    color: "#000",
+    currentValue: 100,
+    hasGoal,
+    targetGoal: hasGoal ? 2000 : 0,
+    metricUnit: "km",
+    metricType: "distance",
+    impactGoal: hasGoal ? 1000 : 0,
+    impactGoalLabel: hasGoal ? "Base" : "",
+  });
+
+  function renderWithGoal(goal: SportGoalData, isLoading = false) {
+    vi.mocked(useDashboardGoalData).mockReturnValue({
+      sportData: [goal],
+      yearContext: createYearContext(2026),
+      distanceUnit: "kilometers",
+      isLoading,
+      error: null,
+    });
+    mockUseActivities.mockReturnValue({
+      activities: [activity(5)],
+      isLoading: false,
+      error: null,
+      hasMore: false,
+      isLoadingMore: false,
+      loadMore: vi.fn(),
+      retry: vi.fn(),
+    });
+    render(<RecentActivitiesList timeRange="4weeks" pageSize={5} />);
+  }
+
+  afterEach(() => vi.mocked(useDashboardGoalData).mockReset());
+
+  it("shows an activity's share of the sport's smallest goal", () => {
+    renderWithGoal(cyclingGoal(true));
+    // 5 km of a 1,000 km goal.
+    expect(screen.getByTitle("vs. 1,000 km Base goal")).toHaveTextContent("0.5%");
+  });
+
+  it("says where to set a goal for a sport without one, instead of a share", () => {
+    renderWithGoal(cyclingGoal(false));
+    const cell = screen.getByTitle(
+      "No Cycling goal. Set one on the Cycling page to see each activity's share."
+    );
+    expect(cell).toHaveTextContent("none");
+  });
+
+  it("says nothing about a missing goal while the goals load", () => {
+    renderWithGoal(cyclingGoal(false), true);
+    expect(screen.queryByTitle(/No Cycling goal/)).toBeNull();
   });
 });
 

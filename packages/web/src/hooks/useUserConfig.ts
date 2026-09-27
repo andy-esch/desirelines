@@ -22,41 +22,36 @@ type ConfigData = GoalsForYear | AnnotationsForYear | Preferences;
 /**
  * Read a demo section and validate it against the section's Zod schema, so demo-mode reads
  * can't surface partially-written or corrupted blobs to the rest of the app. Invalid data is
- * logged and treated like a missing entry: the caller's `defaultValue` (or the section's
- * fallback below) is returned instead.
+ * logged and treated like a missing entry: null, as for a section nothing was saved to. The
+ * hook applies the default where it returns, as it does signed in.
  */
 function readDemoConfig(
   configType: ConfigType,
   year: number | undefined,
-  sport: string | undefined,
-  defaultValue?: ConfigData
+  sport: string | undefined
 ): ConfigData | null {
   const stored = readDemoSection(configType, year, sport);
-  if (stored) {
-    try {
-      const parsed = JSON.parse(stored) as unknown;
-      const result = parseConfigData(configType, parsed);
-      if (result.ok) {
-        return result.data;
-      }
-      logApiError(
-        result.error,
-        `[useUserConfig] demo ${configType} failed schema validation; using defaults`
-      );
-    } catch (err) {
-      logApiError(err, `[useUserConfig] demo ${configType} isn't valid JSON; using defaults`);
+  if (!stored) return null;
+  try {
+    const parsed = JSON.parse(stored) as unknown;
+    const result = parseConfigData(configType, parsed);
+    if (result.ok) {
+      return result.data;
     }
+    logApiError(
+      result.error,
+      `[useUserConfig] demo ${configType} failed schema validation; using defaults`
+    );
+  } catch (err) {
+    logApiError(err, `[useUserConfig] demo ${configType} isn't valid JSON; using defaults`);
   }
+  return null;
+}
 
-  // Fall back to defaults. The goals caller (useSportPageData) supplies a sport-aware
-  // `defaultValue`; without one, null is correct and the consumer's null handling kicks in.
-  if (configType === "goals") {
-    return (defaultValue as GoalsForYear) ?? null;
-  } else if (configType === "annotations") {
-    return (defaultValue as AnnotationsForYear) || { annotations: [] };
-  } else if (configType === "preferences") {
-    return (defaultValue as Preferences) || DEFAULT_PREFERENCES;
-  }
+/** What the demo shows for a section with nothing saved, when the caller passes no default. */
+function demoFallback(configType: ConfigType): ConfigData | null {
+  if (configType === "annotations") return { annotations: [] };
+  if (configType === "preferences") return DEFAULT_PREFERENCES;
   return null;
 }
 
@@ -73,8 +68,10 @@ function readDemoConfig(
  * The two never mix: signing in imports nothing from the demo, and signed-in
  * code never reads a demo key.
  *
- * Signed in, `defaultValue` only shapes what the hook returns: the query cache
- * holds what Firestore holds (null for an empty section).
+ * `defaultValue` only shapes what the hook returns: the query cache holds what
+ * is saved, null for an empty section, signed in or out. `isSaved` says which
+ * `data` is: something saved, or the default standing in for it (always false
+ * while loading).
  *
  * Demo-mode reads (`readDemoConfig` above) are validated with the same Zod
  * schemas, so corrupted demo storage can't surface junk to consumers.
@@ -96,6 +93,7 @@ export function useUserConfig(
   isSaving: boolean;
   saveError: Error | null;
   clearSaveError: () => void;
+  isSaved: boolean;
 };
 
 // Overload for "annotations" - year is required, sport is optional but unused
@@ -114,6 +112,7 @@ export function useUserConfig(
   isSaving: boolean;
   saveError: Error | null;
   clearSaveError: () => void;
+  isSaved: boolean;
 };
 
 // Overload for "preferences" - year and sport are optional but unused
@@ -132,6 +131,7 @@ export function useUserConfig(
   isSaving: boolean;
   saveError: Error | null;
   clearSaveError: () => void;
+  isSaved: boolean;
 };
 
 // Implementation
@@ -151,6 +151,7 @@ export function useUserConfig(
   isSaving: boolean;
   saveError: Error | null;
   clearSaveError: () => void;
+  isSaved: boolean;
 } {
   const { user, loading: authLoading } = useAuth();
   const { authService, databaseService } = useServices();
@@ -178,7 +179,7 @@ export function useUserConfig(
     queryFn: async () => {
       // Demo mode
       if (isDemoMode) {
-        return readDemoConfig(configType, year, sport, defaultValue);
+        return readDemoConfig(configType, year, sport);
       }
 
       // Firestore Mode
@@ -293,7 +294,7 @@ export function useUserConfig(
   }, [mutation]);
 
   return {
-    data: data ?? defaultValue ?? null,
+    data: data ?? defaultValue ?? (isDemoMode ? demoFallback(configType) : null),
     loading: isLoading || authLoading, // Treat auth loading as loading
     error: error || null,
     updateData: async (newData: ConfigData) => {
@@ -302,6 +303,7 @@ export function useUserConfig(
     isSaving: mutation.isPending,
     saveError: mutation.error || null,
     clearSaveError,
+    isSaved: data != null,
   };
 }
 

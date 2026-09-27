@@ -231,4 +231,50 @@ describe("useSportPageData", () => {
     expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("metric="));
     warnSpy.mockRestore();
   });
+
+  describe("suggested goals", () => {
+    /** useUserConfig as it answers for goals: the caller's default, or what's saved. */
+    function goalsConfig({ loading = false, isSaved = false } = {}) {
+      const updateData = vi.fn().mockResolvedValue(undefined);
+      vi.mocked(useUserConfig).mockImplementation(((
+        configType: string,
+        _year?: number,
+        _sport?: string,
+        defaultValue?: unknown
+      ) =>
+        configType === "goals"
+          ? { data: defaultValue, loading, isSaved, error: null, updateData }
+          : { data: { distanceUnit: "miles", elevationUnit: "feet" }, loading: false }) as any);
+      return updateData;
+    }
+
+    it("are what the page shows when the athlete has saved none for the sport and year", () => {
+      goalsConfig();
+      const { result } = renderHook(() => useSportPageData("cycling", 2026));
+      expect(result.current.goalsSuggested).toBe(true);
+      expect(result.current.goals.length).toBeGreaterThan(0);
+    });
+
+    it.each([
+      ["once goals are saved", { isSaved: true }],
+      ["while the goals load", { loading: true }],
+    ])("aren't flagged %s", (_, state) => {
+      goalsConfig(state);
+      const { result } = renderHook(() => useSportPageData("cycling", 2026));
+      expect(result.current.goalsSuggested).toBe(false);
+    });
+
+    it("are saved as shown", async () => {
+      const updateData = goalsConfig();
+      const { result } = renderHook(() => useSportPageData("cycling", 2026));
+
+      await result.current.onSaveSuggestedGoals();
+
+      const shown = vi
+        .mocked(useUserConfig)
+        .mock.calls.filter((c) => (c[0] as string) === "goals")
+        .at(-1)?.[3];
+      expect(updateData).toHaveBeenCalledWith(shown);
+    });
+  });
 });

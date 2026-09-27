@@ -9,7 +9,7 @@ import { useDailySportData } from "./useDailySportData";
 import { SPORT_COLORS, DEFAULT_SPORT_COLOR } from "../utils/sportConfig";
 import { generateDemoGoals } from "../utils/demoDataGenerator";
 import { filterValidSports, getSportDisplayName, getPrimaryMetric } from "../utils/sportConfig";
-import { getMetricConfig, getMetricConfigByMetricId } from "../config/metricConfig";
+import { getMetricConfigByMetricId } from "../config/metricConfig";
 import { getTargetGoalValue } from "../utils/goalCalculations";
 import { getDaysInYear } from "../utils/yearContext";
 import {
@@ -30,7 +30,11 @@ export interface WeeklySportTotal {
   displayName: string;
   color: string;
   weeklyTotal: number;
+  /** Whether there's a goal to prorate: the athlete's own, or the demo's. */
+  hasGoal: boolean;
+  /** This week's share of the yearly goal; 0 without a goal. */
   weeklyGoal: number;
+  /** The week's total as a percentage of `weeklyGoal`; 0 without a goal. */
   achievementPct: number;
   metricUnit: string;
   metricType: MetricType;
@@ -52,7 +56,8 @@ function getMondayOfCurrentWeek(): Date {
  * Hook for fetching this-week daily totals per sport with prorated weekly goals.
  *
  * Uses Monday as week start (ISO standard).
- * Prorated weekly goal: yearlyGoal * 7 / daysInYear
+ * Prorated weekly goal: yearlyGoal * 7 / daysInYear. A sport without a goal has none to
+ * prorate, never a default the athlete didn't choose.
  */
 export function useWeeklySummary(): {
   sportTotals: WeeklySportTotal[];
@@ -132,7 +137,6 @@ export function useWeeklySummary(): {
     // `index` is still needed to line each sport up with its goals query — it is no
     // longer used for color, which is now fixed per sport.
     return validSports.map((sport, index) => {
-      const metricConfig = getMetricConfig(sport, sportConfig);
       const primaryMetric = getPrimaryMetric(sport, sportConfig);
       const metricCfg = getMetricConfigByMetricId(primaryMetric, userSettings);
       const isDistance = primaryMetric === "distance_meters";
@@ -162,7 +166,7 @@ export function useWeeklySummary(): {
       }
 
       // Get yearly goal to prorate
-      let yearlyGoal = metricConfig.defaultGoalValue;
+      let yearlyGoal: number | null = null;
       if (user) {
         const goalsData = goalsQueries[index]?.data;
         if (goalsData?.goals?.length) {
@@ -182,7 +186,7 @@ export function useWeeklySummary(): {
       }
 
       // Prorated weekly goal
-      const weeklyGoal = (yearlyGoal * 7) / daysInYear;
+      const weeklyGoal = yearlyGoal === null ? 0 : (yearlyGoal * 7) / daysInYear;
       const achievementPct = weeklyGoal > 0 ? (weeklyTotal / weeklyGoal) * 100 : 0;
 
       const metricType: MetricType = isDistance ? "distance" : isTime ? "time" : "sessions";
@@ -191,6 +195,7 @@ export function useWeeklySummary(): {
         displayName: getSportDisplayName(sport, sportConfig),
         color: SPORT_COLORS[sport] ?? DEFAULT_SPORT_COLOR,
         weeklyTotal,
+        hasGoal: yearlyGoal !== null,
         weeklyGoal,
         achievementPct,
         metricUnit: metricCfg.chartLabel,

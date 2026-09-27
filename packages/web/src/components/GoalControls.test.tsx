@@ -355,4 +355,54 @@ describe("GoalControls", () => {
       expect(saved.map((g) => g.value)).toEqual([2400, 2500, 2600]);
     });
   });
+
+  describe("suggested goals", () => {
+    const NOTE = "Suggested from your pace so far. Save them, or change one to set your own.";
+
+    it("calls them starting goals where the pace is below the sport's floor", () => {
+      // Cycling's floor is 2,500 mi: a slower pace gets the floor's goals, not its own.
+      render(
+        <GoalControls
+          {...defaultProps}
+          estimatedYearEnd={1800}
+          suggested
+          onSaveSuggested={createAsyncMock()}
+        />
+      );
+      expect(
+        screen.getByText("Suggested starting goals. Save them, or change one to set your own.")
+      ).toBeInTheDocument();
+    });
+
+    it("says the goals follow the pace and saves them as they are", () => {
+      const onSaveSuggested = createAsyncMock();
+      // Cycling's floor is 2,500 mi, so a pace for 3,000 is what the suggestions follow.
+      render(
+        <GoalControls
+          {...defaultProps}
+          estimatedYearEnd={3000}
+          suggested
+          onSaveSuggested={onSaveSuggested}
+        />
+      );
+
+      expect(screen.getByText(NOTE)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Save these" }));
+      expect(onSaveSuggested).toHaveBeenCalledOnce();
+      expect(defaultProps.onGoalsChange).not.toHaveBeenCalled();
+    });
+
+    it("says nothing once goals are saved", () => {
+      render(<GoalControls {...defaultProps} onSaveSuggested={createAsyncMock()} />);
+      expect(screen.queryByText(NOTE)).toBeNull();
+      expect(screen.queryByRole("button", { name: "Save these" })).toBeNull();
+    });
+
+    it("can't be saved twice while a save is in flight", () => {
+      render(
+        <GoalControls {...defaultProps} suggested onSaveSuggested={createAsyncMock()} isSaving />
+      );
+      expect(screen.getByRole("button", { name: "Save these" })).toBeDisabled();
+    });
+  });
 });

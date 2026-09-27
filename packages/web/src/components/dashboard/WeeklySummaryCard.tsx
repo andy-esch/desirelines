@@ -13,7 +13,8 @@ import { useThemeStructure } from "../theme/useThemeStructure";
  *
  * Design:
  * - Sport color dots match sparkline spectrum colors
- * - Weekly goal % shows inline as the theme's status symbol (a % badge in Legacy light)
+ * - Weekly goal % shows inline as the theme's status symbol (a % badge in Legacy light), for a
+ *   sport with a goal; the goals card beside it says where to set one
  * - Shows "No activity yet this week" if all zeros
  */
 export default function WeeklySummaryCard() {
@@ -104,7 +105,7 @@ export default function WeeklySummaryCard() {
                 {sport.weeklyTotal === 0 && statusSymbolStyle !== "badge" && (
                   <StatusSymbol status="no-activity" label="No activity" />
                 )}
-                {sport.weeklyTotal > 0 && (
+                {sport.weeklyTotal > 0 && sport.hasGoal && (
                   <StatusSymbol
                     status={getAchievementStatus(sport.achievementPct)}
                     label={`${Math.round(sport.achievementPct)}% of goal`}

@@ -12,6 +12,7 @@ import {
 import { renderWithRouter } from "../../test/renderWithRouter";
 import { ThemeStructureProvider } from "../theme/ThemeStructureProvider";
 import { THEMES } from "../../themes/registry";
+import { toLocalDateString } from "../../utils/dateUtils";
 
 // Mock useDailySportData hook
 vi.mock("../../hooks/useDailySportData", () => ({
@@ -38,24 +39,40 @@ vi.mock("../../hooks/useUserConfig", () => ({
   useUserConfig: vi.fn(() => ({ data: null, isLoading: false, error: null })),
 }));
 
+// The day a test hovers, and the chart's rows, so the Tooltip mock can render the chart's
+// own tooltip content for that day as Recharts would.
+const hover = vi.hoisted(() => ({
+  date: null as string | null,
+  rows: [] as Record<string, unknown>[],
+}));
+
 // Mock recharts to avoid rendering issues in tests
 vi.mock("recharts", () => ({
-  LineChart: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="line-chart">{children}</div>
-  ),
+  LineChart: ({ children, data }: { children: React.ReactNode; data: typeof hover.rows }) => {
+    hover.rows = data;
+    return <div data-testid="line-chart">{children}</div>;
+  },
   Line: () => <div data-testid="chart-line" />,
   XAxis: () => null,
   YAxis: () => null,
   ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="responsive-container">{children}</div>
   ),
-  Tooltip: () => null,
+  Tooltip: ({
+    content,
+  }: {
+    content: (props: { active: boolean; payload: unknown[]; label: string }) => React.ReactNode;
+  }) => {
+    const row = hover.rows.find((r) => r.date === hover.date);
+    return row ? content({ active: true, payload: [{ payload: row }], label: hover.date! }) : null;
+  },
 }));
 
 import { useDailySportData } from "../../hooks/useDailySportData";
 import { useAuth } from "../../hooks/useAuth";
 import { useVisibleSports } from "../../hooks/useVisibleSports";
 import { useSportConfig } from "../../hooks/useSportConfig";
+import { useUserConfig } from "../../hooks/useUserConfig";
 
 const mockUseDailySportData = vi.mocked(useDailySportData);
 const mockUseAuth = vi.mocked(useAuth);
@@ -65,6 +82,7 @@ const mockUseSportConfig = vi.mocked(useSportConfig);
 describe("MultiSportSparklineChart", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    hover.date = null;
 
     // Default: authenticated user
     mockUseAuth.mockReturnValue(mockAuthReturn());
@@ -166,6 +184,60 @@ describe("MultiSportSparklineChart", () => {
       expect(screen.queryByRole("link", { name: "Cycling" })).not.toBeInTheDocument();
       // The chart itself stays: the legend is the only thing the field removes.
       expect(screen.getAllByTestId("chart-line")).toHaveLength(3);
+    });
+  });
+
+  describe("tooltip", () => {
+    const today = toLocalDateString(new Date());
+    const yesterday = toLocalDateString(new Date(Date.now() - 24 * 60 * 60 * 1000));
+
+    beforeEach(() => {
+      // Back to the factory's preferences-free return after the unit test replaces it.
+      vi.mocked(useUserConfig).mockReset();
+      mockUseDailySportData.mockReturnValue({
+        data: {
+          cycling: { [today]: { distanceMeters: 20000, activities: 1, activityIds: [1] } },
+          running: { [today]: { distanceMeters: 5000, activities: 1, activityIds: [2] } },
+          yoga: { [today]: { timeMinutes: 90, activities: 1, activityIds: [3] } },
+        },
+        isLoading: false,
+        error: null,
+      });
+    });
+
+    /** The value the tooltip shows beside a sport's name (the legend's links name it too). */
+    const valueFor = (name: string) =>
+      screen.getAllByText(name, { selector: "span" }).find((el) => !el.closest("a"))!
+        .nextElementSibling as HTMLElement;
+
+    it("formats each sport's value for its primary metric", async () => {
+      hover.date = today;
+      await renderWithRouter(<MultiSportSparklineChart timeRange="2weeks" />);
+
+      // 20 km is 12.4 mi: one decimal from ten up, two below.
+      expect(valueFor("Cycling")).toHaveTextContent("12.4 mi");
+      expect(valueFor("Running")).toHaveTextContent("3.11 mi");
+      expect(valueFor("Yoga")).toHaveTextContent("1 hr 30 min");
+    });
+
+    it("converts distances to the athlete's unit", async () => {
+      vi.mocked(useUserConfig).mockReturnValue({
+        data: { distanceUnit: "kilometers" },
+      } as unknown as ReturnType<typeof useUserConfig>);
+      hover.date = today;
+      await renderWithRouter(<MultiSportSparklineChart timeRange="2weeks" />);
+
+      expect(valueFor("Cycling")).toHaveTextContent("20.0 km");
+      expect(valueFor("Running")).toHaveTextContent("5.00 km");
+    });
+
+    it("marks a quiet day's value as missing for every sport", async () => {
+      hover.date = yesterday;
+      await renderWithRouter(<MultiSportSparklineChart timeRange="2weeks" />);
+
+      for (const name of ["Cycling", "Running", "Yoga"]) {
+        expect(valueFor(name)).toHaveTextContent("none");
+      }
     });
   });
 });
