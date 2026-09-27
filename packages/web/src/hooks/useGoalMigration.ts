@@ -22,7 +22,7 @@ import { logger } from "../lib/logger";
  * @param sport       - Sport key for migration tracking
  * @param hasDistance - True if this sport's primary metric is distance
  * @param isTime      - True if this sport's primary metric is time
- * @param updateGoals - Async save function (from useUserConfig)
+ * @param updateGoals - Async save function (useGoals' `save`)
  */
 export function useGoalMigration(
   goalsData: GoalsForYear | null,
@@ -59,7 +59,7 @@ export function useGoalMigration(
         updateGoals(migratedGoals)
           .then(() => markGoalUnitMigrated(userId, year, sport))
           .catch((error) => {
-            // Error is surfaced by useUserConfig; don't mark as migrated so it retries.
+            // Error is surfaced by useGoals' saveError; don't mark as migrated so it retries.
 
             logger.error(`Failed to save migrated goals for ${year}/${sport}:`, error);
           });

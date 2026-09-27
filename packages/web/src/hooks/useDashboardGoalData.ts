@@ -3,7 +3,7 @@ import { useAuth } from "./useAuth";
 import { useCurrentYear } from "./useCurrentYear";
 import { useVisibleSports } from "./useVisibleSports";
 import { useSportConfig } from "./useSportConfig";
-import { useUserConfig } from "./useUserConfig";
+import { useTimezone, useUnitSettings } from "./usePreferences";
 import { useConfigDocument } from "./useConfigDocument";
 import { fetchMultiSportMetrics, type MetricsEntry } from "../api/activities";
 import {
@@ -12,7 +12,7 @@ import {
   getSessionFillLevels,
 } from "../utils/demoDataGenerator";
 import { filterValidSports } from "../utils/sportConfig";
-import { getUserSettings, type DistanceUnit } from "../utils/units";
+import type { DistanceUnit } from "../utils/units";
 import { createYearContext, type YearContext } from "../utils/yearContext";
 import { selectSection } from "../services/config/sections";
 import { transformToSportGoalData, type SportGoalData } from "../utils/dashboardUtils";
@@ -40,11 +40,10 @@ export function useDashboardGoalData(): {
   const { doc: userConfig, loading: goalsLoading, error: goalsError } = useConfigDocument();
   const { visibleSports, isLoading: prefsLoading } = useVisibleSports();
   const { sportConfig, isLoading: configLoading } = useSportConfig();
-  const { data: prefs } = useUserConfig("preferences");
 
   const currentYear = useCurrentYear();
   const yearContext = createYearContext(currentYear);
-  const userSettings = getUserSettings(prefs);
+  const userSettings = useUnitSettings();
 
   const validSports = filterValidSports(visibleSports, sportConfig);
 
@@ -65,7 +64,7 @@ export function useDashboardGoalData(): {
 
   // Auth: single multi-sport metrics fetch
   const sortedSports = [...validSports].sort();
-  const tz = prefs?.timezone || undefined;
+  const tz = useTimezone();
   const metricsQuery = useQuery({
     queryKey: ["sportMetrics", user?.uid, currentYear, sortedSports, tz],
     queryFn: ({ signal }: { signal: AbortSignal }) =>

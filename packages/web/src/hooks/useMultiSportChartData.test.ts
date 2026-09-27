@@ -10,9 +10,10 @@ import type { SportConfig } from "../api/activities";
 vi.mock("./useDailySportData");
 vi.mock("./useVisibleSports");
 vi.mock("./useSportConfig");
-vi.mock("./useUserConfig", () => ({
-  useUserConfig: vi.fn(() => ({ data: null, isLoading: false, error: null })),
-}));
+vi.mock("./usePreferences", async () => {
+  const { getUserSettings } = await import("../utils/units");
+  return { useUnitSettings: () => getUserSettings(null) };
+});
 
 describe("useMultiSportChartData", () => {
   const mockSportConfig: SportConfig = {

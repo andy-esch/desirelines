@@ -1,7 +1,7 @@
 import { useContext } from "react";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { UserConfigContext } from "../contexts/UserConfigProvider";
-import type { ConfigAdapter } from "../services/config/configAdapter";
+import { PENDING_CONFIG_QUERY_KEY, type ConfigAdapter } from "../services/config/configAdapter";
 import type { UserConfig } from "../services/userConfigService";
 
 /**
@@ -25,7 +25,7 @@ export function useConfigDocument(): {
 
   const query = useQuery({
     // Until sign-in has resolved there's no session, and nothing to load.
-    queryKey: adapter?.queryKey ?? ["userConfig", "pending"],
+    queryKey: adapter?.queryKey ?? PENDING_CONFIG_QUERY_KEY,
     queryFn: adapter ? () => adapter.load() : skipToken,
     // The listener keeps the entry current; a refetch would only race it.
     staleTime: Infinity,

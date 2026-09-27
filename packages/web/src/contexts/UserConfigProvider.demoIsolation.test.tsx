@@ -2,11 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useEffect } from "react";
 import { act, render, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useUserConfig } from "./useUserConfig";
-import { TestServiceProvider } from "../contexts/ServiceContext";
-import { AuthProvider } from "../contexts/AuthContext";
-import { UserConfigProvider } from "../contexts/UserConfigProvider";
-import { ToastProvider } from "../contexts/ToastContext";
+import { useGoals } from "../hooks/useGoals";
+import { usePreferences } from "../hooks/usePreferences";
+import { TestServiceProvider } from "./ServiceContext";
+import { AuthProvider } from "./AuthContext";
+import { UserConfigProvider } from "./UserConfigProvider";
+import { ToastProvider } from "./ToastContext";
 import { MockAuthService } from "../services/auth/MockAuthService";
 import { MockDatabaseService } from "../services/database/MockDatabaseService";
 import { UserConfigService, type GoalsForYear } from "../services/userConfigService";
@@ -16,8 +17,8 @@ import { DEMO_STORAGE_PREFIX, saveDemoSection } from "../services/demoStorage";
 /**
  * Demo and account data never mix: signing in imports nothing from the demo and leaves its
  * storage alone, signing out copies nothing from the account, and signed-in code never reads a
- * demo key. The real hook and service run over the in-memory database; demo data is written
- * with `saveDemoSection`, the function the demo page and the hook's demo mode save through.
+ * demo key. The real hooks, store and service run over the in-memory database; demo data is
+ * written with `saveDemoSection`, the function the store's demo adapter saves through.
  */
 
 const UID = "test-user-123";
@@ -40,22 +41,19 @@ const DEMO_PREFERENCES = { ...DEFAULT_PREFERENCES, distanceUnit: "kilometers" };
 let seen: Record<string, unknown> = {};
 let savePreferences: (data: typeof DEFAULT_PREFERENCES) => Promise<void> = async () => {};
 
-function GoalsConsumer({ report }: { report: (data: unknown) => void }) {
-  const { data } = useUserConfig("goals", 2026, "cycling", DEFAULT_GOALS);
+function GoalsConsumer({ report }: { report: (goals: GoalsForYear | null) => void }) {
+  const { goalsForYear } = useGoals(2026, "cycling", DEFAULT_GOALS);
   useEffect(() => {
-    report(data);
-  }, [data, report]);
+    report(goalsForYear);
+  }, [goalsForYear, report]);
   return null;
 }
 function PrefsConsumer({
   report,
 }: {
-  report: (config: {
-    data: unknown;
-    updateData: (data: typeof DEFAULT_PREFERENCES) => Promise<void>;
-  }) => void;
+  report: (config: ReturnType<typeof usePreferences>) => void;
 }) {
-  const config = useUserConfig("preferences", undefined, undefined, DEFAULT_PREFERENCES);
+  const config = usePreferences();
   useEffect(() => {
     report(config);
   }, [config, report]);
@@ -82,8 +80,8 @@ function renderApp(signedIn: boolean, db = new MockDatabaseService()) {
               <GoalsConsumer report={(data) => (seen.goals = data)} />
               <PrefsConsumer
                 report={(config) => {
-                  seen.preferences = config.data;
-                  savePreferences = config.updateData;
+                  seen.preferences = config.preferences;
+                  savePreferences = config.save;
                 }}
               />
             </UserConfigProvider>
@@ -131,7 +129,7 @@ describe("demo and account data stay apart", () => {
     }
   );
 
-  it("keeps a demo save made through the hook in the demo when the visitor signs in", async () => {
+  it("keeps a demo save made through the store in the demo when the visitor signs in", async () => {
     const { auth, db } = renderApp(false);
     await settle();
     await act(() => savePreferences(DEMO_PREFERENCES));

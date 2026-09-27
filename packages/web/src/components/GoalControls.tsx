@@ -39,7 +39,7 @@ interface GoalControlsProps {
    * could put an edit or the suggestions over goals that are saved.
    */
   unavailable?: boolean | undefined;
-  // Loading/error state from parent (useUserConfig hook)
+  // Save state from the parent (the goals section hook, useGoals)
   isSaving?: boolean | undefined;
   saveError?: Error | null | undefined;
   onClearSaveError?: (() => void) | undefined;

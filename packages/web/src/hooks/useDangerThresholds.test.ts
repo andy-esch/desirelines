@@ -8,9 +8,10 @@ import { useDangerThresholds, resolveDangerPace } from "./useDangerThresholds";
 const preferencesRef: { current: Partial<Preferences> | null } = { current: null };
 const sportConfigRef: { current: SportConfig | null } = { current: null };
 
-vi.mock("./useUserConfig", () => ({
-  useUserConfig: () => ({ data: preferencesRef.current }),
-}));
+vi.mock("./usePreferences", async () => {
+  const { getUserSettings } = await import("../utils/units");
+  return { useUnitSettings: () => getUserSettings(preferencesRef.current as Preferences | null) };
+});
 
 vi.mock("./usePublicSportConfig", () => ({
   usePublicSportConfig: () => ({

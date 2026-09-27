@@ -5,7 +5,8 @@ import { useDashboardGoalData } from "./useDashboardGoalData";
 import * as useAuthModule from "./useAuth";
 import * as useVisibleSportsModule from "./useVisibleSports";
 import * as useSportConfigModule from "./useSportConfig";
-import * as useUserConfigModule from "./useUserConfig";
+import * as usePreferencesModule from "./usePreferences";
+import type { Preferences } from "../services/userConfigService";
 import * as demoDataModule from "../utils/demoDataGenerator";
 import type { SportConfig } from "../api/activities";
 import type React from "react";
@@ -15,13 +16,13 @@ import { UserConfigService } from "../services/userConfigService";
 import { MockAuthService } from "../services/auth/MockAuthService";
 import * as activitiesApi from "../api/activities";
 import { ACCOUNT_USER, accountServices, storedGoal } from "../test/fixtures/userConfig";
-import { goalMetersToDisplay } from "../utils/units";
+import { getUserSettings, goalMetersToDisplay } from "../utils/units";
 
 // Mock dependencies
 vi.mock("./useAuth");
 vi.mock("./useVisibleSports");
 vi.mock("./useSportConfig");
-vi.mock("./useUserConfig");
+vi.mock("./usePreferences");
 
 describe("useDashboardGoalData", () => {
   const mockSportConfig: SportConfig = {
@@ -105,15 +106,7 @@ describe("useDashboardGoalData", () => {
       error: null,
     });
 
-    vi.spyOn(useUserConfigModule, "useUserConfig").mockReturnValue({
-      data: null,
-      isLoading: false,
-      error: null,
-      isFetching: false,
-      saveConfig: vi.fn(),
-      isSaving: false,
-      saveError: null,
-    } as any);
+    vi.spyOn(usePreferencesModule, "useUnitSettings").mockReturnValue(getUserSettings(null));
   });
 
   afterEach(() => {
@@ -334,15 +327,9 @@ describe("useDashboardGoalData", () => {
 
   describe("unit preferences", () => {
     it("uses kilometers when user preference is set", async () => {
-      vi.spyOn(useUserConfigModule, "useUserConfig").mockReturnValue({
-        data: { distanceUnit: "kilometers" },
-        isLoading: false,
-        error: null,
-        isFetching: false,
-        saveConfig: vi.fn(),
-        isSaving: false,
-        saveError: null,
-      } as any);
+      vi.spyOn(usePreferencesModule, "useUnitSettings").mockReturnValue(
+        getUserSettings({ distanceUnit: "kilometers" } as Preferences)
+      );
 
       const { result } = renderHook(() => useDashboardGoalData(), { wrapper });
 

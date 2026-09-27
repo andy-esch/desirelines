@@ -2,15 +2,24 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import React from "react";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useUserConfig, useFullUserConfig } from "./useUserConfig";
+import { useAllGoals, useGoals } from "./useGoals";
+import { useAnnotations } from "./useAnnotations";
+import { usePreferences, useTimezone, useUnitSettings } from "./usePreferences";
 import { UserConfigService, parseConfigData } from "../services/userConfigService";
-import type { GoalsForYear, UserConfig } from "../services/userConfigService";
+import type {
+  AnnotationsForYear,
+  GoalsForYear,
+  Preferences,
+  UserConfig,
+} from "../services/userConfigService";
 import { TestServiceProvider } from "../contexts/ServiceContext";
 import { UserConfigProvider } from "../contexts/UserConfigProvider";
 import { demoConfigKey } from "../services/demoStorage";
 import { configQueryKey } from "../services/config/configAdapter";
 import { withSection } from "../services/config/sections";
 import { DEFAULT_PREFERENCES } from "../constants/settings";
+import { getUserSettings } from "../utils/units";
+import { AnnotationType } from "../types/generated/user_config";
 
 // Mock UserConfigService and parseConfigData. parseConfigData defaults to an
 // identity-passing validator since most tests pass already-shaped fixtures;
@@ -18,8 +27,8 @@ import { DEFAULT_PREFERENCES } from "../constants/settings";
 // to drive the failure path.
 vi.mock("../services/userConfigService", () => {
   const MockUserConfigService = vi.fn();
-  MockUserConfigService.prototype.getConfigSection = vi.fn();
   MockUserConfigService.prototype.updateConfigSection = vi.fn();
+  MockUserConfigService.prototype.updateTheme = vi.fn();
   MockUserConfigService.prototype.getConfig = vi.fn();
   MockUserConfigService.prototype.subscribeToConfig = vi.fn(() => vi.fn());
   // Identity-passing schema validator — tests pass already-shaped fixtures,
@@ -114,17 +123,12 @@ const goalsDoc = (goals: GoalsForYear) =>
 // would leak into every later test. Reset each to what the mock factory made it.
 function resetServiceMocks() {
   const proto = UserConfigService.prototype as unknown as Record<string, { mockReset(): void }>;
-  for (const method of [
-    "getConfigSection",
-    "updateConfigSection",
-    "getConfig",
-    "subscribeToConfig",
-  ]) {
+  for (const method of ["updateConfigSection", "updateTheme", "getConfig", "subscribeToConfig"]) {
     proto[method]!.mockReset();
   }
 }
 
-describe("useUserConfig", () => {
+describe("useConfigSection, through useGoals", () => {
   let mockServiceInstance: any;
 
   beforeEach(() => {
@@ -145,8 +149,8 @@ describe("useUserConfig", () => {
     vi.restoreAllMocks();
   });
 
-  describe("overloaded signatures", () => {
-    it("should work with 'goals' configType and year parameter", async () => {
+  describe("reading", () => {
+    it("reads one sport's goals for a year", async () => {
       const mockGoals: GoalsForYear = {
         goals: [
           {
@@ -162,7 +166,7 @@ describe("useUserConfig", () => {
 
       serve(goalsDoc(mockGoals));
 
-      const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling"), {
+      const { result } = renderHook(() => useGoals(2025, "cycling"), {
         wrapper: createWrapper(),
       });
 
@@ -170,7 +174,7 @@ describe("useUserConfig", () => {
         expect(result.current.loading).toBe(false);
       });
 
-      expect(result.current.data).toEqual(mockGoals);
+      expect(result.current.goalsForYear).toEqual(mockGoals);
     });
   });
 
@@ -188,20 +192,19 @@ describe("useUserConfig", () => {
         JSON.stringify(storedGoals)
       );
 
-      const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling"), {
+      const { result } = renderHook(() => useGoals(2025, "cycling"), {
         wrapper: createWrapper(),
       });
 
       await waitFor(() => expect(result.current.loading).toBe(false));
-      expect(result.current.data).toEqual(storedGoals);
+      expect(result.current.goalsForYear).toEqual(storedGoals);
       expect(localStorageMock.getItem).toHaveBeenCalled();
       // Should NOT call service
-      expect(mockServiceInstance.getConfigSection).not.toHaveBeenCalled();
       expect(mockServiceInstance.subscribeToConfig).not.toHaveBeenCalled();
     });
 
     it("should write to localStorage when user is null", async () => {
-      const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling"), {
+      const { result } = renderHook(() => useGoals(2025, "cycling"), {
         wrapper: createWrapper(),
       });
       await waitFor(() => expect(result.current.loading).toBe(false));
@@ -223,7 +226,7 @@ describe("useUserConfig", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
 
       await act(async () => {
-        await result.current.updateData(newGoals);
+        await result.current.save(newGoals);
       });
 
       expect(result.current.saveError).toBeNull();
@@ -233,7 +236,7 @@ describe("useUserConfig", () => {
         JSON.stringify(newGoals)
       );
       // React Query renders the optimistic value a tick after `act`.
-      await waitFor(() => expect(result.current.data).toEqual(newGoals));
+      await waitFor(() => expect(result.current.goalsForYear).toEqual(newGoals));
       expect(mockServiceInstance.updateConfigSection).not.toHaveBeenCalled();
     });
 
@@ -251,17 +254,17 @@ describe("useUserConfig", () => {
           },
         ],
       };
-      const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling", callerDefault), {
+      const { result } = renderHook(() => useGoals(2025, "cycling", callerDefault), {
         wrapper: createWrapper(),
       });
 
       await waitFor(() => expect(result.current.loading).toBe(false));
-      expect(result.current.data).toEqual(callerDefault);
+      expect(result.current.goalsForYear).toEqual(callerDefault);
     });
 
     it("returns null for goals when localStorage is empty and no default is supplied", async () => {
       localStorageMock.getItem.mockReturnValue(null);
-      const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling"), {
+      const { result } = renderHook(() => useGoals(2025, "cycling"), {
         wrapper: createWrapper(),
       });
 
@@ -269,7 +272,7 @@ describe("useUserConfig", () => {
       // In production callers always pass a sport-aware defaultValue.
       // Without one, returning null is the documented behavior — guards the
       // caller's null-handling path.
-      expect(result.current.data).toBeNull();
+      expect(result.current.goalsForYear).toBeNull();
     });
 
     it("falls back to default when localStorage data fails schema validation", async () => {
@@ -294,12 +297,12 @@ describe("useUserConfig", () => {
         error: { issues: [] } as any,
       });
 
-      const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling", callerDefault), {
+      const { result } = renderHook(() => useGoals(2025, "cycling", callerDefault), {
         wrapper: createWrapper(),
       });
 
       await waitFor(() => expect(result.current.loading).toBe(false));
-      expect(result.current.data).toEqual(callerDefault);
+      expect(result.current.goalsForYear).toEqual(callerDefault);
     });
   });
 
@@ -322,22 +325,20 @@ describe("useUserConfig", () => {
       ["goals saved", true, goals("saved")],
     ])("signed in with %s, is %s", async (_, saved, stored) => {
       serve(stored ? goalsDoc(stored) : null);
-      const { result } = renderHook(
-        () => useUserConfig("goals", 2025, "cycling", goals("default")),
-        { wrapper: createWrapper() }
-      );
+      const { result } = renderHook(() => useGoals(2025, "cycling", goals("default")), {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => expect(result.current.loading).toBe(false));
       expect(result.current.isSaved).toBe(saved);
-      expect(result.current.data).toEqual(stored ?? goals("default"));
+      expect(result.current.goalsForYear).toEqual(stored ?? goals("default"));
     });
 
     it("is false while loading", () => {
       mockAuthState = { user: mockUser, loading: true };
-      const { result } = renderHook(
-        () => useUserConfig("goals", 2025, "cycling", goals("default")),
-        { wrapper: createWrapper() }
-      );
+      const { result } = renderHook(() => useGoals(2025, "cycling", goals("default")), {
+        wrapper: createWrapper(),
+      });
       expect(result.current.isSaved).toBe(false);
     });
 
@@ -351,10 +352,9 @@ describe("useUserConfig", () => {
         ["goals saved", true, JSON.stringify(goals("saved"))],
       ])("with %s, is %s", async (_, saved, stored) => {
         if (stored) localStorageMock.setItem(demoConfigKey("goals", 2025, "cycling"), stored);
-        const { result } = renderHook(
-          () => useUserConfig("goals", 2025, "cycling", goals("default")),
-          { wrapper: createWrapper() }
-        );
+        const { result } = renderHook(() => useGoals(2025, "cycling", goals("default")), {
+          wrapper: createWrapper(),
+        });
 
         await waitFor(() => expect(result.current.loading).toBe(false));
         expect(result.current.isSaved).toBe(saved);
@@ -366,25 +366,23 @@ describe("useUserConfig", () => {
           '{"goals":"not an array"}'
         );
         mockedParseConfigData.mockReturnValueOnce({ ok: false, error: { issues: [] } as any });
-        const { result } = renderHook(
-          () => useUserConfig("goals", 2025, "cycling", goals("default")),
-          { wrapper: createWrapper() }
-        );
+        const { result } = renderHook(() => useGoals(2025, "cycling", goals("default")), {
+          wrapper: createWrapper(),
+        });
 
         await waitFor(() => expect(result.current.loading).toBe(false));
         expect(result.current.isSaved).toBe(false);
-        expect(result.current.data).toEqual(goals("default"));
+        expect(result.current.goalsForYear).toEqual(goals("default"));
       });
 
       it("turns true once the default is saved", async () => {
-        const { result } = renderHook(
-          () => useUserConfig("goals", 2025, "cycling", goals("default")),
-          { wrapper: createWrapper() }
-        );
+        const { result } = renderHook(() => useGoals(2025, "cycling", goals("default")), {
+          wrapper: createWrapper(),
+        });
         await waitFor(() => expect(result.current.loading).toBe(false));
         expect(result.current.isSaved).toBe(false);
 
-        await act(() => result.current.updateData(goals("default")));
+        await act(() => result.current.save(goals("default")));
 
         await waitFor(() => expect(result.current.isSaved).toBe(true));
       });
@@ -393,23 +391,14 @@ describe("useUserConfig", () => {
         // The sport page's suggested goals follow this year's pace, which loads after the
         // goals do. The demo used to cache the first default it was given.
         const { result, rerender } = renderHook(
-          ({ fallback }) => useUserConfig("goals", 2025, "cycling", fallback),
+          ({ fallback }) => useGoals(2025, "cycling", fallback),
           { wrapper: createWrapper(), initialProps: { fallback: goals("early") } }
         );
-        await waitFor(() => expect(result.current.data).toEqual(goals("early")));
+        await waitFor(() => expect(result.current.goalsForYear).toEqual(goals("early")));
 
         rerender({ fallback: goals("paced") });
 
-        expect(result.current.data).toEqual(goals("paced"));
-      });
-
-      it("still falls back to the default preferences without a caller default", async () => {
-        const { result } = renderHook(() => useUserConfig("preferences"), {
-          wrapper: createWrapper(),
-        });
-        await waitFor(() => expect(result.current.loading).toBe(false));
-        expect(result.current.data).toEqual(DEFAULT_PREFERENCES);
-        expect(result.current.isSaved).toBe(false);
+        expect(result.current.goalsForYear).toEqual(goals("paced"));
       });
     });
   });
@@ -417,16 +406,17 @@ describe("useUserConfig", () => {
   describe("Subscription Lifecycle", () => {
     // The cache holds what Firestore holds; a default cached here would read as stored data
     // to anything that reads the cache.
+    const EMPTY_GOALS: GoalsForYear = { goals: [], storageVersion: 2 };
     it.each([
-      ["goals", 2025, "cycling", { goals: [], storageVersion: 2 }],
-      ["annotations", 2025, undefined, { annotations: [] }],
-      ["preferences", undefined, undefined, { theme: "", distanceUnit: "kilometers" }],
+      ["goals", () => useGoals(2025, "cycling", EMPTY_GOALS).goalsForYear, EMPTY_GOALS],
+      ["annotations", () => useAnnotations(2025).annotations, { annotations: [] }],
+      ["preferences", () => usePreferences().preferences, DEFAULT_PREFERENCES],
     ] as const)(
       "caches an empty %s report as null and returns the default",
-      async (configType, year, sport, defaultValue) => {
+      async (_section, read, defaultValue) => {
         // Report after the first load, as a live listener does, so its value is what's cached.
         const listener = serve(
-          withSection(null, { section: "preferences" }, { theme: "x" } as any)
+          withSection(null, { section: "preferences" }, { theme: "x" } as Preferences)
         );
         const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
         const wrapper = ({ children }: { children: React.ReactNode }) => (
@@ -436,14 +426,13 @@ describe("useUserConfig", () => {
             </QueryClientProvider>
           </TestServiceProvider>
         );
-        const { result } = renderHook(
-          () => useUserConfig(configType as any, year as any, sport as any, defaultValue as any),
-          { wrapper }
+        const { result } = renderHook(read as () => unknown, { wrapper });
+        await waitFor(() =>
+          expect(queryClient.getQueryData(configQueryKey(mockUser.uid))).toBeTruthy()
         );
 
-        await waitFor(() => expect(result.current.loading).toBe(false));
         act(() => listener.report(null));
-        await waitFor(() => expect(result.current.data).toEqual(defaultValue));
+        await waitFor(() => expect(result.current).toEqual(defaultValue));
         // The one document entry holds what was reported, never the default.
         expect(queryClient.getQueryData(configQueryKey(mockUser.uid))).toBeNull();
       }
@@ -456,7 +445,7 @@ describe("useUserConfig", () => {
         return unsubscribeMock;
       });
 
-      const { unmount } = renderHook(() => useUserConfig("goals", 2025, "cycling"), {
+      const { unmount } = renderHook(() => useGoals(2025, "cycling"), {
         wrapper: createWrapper(),
       });
 
@@ -479,26 +468,23 @@ describe("useUserConfig", () => {
         )
       );
 
-      const { result, rerender } = renderHook(
-        ({ year }) => useUserConfig("goals", year, "cycling"),
-        {
-          initialProps: { year: 2025 },
-          wrapper: createWrapper(),
-        }
-      );
+      const { result, rerender } = renderHook(({ year }) => useGoals(year, "cycling"), {
+        initialProps: { year: 2025 },
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => expect(mockServiceInstance.subscribeToConfig).toHaveBeenCalledTimes(1));
 
       // Change year
       rerender({ year: 2024 });
 
-      await waitFor(() => expect(result.current.data).toEqual(goals2024));
+      await waitFor(() => expect(result.current.goalsForYear).toEqual(goals2024));
       expect(mockServiceInstance.subscribeToConfig).toHaveBeenCalledTimes(1);
     });
   });
 
   describe("optimistic updates", () => {
-    it("should update local state immediately when updateData is called", async () => {
+    it("should update local state immediately when save is called", async () => {
       const initialGoals: GoalsForYear = {
         goals: [
           {
@@ -527,7 +513,7 @@ describe("useUserConfig", () => {
       serve(goalsDoc(initialGoals));
       mockServiceInstance.updateConfigSection.mockResolvedValue(undefined);
 
-      const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling"), {
+      const { result } = renderHook(() => useGoals(2025, "cycling"), {
         wrapper: createWrapper(),
       });
 
@@ -536,10 +522,10 @@ describe("useUserConfig", () => {
       });
 
       // Ensure initial data is settled
-      await waitFor(() => expect(result.current.data).toEqual(initialGoals));
+      await waitFor(() => expect(result.current.goalsForYear).toEqual(initialGoals));
 
       await act(async () => {
-        await result.current.updateData(newGoals);
+        await result.current.save(newGoals);
       });
 
       // Verify mutation called service
@@ -551,7 +537,7 @@ describe("useUserConfig", () => {
       );
 
       // The optimistic value shows (React Query renders it a tick after `act`) and stays.
-      await waitFor(() => expect(result.current.data).toEqual(newGoals));
+      await waitFor(() => expect(result.current.goalsForYear).toEqual(newGoals));
     });
   });
 
@@ -586,17 +572,17 @@ describe("useUserConfig", () => {
       serve(goalsDoc(initialGoals));
       mockServiceInstance.updateConfigSection.mockRejectedValue(error);
 
-      const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling"), {
+      const { result } = renderHook(() => useGoals(2025, "cycling"), {
         wrapper: createWrapper(),
       });
 
       await waitFor(() => {
-        expect(result.current.data).toEqual(initialGoals);
+        expect(result.current.goalsForYear).toEqual(initialGoals);
       });
 
       await act(async () => {
         try {
-          await result.current.updateData(newGoals);
+          await result.current.save(newGoals);
         } catch {
           // Expected
         }
@@ -605,7 +591,7 @@ describe("useUserConfig", () => {
       // Once the error has rendered (React Query renders a tick after `act`), the data is
       // back to the initial goals.
       await waitFor(() => expect(result.current.saveError).toEqual(error));
-      expect(result.current.data).toEqual(initialGoals);
+      expect(result.current.goalsForYear).toEqual(initialGoals);
     });
   });
 
@@ -626,17 +612,17 @@ describe("useUserConfig", () => {
     // React Query renders its updates on a later tick than `act` flushes, so each test waits
     // for the error to render; the rollback runs before the error is set.
     const saveAndFail = async (result: {
-      current: { updateData: (d: GoalsForYear) => Promise<void> };
+      current: { save: (d: GoalsForYear) => Promise<void> };
     }) => {
       await act(async () => {
-        await result.current.updateData(newGoals).catch(() => {});
+        await result.current.save(newGoals).catch(() => {});
       });
     };
 
     it("is rolled back on an empty section", async () => {
       serve(null);
       mockServiceInstance.updateConfigSection.mockRejectedValue(new Error("Failed to save"));
-      const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling"), {
+      const { result } = renderHook(() => useGoals(2025, "cycling"), {
         wrapper: createWrapper(),
       });
       await waitFor(() => expect(result.current.loading).toBe(false));
@@ -644,7 +630,7 @@ describe("useUserConfig", () => {
       await saveAndFail(result);
 
       await waitFor(() => expect(result.current.saveError).toBeInstanceOf(Error));
-      expect(result.current.data).toBeNull();
+      expect(result.current.goalsForYear).toBeNull();
     });
 
     it("is rolled back in demo mode when localStorage refuses the write", async () => {
@@ -652,7 +638,7 @@ describe("useUserConfig", () => {
       localStorageMock.setItem.mockImplementationOnce(() => {
         throw new Error("QuotaExceededError");
       });
-      const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling"), {
+      const { result } = renderHook(() => useGoals(2025, "cycling"), {
         wrapper: createWrapper(),
       });
       await waitFor(() => expect(result.current.loading).toBe(false));
@@ -660,78 +646,228 @@ describe("useUserConfig", () => {
       await saveAndFail(result);
 
       await waitFor(() => expect(result.current.saveError).toBeInstanceOf(Error));
-      expect(result.current.data).toBeNull();
+      expect(result.current.goalsForYear).toBeNull();
     });
   });
 });
 
-describe("useFullUserConfig", () => {
+/** Every section hook below reads the same store; these are what each adds over it. */
+describe("the section hooks", () => {
   let mockServiceInstance: any;
+  const G = (id: string): GoalsForYear => ({
+    goals: [
+      {
+        id,
+        value: 1000,
+        label: id,
+        metric: "distance_meters",
+        createdAt: "2025-01-01T00:00:00Z",
+        updatedAt: "2025-01-01T00:00:00Z",
+      },
+    ],
+    storageVersion: 2,
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();
     resetServiceMocks();
     mockServiceInstance = UserConfigService.prototype;
     mockAuthState = { user: mockUser, loading: false };
+    localStorageMock.clear();
+    localStorageMock.getItem.mockReset();
+    localStorageMock.setItem.mockReset();
+    localStorageMock.removeItem.mockReset();
   });
 
-  it("should load full config", async () => {
-    const mockConfig = { goals: {}, annotations: {}, preferences: {} };
-    mockServiceInstance.getConfig.mockResolvedValue(mockConfig);
-    mockServiceInstance.subscribeToConfig.mockImplementation((cb: any) => {
-      cb(mockConfig);
-      return vi.fn();
-    });
-
-    const { result } = renderHook(() => useFullUserConfig(), { wrapper: createWrapper() });
-
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false);
-    });
-
-    expect(result.current.config).toEqual(mockConfig);
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
-  it("should call updateSection correctly", async () => {
-    const mockConfig = { goals: {}, annotations: {}, preferences: {} };
-    mockServiceInstance.getConfig.mockResolvedValue(mockConfig);
-    mockServiceInstance.subscribeToConfig.mockImplementation((cb: any) => {
-      cb(mockConfig);
-      return vi.fn();
+  describe("useAllGoals", () => {
+    it("lists every goal the account has saved, by year and sport", async () => {
+      const doc = withSection(
+        goalsDoc(G("cycling")),
+        { section: "goals", year: 2024, sport: "running" },
+        G("running")
+      );
+      serve(doc);
+      const { result } = renderHook(() => useAllGoals(), { wrapper: createWrapper() });
+
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      expect(result.current.goalsByYear).toEqual(doc.goals);
     });
 
-    const { result } = renderHook(() => useFullUserConfig(), { wrapper: createWrapper() });
-    await waitFor(() => expect(result.current.loading).toBe(false));
+    it("lists the demo's own goals signed out, reading nothing of the account's", async () => {
+      mockAuthState = { user: null, loading: false };
+      localStorageMock.setItem(demoConfigKey("goals", 2025, "running"), JSON.stringify(G("demo")));
+      const { result } = renderHook(() => useAllGoals(), { wrapper: createWrapper() });
 
-    const newGoals: GoalsForYear = {
-      goals: [
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      expect(result.current.goalsByYear).toEqual(
+        withSection(null, { section: "goals", year: 2025, sport: "running" }, G("demo")).goals
+      );
+      expect(mockServiceInstance.subscribeToConfig).not.toHaveBeenCalled();
+    });
+
+    it("is empty with nothing saved", async () => {
+      serve(null);
+      const { result } = renderHook(() => useAllGoals(), { wrapper: createWrapper() });
+
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      expect(result.current.goalsByYear).toEqual({});
+    });
+
+    it("is unknown, not empty, while loading and when the first load failed", async () => {
+      mockServiceInstance.subscribeToConfig.mockImplementation(
+        (_onConfig: unknown, onError: (e: Error) => void) => {
+          onError(new Error("permission-denied"));
+          return vi.fn();
+        }
+      );
+      const { result } = renderHook(() => useAllGoals(), { wrapper: createWrapper() });
+      expect(result.current.goalsByYear).toBeNull();
+
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      expect(result.current.error).toBeInstanceOf(Error);
+      expect(result.current.goalsByYear).toBeNull();
+    });
+
+    it("keeps the last good copy after the listener fails", async () => {
+      const listener = serve(goalsDoc(G("cycling")));
+      const { result } = renderHook(() => useAllGoals(), { wrapper: createWrapper() });
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      act(() => listener.fail(new Error("offline")));
+
+      await waitFor(() => expect(result.current.error).toBeInstanceOf(Error));
+      expect(result.current.goalsByYear).toEqual(goalsDoc(G("cycling")).goals);
+    });
+  });
+
+  describe("useAnnotations", () => {
+    const notes: AnnotationsForYear = {
+      annotations: [
         {
-          id: "1",
-          value: 1000,
-          label: "Test",
-          createdAt: "2025-01-01T00:00:00Z",
-          updatedAt: "2025-01-01T00:00:00Z",
-          metric: "",
+          id: "a1",
+          startDate: "2025-07-14",
+          endDate: "",
+          label: "Race",
+          description: "",
+          stravaActivityId: "",
+          type: AnnotationType.ANNOTATION_TYPE_EVENT,
+          createdAt: "2025-07-14T00:00:00Z",
+          updatedAt: "2025-07-14T00:00:00Z",
         },
       ],
     };
-    await act(async () => {
-      await result.current.updateSection("goals", newGoals, 2025, "cycling");
+
+    it("reads a year's annotations, and none for a year with nothing saved", async () => {
+      serve(withSection(null, { section: "annotations", year: 2025 }, notes));
+      const { result, rerender } = renderHook(({ year }) => useAnnotations(year), {
+        wrapper: createWrapper(),
+        initialProps: { year: 2025 },
+      });
+
+      await waitFor(() => expect(result.current.annotations).toEqual(notes));
+      expect(result.current.isSaved).toBe(true);
+
+      rerender({ year: 2024 });
+      expect(result.current.annotations).toEqual({ annotations: [] });
+      expect(result.current.isSaved).toBe(false);
     });
 
-    expect(mockServiceInstance.updateConfigSection).toHaveBeenCalledWith(
-      "goals",
-      newGoals,
-      2025,
-      "cycling"
-    );
+    it("saves under its year", async () => {
+      serve(null);
+      mockServiceInstance.updateConfigSection.mockResolvedValue(undefined);
+      const { result } = renderHook(() => useAnnotations(2025), { wrapper: createWrapper() });
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      await act(() => result.current.save(notes));
+
+      expect(mockServiceInstance.updateConfigSection).toHaveBeenCalledWith(
+        "annotations",
+        notes,
+        2025
+      );
+      await waitFor(() => expect(result.current.annotations).toEqual(notes));
+    });
   });
 
-  it("should return null in localStorage mode", async () => {
-    mockAuthState = { user: null, loading: false };
-    const { result } = renderHook(() => useFullUserConfig(), { wrapper: createWrapper() });
+  describe("usePreferences", () => {
+    it("is the defaults where nothing is saved, and says so", async () => {
+      mockAuthState = { user: null, loading: false };
+      const { result } = renderHook(() => usePreferences(), { wrapper: createWrapper() });
 
-    await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(result.current.config).toBeNull();
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      expect(result.current.preferences).toEqual(DEFAULT_PREFERENCES);
+      expect(result.current.isSaved).toBe(false);
+    });
+
+    it("writes an account's theme through the theme's own writer, and nothing else", async () => {
+      serve(null);
+      mockServiceInstance.updateTheme.mockResolvedValue(undefined);
+      const { result } = renderHook(() => usePreferences(), { wrapper: createWrapper() });
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      await act(() => result.current.saveTheme("miami"));
+
+      expect(mockServiceInstance.updateTheme).toHaveBeenCalledWith("miami");
+      expect(mockServiceInstance.updateConfigSection).not.toHaveBeenCalled();
+    });
+
+    it("refuses to save the theme signed out, where it stays on the device", async () => {
+      mockAuthState = { user: null, loading: false };
+      const { result } = renderHook(() => usePreferences(), { wrapper: createWrapper() });
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      await expect(result.current.saveTheme("miami")).rejects.toThrow();
+
+      expect(localStorageMock.setItem).not.toHaveBeenCalled();
+      expect(mockServiceInstance.updateTheme).not.toHaveBeenCalled();
+    });
+
+    it("keeps its save and clearSaveError across renders, so effects can depend on them", async () => {
+      serve(null);
+      const { result, rerender } = renderHook(() => usePreferences(), {
+        wrapper: createWrapper(),
+      });
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      const { save, clearSaveError } = result.current;
+
+      rerender();
+
+      expect(result.current.save).toBe(save);
+      expect(result.current.clearSaveError).toBe(clearSaveError);
+    });
+  });
+
+  describe("useUnitSettings and useTimezone", () => {
+    const prefs = (fields: Partial<Preferences>) =>
+      withSection(null, { section: "preferences" }, { ...DEFAULT_PREFERENCES, ...fields });
+
+    it("give the units the preferences choose, or the defaults' where none are saved", async () => {
+      serve(prefs({ distanceUnit: "kilometers", elevationUnit: "meters" }));
+      const { result } = renderHook(() => useUnitSettings(), { wrapper: createWrapper() });
+
+      await waitFor(() => expect(result.current.distanceUnit).toBe("kilometers"));
+      expect(result.current.elevationUnit).toBe("meters");
+
+      mockAuthState = { user: null, loading: false };
+      const demo = renderHook(() => useUnitSettings(), { wrapper: createWrapper() });
+      expect(demo.result.current).toEqual(getUserSettings(DEFAULT_PREFERENCES));
+    });
+
+    it.each([
+      ["the chosen timezone", "Europe/Paris", "Europe/Paris"],
+      ["undefined for the browser's own when none is chosen", "", undefined],
+    ])("gives %s", async (_, timezone, expected) => {
+      serve(prefs({ timezone }));
+      const { result } = renderHook(() => ({ tz: useTimezone(), prefs: usePreferences() }), {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => expect(result.current.prefs.isSaved).toBe(true));
+      expect(result.current.tz).toBe(expected);
+    });
   });
 });

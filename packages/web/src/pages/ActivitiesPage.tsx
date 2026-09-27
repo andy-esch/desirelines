@@ -2,8 +2,7 @@ import { useMemo } from "react";
 import { useSearch, useNavigate } from "@tanstack/react-router";
 import ActivityTable from "../components/ActivityTable";
 import { useActivities } from "../hooks/useActivities";
-import { getUserSettings } from "../utils/units";
-import { useUserConfig } from "../hooks/useUserConfig";
+import { useUnitSettings } from "../hooks/usePreferences";
 import { useSportOptions } from "../hooks/useSportOptions";
 import { useVisibleSports } from "../hooks/useVisibleSports";
 import { useDashboardGoalData } from "../hooks/useDashboardGoalData";
@@ -34,9 +33,7 @@ const ActivitiesPage = () => {
   const search = useSearch({ from: "/activities" });
   const navigate = useNavigate();
 
-  // Load user preferences for unit settings
-  const { data: preferences } = useUserConfig("preferences");
-  const userSettings = getUserSettings(preferences);
+  const userSettings = useUnitSettings();
 
   const sportOptions = useSportOptions();
   const { visibleSports } = useVisibleSports();

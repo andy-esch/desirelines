@@ -1,5 +1,5 @@
 import { useMemo, useCallback } from "react";
-import { useUserConfig } from "./useUserConfig";
+import { usePreferences } from "./usePreferences";
 import { useAuth } from "./useAuth";
 import { usePublicSportConfig } from "./usePublicSportConfig";
 import { DEFAULT_PREFERENCES } from "../constants/settings";
@@ -43,14 +43,14 @@ const DEFAULT_VISIBLE_SPORTS = DEFAULT_PREFERENCES.visibleSports;
 export function useVisibleSports(knownSports?: string[]) {
   const { loading: authLoading } = useAuth();
   const {
-    data: prefs,
+    preferences: prefs,
     loading,
     error,
-    updateData,
+    save: updateData,
     isSaving,
     saveError,
     clearSaveError,
-  } = useUserConfig("preferences");
+  } = usePreferences();
   // Used to filter both stored prefs and defaults against the live registry
   // when the caller doesn't pass an explicit `knownSports` list.
   const { sportConfig } = usePublicSportConfig();
@@ -65,7 +65,7 @@ export function useVisibleSports(knownSports?: string[]) {
    */
   const visibleSports = useMemo(() => {
     // Get raw value from preferences
-    const raw = prefs?.visibleSports;
+    const raw = prefs.visibleSports;
 
     // Use stored value if it exists and is non-empty, otherwise defaults
     let sports = raw && raw.length > 0 ? raw : DEFAULT_VISIBLE_SPORTS;
@@ -88,7 +88,7 @@ export function useVisibleSports(knownSports?: string[]) {
     }
 
     return sports;
-  }, [prefs?.visibleSports, knownSports, sportConfig]);
+  }, [prefs.visibleSports, knownSports, sportConfig]);
 
   /**
    * Update visible sports preference.
@@ -113,7 +113,7 @@ export function useVisibleSports(knownSports?: string[]) {
         return;
       }
 
-      // Create prefs object if it doesn't exist yet, using defaults
+      // Defaults fill any field a saved copy predates.
       await updateData({
         ...DEFAULT_PREFERENCES,
         ...prefs,

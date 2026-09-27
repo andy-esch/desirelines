@@ -3,7 +3,10 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { useSportPageData } from "./useSportPageData";
 import { useAuth } from "./useAuth";
 import { useSportData } from "./useSportData";
-import { useUserConfig } from "./useUserConfig";
+import { useGoals } from "./useGoals";
+import { useUnitSettings } from "./usePreferences";
+import { getUserSettings } from "../utils/units";
+import type { Preferences } from "../services/userConfigService";
 import { useSidebarSportData } from "./useSidebarSportData";
 import { usePriorYearMetrics } from "./usePriorYearMetrics";
 import { logger } from "../lib/logger";
@@ -11,7 +14,8 @@ import { logger } from "../lib/logger";
 // Mock all dependency hooks
 vi.mock("./useAuth");
 vi.mock("./useSportData");
-vi.mock("./useUserConfig");
+vi.mock("./useGoals");
+vi.mock("./usePreferences");
 vi.mock("./useSidebarSportData");
 vi.mock("./usePriorYearMetrics");
 vi.mock("./useGoalMigration", () => ({ useGoalMigration: vi.fn() }));
@@ -26,6 +30,26 @@ vi.mock("./useGoalStats", () => ({
     paceNeededForNextGoal: 0,
   }),
 }));
+
+/** useGoals as it answers: what's saved, else the caller's suggestion; nothing by default. */
+function goalsReturn(
+  state: Partial<ReturnType<typeof useGoals>> = {}
+): ReturnType<typeof useGoals> {
+  return {
+    goalsForYear: null,
+    loading: false,
+    error: null,
+    isSaved: false,
+    save: vi.fn().mockResolvedValue(undefined),
+    isSaving: false,
+    saveError: null,
+    clearSaveError: vi.fn(),
+    ...state,
+  };
+}
+
+/** The `suggested` goals the hook last passed to useGoals. */
+const lastSuggested = () => vi.mocked(useGoals).mock.calls.at(-1)?.[2];
 
 describe("useSportPageData", () => {
   const mockSportConfig = {
@@ -63,12 +87,10 @@ describe("useSportPageData", () => {
       error: null,
       retry: vi.fn(),
     });
-    vi.mocked(useUserConfig).mockReturnValue({
-      data: { distanceUnit: "miles", elevationUnit: "feet" },
-      isLoading: false,
-      error: null,
-      updateData: vi.fn(),
-    } as any);
+    vi.mocked(useUnitSettings).mockReturnValue(
+      getUserSettings({ distanceUnit: "miles", elevationUnit: "feet" } as Preferences)
+    );
+    vi.mocked(useGoals).mockReturnValue(goalsReturn());
     vi.mocked(useSidebarSportData).mockReturnValue({
       availableSports: ["cycling"],
       sportCounts: { cycling: 1 },
@@ -135,17 +157,9 @@ describe("useSportPageData", () => {
     // still fire so the issue surfaces in logs.
     const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
 
-    // First useUserConfig call returns preferences; second returns goals.
-    // Match the ordering useSportPageData uses.
-    vi.mocked(useUserConfig)
-      .mockReturnValueOnce({
-        data: { distanceUnit: "miles", elevationUnit: "feet" },
-        isLoading: false,
-        error: null,
-        updateData: vi.fn(),
-      } as any)
-      .mockReturnValueOnce({
-        data: {
+    vi.mocked(useGoals).mockReturnValue(
+      goalsReturn({
+        goalsForYear: {
           goals: [
             {
               id: "stale",
@@ -157,10 +171,9 @@ describe("useSportPageData", () => {
             },
           ],
         },
-        isLoading: false,
-        error: null,
-        updateData: vi.fn(),
-      } as any);
+        isSaved: true,
+      })
+    );
 
     renderHook(() => useSportPageData("cycling", 2026));
 
@@ -175,24 +188,10 @@ describe("useSportPageData", () => {
     // fresh merged object on every call. The defaultGoalsForYear memo must still
     // be stable (it depends on the primitive config fields, not the object), or
     // the goals shown with nothing saved change identity on every render.
-    vi.mocked(useUserConfig).mockReturnValue({
-      data: { distanceUnit: "miles", elevationUnit: "feet" },
-      isLoading: false,
-      error: null,
-      updateData: vi.fn(),
-    } as any);
-
-    const latestGoalsDefault = () => {
-      const goalsCalls = vi
-        .mocked(useUserConfig)
-        .mock.calls.filter((c) => (c[0] as string) === "goals");
-      return goalsCalls[goalsCalls.length - 1]?.[3];
-    };
-
     const { rerender } = renderHook(() => useSportPageData("running", 2026));
-    const first = latestGoalsDefault();
+    const first = lastSuggested();
     rerender();
-    const second = latestGoalsDefault();
+    const second = lastSuggested();
 
     expect(first).toBeDefined();
     expect(second).toBe(first);
@@ -201,15 +200,9 @@ describe("useSportPageData", () => {
   it("does not warn when a goal's metric matches the sport's primary metric", () => {
     const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
 
-    vi.mocked(useUserConfig)
-      .mockReturnValueOnce({
-        data: { distanceUnit: "miles", elevationUnit: "feet" },
-        isLoading: false,
-        error: null,
-        updateData: vi.fn(),
-      } as any)
-      .mockReturnValueOnce({
-        data: {
+    vi.mocked(useGoals).mockReturnValue(
+      goalsReturn({
+        goalsForYear: {
           goals: [
             {
               id: "ok",
@@ -221,10 +214,9 @@ describe("useSportPageData", () => {
             },
           ],
         },
-        isLoading: false,
-        error: null,
-        updateData: vi.fn(),
-      } as any);
+        isSaved: true,
+      })
+    );
 
     renderHook(() => useSportPageData("cycling", 2026));
 
@@ -232,20 +224,20 @@ describe("useSportPageData", () => {
     warnSpy.mockRestore();
   });
 
+  it("reads the goals saved for its sport and year", () => {
+    renderHook(() => useSportPageData("cycling", 2025));
+
+    expect(vi.mocked(useGoals)).toHaveBeenLastCalledWith(2025, "cycling", expect.anything());
+  });
+
   describe("suggested goals", () => {
-    /** useUserConfig as it answers for goals: the caller's default, or what's saved. */
+    /** useGoals with nothing saved but the given state: the caller's suggestion stands in. */
     function goalsConfig({ loading = false, isSaved = false, error = null as Error | null } = {}) {
-      const updateData = vi.fn().mockResolvedValue(undefined);
-      vi.mocked(useUserConfig).mockImplementation(((
-        configType: string,
-        _year?: number,
-        _sport?: string,
-        defaultValue?: unknown
-      ) =>
-        configType === "goals"
-          ? { data: defaultValue, loading, isSaved, error, updateData }
-          : { data: { distanceUnit: "miles", elevationUnit: "feet" }, loading: false }) as any);
-      return updateData;
+      const save = vi.fn().mockResolvedValue(undefined);
+      vi.mocked(useGoals).mockImplementation((_year, _sport, suggested) =>
+        goalsReturn({ goalsForYear: suggested ?? null, loading, isSaved, error, save })
+      );
+      return save;
     }
 
     it("are what the page shows when the athlete has saved none for the sport and year", () => {
@@ -265,16 +257,12 @@ describe("useSportPageData", () => {
     });
 
     it("are saved as shown", async () => {
-      const updateData = goalsConfig();
+      const save = goalsConfig();
       const { result } = renderHook(() => useSportPageData("cycling", 2026));
 
       await result.current.onSaveSuggestedGoals();
 
-      const shown = vi
-        .mocked(useUserConfig)
-        .mock.calls.filter((c) => (c[0] as string) === "goals")
-        .at(-1)?.[3];
-      expect(updateData).toHaveBeenCalledWith(shown);
+      expect(save).toHaveBeenCalledWith(lastSuggested());
     });
 
     describe("when the saved goals couldn't be loaded", () => {

@@ -24,7 +24,16 @@ export interface ConfigAdapter {
   ): () => void;
   /** Save one section, leaving the rest of the document as saved. */
   saveSection(ref: SectionRef, value: ConfigSection): Promise<void>;
+  /**
+   * Save the theme and nothing else: preference saves leave it out, so a stale or default
+   * theme can't ride along with them. Accounts only: the demo's theme stays on the device,
+   * with `ThemeContext`.
+   */
+  saveTheme?(theme: string): Promise<void>;
 }
+
+/** The cache key a read waits under until sign-in has resolved: there's no session to load. */
+export const PENDING_CONFIG_QUERY_KEY: readonly unknown[] = ["userConfig", "pending"];
 
 /** The cache key for a session's document: the account's uid, or the demo. */
 export function configQueryKey(session: string): readonly unknown[] {

@@ -2,13 +2,12 @@ import { useCurrentYear } from "../hooks/useCurrentYear";
 import { useDailySportData } from "../hooks/useDailySportData";
 import { useVisibleSports } from "../hooks/useVisibleSports";
 import { useSportConfig } from "../hooks/useSportConfig";
-import { useUserConfig } from "../hooks/useUserConfig";
+import { useUnitSettings } from "../hooks/usePreferences";
 import type { TimeRange } from "../utils/dataNormalization";
 import type { TuningParams } from "../utils/demoDataGenerator";
 import { filterValidSports } from "../utils/sportConfig";
 import { getTimeRangeCutoff } from "../utils/chartUtils";
 import { toLocalDateString } from "../utils/dateUtils";
-import { getUserSettings } from "../utils/units";
 import {
   processSportSparkline,
   mergeSparklineData,
@@ -49,8 +48,7 @@ export function useMultiSportChartData(timeRange: TimeRange, tuningParams?: Tuni
   // Get visible sports, sport config, and user preferences
   const { visibleSports, isLoading: prefsLoading } = useVisibleSports();
   const { sportConfig, isLoading: configLoading } = useSportConfig();
-  const { data: prefs } = useUserConfig("preferences");
-  const userSettings = getUserSettings(prefs);
+  const userSettings = useUnitSettings();
 
   // Filter visible sports to only those in config
   const validSports = filterValidSports(visibleSports, sportConfig);

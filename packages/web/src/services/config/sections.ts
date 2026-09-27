@@ -17,18 +17,6 @@ export type SectionRef = PreferencesRef | GoalsRef | AnnotationsRef;
 
 export type ConfigSection = GoalsForYear | AnnotationsForYear | Preferences;
 
-/** The section a `useUserConfig` call names, or null when its year or sport is missing. */
-export function toSectionRef(
-  configType: SectionRef["section"],
-  year?: number,
-  sport?: string
-): SectionRef | null {
-  if (configType === "preferences") return { section: "preferences" };
-  if (year === undefined) return null;
-  if (configType === "annotations") return { section: "annotations", year };
-  return sport === undefined ? null : { section: "goals", year, sport };
-}
-
 /** A document with nothing in it, for a first save to go into. */
 function emptyConfig(): UserConfig {
   return { schemaVersion: "", userId: "", lastUpdated: "", goals: {}, annotations: {} };

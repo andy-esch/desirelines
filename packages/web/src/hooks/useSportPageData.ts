@@ -22,7 +22,6 @@ import {
   convertDistance,
   convertElevation,
   getDisplayUnitForMetric,
-  getUserSettings,
   minutesToHours,
   type MetricUnit,
   type DistanceUnit,
@@ -37,7 +36,8 @@ import {
   type Goals,
 } from "../utils/goalCalculations";
 import { useAuth } from "./useAuth";
-import { useUserConfig } from "./useUserConfig";
+import { useGoals } from "./useGoals";
+import { useUnitSettings } from "./usePreferences";
 import { useGoalMigration } from "./useGoalMigration";
 import { useTrainingMomentum } from "./useTrainingMomentum";
 import { useGoalStats } from "./useGoalStats";
@@ -168,9 +168,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   // Fetch sidebar sport data (available sports and counts)
   const { availableSports, sportCounts } = useSidebarSportData(year);
 
-  // Load user preferences for unit settings
-  const { data: preferences } = useUserConfig("preferences");
-  const userSettings = getUserSettings(preferences);
+  const userSettings = useUnitSettings();
 
   // Determine sport type and primary metric
   const sportInfo = sportConfig?.sportCategories?.[sport] ?? null;
@@ -272,15 +270,15 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   /* eslint-enable react-hooks/preserve-manual-memoization */
 
   const {
-    data: goalsData,
+    goalsForYear: goalsData,
     loading: goalsLoading,
     isSaved: goalsSaved,
     error: goalsError,
-    updateData: updateGoals,
+    save: updateGoals,
     isSaving: isGoalsSaving,
     saveError: goalsSaveError,
     clearSaveError: clearGoalsSaveError,
-  } = useUserConfig("goals", year, sport, defaultGoalsForYear);
+  } = useGoals(year, sport, defaultGoalsForYear);
 
   // One-time migration: convert legacy display-unit goal values to canonical
   // storage units (miles → meters for distance sports, hours → minutes for

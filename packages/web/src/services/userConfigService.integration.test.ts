@@ -26,6 +26,15 @@ vi.mock("../lib/firebase", () => ({
 }));
 
 import { UserConfigService } from "./userConfigService";
+import { selectSection } from "./config/sections";
+
+// One section as saved, read back through the whole document, as the store reads it.
+const readGoals = async (service: UserConfigService, year: number, sport: string) =>
+  selectSection(await service.getConfig(), { section: "goals", year, sport });
+const readAnnotations = async (service: UserConfigService, year: number) =>
+  selectSection(await service.getConfig(), { section: "annotations", year });
+const readPreferences = async (service: UserConfigService) =>
+  selectSection(await service.getConfig(), { section: "preferences" });
 
 describe("UserConfigService Integration Tests", () => {
   let currentUserId: string | null = null;
@@ -140,7 +149,7 @@ describe("UserConfigService Integration Tests", () => {
       await service.updateConfigSection("goals", testGoals, 2025, "cycling");
 
       // Read back
-      const retrieved = await service.getConfigSection("goals", 2025, "cycling");
+      const retrieved = await readGoals(service, 2025, "cycling");
 
       expect(retrieved).toEqual(testGoals);
     });
@@ -170,7 +179,7 @@ describe("UserConfigService Integration Tests", () => {
       await service.updateConfigSection("annotations", testAnnotations, 2025);
 
       // Read back
-      const retrieved = await service.getConfigSection("annotations", 2025);
+      const retrieved = await readAnnotations(service, 2025);
 
       expect(retrieved).toEqual(testAnnotations);
     });
@@ -196,7 +205,7 @@ describe("UserConfigService Integration Tests", () => {
       await service.updateConfigSection("preferences", { ...testPrefs, theme: "" });
 
       // Read back
-      const retrieved = await service.getConfigSection("preferences");
+      const retrieved = await readPreferences(service);
 
       expect(retrieved).toEqual(testPrefs);
     });
@@ -209,7 +218,7 @@ describe("UserConfigService Integration Tests", () => {
 
       // A new user: the rules require schemaVersion, userId and lastUpdated on create.
       await service.updateTheme("miami");
-      expect((await service.getConfigSection("preferences"))?.theme).toBe("miami");
+      expect((await readPreferences(service))?.theme).toBe("miami");
 
       await service.updateConfigSection("preferences", {
         theme: "",
@@ -222,7 +231,7 @@ describe("UserConfigService Integration Tests", () => {
       });
       await service.updateTheme("arcade");
 
-      expect(await service.getConfigSection("preferences")).toEqual({
+      expect(await readPreferences(service)).toEqual({
         theme: "arcade",
         defaultYear: 2025,
         distanceUnit: "kilometers",
@@ -270,7 +279,7 @@ describe("UserConfigService Integration Tests", () => {
       await service.updateConfigSection("goals", updatedGoals, 2025, "cycling");
 
       // Verify update
-      const retrieved = await service.getConfigSection("goals", 2025, "cycling");
+      const retrieved = await readGoals(service, 2025, "cycling");
       expect(retrieved).toEqual(updatedGoals);
     });
 
@@ -309,8 +318,8 @@ describe("UserConfigService Integration Tests", () => {
           service.updateConfigSection("preferences", prefs("kilometers")),
         ]);
 
-        expect(await service.getConfigSection("goals", 2025, "cycling")).toEqual(goals("cycling"));
-        expect((await service.getConfigSection("preferences"))?.distanceUnit).toBe("kilometers");
+        expect(await readGoals(service, 2025, "cycling")).toEqual(goals("cycling"));
+        expect((await readPreferences(service))?.distanceUnit).toBe("kilometers");
       });
 
       it("keeps a preferences change saved alongside a goals save", async () => {
@@ -324,8 +333,8 @@ describe("UserConfigService Integration Tests", () => {
           service.updateConfigSection("goals", goals("running"), 2025, "running"),
         ]);
 
-        expect((await service.getConfigSection("preferences"))?.distanceUnit).toBe("kilometers");
-        expect(await service.getConfigSection("goals", 2025, "running")).toEqual(goals("running"));
+        expect((await readPreferences(service))?.distanceUnit).toBe("kilometers");
+        expect(await readGoals(service, 2025, "running")).toEqual(goals("running"));
       });
     });
 
@@ -336,7 +345,7 @@ describe("UserConfigService Integration Tests", () => {
       const service = new UserConfigService();
 
       // Try to read data that doesn't exist
-      const retrieved = await service.getConfigSection("goals", 2025, "cycling");
+      const retrieved = await readGoals(service, 2025, "cycling");
 
       expect(retrieved).toBeNull();
     });
@@ -365,7 +374,7 @@ describe("UserConfigService Integration Tests", () => {
       await serviceA.updateConfigSection("goals", userAGoals, 2025, "cycling");
 
       // Verify user A can read their own data
-      const userAData = await serviceA.getConfigSection("goals", 2025, "cycling");
+      const userAData = await readGoals(serviceA, 2025, "cycling");
       expect(userAData).toEqual(userAGoals);
 
       // Sign out user A
@@ -378,7 +387,7 @@ describe("UserConfigService Integration Tests", () => {
       const serviceB = new UserConfigService();
 
       // User B tries to read their own data (should be null - they have no data)
-      const userBData = await serviceB.getConfigSection("goals", 2025, "cycling");
+      const userBData = await readGoals(serviceB, 2025, "cycling");
       expect(userBData).toBeNull();
 
       // User B tries to access user A's data directly (should fail with permission error)

@@ -172,7 +172,7 @@ void _assertSchemaMatchesProto;
 /**
  * Validate a config payload (parsed JSON) against the Zod schema for its type.
  *
- * Used by the demo-mode read path in useUserConfig, to reject corrupted
+ * Used by the demo store's reads (services/config/demoAdapter.ts), to reject corrupted
  * localStorage blobs before they reach the rest of the app.
  *
  * Returns a discriminated `{ ok: true, data } | { ok: false, error }` so the
@@ -362,102 +362,6 @@ export class UserConfigService {
       logger.error("Error fetching user config:", error);
       throw createUserFriendlyError(error, "load your settings");
     }
-  }
-
-  /**
-   * Get goals for a specific year and sport
-   */
-  async getConfigSection(
-    configType: "goals",
-    year: number,
-    sport: string
-  ): Promise<GoalsForYear | null>;
-  /**
-   * Get all sports' goals for a specific year
-   */
-  async getConfigSection(configType: "goals", year: number): Promise<SportGoalsForYear | null>;
-  /**
-   * Get all goals (all years, all sports)
-   */
-  async getConfigSection(configType: "goals"): Promise<{ [key: string]: SportGoalsForYear } | null>;
-  /**
-   * Get annotations for a specific year
-   */
-  async getConfigSection(
-    configType: "annotations",
-    year: number
-  ): Promise<AnnotationsForYear | null>;
-  /**
-   * Get all annotations
-   */
-  async getConfigSection(
-    configType: "annotations"
-  ): Promise<{ [key: string]: AnnotationsForYear } | null>;
-  /**
-   * Get preferences
-   */
-  async getConfigSection(configType: "preferences"): Promise<Preferences | null>;
-  /**
-   * Implementation
-   */
-  async getConfigSection(
-    configType: "goals" | "annotations" | "preferences",
-    year?: number,
-    sport?: string
-  ): Promise<
-    | GoalsForYear
-    | SportGoalsForYear
-    | AnnotationsForYear
-    | Preferences
-    | { [key: string]: SportGoalsForYear | AnnotationsForYear }
-    | null
-  > {
-    const config = await this.getConfig();
-    if (!config) return null;
-
-    return this.selectConfigSection(config, configType, year, sport);
-  }
-
-  /**
-   * Drill into a config section by year/sport, for `getConfigSection`. Returns null when the
-   * section or requested year is absent. (The store reads sections with
-   * `services/config/sections.ts`, from the one document it holds.)
-   */
-  private selectConfigSection(
-    config: UserConfig,
-    configType: "goals" | "annotations" | "preferences",
-    year?: number,
-    sport?: string
-  ):
-    | GoalsForYear
-    | SportGoalsForYear
-    | AnnotationsForYear
-    | Preferences
-    | { [key: string]: SportGoalsForYear }
-    | { [key: string]: AnnotationsForYear }
-    | null {
-    const section = config[configType];
-    if (!section) return null;
-
-    // Handle goals with year and sport
-    if (year !== undefined && sport !== undefined && configType === "goals") {
-      const goalsSection = section as { [key: string]: SportGoalsForYear };
-      const yearGoals = goalsSection[year.toString()];
-      if (!yearGoals) return null;
-      return yearGoals.sports[sport] || null;
-    }
-    // Handle goals with year only (return all sports)
-    else if (year !== undefined && configType === "goals") {
-      const goalsSection = section as { [key: string]: SportGoalsForYear };
-      return goalsSection[year.toString()] || null;
-    }
-    // Handle annotations with year
-    else if (year !== undefined && configType === "annotations") {
-      const annotationsSection = section as { [key: string]: AnnotationsForYear };
-      return annotationsSection[year.toString()] || null;
-    }
-
-    return section;
   }
 
   /**

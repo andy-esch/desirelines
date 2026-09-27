@@ -27,8 +27,9 @@ const SYNC_ERROR_MESSAGE =
 /**
  * Holds the session's user config in one place: one cache entry for the whole document, and
  * one listener keeping it current, however many components read it. Signed in, that's the
- * account's Firestore document; signed out, the demo's own storage. Read it with
- * `useUserConfig` or `useConfigDocument`; mount it inside `AuthProvider` and the query client.
+ * account's Firestore document; signed out, the demo's own storage. Read and save it through
+ * the section hooks (`usePreferences`, `useGoals`, `useAnnotations`, `useAllGoals`), which
+ * sit on `useConfigDocument`; mount it inside `AuthProvider` and the query client.
  *
  * A listener error keeps the last good copy: an error is reported, never shown as an empty
  * document, which would read as nothing saved and invite saves over what is.

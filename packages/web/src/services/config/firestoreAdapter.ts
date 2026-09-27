@@ -62,6 +62,10 @@ class FirestoreConfigAdapter implements ConfigAdapter {
     );
   }
 
+  saveTheme(theme: string): Promise<void> {
+    return this.service.updateTheme(theme);
+  }
+
   saveSection(ref: SectionRef, value: ConfigSection): Promise<void> {
     switch (ref.section) {
       case "goals":

@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useDailySportData } from "./useDailySportData";
 
 vi.mock("./useAuth", () => ({ useAuth: () => ({ user: null, loading: false }) }));
-vi.mock("./useUserConfig", () => ({ useUserConfig: () => ({ data: undefined }) }));
+vi.mock("./usePreferences", () => ({ useTimezone: () => undefined }));
 
 function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>;

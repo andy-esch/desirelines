@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { selectSection, toSectionRef, withSection } from "./sections";
+import { selectSection, withSection } from "./sections";
 import type { GoalsForYear, UserConfig } from "../userConfigService";
 import { DEFAULT_PREFERENCES } from "../../constants/settings";
 
@@ -19,20 +19,6 @@ const DOC: UserConfig = {
   },
   annotations: { "2026": { annotations: [] } },
 };
-
-describe("toSectionRef", () => {
-  it("names each section, and none when its year or sport is missing", () => {
-    expect(toSectionRef("preferences")).toEqual({ section: "preferences" });
-    expect(toSectionRef("annotations", 2026)).toEqual({ section: "annotations", year: 2026 });
-    expect(toSectionRef("goals", 2026, "cycling")).toEqual({
-      section: "goals",
-      year: 2026,
-      sport: "cycling",
-    });
-    expect(toSectionRef("goals", 2026)).toBeNull();
-    expect(toSectionRef("annotations")).toBeNull();
-  });
-});
 
 describe("selectSection", () => {
   it("reads each section from the document", () => {

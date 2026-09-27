@@ -15,7 +15,7 @@ import { ToggleGroup, ToggleGroupItem } from "../components/ui/toggle-group";
 import { useActivityBuckets } from "../hooks/useActivityBuckets";
 import { useSportConfig } from "../hooks/useSportConfig";
 import { useSportOptions } from "../hooks/useSportOptions";
-import { useUserConfig } from "../hooks/useUserConfig";
+import { useUnitSettings } from "../hooks/usePreferences";
 import { useVisibleSports } from "../hooks/useVisibleSports";
 import {
   toChartData,
@@ -31,12 +31,7 @@ import {
   coerceTimeRange,
   calculateDateRange,
 } from "../utils/timeRange";
-import {
-  getUserSettings,
-  convertDistance,
-  getDistanceLabel,
-  formatHoursMinutes,
-} from "../utils/units";
+import { convertDistance, getDistanceLabel, formatHoursMinutes } from "../utils/units";
 import { normalizeSports } from "../utils/sportConfig";
 
 // Charts opens on year-to-date (more history than the table's 4w). Single source so the
@@ -67,8 +62,7 @@ export default function ChartsPage() {
   const search = useSearch({ from: "/charts" });
   const navigate = useNavigate();
 
-  const { data: preferences } = useUserConfig("preferences");
-  const userSettings = getUserSettings(preferences);
+  const userSettings = useUnitSettings();
   const { sportConfig } = useSportConfig();
   const { visibleSports } = useVisibleSports();
   const sportOptions = useSportOptions();

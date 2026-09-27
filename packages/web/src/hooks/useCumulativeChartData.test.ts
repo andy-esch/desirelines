@@ -4,9 +4,10 @@ import { useCumulativeChartData } from "./useCumulativeChartData";
 import { testGoals } from "../utils/goalTestFixtures";
 
 // Stub user-config-backed dependencies that useDangerThresholds pulls in.
-vi.mock("./useUserConfig", () => ({
-  useUserConfig: () => ({ data: null }),
-}));
+vi.mock("./usePreferences", async () => {
+  const { getUserSettings } = await import("../utils/units");
+  return { useUnitSettings: () => getUserSettings(null), useTimezone: () => undefined };
+});
 vi.mock("./useAuth", () => ({
   useAuth: () => ({ user: { uid: "test-user" }, loading: false }),
 }));

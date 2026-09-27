@@ -6,18 +6,15 @@ import { UserConfigProvider } from "./UserConfigProvider";
 import { TestServiceProvider } from "./ServiceContext";
 import { AuthProvider } from "./AuthContext";
 import { ToastProvider } from "./ToastContext";
-import { useUserConfig, useFullUserConfig } from "../hooks/useUserConfig";
+import { usePreferences } from "../hooks/usePreferences";
+import { useAllGoals, useGoals } from "../hooks/useGoals";
+import { useAnnotations } from "../hooks/useAnnotations";
 import { MockAuthService } from "../services/auth/MockAuthService";
 import { MockDatabaseService } from "../services/database/MockDatabaseService";
-import {
-  UserConfigSchema,
-  type GoalsForYear,
-  type Preferences,
-} from "../services/userConfigService";
+import { UserConfigSchema, type GoalsForYear } from "../services/userConfigService";
 import { DEFAULT_PREFERENCES } from "../constants/settings";
 import { configQueryKey } from "../services/config/configAdapter";
 import { ACCOUNT_CONFIG_PATH as PATH, ACCOUNT_USER, storedGoal } from "../test/fixtures/userConfig";
-import useUserConfigSource from "../hooks/useUserConfig.ts?raw";
 
 const goals = (id: string): GoalsForYear => ({
   goals: [storedGoal(id, 1_000_000)],
@@ -32,34 +29,37 @@ const STORED = {
   annotations: { "2026": { annotations: [] } },
 };
 
-/** What a consumer saw; any section's save goes through `updateData`. */
-type Seen = ReturnType<typeof useUserConfig> & {
-  updateData: (data: GoalsForYear | Preferences) => Promise<void>;
-};
-let seen: Record<string, Seen> = {};
+// What each consumer saw, by name.
+let prefs: Record<string, ReturnType<typeof usePreferences>> = {};
+let seen: Record<string, ReturnType<typeof useGoals>> = {};
 
-/** Reads one section and reports what the hook returns, under `name`. */
-function Section({
+function Prefs({ name }: { name: string }) {
+  const config = usePreferences();
+  useEffect(() => {
+    prefs[name] = config;
+  });
+  return null;
+}
+
+function Goals({
   name,
-  args,
+  sport,
+  suggested,
 }: {
   name: string;
-  args: [
-    configType: "goals" | "annotations" | "preferences",
-    year?: number | undefined,
-    sport?: string | undefined,
-    defaultValue?: GoalsForYear | Preferences,
-  ];
+  sport: string;
+  suggested?: GoalsForYear;
 }) {
-  const config = (useUserConfig as (...a: unknown[]) => Seen)(...args);
+  const config = useGoals(2026, sport, suggested);
   useEffect(() => {
     seen[name] = config;
   });
   return null;
 }
 
-function FullConfig() {
-  useFullUserConfig();
+function OtherReaders() {
+  useAnnotations(2026);
+  useAllGoals();
   return null;
 }
 
@@ -67,14 +67,12 @@ function FullConfig() {
 function Consumers() {
   return (
     <>
-      <Section name="prefsA" args={["preferences"]} />
-      <Section name="prefsB" args={["preferences"]} />
-      <Section name="prefsC" args={["preferences", undefined, undefined, DEFAULT_PREFERENCES]} />
-      <Section name="cycling" args={["goals", 2026, "cycling"]} />
-      <Section name="running" args={["goals", 2026, "running", goals("default")]} />
-      <Section name="yoga" args={["goals", 2026, "yoga", goals("default")]} />
-      <Section name="notes" args={["annotations", 2026]} />
-      <FullConfig />
+      <Prefs name="prefsA" />
+      <Prefs name="prefsB" />
+      <Goals name="cycling" sport="cycling" />
+      <Goals name="running" sport="running" suggested={goals("default")} />
+      <Goals name="yoga" sport="yoga" suggested={goals("default")} />
+      <OtherReaders />
     </>
   );
 }
@@ -104,6 +102,7 @@ describe("UserConfigProvider", () => {
   let db: MockDatabaseService;
 
   beforeEach(() => {
+    prefs = {};
     seen = {};
     db = new MockDatabaseService();
     vi.spyOn(console, "error").mockImplementation(() => {});
@@ -117,8 +116,8 @@ describe("UserConfigProvider", () => {
     await loaded();
 
     expect(listeners).toHaveBeenCalledTimes(1);
-    expect(seen.cycling!.data).toEqual(goals("cycling"));
-    expect(seen.prefsA!.data?.distanceUnit).toBe("kilometers");
+    expect(seen.cycling!.goalsForYear).toEqual(goals("cycling"));
+    expect(prefs.prefsA!.preferences.distanceUnit).toBe("kilometers");
   });
 
   it("takes each snapshot once, parsed by the one listener, for every section", async () => {
@@ -149,7 +148,7 @@ describe("UserConfigProvider", () => {
       })
     );
 
-    await waitFor(() => expect(seen.cycling!.data).toEqual(goals("new")));
+    await waitFor(() => expect(seen.cycling!.goalsForYear).toEqual(goals("new")));
     expect(deliveries).toHaveBeenCalledTimes(1);
     // The listener validates what it delivers.
     expect(listeners.mock.calls[0]![3]).toEqual({ schema: UserConfigSchema });
@@ -164,9 +163,9 @@ describe("UserConfigProvider", () => {
       act(() => db.failListeners(PATH, new Error("offline")));
 
       await waitFor(() => expect(seen.cycling!.error).toBeInstanceOf(Error));
-      expect(seen.cycling!.data).toEqual(goals("cycling"));
+      expect(seen.cycling!.goalsForYear).toEqual(goals("cycling"));
       expect(seen.cycling!.isSaved).toBe(true);
-      expect(seen.prefsA!.data?.distanceUnit).toBe("kilometers");
+      expect(prefs.prefsA!.preferences.distanceUnit).toBe("kilometers");
       expect(screen.getAllByRole("alert")).toHaveLength(1);
       expect(screen.getByRole("alert")).toHaveTextContent("may be out of date");
     });
@@ -211,7 +210,7 @@ describe("UserConfigProvider", () => {
       expect(seen.running!.error).toBeInstanceOf(Error);
       expect(seen.running!.isSaved).toBe(false);
       // The default stands in, and isSaved and the error say it isn't what's saved.
-      expect(seen.running!.data).toEqual(goals("default"));
+      expect(seen.running!.goalsForYear).toEqual(goals("default"));
     });
   });
 
@@ -229,14 +228,14 @@ describe("UserConfigProvider", () => {
     const newPrefs = { ...DEFAULT_PREFERENCES, distanceUnit: "miles", timezone: "Europe/Paris" };
     await act(async () => {
       await Promise.allSettled([
-        seen.prefsA!.updateData(newPrefs),
-        seen.cycling!.updateData(goals("refused")),
+        prefs.prefsA!.save(newPrefs),
+        seen.cycling!.save(goals("refused")),
       ]);
     });
 
     await waitFor(() => expect(seen.cycling!.saveError).toBeInstanceOf(Error));
-    expect(seen.cycling!.data).toEqual(goals("cycling"));
-    expect(seen.prefsB!.data?.timezone).toBe("Europe/Paris");
+    expect(seen.cycling!.goalsForYear).toEqual(goals("cycling"));
+    expect(prefs.prefsB!.preferences.timezone).toBe("Europe/Paris");
   });
 
   it("drops the account's copy when it signs out, for the next session to start from its own", async () => {
@@ -252,8 +251,8 @@ describe("UserConfigProvider", () => {
     );
     // The demo's session reads its own storage, with none of the account's in it.
     await waitFor(() => expect(seen.cycling!.loading).toBe(false));
-    expect(seen.cycling!.data).toBeNull();
-    expect(seen.prefsA!.data?.distanceUnit).toBe(DEFAULT_PREFERENCES.distanceUnit);
+    expect(seen.cycling!.goalsForYear).toBeNull();
+    expect(prefs.prefsA!.preferences.distanceUnit).toBe(DEFAULT_PREFERENCES.distanceUnit);
   });
 
   it("serves a save to every consumer of that section at once", async () => {
@@ -261,17 +260,9 @@ describe("UserConfigProvider", () => {
     renderStore(db);
     await loaded();
 
-    await act(() => seen.prefsA!.updateData({ ...DEFAULT_PREFERENCES, timezone: "Asia/Tokyo" }));
+    await act(() => prefs.prefsA!.save({ ...DEFAULT_PREFERENCES, timezone: "Asia/Tokyo" }));
 
-    await waitFor(() => expect(seen.prefsC!.data?.timezone).toBe("Asia/Tokyo"));
-    expect(seen.prefsB!.data?.timezone).toBe("Asia/Tokyo");
-  });
-});
-
-describe("useUserConfig", () => {
-  it("has no storage branches of its own: the store's adapters hold both sides", () => {
-    expect(useUserConfigSource).not.toMatch(
-      /\blocalStorage\.|from "\.\.\/services\/demoStorage"|new UserConfigService/
-    );
+    await waitFor(() => expect(prefs.prefsB!.preferences.timezone).toBe("Asia/Tokyo"));
+    expect(prefs.prefsA!.preferences.timezone).toBe("Asia/Tokyo");
   });
 });

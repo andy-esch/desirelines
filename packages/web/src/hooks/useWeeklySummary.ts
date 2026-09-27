@@ -3,7 +3,7 @@ import { useAuth } from "./useAuth";
 import { useCurrentYear } from "./useCurrentYear";
 import { useVisibleSports } from "./useVisibleSports";
 import { useSportConfig } from "./useSportConfig";
-import { useUserConfig } from "./useUserConfig";
+import { useUnitSettings } from "./usePreferences";
 import { useConfigDocument } from "./useConfigDocument";
 import { useDailySportData } from "./useDailySportData";
 import { SPORT_COLORS, DEFAULT_SPORT_COLOR } from "../utils/sportConfig";
@@ -15,7 +15,6 @@ import { getDaysInYear } from "../utils/yearContext";
 import {
   convertDistance,
   goalMetersToDisplay,
-  getUserSettings,
   minutesToHours,
   type MetricType,
 } from "../utils/units";
@@ -67,10 +66,9 @@ export function useWeeklySummary(): {
   const { doc: userConfig, loading: goalsLoading, error: goalsError } = useConfigDocument();
   const { visibleSports, isLoading: prefsLoading } = useVisibleSports();
   const { sportConfig, isLoading: configLoading } = useSportConfig();
-  const { data: prefs } = useUserConfig("preferences");
 
   const currentYear = useCurrentYear();
-  const userSettings = useMemo(() => getUserSettings(prefs), [prefs]);
+  const userSettings = useUnitSettings();
 
   const validSports = useMemo(
     () => filterValidSports(visibleSports, sportConfig),

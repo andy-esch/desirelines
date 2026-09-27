@@ -87,6 +87,10 @@ match /users/{userId}/config/{document=**} {
 
 **Whose config**: the web client holds one session's config in one store
 (`UserConfigProvider`), with one cache entry for the whole document and one listener.
+Components read and save it through the section hooks (`usePreferences`, `useGoals`,
+`useAnnotations`, `useAllGoals`); a scan test
+(`packages/web/src/services/config/storeBoundary.test.ts`) keeps every other module from
+reaching Firestore or the demo's storage around it.
 
 - Signed in: the document at `users/{uid}/config/v1`, the uid being the Firebase UID
   (= Strava athlete ID).

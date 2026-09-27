@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useCurrentYear } from "../../hooks/useCurrentYear";
-import { useFullUserConfig } from "../../hooks/useUserConfig";
+import { useAllGoals } from "../../hooks/useGoals";
 import { DEMO_SPORT_LABELS, type DemoSport } from "../../constants/demoConfig";
 import NeonSpinner from "../NeonSpinner";
 import { InlineAlert } from "../InlineAlert";
@@ -18,13 +18,13 @@ interface GoalRow {
 
 /**
  * Goal management table for Settings page.
- * Displays all goals across all sports and years in a unified view.
+ * Displays all goals across all sports and years in a unified view: the account's, or
+ * signed out the demo's on this device.
  */
 export function GoalManagementTable() {
-  const { config, loading, error } = useFullUserConfig();
+  const { goalsByYear: goals, loading, error } = useAllGoals();
 
   // Flatten goals from nested structure into table rows
-  const goals = config?.goals;
   const goalRows = useMemo<GoalRow[]>(() => {
     if (!goals) return [];
 
@@ -75,7 +75,8 @@ export function GoalManagementTable() {
     );
   }
 
-  if (error) {
+  // With a last good copy to show, the store has already said the sync failed.
+  if (error && !goals) {
     return <InlineAlert>Failed to load goals: {error.message}</InlineAlert>;
   }
 

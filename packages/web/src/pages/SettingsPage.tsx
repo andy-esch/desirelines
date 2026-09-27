@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useLocation } from "@tanstack/react-router";
 import { useAuth } from "../hooks/useAuth";
 import { useUserProfile } from "../hooks/useUserProfile";
-import { useUserConfig } from "../hooks/useUserConfig";
+import { usePreferences } from "../hooks/usePreferences";
 import { SettingsSection } from "../components/settings/SettingsSection";
 import { SettingRow } from "../components/settings/SettingRow";
 import { ThemePicker } from "../components/settings/ThemePicker";
@@ -101,13 +101,13 @@ export default function SettingsPage() {
   const location = useLocation();
 
   const {
-    data: preferences,
-    updateData: updatePreferences,
+    preferences,
+    save: updatePreferences,
     loading: prefsLoading,
     isSaving,
     saveError,
     clearSaveError,
-  } = useUserConfig("preferences", undefined, undefined, DEFAULT_PREFERENCES);
+  } = usePreferences();
 
   // Scroll to anchor (e.g., #sport-visibility) after page loads
   useEffect(() => {
@@ -160,9 +160,6 @@ export default function SettingsPage() {
   }
 
   const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
-  // Use preferences directly - no local state duplication needed
-  const currentPrefs = preferences ?? DEFAULT_PREFERENCES;
 
   return (
     <NarrowPageLayout background="settings">
@@ -244,7 +241,7 @@ export default function SettingsPage() {
             <PreferenceSelect
               inputId={inputId}
               descriptionId={descriptionId}
-              value={currentPrefs.distanceUnit || "miles"}
+              value={preferences.distanceUnit || "miles"}
               field="distanceUnit"
               options={DISTANCE_UNIT_OPTIONS}
               width="150px"
@@ -258,7 +255,7 @@ export default function SettingsPage() {
             <PreferenceSelect
               inputId={inputId}
               descriptionId={descriptionId}
-              value={currentPrefs.elevationUnit || "feet"}
+              value={preferences.elevationUnit || "feet"}
               field="elevationUnit"
               options={ELEVATION_UNIT_OPTIONS}
               width="150px"
@@ -272,7 +269,7 @@ export default function SettingsPage() {
             <PreferenceSelect
               inputId={inputId}
               descriptionId={descriptionId}
-              value={currentPrefs.timezone || ""}
+              value={preferences.timezone || ""}
               field="timezone"
               options={COMMON_TIMEZONES}
               width="200px"
