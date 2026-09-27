@@ -29,7 +29,8 @@ export interface SubscribeDocumentOptions<T> {
 export interface SetDocumentOptions<T> {
   /**
    * When true, merge `data` into the existing document instead of overwriting it: maps
-   * merge key by key at every depth, and anything else (arrays included) is replaced.
+   * merge key by key at every depth, and anything else is replaced, arrays and empty maps
+   * included (`{ goals: {} }` sets `goals` to an empty map).
    */
   merge?: boolean;
   /**

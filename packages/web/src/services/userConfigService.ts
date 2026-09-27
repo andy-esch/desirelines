@@ -41,8 +41,8 @@ export interface GoalsForYear extends ProtoGoalsForYear {
  * fields resolve to the same default value the proto would assign, while still
  * validating types when the field is present.
  *
- * All object schemas use .passthrough() so unknown fields survive the
- * read-modify-write cycle in updateConfigSection without silent data loss.
+ * All object schemas use .passthrough() so unknown fields survive being read and
+ * saved back (a goals list edited and saved, say) without silent data loss.
  */
 
 // Proto-default-aware field helpers: missing → proto default, present → type-checked
@@ -487,7 +487,10 @@ export class UserConfigService {
    */
   async updateConfigSection(configType: "preferences", data: Preferences): Promise<void>;
   /**
-   * Implementation
+   * Implementation. Writes the one section and nothing else: no read first, and a merge,
+   * which sets only the fields the write carries. Reading the whole document and writing it
+   * back would put a stale copy of every other section over any save that landed in between
+   * (and, for a new user, empty `goals` and `annotations` maps over goals just saved).
    */
   async updateConfigSection(
     configType: "goals" | "annotations" | "preferences",
@@ -496,61 +499,41 @@ export class UserConfigService {
     sport?: string
   ): Promise<void> {
     try {
-      const existingConfig = await this.getConfig();
-
-      const config: UserConfig = existingConfig || {
-        schemaVersion: CURRENT_SCHEMA_VERSION,
-        userId: this.userId,
-        lastUpdated: new Date().toISOString(),
-        goals: {},
-        annotations: {},
-      };
-
-      // Always stamp the current schema version on write — informational
-      // under the additive-only policy (see CURRENT_SCHEMA_VERSION doc).
-      config.schemaVersion = CURRENT_SCHEMA_VERSION;
-
-      // Update specific section
-      if (year !== undefined && sport !== undefined && configType === "goals") {
-        // Goals with year and sport - nested structure
-        if (!config.goals) {
-          config.goals = {};
-        }
-        const yearKey = year.toString();
-        const yearGoals = (config.goals[yearKey] ??= { sports: {} });
-        yearGoals.sports ??= {};
-        yearGoals.sports[sport] = data as GoalsForYear;
-      } else if (year !== undefined && configType === "annotations") {
-        // Annotations with year (no sport dimension)
-        if (!config.annotations) {
-          config.annotations = {};
-        }
-        config.annotations[year.toString()] = data as AnnotationsForYear;
+      let section: Pick<Partial<UserConfig>, "goals" | "annotations" | "preferences">;
+      if (configType === "goals" && year !== undefined && sport !== undefined) {
+        section = { goals: { [year.toString()]: { sports: { [sport]: data as GoalsForYear } } } };
+      } else if (configType === "annotations" && year !== undefined) {
+        section = { annotations: { [year.toString()]: data as AnnotationsForYear } };
       } else if (configType === "preferences") {
-        // Global data (preferences), less the theme: `updateTheme` is its one writer, and the
-        // merge keeps the stored value. Callers build a save from defaults and their own
-        // snapshot, so a theme written here could put a default or stale one back over the
-        // choice another device (or the theme write in flight on sign-in) just made.
+        // Preferences less the theme: `updateTheme` is its one writer, and the merge keeps
+        // the stored value. Callers build a save from defaults and their own snapshot, so a
+        // theme written here could put a default or stale one back over the choice another
+        // device (or the theme write in flight on sign-in) just made.
         const { theme: _theme, ...rest } = data as Preferences;
         // Short of `theme` on purpose, which the proto type can't express.
-        config.preferences = rest as Preferences;
+        section = { preferences: rest as Preferences };
+      } else {
+        throw new Error(
+          `${configType} are saved per year${configType === "goals" ? " and sport" : ""}`
+        );
       }
 
-      // Update timestamp
-      config.lastUpdated = new Date().toISOString();
-
-      // Validate the merged document against UserConfigSchema before writing.
-      // The schema-on-write guard catches the bug class from 2026-03-23 — a
-      // numeric `Goal.metric` rejected on read but persisted earlier without
-      // complaint. Validation happens on the full merged doc, not the partial
-      // section, because the partial would always be incomplete by definition
-      // (e.g. a goals-only update has no `userId` or `preferences`).
-      //
-      // Use merge to avoid overwriting other fields.
-      await this.databaseService.setDocument(this.getDocPath(), config, {
-        merge: true,
-        schema: UserConfigSchema,
-      });
+      await this.databaseService.setDocument<Partial<UserConfig>>(
+        this.getDocPath(),
+        {
+          // The rules require these on every write, which also lets a save create the
+          // document. The schema version is stamped current each time: informational under
+          // the additive-only policy (see CURRENT_SCHEMA_VERSION doc).
+          schemaVersion: CURRENT_SCHEMA_VERSION,
+          userId: this.userId,
+          lastUpdated: new Date().toISOString(),
+          ...section,
+        },
+        // The schema-on-write guard catches the bug class from 2026-03-23: a numeric
+        // `Goal.metric` rejected on read but persisted earlier without complaint. Every
+        // section is optional in the schema, so it checks this partial document as it is.
+        { merge: true, schema: UserConfigSchema }
+      );
     } catch (error) {
       logger.error("Error updating user config:", error);
       throw createUserFriendlyError(error, "save your changes");
@@ -560,11 +543,11 @@ export class UserConfigService {
   /**
    * Write the theme preference and nothing else.
    *
-   * Unlike `updateConfigSection`, this doesn't read and rewrite the document: the merge
-   * sets `preferences.theme` and leaves every other preference as stored, so a theme
-   * change can't race a concurrent preferences save (or the sign-in migration) into
-   * dropping its fields. The rules require `schemaVersion`, `userId` and `lastUpdated` on
-   * every write, which also lets this create the document for a new user.
+   * The theme's own writer, since preference saves leave it out (see `updateConfigSection`).
+   * Like them, it's a merge of just what it sets: `preferences.theme`, with every other
+   * preference left as stored, so a theme change can't race a concurrent preferences save
+   * (or the sign-in migration) into dropping its fields. The rules require `schemaVersion`,
+   * `userId` and `lastUpdated` on every write, which also lets this create the document.
    */
   async updateTheme(theme: string): Promise<void> {
     try {
