@@ -172,11 +172,8 @@ void _assertSchemaMatchesProto;
 /**
  * Validate a config payload (parsed JSON) against the Zod schema for its type.
  *
- * Used by:
- *   - the localStorage→Firestore sign-in migration in useUserConfig, to reject
- *     malformed demo data before it's written into the source of truth
- *   - the demo-mode read path in useUserConfig, to reject corrupted localStorage
- *     blobs before they reach the rest of the app
+ * Used by the demo-mode read path in useUserConfig, to reject corrupted
+ * localStorage blobs before they reach the rest of the app.
  *
  * Returns a discriminated `{ ok: true, data } | { ok: false, error }` so the
  * caller can `logApiError(result.error)` for diagnostic context.
@@ -203,26 +200,6 @@ export function parseConfigData(
   return result.success
     ? { ok: true, data: result.data as Preferences }
     : { ok: false, error: result.error };
-}
-
-/** Preferences as they read with nothing stored, less the theme. */
-const { theme: _unsetTheme, ...UNSET_PREFERENCES } = PreferencesSchema.parse({});
-
-/**
- * Whether stored preferences hold anything besides the theme. `ThemeSync` writes the theme
- * alone when an account first signs in, so an account can have a preferences section its
- * user never set; the sign-in migration treats that as empty.
- *
- * Both sides are read through `PreferencesSchema`, which fills proto defaults in one key
- * order, so they compare as JSON. A field the schema doesn't know counts as set, and so do
- * preferences it can't read: either way they are left alone rather than migrated over.
- */
-export function hasPreferencesBesidesTheme(preferences: unknown): boolean {
-  if (preferences === null || preferences === undefined) return false;
-  const result = PreferencesSchema.safeParse(preferences);
-  if (!result.success) return true;
-  const { theme: _theme, ...rest } = result.data;
-  return JSON.stringify(rest) !== JSON.stringify(UNSET_PREFERENCES);
 }
 
 /**
@@ -566,8 +543,8 @@ export class UserConfigService {
    * The theme's own writer, since preference saves leave it out (see `updateConfigSection`).
    * Like them, it's a merge of just what it sets: `preferences.theme`, with every other
    * preference left as stored, so a theme change can't race a concurrent preferences save
-   * (or the sign-in migration) into dropping its fields. The rules require `schemaVersion`,
-   * `userId` and `lastUpdated` on every write, which also lets this create the document.
+   * into dropping its fields. The rules require `schemaVersion`, `userId` and `lastUpdated`
+   * on every write, which also lets this create the document.
    */
   async updateTheme(theme: string): Promise<void> {
     try {

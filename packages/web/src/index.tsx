@@ -10,11 +10,15 @@ import { logger } from "./lib/logger";
 import { installGlobalErrorHandlers } from "./lib/global-error-handlers";
 import { preloadThemeFonts } from "./themes/fontPreloads";
 import { redactAuthorizationHeader } from "./api/errors";
+import { moveLegacyDemoStorage } from "./services/demoStorage";
 
 // Catch errors outside the React tree (timers, non-React scripts,
 // unhandled promise rejections). React-rendering errors are caught
 // by the <ErrorBoundary> below.
 installGlobalErrorHandlers();
+
+// Demo data lives under its own `demo.` keys; move it from the keys it used before, once.
+moveLegacyDemoStorage();
 
 // Ask for the active theme's faces as early as the app can, so headlines don't paint in
 // the fallback face first. The first-paint script has already set `data-theme`.

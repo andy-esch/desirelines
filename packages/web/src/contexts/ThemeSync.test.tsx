@@ -9,6 +9,7 @@ import { AuthProvider } from "./AuthContext";
 import { MockAuthService } from "../services/auth/MockAuthService";
 import { MockDatabaseService } from "../services/database/MockDatabaseService";
 import { DEFAULT_PREFERENCES } from "../constants/settings";
+import { demoConfigKey } from "../services/demoStorage";
 import { UserConfigService } from "../services/userConfigService";
 import {
   DEFAULT_THEME_PREFERENCE,
@@ -111,7 +112,7 @@ describe("ThemeSync", () => {
     it("neither reads nor writes the synced theme", async () => {
       // Demo preferences live in localStorage; a theme there must not be applied either.
       localStorage.setItem(
-        "userConfig_anonymous_preferences",
+        demoConfigKey("preferences"),
         JSON.stringify({ ...DEFAULT_PREFERENCES, theme: "arcade" })
       );
       const themeWrites = vi.spyOn(UserConfigService.prototype, "updateTheme");
@@ -194,24 +195,21 @@ describe("ThemeSync", () => {
       expect(sync.preference()).toBe("legacy-light");
     });
 
-    it("lands both the theme and a new user's migrated demo preferences", async () => {
-      // The sign-in migration saves the demo preferences, a stale "dark" among them, as the
-      // theme is written. The save leaves the theme out, so whichever lands last, both survive.
-      localStorage.setItem(
-        "userConfig_anonymous_preferences",
-        JSON.stringify({ ...DEFAULT_PREFERENCES, theme: "dark", distanceUnit: "kilometers" })
-      );
+    it("writes a new user's theme and imports nothing from the demo preferences", async () => {
+      // Demo and account data never mix: the demo's preferences stay in the demo, untouched.
+      const demoPreferences = JSON.stringify({
+        ...DEFAULT_PREFERENCES,
+        distanceUnit: "kilometers",
+      });
+      localStorage.setItem(demoConfigKey("preferences"), demoPreferences);
       const sync = renderSync({ user: null, local: "arcade" });
       await settle();
       await act(() => sync.auth.signIn());
 
-      await waitFor(async () =>
-        expect(await storedPreferences(sync.db)).toMatchObject({
-          theme: "arcade",
-          distanceUnit: "kilometers",
-        })
-      );
-      expect(localStorage.getItem("userConfig_anonymous_preferences")).toBeNull();
+      await waitFor(async () => expect((await storedPreferences(sync.db))?.theme).toBe("arcade"));
+      await settle();
+      expect(await storedPreferences(sync.db)).toEqual({ theme: "arcade" });
+      expect(localStorage.getItem(demoConfigKey("preferences"))).toBe(demoPreferences);
       expect(sync.preference()).toBe("arcade");
     });
 

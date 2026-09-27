@@ -25,6 +25,7 @@ import { convertMetricsToChartData } from "../hooks/useSportPageData";
 import { GOAL_STORAGE_VERSION } from "../services/userConfigService";
 import SportPageContent from "../components/SportPageContent";
 import { DEMO_ROUTE_PREFIX } from "../constants/demoConfig";
+import { demoConfigKey, saveDemoSection } from "../services/demoStorage";
 import { Alert } from "../components/ui/alert";
 
 interface DemoSportPageProps {
@@ -78,13 +79,11 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
 
   const currentValue = chartData.length === 0 ? 0 : (chartData[chartData.length - 1]?.y ?? 0);
 
-  // Goals management - use localStorage for demo persistence.
-  //
-  // localStorage holds *canonical* values (meters for distance, minutes for
-  // time) so they round-trip cleanly into Firestore when a demo user signs in
-  // (see the localStorage→Firestore migration in useUserConfig). The Goals
-  // type returned to UI is in display units.
-  const storageKey = `demo_goals_${sport}_${currentYear}`;
+  // Goals management: the demo's own storage (services/demoStorage.ts), which the
+  // account never reads. It holds *canonical* values (meters for distance, minutes
+  // for time), like an account's goals; the Goals type returned to the UI is in
+  // display units.
+  const storageKey = demoConfigKey("goals", currentYear, sport);
   const isTime = isTimeSport(sport, sportConfig);
   const hasDistance = sportInfo?.hasDistance ?? false;
   const goalCtx: GoalUnitContext = useMemo(
@@ -162,9 +161,11 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
     setGoals(newGoals);
     // Persist canonical values; convert display → storage on write.
     const canonical = newGoals.map((g) => ({ ...g, value: goalToStorage(g.value, goalCtx) }));
-    localStorage.setItem(
-      storageKey,
-      JSON.stringify({ goals: canonical, storageVersion: GOAL_STORAGE_VERSION })
+    saveDemoSection(
+      "goals",
+      { goals: canonical, storageVersion: GOAL_STORAGE_VERSION },
+      currentYear,
+      sport
     );
     return Promise.resolve();
   };
