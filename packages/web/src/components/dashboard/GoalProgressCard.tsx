@@ -201,13 +201,17 @@ function GoalTrackLegend({ showPace }: { showPace: boolean }) {
 }
 
 interface DashboardStatus {
-  /** Null on the year's first day with nothing logged, when there's no pace to judge yet. */
+  /**
+   * Null with nothing logged before any of the year has elapsed, when there's no pace to
+   * judge yet. Not on the year's first day: that day counts as elapsed, so nothing logged by
+   * then is behind.
+   */
   label: string | null;
   /** Delta between current value and prorated goal (positive = ahead, negative = behind). null when no delta applies. */
   delta: number | null;
 }
 
-function getStatusForDashboard(
+export function getStatusForDashboard(
   currentValue: number,
   targetGoal: number,
   yearContext: Pick<YearContext, "year" | "daysElapsed" | "isPastYear">
