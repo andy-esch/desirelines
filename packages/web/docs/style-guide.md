@@ -317,6 +317,7 @@ consumers that read resolved token values would otherwise render one theme behin
 **Demo and account.** Signed out, the demo's own theme shows and is saved on the device.
 Signed in, the account's theme is `preferences.theme` in its config, and `ThemeSync`
 (`src/contexts/ThemeSync.tsx`) switches `ThemeProvider` between the two scopes:
+
 - On sign-in the account's synced theme shows, or the default for an account with none.
   Nothing from the device or the demo is written to the account.
 - A change from another device is applied and never written back.
