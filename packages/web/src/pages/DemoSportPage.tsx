@@ -95,9 +95,15 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
     const stored = readDemoSection("goals", currentYear, sport);
     if (stored) {
       try {
-        const parsed = JSON.parse(stored) as { goals?: Partial<Goal>[] } | null;
+        const parsed = JSON.parse(stored) as {
+          goals?: Partial<Goal>[];
+          storageVersion?: number;
+        } | null;
         if (Array.isArray(parsed?.goals)) {
-          // Stored canonical → convert to display for the UI.
+          // Stored canonical (storageVersion 2) → convert to display for the UI. Older
+          // entries predate canonical storage and already hold display values; the next
+          // save stores them canonical and stamps the version.
+          const canonical = parsed.storageVersion === GOAL_STORAGE_VERSION;
           // Legacy demo payloads may lack proto metadata (pre-#2 fix); fill
           // defaults so the resulting Goals always satisfy the type.
           const now = new Date().toISOString();
@@ -108,7 +114,12 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
             const goal = buildGoal(
               {
                 id: g.id ?? now,
-                value: typeof g.value === "number" ? goalToDisplay(g.value, goalCtx) : 0,
+                value:
+                  typeof g.value !== "number"
+                    ? 0
+                    : canonical
+                      ? goalToDisplay(g.value, goalCtx)
+                      : g.value,
                 label: g.label ?? "",
                 metric: g.metric ?? primaryMetric,
               },

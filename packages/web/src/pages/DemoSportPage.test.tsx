@@ -4,6 +4,8 @@ import userEvent from "@testing-library/user-event";
 import DemoSportPage from "./DemoSportPage";
 import type * as GoalCalcModule from "../utils/goalCalculations";
 import { renderWithRouter } from "../test/renderWithRouter";
+import { goalToDisplay } from "../utils/goalCalculations";
+import { saveDemoSection } from "../services/demoStorage";
 
 const mockNavigate = vi.fn();
 
@@ -109,7 +111,7 @@ vi.mock("../utils/goalCalculations", async (importOriginal) => {
     // Identity converters keep test fixtures readable; the actual conversion is
     // exercised in goalCalculations / migration unit tests.
     goalToStorage: (value: number) => value,
-    goalToDisplay: (value: number) => value,
+    goalToDisplay: vi.fn((value: number) => value),
   };
 });
 
@@ -215,6 +217,33 @@ describe("DemoSportPage", () => {
       await renderWithRouter(<DemoSportPage sport="running" year="2025" />);
 
       expect(screen.getByTestId("route-prefix")).toHaveTextContent("/demo");
+    });
+  });
+
+  describe("stored demo goals", () => {
+    const stored = (storageVersion?: number) =>
+      saveDemoSection(
+        "goals",
+        {
+          goals: [{ id: "a", value: 1609, label: "A", metric: "distance" }],
+          ...(storageVersion === undefined ? {} : { storageVersion }),
+        },
+        2025,
+        "running"
+      );
+
+    it("converts goals stored in canonical units (storageVersion 2) for display", async () => {
+      stored(2);
+      await renderWithRouter(<DemoSportPage sport="running" year="2025" />);
+
+      expect(vi.mocked(goalToDisplay)).toHaveBeenCalledWith(1609, expect.anything());
+    });
+
+    it("leaves older goals, saved before canonical units, in the units they were saved in", async () => {
+      stored();
+      await renderWithRouter(<DemoSportPage sport="running" year="2025" />);
+
+      expect(vi.mocked(goalToDisplay)).not.toHaveBeenCalled();
     });
   });
 });
