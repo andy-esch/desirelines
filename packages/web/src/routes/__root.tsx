@@ -50,7 +50,7 @@ function RootLayout() {
     <div className="App flex flex-col min-h-screen bg-bg-body">
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:px-4 focus:py-2 focus:bg-bg-body focus:text-accent-cyan focus:rounded focus:outline focus:outline-2 focus:outline-accent-cyan"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:px-4 focus:py-2 focus:bg-bg-body focus:text-accent-cyan focus:rounded"
       >
         Skip to content
       </a>

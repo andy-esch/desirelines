@@ -225,7 +225,9 @@ export const THEME_CONTRACT = {
     "--control-radius": "length",
     "--control-font-size": "length",
     "--control-case": "case",
-    "--control-focus-ring": { kind: "shadow", initial: true },
+    "--control-focus-color": { kind: "color", initial: true },
+    "--control-focus-width": "length",
+    "--control-focus-glow": "shadow",
     "--toggle-gap": "length",
     "--toggle-frame-border-width": "length",
     "--toggle-frame-padding": "lengths",
@@ -484,10 +486,11 @@ export interface MarkPair {
 export const MARK_MIN = 3;
 
 /**
- * Keyboard focus. A theme that leaves the ring `initial` gets the `control-focus-ring`
- * utility's own fallback in `tailwind.css`: the accent at 40%.
+ * Keyboard focus: an outline 2px clear of the element, so it sits on the surface around the
+ * control. A theme that leaves its color `initial` gets the `control-focus-ring` utility's
+ * own fallback in `tailwind.css`: the accent at 40%.
  */
-const FOCUS_RING = ["--control-focus-ring", { slot: "--color-accent-cyan", alpha: 0.4 }] as const;
+const FOCUS_RING = ["--control-focus-color", { slot: "--color-accent-cyan", alpha: 0.4 }] as const;
 
 export const MARK_PAIRS: readonly MarkPair[] = [
   // The focus ring, on each surface a control sits on.

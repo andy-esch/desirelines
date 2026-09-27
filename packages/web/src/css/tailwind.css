@@ -277,6 +277,22 @@
   [id] {
     scroll-margin-top: 70px;
   }
+
+  /* Keyboard focus draws the theme's ring on every element, not the browser's outline. In
+     the base layer, so an element that hides its outline on purpose (`outline-none`, listed
+     with its reason in focusRing.test.ts) still can. */
+  :focus-visible {
+    @apply control-focus-ring;
+  }
+
+  /* The ring's color is also every element's resting outline color. `transition-colors`
+     covers outline-color, so without it a button's ring would fade in from its text color. */
+  * {
+    outline-color: var(
+      --control-focus-color,
+      color-mix(in oklab, var(--color-accent-cyan) 40%, transparent)
+    );
+  }
 }
 
 /* ==========================================================================
@@ -488,18 +504,22 @@
   }
 }
 
-/* The focus ring every control draws, used as `focus-visible:control-focus-ring` (or
-   `focus-within:` for a control whose focus lands inside it). It is the theme's
-   --control-focus-ring, or where a theme sets that slot to `initial`, the accent at 40% as a
-   2px ring; the fallback resolves on the control, so a subtree that remaps the accent (the
-   routes-map chrome) still reaches it. It takes Tailwind's ring layer of the composed
-   box-shadow, as ring-2 does, so a control's resting shadow and a pressed toggle's inset
-   glow stay under it. */
+/* The focus ring: an outline in the theme's --control-focus-color and --control-focus-width,
+   2px clear of the element, so it reads as focus even on a control already drawn in the
+   ring's color (a chosen card's border, a pressed toggle's fill). A theme that sets the color
+   `initial` gets the accent at 40%; the fallback resolves on the element, so a subtree that
+   remaps the accent (the routes-map chrome) still reaches it. --control-focus-glow (Arcade's)
+   takes Tailwind's ring layer of the composed box-shadow, so a control's resting shadow and a
+   pressed toggle's inset glow stay under it.
+
+   Every element draws it on keyboard focus through the `:focus-visible` rule in the base
+   layer. The utility itself is for an element that shows focus landing elsewhere:
+   `peer-focus-visible:`, `focus-within:`, `has-[:focus-visible]:`. */
 @utility control-focus-ring {
-  --tw-ring-shadow: var(
-    --control-focus-ring,
-    0 0 0 2px color-mix(in oklab, var(--color-accent-cyan) 40%, transparent)
-  );
+  outline: var(--control-focus-width, 2px) solid
+    var(--control-focus-color, color-mix(in oklab, var(--color-accent-cyan) 40%, transparent));
+  outline-offset: 2px;
+  --tw-ring-shadow: var(--control-focus-glow, 0 0 #0000);
   box-shadow:
     var(--tw-inset-shadow, 0 0 #0000), var(--tw-inset-ring-shadow, 0 0 #0000),
     var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000);

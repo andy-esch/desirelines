@@ -161,10 +161,7 @@ export default function MapActivityList({
                   type="button"
                   aria-pressed={isSelected}
                   onClick={() => onSelect(a)}
-                  className={cn(
-                    "flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm",
-                    "focus-visible:outline-none focus-visible:control-focus-ring"
-                  )}
+                  className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm"
                 >
                   <span
                     aria-hidden="true"

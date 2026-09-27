@@ -192,7 +192,9 @@
   --control-radius: 0.375rem;
   --control-font-size: 0.875rem;
   --control-case: none;
-  --control-focus-ring: initial;
+  --control-focus-color: initial;
+  --control-focus-width: 2px;
+  --control-focus-glow: 0 0 #0000;
   --toggle-gap: 0.25rem;
   --toggle-frame-border-width: 1px;
   --toggle-frame-padding: 0.25rem;
