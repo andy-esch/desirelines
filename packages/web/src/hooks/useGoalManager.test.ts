@@ -216,15 +216,139 @@ describe("useGoalManager", () => {
       vi.runAllTimers();
     });
 
-    // Should call save for both edits
+    // Should call save for both edits, the second keeping the first's label
     expect(onGoalsChange).toHaveBeenCalledTimes(2);
     expect(onGoalsChange).toHaveBeenCalledWith(
       expect.arrayContaining([expect.objectContaining({ id: "1", label: "Updated 1" })])
     );
-    expect(onGoalsChange).toHaveBeenCalledWith(
-      expect.arrayContaining([expect.objectContaining({ id: "2", label: "Updated 2" })])
-    );
+    expect(onGoalsChange).toHaveBeenLastCalledWith([
+      expect.objectContaining({ id: "1", label: "Updated 1" }),
+      expect.objectContaining({ id: "2", label: "Updated 2" }),
+    ]);
 
     vi.useRealTimers();
+  });
+
+  describe("quick successive edits", () => {
+    // The goals a render hands the hook lag a save: the store shows it a tick later. These
+    // edits land before that, as `renderHook` never re-renders with what was saved.
+    const lastSaved = () => onGoalsChange.mock.calls.at(-1)![0] as Goal[];
+    const values = () => lastSaved().map((g) => g.value);
+
+    it("keeps both of two stepper clicks on one goal", () => {
+      const { result } = renderHook(() => useGoalManager(defaultProps));
+
+      act(() => {
+        result.current.handleIncrement("1", 100);
+        result.current.handleIncrement("1", 100);
+      });
+
+      expect(values()).toEqual([1200, 2000]);
+    });
+
+    it("keeps an edit to one goal when another is edited next", () => {
+      const { result } = renderHook(() => useGoalManager(defaultProps));
+
+      act(() => {
+        result.current.handleIncrement("1", 100);
+        result.current.handleIncrement("2", 100);
+      });
+
+      expect(values()).toEqual([1100, 2100]);
+    });
+
+    it("keeps an edit when a goal is added or removed next", () => {
+      const { result } = renderHook(() => useGoalManager(defaultProps));
+
+      act(() => {
+        result.current.handleIncrement("1", 100);
+        result.current.handleAddGoal();
+      });
+      expect(values()).toEqual([1100, 2000, 3000]);
+      const added = lastSaved()[2]!.id;
+
+      act(() => {
+        result.current.handleIncrement("2", 100);
+        result.current.handleRemoveGoal(added);
+      });
+      expect(values()).toEqual([1100, 2100]);
+    });
+
+    it("keeps a value edit made while a label save is pending", async () => {
+      vi.useFakeTimers();
+      const { result } = renderHook(() => useGoalManager(defaultProps));
+
+      act(() => {
+        result.current.handleLabelEdit("1", "Renamed");
+        result.current.handleIncrement("2", 100);
+      });
+      await act(async () => {
+        vi.runAllTimers();
+      });
+
+      expect(lastSaved()).toEqual([
+        expect.objectContaining({ id: "1", label: "Renamed", value: 1000 }),
+        expect.objectContaining({ id: "2", value: 2100 }),
+      ]);
+      vi.useRealTimers();
+    });
+
+    it("builds on the goals shown after a save fails, not on the failed ones", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const save = vi.fn().mockRejectedValueOnce(new Error("offline")).mockResolvedValue(undefined);
+      const { result } = renderHook(() => useGoalManager({ ...defaultProps, onGoalsChange: save }));
+
+      // The store rolls back to the goals shown, so no new goals arrive.
+      await act(async () => {
+        result.current.handleIncrement("1", 100);
+      });
+      act(() => {
+        result.current.handleIncrement("1", 100);
+      });
+
+      expect((save.mock.calls.at(-1)![0] as Goal[]).map((g) => g.value)).toEqual([1100, 2000]);
+      vi.mocked(console.error).mockRestore();
+    });
+
+    it("keeps an edit when goals from before it render while its save is pending", () => {
+      const pending = vi.fn((_goals: Goal[]) => new Promise<void>(() => {}));
+      const { result, rerender } = renderHook((props) => useGoalManager(props), {
+        initialProps: { ...defaultProps, onGoalsChange: pending },
+      });
+
+      act(() => {
+        result.current.handleIncrement("1", 100);
+      });
+      // An older snapshot renders (a copy of the goals before the save) while it's in flight.
+      rerender({ ...defaultProps, goals: [...initialGoals], onGoalsChange: pending });
+      act(() => {
+        result.current.handleIncrement("2", 100);
+      });
+
+      expect(pending.mock.calls.at(-1)![0].map((g) => g.value)).toEqual([1100, 2100]);
+    });
+
+    it("follows goals changed elsewhere once no save is pending", async () => {
+      const { result, rerender } = renderHook((props) => useGoalManager(props), {
+        initialProps: defaultProps,
+      });
+      await act(async () => {
+        result.current.handleIncrement("1", 100);
+      });
+
+      // Another device's save arrives through the store.
+      rerender({
+        ...defaultProps,
+        goals: testGoals([
+          { id: "1", value: 5000, label: "Goal 1" },
+          { id: "2", value: 2000, label: "Goal 2" },
+        ]),
+      });
+      act(() => {
+        result.current.handleIncrement("2", 100);
+      });
+
+      expect(values()).toEqual([5000, 2100]);
+    });
   });
 });
