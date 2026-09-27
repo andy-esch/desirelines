@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useCurrentYear } from "../hooks/useCurrentYear";
 import { getDisplayUnitForMetric, getUserSettings, type MetricUnit } from "../utils/units";
@@ -6,8 +6,7 @@ import {
   buildGoal,
   estimateYearEndDistance,
   goalToDisplay,
-  goalToStorage,
-  type Goal,
+  toStoredGoal,
   type GoalUnitContext,
   type Goals,
 } from "../utils/goalCalculations";
@@ -22,10 +21,10 @@ import type { DistanceEntry } from "../types/activity";
 import { createYearContext } from "../utils/yearContext";
 import { getPrimaryMetric, isTimeSport } from "../utils/sportConfig";
 import { convertMetricsToChartData } from "../hooks/useSportPageData";
-import { GOAL_STORAGE_VERSION } from "../services/userConfigService";
+import { GOAL_STORAGE_VERSION, type GoalsForYear } from "../services/userConfigService";
+import { useGoals } from "../hooks/useGoals";
 import SportPageContent from "../components/SportPageContent";
 import { DEMO_ROUTE_PREFIX } from "../constants/demoConfig";
-import { demoConfigKey, readDemoSection, saveDemoSection } from "../services/demoStorage";
 import { Alert } from "../components/ui/alert";
 
 interface DemoSportPageProps {
@@ -35,7 +34,7 @@ interface DemoSportPageProps {
 
 /**
  * Demo version of SportPage that uses generated demo data.
- * Goals are kept in the demo's own storage (services/demoStorage.ts), apart from any account's.
+ * Goals are the demo's own, through the config store (`useGoals`), apart from any account's.
  */
 export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
   const navigate = useNavigate();
@@ -79,11 +78,9 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
 
   const currentValue = chartData.length === 0 ? 0 : (chartData[chartData.length - 1]?.y ?? 0);
 
-  // Goals management: the demo's own storage (services/demoStorage.ts), which the
-  // account never reads. It holds *canonical* values (meters for distance, minutes
-  // for time), like an account's goals; the Goals type returned to the UI is in
-  // display units.
-  const storageKey = demoConfigKey("goals", currentYear, sport);
+  // Goals management: the demo's own, through the config store (`useGoals`), which the
+  // account never reads. They're stored *canonical* (meters for distance, minutes for
+  // time), like an account's; the Goals the UI gets are in display units.
   const isTime = isTimeSport(sport, sportConfig);
   const hasDistance = sportInfo?.hasDistance ?? false;
   const goalCtx: GoalUnitContext = useMemo(
@@ -91,95 +88,68 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
     [hasDistance, isTime, userSettings.distanceUnit]
   );
 
-  const loadGoals = useCallback((): Goals => {
-    const stored = readDemoSection("goals", currentYear, sport);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored) as {
-          goals?: Partial<Goal>[];
-          storageVersion?: number;
-        } | null;
-        if (Array.isArray(parsed?.goals)) {
-          // Stored canonical (storageVersion 2) → convert to display for the UI. Older
-          // entries predate canonical storage and already hold display values; the next
-          // save stores them canonical and stamps the version.
-          const canonical = parsed.storageVersion === GOAL_STORAGE_VERSION;
-          // Legacy demo payloads may lack proto metadata (pre-#2 fix); fill
-          // defaults so the resulting Goals always satisfy the type.
-          const now = new Date().toISOString();
-          return parsed.goals.map((g) => {
-            // buildGoal sets createdAt === updatedAt (fresh-goal contract); when
-            // loading an existing record we honor the stored updatedAt if any,
-            // so editing history isn't silently reset to the load time.
-            const goal = buildGoal(
-              {
-                id: g.id ?? now,
-                value:
-                  typeof g.value !== "number"
-                    ? 0
-                    : canonical
-                      ? goalToDisplay(g.value, goalCtx)
-                      : g.value,
-                label: g.label ?? "",
-                metric: g.metric ?? primaryMetric,
-              },
-              g.createdAt ?? now
-            );
-            return g.updatedAt ? { ...goal, updatedAt: g.updatedAt } : goal;
-          });
-        }
-      } catch {
-        // Fall back to defaults
-      }
-    }
+  // The demo's starting goals, shown until any are saved. They're in display units, so
+  // stored canonical like a saved set.
+  const startingGoals = useMemo((): GoalsForYear => {
     const now = new Date().toISOString();
     const demoGoals = getDemoGoalsForSport(sport);
-    if (demoGoals) {
-      // Demo defaults are already in display units — keep them that way for the UI.
-      return [
-        buildGoal(
-          { id: "1", value: demoGoals.conservative, label: "Conservative", metric: primaryMetric },
-          now
-        ),
-        buildGoal(
-          { id: "2", value: demoGoals.target, label: "Target", metric: primaryMetric },
-          now
-        ),
-        buildGoal(
-          { id: "3", value: demoGoals.stretch, label: "Stretch", metric: primaryMetric },
-          now
-        ),
-      ];
-    }
-    return [
-      buildGoal({ id: "1", value: 2000, label: "Conservative", metric: primaryMetric }, now),
-      buildGoal({ id: "2", value: 2500, label: "Target", metric: primaryMetric }, now),
-      buildGoal({ id: "3", value: 3000, label: "Stretch", metric: primaryMetric }, now),
+    const starting = [
+      buildGoal(
+        { id: "1", value: demoGoals.conservative, label: "Conservative", metric: primaryMetric },
+        now
+      ),
+      buildGoal({ id: "2", value: demoGoals.target, label: "Target", metric: primaryMetric }, now),
+      buildGoal(
+        { id: "3", value: demoGoals.stretch, label: "Stretch", metric: primaryMetric },
+        now
+      ),
     ];
-    // goalCtx is derived from sport/userSettings; including them transitively.
-  }, [currentYear, sport, goalCtx, primaryMetric]);
+    return {
+      goals: starting.map((g) => toStoredGoal(g, goalCtx)),
+      storageVersion: GOAL_STORAGE_VERSION,
+    };
+  }, [sport, goalCtx, primaryMetric]);
 
-  const [goals, setGoals] = useState<Goals>(loadGoals);
-  const [prevStorageKey, setPrevStorageKey] = useState(storageKey);
+  const {
+    goalsForYear,
+    loading: goalsLoading,
+    save: saveGoals,
+    isSaving: isGoalsSaving,
+    saveError: goalsSaveError,
+    clearSaveError: clearGoalsSaveError,
+  } = useGoals(currentYear, sport, startingGoals);
 
-  // Sync goals when sport or year changes (storageKey changes)
-  if (storageKey !== prevStorageKey) {
-    setPrevStorageKey(storageKey);
-    setGoals(loadGoals());
-  }
+  const goals = useMemo((): Goals => {
+    if (!goalsForYear) return [];
+    // Stored canonical (storageVersion 2) → convert to display for the UI. Older entries
+    // predate canonical storage and already hold display values; the next save stores
+    // them canonical and stamps the version.
+    const canonical = goalsForYear.storageVersion === GOAL_STORAGE_VERSION;
+    // Legacy demo payloads may lack proto metadata (pre-#2 fix), which the store reads as
+    // empty: fill it so the resulting Goals always satisfy the type.
+    const now = new Date().toISOString();
+    return goalsForYear.goals.map((g) => {
+      // buildGoal sets createdAt === updatedAt (fresh-goal contract); for an existing
+      // record the stored updatedAt is honored, so editing history isn't reset to now.
+      const goal = buildGoal(
+        {
+          id: g.id || now,
+          value: canonical ? goalToDisplay(g.value, goalCtx) : g.value,
+          label: g.label,
+          metric: g.metric || primaryMetric,
+        },
+        g.createdAt || now
+      );
+      return g.updatedAt ? { ...goal, updatedAt: g.updatedAt } : goal;
+    });
+  }, [goalsForYear, goalCtx, primaryMetric]);
 
-  const handleGoalsChange = (newGoals: Goals): Promise<void> => {
-    setGoals(newGoals);
-    // Persist canonical values; convert display → storage on write.
-    const canonical = newGoals.map((g) => ({ ...g, value: goalToStorage(g.value, goalCtx) }));
-    saveDemoSection(
-      "goals",
-      { goals: canonical, storageVersion: GOAL_STORAGE_VERSION },
-      currentYear,
-      sport
-    );
-    return Promise.resolve();
-  };
+  // Persist canonical values; convert display → storage on write.
+  const handleGoalsChange = (newGoals: Goals): Promise<void> =>
+    saveGoals({
+      goals: newGoals.map((g) => toStoredGoal(g, goalCtx)),
+      storageVersion: GOAL_STORAGE_VERSION,
+    });
 
   // Create year context
   const yearContext = createYearContext(currentYear);
@@ -212,15 +182,16 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
         chartData={chartData}
         currentValue={currentValue}
         estimatedYearEnd={estimatedYearEnd}
-        isLoading={isLoading}
+        isLoading={isLoading || goalsLoading}
         error={error}
         unit={metricUnit}
         primaryMetric={primaryMetric}
         goals={goals}
         chartGoals={goals}
         onGoalsChange={handleGoalsChange}
-        isGoalsSaving={false}
-        goalsSaveError={null}
+        isGoalsSaving={isGoalsSaving}
+        goalsSaveError={goalsSaveError}
+        onClearGoalsSaveError={clearGoalsSaveError}
         nextGoal={nextGoal}
         nextGoalProgress={nextGoalProgress}
         nextGoalGap={nextGoalGap}

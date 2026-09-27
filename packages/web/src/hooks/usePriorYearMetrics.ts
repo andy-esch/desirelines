@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { fetchSportMetrics, type SportMetrics } from "../api/activities";
 import { useAuth } from "./useAuth";
-import { useUserConfig } from "./useUserConfig";
+import { useTimezone } from "./usePreferences";
 
 interface UsePriorYearMetricsProps {
   currentYear: number;
@@ -26,8 +26,7 @@ export function usePriorYearMetrics({
   maxYears = 5,
 }: UsePriorYearMetricsProps): PriorYearMetricsResult {
   const { loading: authLoading } = useAuth();
-  const { data: prefs } = useUserConfig("preferences");
-  const tz = prefs?.timezone || undefined;
+  const tz = useTimezone();
 
   const years = useMemo(() => {
     const result: number[] = [];

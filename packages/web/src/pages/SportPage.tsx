@@ -35,6 +35,7 @@ export default function SportPage({ sport, year }: SportPageProps) {
       onGoalsChange={data.onGoalsChange}
       goalsSuggested={data.goalsSuggested}
       onSaveSuggestedGoals={data.onSaveSuggestedGoals}
+      goalsUnavailable={data.goalsUnavailable}
       isGoalsSaving={data.isGoalsSaving}
       goalsSaveError={data.goalsSaveError}
       onClearGoalsSaveError={data.clearGoalsSaveError}

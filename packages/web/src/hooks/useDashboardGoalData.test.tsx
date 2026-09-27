@@ -1,24 +1,28 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useDashboardGoalData } from "./useDashboardGoalData";
 import * as useAuthModule from "./useAuth";
 import * as useVisibleSportsModule from "./useVisibleSports";
 import * as useSportConfigModule from "./useSportConfig";
-import * as useUserConfigModule from "./useUserConfig";
+import * as usePreferencesModule from "./usePreferences";
+import type { Preferences } from "../services/userConfigService";
 import * as demoDataModule from "../utils/demoDataGenerator";
 import type { SportConfig } from "../api/activities";
 import type React from "react";
 import { TestServiceProvider } from "../contexts/ServiceContext";
+import { UserConfigProvider } from "../contexts/UserConfigProvider";
+import { UserConfigService } from "../services/userConfigService";
+import { MockAuthService } from "../services/auth/MockAuthService";
 import * as activitiesApi from "../api/activities";
 import { ACCOUNT_USER, accountServices, storedGoal } from "../test/fixtures/userConfig";
-import { goalMetersToDisplay } from "../utils/units";
+import { getUserSettings, goalMetersToDisplay } from "../utils/units";
 
 // Mock dependencies
 vi.mock("./useAuth");
 vi.mock("./useVisibleSports");
 vi.mock("./useSportConfig");
-vi.mock("./useUserConfig");
+vi.mock("./usePreferences");
 
 describe("useDashboardGoalData", () => {
   const mockSportConfig: SportConfig = {
@@ -59,7 +63,9 @@ describe("useDashboardGoalData", () => {
   function wrapper({ children }: { children: React.ReactNode }) {
     return (
       <TestServiceProvider>
-        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        <QueryClientProvider client={queryClient}>
+          <UserConfigProvider>{children}</UserConfigProvider>
+        </QueryClientProvider>
       </TestServiceProvider>
     );
   }
@@ -100,15 +106,7 @@ describe("useDashboardGoalData", () => {
       error: null,
     });
 
-    vi.spyOn(useUserConfigModule, "useUserConfig").mockReturnValue({
-      data: null,
-      isLoading: false,
-      error: null,
-      isFetching: false,
-      saveConfig: vi.fn(),
-      isSaving: false,
-      saveError: null,
-    } as any);
+    vi.spyOn(usePreferencesModule, "useUnitSettings").mockReturnValue(getUserSettings(null));
   });
 
   afterEach(() => {
@@ -329,15 +327,9 @@ describe("useDashboardGoalData", () => {
 
   describe("unit preferences", () => {
     it("uses kilometers when user preference is set", async () => {
-      vi.spyOn(useUserConfigModule, "useUserConfig").mockReturnValue({
-        data: { distanceUnit: "kilometers" },
-        isLoading: false,
-        error: null,
-        isFetching: false,
-        saveConfig: vi.fn(),
-        isSaving: false,
-        saveError: null,
-      } as any);
+      vi.spyOn(usePreferencesModule, "useUnitSettings").mockReturnValue(
+        getUserSettings({ distanceUnit: "kilometers" } as Preferences)
+      );
 
       const { result } = renderHook(() => useDashboardGoalData(), { wrapper });
 
@@ -353,7 +345,10 @@ describe("useDashboardGoalData", () => {
   describe("signed in", () => {
     const year = new Date().getFullYear();
 
-    function renderSignedIn(goalsBySport: Parameters<typeof accountServices>[1]) {
+    function renderSignedIn(
+      goalsBySport: Parameters<typeof accountServices>[1],
+      prepare?: (db: ReturnType<typeof accountServices>["databaseService"]) => void
+    ) {
       vi.spyOn(useAuthModule, "useAuth").mockReturnValue({
         user: ACCOUNT_USER,
         loading: false,
@@ -367,14 +362,60 @@ describe("useDashboardGoalData", () => {
         yoga: [{ date: `${year}-03-01`, time: 600 }],
       });
       const services = accountServices(year, goalsBySport);
-      return renderHook(() => useDashboardGoalData(), {
+      prepare?.(services.databaseService);
+      const rendered = renderHook(() => useDashboardGoalData(), {
         wrapper: ({ children }) => (
           <TestServiceProvider {...services}>
-            <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+            <QueryClientProvider client={queryClient}>
+              <UserConfigProvider>{children}</UserConfigProvider>
+            </QueryClientProvider>
           </TestServiceProvider>
         ),
       });
+      return { ...rendered, db: services.databaseService };
     }
+
+    it("shows a goal saved elsewhere at once, with no reload or read of its own", async () => {
+      // The sport page's save lands in the account's document; the store's one listener
+      // brings it here. The dashboard used to hold its own copy, with no listener.
+      const { result, db } = renderSignedIn({
+        cycling: [storedGoal("target", 4_000_000, "Target")],
+      });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      const reads = vi.spyOn(db, "getDocument");
+
+      await act(() =>
+        new UserConfigService(undefined, "v1", {
+          authService: new MockAuthService(ACCOUNT_USER),
+          databaseService: db,
+        }).updateConfigSection(
+          "goals",
+          { goals: [storedGoal("target", 5_000_000, "Target")], storageVersion: 2 },
+          year,
+          "running"
+        )
+      );
+
+      await waitFor(() =>
+        expect(result.current.sportData.find((s) => s.sport === "running")!.hasGoal).toBe(true)
+      );
+      const running = result.current.sportData.find((s) => s.sport === "running")!;
+      expect(running.targetGoal).toBeCloseTo(goalMetersToDisplay(5_000_000, "miles"), 6);
+      expect(reads).not.toHaveBeenCalled();
+    });
+
+    it("reports goals that couldn't be loaded as an error, not as no goal", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const { result } = renderSignedIn({}, (db) =>
+        vi.spyOn(db, "subscribeToDocument").mockImplementation((_path, _onData, onError) => {
+          onError?.(new Error("permission-denied"));
+          return () => {};
+        })
+      );
+
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      expect(result.current.error).toBeInstanceOf(Error);
+    });
 
     it("measures a sport with saved goals against them", async () => {
       const { result } = renderSignedIn({

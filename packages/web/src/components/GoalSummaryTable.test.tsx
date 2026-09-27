@@ -8,7 +8,7 @@ import { createYearContext } from "../utils/yearContext";
 import { THEMES } from "../themes/registry";
 import { ThemeStructureProvider } from "./theme/ThemeStructureProvider";
 
-// useDangerThresholds pulls from useUserConfig/useAuth at runtime, which require
+// useDangerThresholds pulls from the config store at runtime, which requires
 // app context. The threshold values themselves are exercised in this file's
 // "dangerous pace" cases, so we stub the hook to its US-display-unit defaults.
 vi.mock("../hooks/useDangerThresholds", () => ({

@@ -6,6 +6,7 @@ import { ThemeProvider, useTheme } from "./ThemeContext";
 import { ToastProvider } from "./ToastContext";
 import { TestServiceProvider } from "./ServiceContext";
 import { AuthProvider } from "./AuthContext";
+import { UserConfigProvider } from "./UserConfigProvider";
 import { MockAuthService } from "../services/auth/MockAuthService";
 import { MockDatabaseService } from "../services/database/MockDatabaseService";
 import { DEFAULT_PREFERENCES } from "../constants/settings";
@@ -90,8 +91,10 @@ function renderSync({
         <ToastProvider>
           <TestServiceProvider authService={auth} databaseService={db}>
             <AuthProvider>
-              <ThemeSync />
-              <Probe />
+              <UserConfigProvider>
+                <ThemeSync />
+                <Probe />
+              </UserConfigProvider>
             </AuthProvider>
           </TestServiceProvider>
         </ToastProvider>
@@ -321,6 +324,25 @@ describe("ThemeSync", () => {
       expect(sync.writes).not.toHaveBeenCalled();
     });
 
+    it("writes nothing while its listener is failing, and writes the change made meanwhile once it recovers", async () => {
+      // A failing listener used to hand on an empty document, whose missing theme read as
+      // one to fill in from this device. Now the store keeps its last copy and an error.
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const sync = renderSync({ stored: storedConfig("arcade") });
+      await settle();
+      expect(sync.preference()).toBe("arcade");
+
+      act(() => sync.db.failListeners(PATH, new Error("offline")));
+      await settle();
+      sync.choose("legacy-light");
+      await settle();
+      expect(sync.writes).not.toHaveBeenCalled();
+
+      act(() => sync.db.setMockData(PATH, storedConfig("arcade")));
+      await settle();
+      expect((await storedPreferences(sync.db))?.theme).toBe("legacy-light");
+    });
+
     it("shows the account's cached theme, and writes nothing, while the first read has failed", async () => {
       // Writing on a failed read would take "nothing synced" on faith and could overwrite the
       // choice another device made.
@@ -330,8 +352,11 @@ describe("ThemeSync", () => {
         demo: "legacy-light",
         cached: "system",
         prepare: (db) => {
-          vi.spyOn(db, "getDocument").mockRejectedValue(new Error("offline"));
-          vi.spyOn(db, "subscribeToDocument").mockReturnValue(() => {});
+          // The store's first read is the listener's first snapshot, which fails.
+          vi.spyOn(db, "subscribeToDocument").mockImplementation((_path, _onData, onError) => {
+            onError?.(new Error("offline"));
+            return () => {};
+          });
         },
       });
       await settle();

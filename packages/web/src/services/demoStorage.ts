@@ -8,6 +8,8 @@
  * doesn't copy the account's into the demo, and signed-in code never reads a demo key.
  */
 
+import type { SectionRef } from "./config/sections";
+
 export const DEMO_STORAGE_PREFIX = "demo.";
 
 type DemoSection = "goals" | "annotations" | "preferences";
@@ -19,6 +21,19 @@ export function demoConfigKey(section: DemoSection, year?: number, sport?: strin
   }
   if (year !== undefined) return `${DEMO_STORAGE_PREFIX}${section}.${year}`;
   return `${DEMO_STORAGE_PREFIX}${section}`;
+}
+
+/**
+ * The section a demo key holds, the inverse of `demoConfigKey`, or null for any other key
+ * (the demo's theme, say, which `ThemeContext` owns).
+ */
+export function parseDemoConfigKey(key: string): SectionRef | null {
+  if (key === `${DEMO_STORAGE_PREFIX}preferences`) return { section: "preferences" };
+  const goals = /^demo\.goals\.(\d{4})\.(.+)$/.exec(key);
+  if (goals) return { section: "goals", year: Number(goals[1]), sport: goals[2]! };
+  const annotations = /^demo\.annotations\.(\d{4})$/.exec(key);
+  if (annotations) return { section: "annotations", year: Number(annotations[1]) };
+  return null;
 }
 
 /** A demo section's stored JSON, or null when there is none. Parsing and validating are the caller's. */

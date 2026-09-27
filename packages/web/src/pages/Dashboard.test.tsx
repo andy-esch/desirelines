@@ -21,10 +21,11 @@ vi.mock("../hooks/useUserProfile", () => ({
   })),
 }));
 
-// Mock useUserConfig hook (used by useMultiSportChartData for distance unit preference)
-vi.mock("../hooks/useUserConfig", () => ({
-  useUserConfig: vi.fn(() => ({ data: null, isLoading: false, error: null })),
-}));
+// Mock the unit reader (used by useMultiSportChartData for distance unit preference)
+vi.mock("../hooks/usePreferences", async () => {
+  const { getUserSettings } = await import("../utils/units");
+  return { useUnitSettings: () => getUserSettings(null), useTimezone: () => undefined };
+});
 
 // Mock useDailySportData hook (used by MultiSportComparisonChart and ActivityCalendarHeatmap)
 vi.mock("../hooks/useDailySportData", () => ({

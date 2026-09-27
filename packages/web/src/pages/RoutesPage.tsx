@@ -28,8 +28,7 @@ import {
   parseActivityFilterSearch,
 } from "../utils/activityFilterSearch";
 import { useThrottledValue } from "../hooks/useThrottledValue";
-import { useUserConfig } from "../hooks/useUserConfig";
-import { getUserSettings } from "../utils/units";
+import { useUnitSettings } from "../hooks/usePreferences";
 import { getConfig } from "../lib/config";
 import { buildTileTemplateUrl, buildApiBaseUrl } from "../api/map";
 import { buildSportColorExpression } from "../utils/routeMapStyle";
@@ -123,8 +122,7 @@ export default function RoutesPage() {
   // filter is throttled separately; this lets a slider drag update the map/summary live
   // while the heavier charts catch up at a lower priority instead of every frame.
   const deferredFilteredActivities = useDeferredValue(routeFilters.filteredActivities);
-  const { data: prefs } = useUserConfig("preferences");
-  const { distanceUnit, elevationUnit } = getUserSettings(prefs);
+  const { distanceUnit, elevationUnit } = useUnitSettings();
   // On phones both drawers are bottom sheets that cover the map, so the filter drawer
   // starts CLOSED on mobile (it's open by default on desktop, where it's a side panel
   // that leaves the map visible). `useIsMobile` reads matchMedia synchronously on the

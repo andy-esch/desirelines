@@ -20,9 +20,10 @@ vi.mock("../hooks/useActivities");
 vi.mock("../hooks/useUserProfile", () => ({
   useUserProfile: () => ({ displayName: "Athlete", loading: false }),
 }));
-vi.mock("../hooks/useUserConfig", () => ({
-  useUserConfig: () => ({ data: null, isLoading: false }),
-}));
+vi.mock("../hooks/usePreferences", async () => {
+  const { getUserSettings } = await import("../utils/units");
+  return { useUnitSettings: () => getUserSettings(null) };
+});
 vi.mock("../hooks/useSportConfig", () => ({
   useSportConfig: () => ({ sportConfig: null, isLoading: false }),
 }));

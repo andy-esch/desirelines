@@ -14,8 +14,8 @@ vi.mock("../hooks/useUserProfile", () => ({
   useUserProfile: vi.fn(),
 }));
 
-vi.mock("../hooks/useUserConfig", () => ({
-  useUserConfig: vi.fn(),
+vi.mock("../hooks/usePreferences", () => ({
+  usePreferences: vi.fn(),
 }));
 
 // Mock child components that have their own complex state
@@ -29,11 +29,11 @@ vi.mock("../components/settings/GoalManagementTable", () => ({
 
 import { useAuth } from "../hooks/useAuth";
 import { useUserProfile } from "../hooks/useUserProfile";
-import { useUserConfig } from "../hooks/useUserConfig";
+import { usePreferences } from "../hooks/usePreferences";
 
 const mockUseAuth = vi.mocked(useAuth);
 const mockUseUserProfile = vi.mocked(useUserProfile);
-const mockUseUserConfig = vi.mocked(useUserConfig);
+const mockUsePreferences = vi.mocked(usePreferences);
 
 describe("SettingsPage", () => {
   beforeEach(() => {
@@ -73,15 +73,16 @@ describe("SettingsPage", () => {
       profile: null,
       error: null,
     });
-    mockUseUserConfig.mockReturnValue({
-      data: null,
-      updateData: vi.fn(),
+    mockUsePreferences.mockReturnValue({
+      preferences: DEFAULT_PREFERENCES,
+      save: vi.fn(),
       loading: true,
       error: null,
       isSaving: false,
       saveError: null,
       clearSaveError: vi.fn(),
       isSaved: false,
+      saveTheme: vi.fn(),
     });
 
     await renderWithRouter(<SettingsPage />);
@@ -109,15 +110,16 @@ describe("SettingsPage", () => {
       profile: null,
       error: null,
     });
-    mockUseUserConfig.mockReturnValue({
-      data: null,
-      updateData: vi.fn(),
+    mockUsePreferences.mockReturnValue({
+      preferences: DEFAULT_PREFERENCES,
+      save: vi.fn(),
       loading: false,
       error: null,
       isSaving: false,
       saveError: null,
       clearSaveError: vi.fn(),
       isSaved: false,
+      saveTheme: vi.fn(),
     });
 
     await renderWithRouter(<SettingsPage />);
@@ -141,15 +143,16 @@ describe("SettingsPage", () => {
       profile: { strava_athlete_id: 123, first_name: "Jane", last_name: "Doe" },
       error: null,
     });
-    mockUseUserConfig.mockReturnValue({
-      data: null,
-      updateData: vi.fn(),
+    mockUsePreferences.mockReturnValue({
+      preferences: DEFAULT_PREFERENCES,
+      save: vi.fn(),
       loading: false,
       error: null,
       isSaving: false,
       saveError: null,
       clearSaveError: vi.fn(),
       isSaved: false,
+      saveTheme: vi.fn(),
     });
 
     await renderWithRouter(<SettingsPage />);
@@ -173,15 +176,16 @@ describe("SettingsPage", () => {
       profile: null,
       error: null,
     });
-    mockUseUserConfig.mockReturnValue({
-      data: null,
-      updateData: vi.fn(),
+    mockUsePreferences.mockReturnValue({
+      preferences: DEFAULT_PREFERENCES,
+      save: vi.fn(),
       loading: false,
       error: null,
       isSaving: false,
       saveError: null,
       clearSaveError: vi.fn(),
       isSaved: false,
+      saveTheme: vi.fn(),
     });
 
     await renderWithRouter(<SettingsPage />);
@@ -213,15 +217,16 @@ describe("SettingsPage", () => {
       profile: null,
       error: null,
     });
-    mockUseUserConfig.mockReturnValue({
-      data: null,
-      updateData: vi.fn(),
+    mockUsePreferences.mockReturnValue({
+      preferences: DEFAULT_PREFERENCES,
+      save: vi.fn(),
       loading: false,
       error: null,
       isSaving: false,
       saveError: null,
       clearSaveError: vi.fn(),
       isSaved: false,
+      saveTheme: vi.fn(),
     });
 
     await renderWithRouter(<SettingsPage />);
@@ -251,15 +256,16 @@ describe("SettingsPage", () => {
       profile: null,
       error: null,
     });
-    mockUseUserConfig.mockReturnValue({
-      data: null,
-      updateData,
+    mockUsePreferences.mockReturnValue({
+      preferences: DEFAULT_PREFERENCES,
+      save: updateData,
       loading: false,
       error: null,
       isSaving: false,
       saveError: null,
       clearSaveError: vi.fn(),
       isSaved: false,
+      saveTheme: vi.fn(),
     });
 
     await renderWithRouter(<SettingsPage />);
@@ -294,15 +300,16 @@ describe("SettingsPage", () => {
       profile: null,
       error: null,
     });
-    mockUseUserConfig.mockReturnValue({
-      data: { ...DEFAULT_PREFERENCES, timezone: "America/New_York" },
-      updateData,
+    mockUsePreferences.mockReturnValue({
+      preferences: { ...DEFAULT_PREFERENCES, timezone: "America/New_York" },
+      save: updateData,
       loading: false,
       error: null,
       isSaving: false,
       saveError: null,
       clearSaveError: vi.fn(),
       isSaved: true,
+      saveTheme: vi.fn(),
     });
 
     await renderWithRouter(<SettingsPage />);
@@ -333,15 +340,16 @@ describe("SettingsPage", () => {
       profile: null,
       error: null,
     });
-    mockUseUserConfig.mockReturnValue({
-      data: { ...DEFAULT_PREFERENCES, timezone: "" },
-      updateData: vi.fn(),
+    mockUsePreferences.mockReturnValue({
+      preferences: { ...DEFAULT_PREFERENCES, timezone: "" },
+      save: vi.fn(),
       loading: false,
       error: null,
       isSaving: false,
       saveError: null,
       clearSaveError: vi.fn(),
       isSaved: true,
+      saveTheme: vi.fn(),
     });
 
     await renderWithRouter(<SettingsPage />);
@@ -371,15 +379,16 @@ describe("SettingsPage", () => {
       profile: null,
       error: null,
     });
-    mockUseUserConfig.mockReturnValue({
-      data: null,
-      updateData: vi.fn(),
+    mockUsePreferences.mockReturnValue({
+      preferences: DEFAULT_PREFERENCES,
+      save: vi.fn(),
       loading: false,
       error: null,
       isSaving: true,
       saveError: null,
       clearSaveError: vi.fn(),
       isSaved: false,
+      saveTheme: vi.fn(),
     });
 
     await renderWithRouter(<SettingsPage />);
@@ -404,15 +413,16 @@ describe("SettingsPage", () => {
       profile: null,
       error: null,
     });
-    mockUseUserConfig.mockReturnValue({
-      data: null,
-      updateData: vi.fn(),
+    mockUsePreferences.mockReturnValue({
+      preferences: DEFAULT_PREFERENCES,
+      save: vi.fn(),
       loading: false,
       error: null,
       isSaving: false,
       saveError: null,
       clearSaveError: vi.fn(),
       isSaved: false,
+      saveTheme: vi.fn(),
     });
 
     await renderWithRouter(<SettingsPage />);

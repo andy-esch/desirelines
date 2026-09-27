@@ -172,7 +172,7 @@ void _assertSchemaMatchesProto;
 /**
  * Validate a config payload (parsed JSON) against the Zod schema for its type.
  *
- * Used by the demo-mode read path in useUserConfig, to reject corrupted
+ * Used by the demo store's reads (services/config/demoAdapter.ts), to reject corrupted
  * localStorage blobs before they reach the rest of the app.
  *
  * Returns a discriminated `{ ok: true, data } | { ok: false, error }` so the
@@ -365,103 +365,6 @@ export class UserConfigService {
   }
 
   /**
-   * Get goals for a specific year and sport
-   */
-  async getConfigSection(
-    configType: "goals",
-    year: number,
-    sport: string
-  ): Promise<GoalsForYear | null>;
-  /**
-   * Get all sports' goals for a specific year
-   */
-  async getConfigSection(configType: "goals", year: number): Promise<SportGoalsForYear | null>;
-  /**
-   * Get all goals (all years, all sports)
-   */
-  async getConfigSection(configType: "goals"): Promise<{ [key: string]: SportGoalsForYear } | null>;
-  /**
-   * Get annotations for a specific year
-   */
-  async getConfigSection(
-    configType: "annotations",
-    year: number
-  ): Promise<AnnotationsForYear | null>;
-  /**
-   * Get all annotations
-   */
-  async getConfigSection(
-    configType: "annotations"
-  ): Promise<{ [key: string]: AnnotationsForYear } | null>;
-  /**
-   * Get preferences
-   */
-  async getConfigSection(configType: "preferences"): Promise<Preferences | null>;
-  /**
-   * Implementation
-   */
-  async getConfigSection(
-    configType: "goals" | "annotations" | "preferences",
-    year?: number,
-    sport?: string
-  ): Promise<
-    | GoalsForYear
-    | SportGoalsForYear
-    | AnnotationsForYear
-    | Preferences
-    | { [key: string]: SportGoalsForYear | AnnotationsForYear }
-    | null
-  > {
-    const config = await this.getConfig();
-    if (!config) return null;
-
-    return this.selectConfigSection(config, configType, year, sport);
-  }
-
-  /**
-   * Drill into a config section by year/sport. Shared by getConfigSection
-   * (which returns the value) and subscribeToConfigSection (which passes it to
-   * a callback) so the goals/annotations nesting and the `as` casts live in
-   * exactly one place. Returns null when the section or requested year is absent.
-   */
-  private selectConfigSection(
-    config: UserConfig,
-    configType: "goals" | "annotations" | "preferences",
-    year?: number,
-    sport?: string
-  ):
-    | GoalsForYear
-    | SportGoalsForYear
-    | AnnotationsForYear
-    | Preferences
-    | { [key: string]: SportGoalsForYear }
-    | { [key: string]: AnnotationsForYear }
-    | null {
-    const section = config[configType];
-    if (!section) return null;
-
-    // Handle goals with year and sport
-    if (year !== undefined && sport !== undefined && configType === "goals") {
-      const goalsSection = section as { [key: string]: SportGoalsForYear };
-      const yearGoals = goalsSection[year.toString()];
-      if (!yearGoals) return null;
-      return yearGoals.sports[sport] || null;
-    }
-    // Handle goals with year only (return all sports)
-    else if (year !== undefined && configType === "goals") {
-      const goalsSection = section as { [key: string]: SportGoalsForYear };
-      return goalsSection[year.toString()] || null;
-    }
-    // Handle annotations with year
-    else if (year !== undefined && configType === "annotations") {
-      const annotationsSection = section as { [key: string]: AnnotationsForYear };
-      return annotationsSection[year.toString()] || null;
-    }
-
-    return section;
-  }
-
-  /**
    * Update goals for a specific year and sport
    */
   async updateConfigSection(
@@ -577,59 +480,26 @@ export class UserConfigService {
   }
 
   /**
-   * Subscribe to real-time config updates
-   * Returns an unsubscribe function to stop listening
+   * Subscribe to real-time config updates. Returns an unsubscribe function.
+   *
+   * `onConfig` gets each snapshot, parsed once, or null when there's no document. `onError`
+   * gets a listener that failed for good (after the database service's retries) or a
+   * document that didn't validate. The two stay apart: an error isn't an empty document, and
+   * treating it as one would show every section as unsaved, and invite saves over it.
    */
-  subscribeToConfig(callback: (config: UserConfig | null) => void): () => void {
+  subscribeToConfig(
+    onConfig: (config: UserConfig | null) => void,
+    onError: (error: Error) => void
+  ): () => void {
     return this.databaseService.subscribeToDocument<UserConfig>(
       this.getDocPath(),
-      callback,
+      onConfig,
       (error) => {
         logger.error("Error in config subscription:", error);
-        callback(null);
+        onError(createUserFriendlyError(error, "keep your settings in sync"));
       },
       { schema: UserConfigSchema }
     );
-  }
-
-  /**
-   * Subscribe to a specific config section.
-   *
-   * For goals:
-   * - With year + sport: callback receives GoalsForYear | null
-   * - With year only: callback receives SportGoalsForYear | null (all sports for year)
-   * - Without year: callback receives { [year: string]: SportGoalsForYear } | null (all years, all sports)
-   *
-   * For annotations:
-   * - With year: callback receives AnnotationsForYear | null
-   * - Without year: callback receives { [year: string]: AnnotationsForYear } | null
-   *
-   * For preferences:
-   * - callback receives Preferences | null
-   */
-  subscribeToConfigSection(
-    configType: "goals" | "annotations" | "preferences",
-    callback: (
-      data:
-        | GoalsForYear
-        | SportGoalsForYear
-        | AnnotationsForYear
-        | Preferences
-        | { [key: string]: SportGoalsForYear }
-        | { [key: string]: AnnotationsForYear }
-        | null
-    ) => void,
-    year?: number,
-    sport?: string
-  ): () => void {
-    return this.subscribeToConfig((config) => {
-      if (!config) {
-        callback(null);
-        return;
-      }
-
-      callback(this.selectConfigSection(config, configType, year, sport));
-    });
   }
 }
 

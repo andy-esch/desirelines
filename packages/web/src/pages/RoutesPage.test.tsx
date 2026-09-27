@@ -61,9 +61,10 @@ vi.mock("../hooks/useVisibleSports", () => ({
   })),
 }));
 
-vi.mock("../hooks/useUserConfig", () => ({
-  useUserConfig: vi.fn(() => ({ data: null })),
-}));
+vi.mock("../hooks/usePreferences", async () => {
+  const { getUserSettings } = await import("../utils/units");
+  return { useUnitSettings: () => getUserSettings(null) };
+});
 
 // Mocked so the page stays a unit test (the real hook needs a QueryClientProvider,
 // which renderWithRouter doesn't supply); the wiring is covered in useRefreshMapData.test.

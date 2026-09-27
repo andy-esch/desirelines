@@ -135,6 +135,8 @@ User preferences, goals, and annotations. Stored in Firestore.
 | Go (proto-generated) | apigateway | `UserConfig`, `Preferences`, `Goal`, `Annotation` | `packages/apigateway/types/generated/user_config.pb.go` |
 | Frontend (proto-generated) | web | `UserConfig`, `Preferences`, `Goal`, `Annotation` | `packages/web/src/types/generated/user_config.ts` |
 | Frontend (service layer) | web | `UserConfigService` | `packages/web/src/services/userConfigService.ts` |
+| Frontend (store) | web | `UserConfigProvider`, `ConfigAdapter` | `packages/web/src/contexts/UserConfigProvider.tsx`, `packages/web/src/services/config/` |
+| Frontend (section hooks) | web | `usePreferences`, `useGoals`, `useAnnotations` | `packages/web/src/hooks/usePreferences.ts`, `useGoals.ts`, `useAnnotations.ts` |
 
 ### Strava Tokens
 

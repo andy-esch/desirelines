@@ -1,11 +1,10 @@
-import { useMemo } from "react";
-import { useQuery, useQueries } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "./useAuth";
 import { useCurrentYear } from "./useCurrentYear";
-import { useServices } from "../contexts/ServiceContext";
 import { useVisibleSports } from "./useVisibleSports";
 import { useSportConfig } from "./useSportConfig";
-import { useUserConfig } from "./useUserConfig";
+import { useTimezone, useUnitSettings } from "./usePreferences";
+import { useConfigDocument } from "./useConfigDocument";
 import { fetchMultiSportMetrics, type MetricsEntry } from "../api/activities";
 import {
   generateDemoMetrics,
@@ -13,10 +12,9 @@ import {
   getSessionFillLevels,
 } from "../utils/demoDataGenerator";
 import { filterValidSports } from "../utils/sportConfig";
-import { getUserSettings, type DistanceUnit } from "../utils/units";
+import type { DistanceUnit } from "../utils/units";
 import { createYearContext, type YearContext } from "../utils/yearContext";
-import { UserConfigService } from "../services/userConfigService";
-import type { GoalsForYear } from "../types/generated/user_config";
+import { selectSection } from "../services/config/sections";
 import { transformToSportGoalData, type SportGoalData } from "../utils/dashboardUtils";
 
 export type { SportGoalData };
@@ -26,12 +24,10 @@ export type { SportGoalData };
  *
  * Handles both demo and auth modes:
  * - Demo: generateDemoMetrics for YTD, generateDemoGoals for goals
- * - Auth: API calls for metrics, Firestore for goals (cache-shared with useUserConfig)
+ * - Auth: API calls for metrics; goals from the config store (`useConfigDocument`), so a
+ *   goal saved anywhere shows here at once, with no read of its own
  *
- * Memoization strategy (React Compiler hybrid):
- * Most derivations are left to the React Compiler. Exception:
- *   - configService (useMemo): a new instance per render would create new
- *     queryFn closures in useQueries, causing unnecessary refetches.
+ * Derivations are left to the React Compiler.
  */
 export function useDashboardGoalData(): {
   sportData: SportGoalData[];
@@ -41,14 +37,13 @@ export function useDashboardGoalData(): {
   error: Error | null;
 } {
   const { user, loading: authLoading } = useAuth();
-  const { authService, databaseService } = useServices();
+  const { doc: userConfig, loading: goalsLoading, error: goalsError } = useConfigDocument();
   const { visibleSports, isLoading: prefsLoading } = useVisibleSports();
   const { sportConfig, isLoading: configLoading } = useSportConfig();
-  const { data: prefs } = useUserConfig("preferences");
 
   const currentYear = useCurrentYear();
   const yearContext = createYearContext(currentYear);
-  const userSettings = getUserSettings(prefs);
+  const userSettings = useUnitSettings();
 
   const validSports = filterValidSports(visibleSports, sportConfig);
 
@@ -69,7 +64,7 @@ export function useDashboardGoalData(): {
 
   // Auth: single multi-sport metrics fetch
   const sortedSports = [...validSports].sort();
-  const tz = prefs?.timezone || undefined;
+  const tz = useTimezone();
   const metricsQuery = useQuery({
     queryKey: ["sportMetrics", user?.uid, currentYear, sortedSports, tz],
     queryFn: ({ signal }: { signal: AbortSignal }) =>
@@ -90,34 +85,17 @@ export function useDashboardGoalData(): {
     }
   }
 
-  // Auth: batch fetch goals
-  const effectiveUserId = user?.uid ?? "default";
-  // Explicit useMemo: avoids creating a new service instance (and thus new queryFn
-  // closures in useQueries below) on every render.
-  const configService = useMemo(() => {
-    if (!user) return null;
-    return new UserConfigService(undefined, "v1", { authService, databaseService });
-  }, [user, authService, databaseService]);
-
-  const goalsQueries = useQueries({
-    queries: validSports.map((sport) => ({
-      queryKey: ["userConfig", "goals", currentYear, sport, effectiveUserId, "v1"],
-      queryFn: async (): Promise<GoalsForYear | null> => {
-        if (!configService) return null;
-        return configService.getConfigSection("goals", currentYear, sport);
-      },
-      enabled: !authLoading && !!user,
-      staleTime: Infinity,
-    })),
-  });
+  // Auth: each sport's goals come from the store's copy of the config, below.
 
   // --- 3. Transform to UI Model ---
 
-  const sportData = validSports.map((sport, index) => {
+  const sportData = validSports.map((sport) => {
     return transformToSportGoalData({
       sport,
       metrics: user ? metricsQuery.data?.[sport] : demoMetrics?.[sport],
-      goalsData: goalsQueries[index]?.data,
+      goalsData: user
+        ? selectSection(userConfig, { section: "goals", year: currentYear, sport })
+        : undefined,
       demoGoals: demoGoals?.[sport],
       sportConfig,
       userSettings,
@@ -129,8 +107,11 @@ export function useDashboardGoalData(): {
     prefsLoading ||
     configLoading ||
     authLoading ||
-    (!!user && (metricsQuery.isLoading || goalsQueries.some((q) => q.isLoading)));
-  const queryError = metricsQuery.error ?? goalsQueries.find((q) => q.error)?.error ?? null;
+    (!!user && (metricsQuery.isLoading || goalsLoading));
+  // An account's goals that couldn't be loaded are an error, not "no goal": the store's
+  // last good copy stands after a listener error, but with none there's nothing to show.
+  const queryError =
+    metricsQuery.error ?? (user && userConfig === undefined ? goalsError : null) ?? null;
 
   return {
     sportData,

@@ -127,209 +127,6 @@ describe("UserConfigService", () => {
     });
   });
 
-  describe("getConfigSection", () => {
-    const mockConfig: UserConfig = {
-      schemaVersion: "2.1",
-      userId: "test-user",
-      lastUpdated: "2025-01-01T00:00:00Z",
-      goals: {
-        "2025": {
-          sports: {
-            cycling: {
-              goals: [
-                {
-                  id: "1",
-                  value: 1000,
-                  label: "2025 Goal",
-                  createdAt: "2025-01-01T00:00:00Z",
-                  updatedAt: "2025-01-01T00:00:00Z",
-                  metric: "",
-                },
-              ],
-            },
-          },
-        },
-        "2024": {
-          sports: {
-            cycling: {
-              goals: [
-                {
-                  id: "2",
-                  value: 800,
-                  label: "2024 Goal",
-                  createdAt: "2024-01-01T00:00:00Z",
-                  updatedAt: "2024-01-01T00:00:00Z",
-                  metric: "",
-                },
-              ],
-            },
-          },
-        },
-      },
-      annotations: {
-        "2025": {
-          annotations: [
-            {
-              id: "1",
-              startDate: "2025-01-01",
-              endDate: "",
-              label: "Test Annotation",
-              description: "",
-              stravaActivityId: "",
-              type: 0,
-              createdAt: "2025-01-01T00:00:00Z",
-              updatedAt: "2025-01-01T00:00:00Z",
-            },
-          ],
-        },
-      },
-      preferences: {
-        theme: "dark",
-        distanceUnit: "",
-        elevationUnit: "",
-        defaultSport: "",
-        timezone: "",
-        defaultYear: 2025,
-        visibleSports: [],
-      },
-    };
-
-    beforeEach(() => {
-      const mockDocSnap = {
-        exists: () => true,
-        data: () => mockConfig,
-      };
-      vi.mocked(firestore.getDoc).mockResolvedValue(mockDocSnap as any);
-    });
-
-    it("should return goals for specific year and sport", async () => {
-      const result = await service.getConfigSection("goals", 2025, "cycling");
-
-      expect(result).toEqual({
-        goals: [
-          {
-            id: "1",
-            value: 1000,
-            label: "2025 Goal",
-            createdAt: "2025-01-01T00:00:00Z",
-            updatedAt: "2025-01-01T00:00:00Z",
-            metric: "",
-          },
-        ],
-      });
-    });
-
-    it("should return all goals when year not specified", async () => {
-      const result = await service.getConfigSection("goals");
-
-      expect(result).toEqual({
-        "2025": {
-          sports: {
-            cycling: {
-              goals: [
-                {
-                  id: "1",
-                  value: 1000,
-                  label: "2025 Goal",
-                  createdAt: "2025-01-01T00:00:00Z",
-                  updatedAt: "2025-01-01T00:00:00Z",
-                  metric: "",
-                },
-              ],
-            },
-          },
-        },
-        "2024": {
-          sports: {
-            cycling: {
-              goals: [
-                {
-                  id: "2",
-                  value: 800,
-                  label: "2024 Goal",
-                  createdAt: "2024-01-01T00:00:00Z",
-                  updatedAt: "2024-01-01T00:00:00Z",
-                  metric: "",
-                },
-              ],
-            },
-          },
-        },
-      });
-    });
-
-    it("should return annotations for specific year", async () => {
-      const result = await service.getConfigSection("annotations", 2025);
-
-      expect(result).toEqual({
-        annotations: [
-          {
-            id: "1",
-            startDate: "2025-01-01",
-            endDate: "",
-            label: "Test Annotation",
-            description: "",
-            stravaActivityId: "",
-            type: 0,
-            createdAt: "2025-01-01T00:00:00Z",
-            updatedAt: "2025-01-01T00:00:00Z",
-          },
-        ],
-      });
-    });
-
-    it("should return null for year/sport with no data", async () => {
-      const result = await service.getConfigSection("goals", 2023, "cycling");
-
-      expect(result).toBeNull();
-    });
-
-    it("should return preferences", async () => {
-      const result = await service.getConfigSection("preferences");
-
-      expect(result).toEqual({
-        theme: "dark",
-        distanceUnit: "",
-        elevationUnit: "",
-        defaultSport: "",
-        timezone: "",
-        defaultYear: 2025,
-        visibleSports: [],
-      });
-    });
-
-    it("should return null when config does not exist", async () => {
-      const mockDocSnap = {
-        exists: () => false,
-      };
-      vi.mocked(firestore.getDoc).mockResolvedValue(mockDocSnap as any);
-
-      const result = await service.getConfigSection("goals", 2025);
-
-      expect(result).toBeNull();
-    });
-
-    it("should return null when section does not exist in config", async () => {
-      const configWithoutGoals: UserConfig = {
-        schemaVersion: "2.1",
-        userId: "test-user",
-        lastUpdated: "2025-01-01T00:00:00Z",
-        goals: {},
-        annotations: {},
-      };
-
-      const mockDocSnap = {
-        exists: () => true,
-        data: () => configWithoutGoals,
-      };
-      vi.mocked(firestore.getDoc).mockResolvedValue(mockDocSnap as any);
-
-      const result = await service.getConfigSection("preferences");
-
-      expect(result).toBeNull();
-    });
-  });
-
   describe("updateConfigSection", () => {
     it("writes that year and sport's goals and nothing else, without reading the document", async () => {
       // Stored: another year's goals. A save that read the document and wrote it back would
@@ -694,7 +491,7 @@ describe("UserConfigService", () => {
       });
 
       const callback = vi.fn();
-      const unsubscribe = service.subscribeToConfig(callback);
+      const unsubscribe = service.subscribeToConfig(callback, vi.fn());
 
       // Simulate snapshot event
       const mockDocSnap = {
@@ -717,7 +514,7 @@ describe("UserConfigService", () => {
       });
 
       const callback = vi.fn();
-      service.subscribeToConfig(callback);
+      service.subscribeToConfig(callback, vi.fn());
 
       const mockDocSnap = {
         exists: () => false,
@@ -727,7 +524,9 @@ describe("UserConfigService", () => {
       expect(callback).toHaveBeenCalledWith(null);
     });
 
-    it("should handle errors in subscription", () => {
+    it("reports a subscription error as an error, never as an empty document", () => {
+      // An error passed on as null would read as nothing saved: every section unsaved, and
+      // saves invited over what is.
       const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       const mockUnsubscribe = vi.fn();
       let capturedOnError: ((error: Error) => void) | undefined;
@@ -738,13 +537,15 @@ describe("UserConfigService", () => {
       });
 
       const callback = vi.fn();
-      service.subscribeToConfig(callback);
+      const onError = vi.fn();
+      service.subscribeToConfig(callback, onError);
 
       const error = new Error("Subscription error");
       capturedOnError!(error);
 
       expect(consoleErrorSpy).toHaveBeenCalledWith("Error in config subscription:", error);
-      expect(callback).toHaveBeenCalledWith(null);
+      expect(onError).toHaveBeenCalledWith(error);
+      expect(callback).not.toHaveBeenCalled();
 
       consoleErrorSpy.mockRestore();
     });
@@ -755,169 +556,7 @@ describe("UserConfigService", () => {
       vi.mocked(firestore.onSnapshot).mockReturnValue(mockUnsubscribe);
 
       const callback = vi.fn();
-      const unsubscribe = service.subscribeToConfig(callback);
-
-      unsubscribe();
-
-      expect(mockUnsubscribe).toHaveBeenCalled();
-    });
-  });
-
-  describe("subscribeToConfigSection", () => {
-    it("should subscribe to goals for specific year", () => {
-      const mockConfig: UserConfig = {
-        schemaVersion: "2.1",
-        userId: "test-user",
-        lastUpdated: "2025-01-01T00:00:00Z",
-        goals: {
-          "2025": {
-            sports: {
-              cycling: {
-                goals: [
-                  {
-                    id: "1",
-                    value: 1000,
-                    label: "Goal",
-                    createdAt: "2025-01-01T00:00:00Z",
-                    updatedAt: "2025-01-01T00:00:00Z",
-                    metric: "",
-                  },
-                ],
-              },
-            },
-          },
-        },
-        annotations: {},
-      };
-
-      const mockUnsubscribe = vi.fn();
-      let capturedOnNext: ((doc: any) => void) | undefined;
-
-      vi.mocked(firestore.onSnapshot).mockImplementation((_docRef, onNext) => {
-        capturedOnNext = onNext as any;
-        return mockUnsubscribe;
-      });
-
-      const callback = vi.fn();
-      service.subscribeToConfigSection("goals", callback, 2025, "cycling");
-
-      const mockDocSnap = {
-        exists: () => true,
-        data: () => mockConfig,
-      };
-      capturedOnNext!(mockDocSnap);
-
-      expect(callback).toHaveBeenCalledWith({
-        goals: [
-          {
-            id: "1",
-            value: 1000,
-            label: "Goal",
-            createdAt: "2025-01-01T00:00:00Z",
-            updatedAt: "2025-01-01T00:00:00Z",
-            metric: "",
-          },
-        ],
-      });
-    });
-
-    it("should call callback with null when year has no data", () => {
-      const mockConfig: UserConfig = {
-        schemaVersion: "2.1",
-        userId: "test-user",
-        lastUpdated: "2025-01-01T00:00:00Z",
-        goals: {
-          "2024": {
-            sports: {
-              cycling: {
-                goals: [
-                  {
-                    id: "2",
-                    value: 800,
-                    label: "Goal",
-                    createdAt: "2024-01-01T00:00:00Z",
-                    updatedAt: "2024-01-01T00:00:00Z",
-                    metric: "",
-                  },
-                ],
-              },
-            },
-          },
-        },
-        annotations: {},
-      };
-
-      let capturedOnNext: ((doc: any) => void) | undefined;
-
-      vi.mocked(firestore.onSnapshot).mockImplementation((_docRef, onNext) => {
-        capturedOnNext = onNext as any;
-        return vi.fn();
-      });
-
-      const callback = vi.fn();
-      service.subscribeToConfigSection("goals", callback, 2025);
-
-      const mockDocSnap = {
-        exists: () => true,
-        data: () => mockConfig,
-      };
-      capturedOnNext!(mockDocSnap);
-
-      expect(callback).toHaveBeenCalledWith(null);
-    });
-
-    it("should subscribe to preferences", () => {
-      const mockConfig: UserConfig = {
-        schemaVersion: "2.1",
-        userId: "test-user",
-        lastUpdated: "2025-01-01T00:00:00Z",
-        goals: {},
-        annotations: {},
-        preferences: {
-          theme: "dark",
-          defaultYear: 2025,
-          distanceUnit: "",
-          elevationUnit: "",
-          defaultSport: "",
-          timezone: "",
-          visibleSports: [],
-        },
-      };
-
-      let capturedOnNext: ((doc: any) => void) | undefined;
-
-      vi.mocked(firestore.onSnapshot).mockImplementation((_docRef, onNext) => {
-        capturedOnNext = onNext as any;
-        return vi.fn();
-      });
-
-      const callback = vi.fn();
-      service.subscribeToConfigSection("preferences", callback);
-
-      const mockDocSnap = {
-        exists: () => true,
-        data: () => mockConfig,
-      };
-      capturedOnNext!(mockDocSnap);
-
-      expect(callback).toHaveBeenCalledWith({
-        theme: "dark",
-        distanceUnit: "",
-        elevationUnit: "",
-        defaultSport: "",
-        timezone: "",
-        defaultYear: 2025,
-        visibleSports: [],
-      });
-    });
-
-    it("should return unsubscribe function", () => {
-      const mockUnsubscribe = vi.fn();
-
-      vi.mocked(firestore.onSnapshot).mockReturnValue(mockUnsubscribe);
-
-      const callback = vi.fn();
-      const unsubscribe = service.subscribeToConfigSection("goals", callback, 2025);
+      const unsubscribe = service.subscribeToConfig(callback, vi.fn());
 
       unsubscribe();
 

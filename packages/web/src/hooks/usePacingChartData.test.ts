@@ -4,9 +4,10 @@ import { usePacingChartData } from "./usePacingChartData";
 import { testGoals } from "../utils/goalTestFixtures";
 
 // Mock dependencies
-vi.mock("./useUserConfig", () => ({
-  useUserConfig: () => ({ data: {} }),
-}));
+vi.mock("./usePreferences", async () => {
+  const { getUserSettings } = await import("../utils/units");
+  return { useUnitSettings: () => getUserSettings(null), useTimezone: () => undefined };
+});
 
 vi.mock("./useAuth", () => ({
   useAuth: () => ({ user: { uid: "test-user" }, loading: false }),

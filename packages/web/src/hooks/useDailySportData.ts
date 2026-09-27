@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "./useAuth";
-import { useUserConfig } from "./useUserConfig";
+import { useTimezone } from "./usePreferences";
 import { fetchMultiSportDailySummary, type DailyActivity } from "../api/activities";
 import {
   generateDemoDailyData,
@@ -81,8 +81,7 @@ const DEMO_CACHE_LIMIT = 24;
 
 export function useDailySportData(options: UseDailySportDataOptions): DailySportDataResult {
   const { user, loading: authLoading } = useAuth();
-  const { data: prefs } = useUserConfig("preferences");
-  const tz = prefs?.timezone || undefined;
+  const tz = useTimezone();
 
   const { year, from, to, tuningParams } = options;
   // Note: Callers must ensure `options.sports` is referentially stable (memoized) to prevent

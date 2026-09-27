@@ -34,10 +34,11 @@ vi.mock("../../hooks/useSportConfig", () => ({
   useSportConfig: vi.fn(),
 }));
 
-// Mock useUserConfig hook (used by useMultiSportChartData for distance unit preference)
-vi.mock("../../hooks/useUserConfig", () => ({
-  useUserConfig: vi.fn(() => ({ data: null, isLoading: false, error: null })),
-}));
+// Mock the unit reader (used by useMultiSportChartData for distance unit preference)
+vi.mock("../../hooks/usePreferences", async () => {
+  const { getUserSettings } = await import("../../utils/units");
+  return { useUnitSettings: vi.fn(() => getUserSettings(null)) };
+});
 
 // The day a test hovers, and the chart's rows, so the Tooltip mock can render the chart's
 // own tooltip content for that day as Recharts would.
@@ -72,7 +73,9 @@ import { useDailySportData } from "../../hooks/useDailySportData";
 import { useAuth } from "../../hooks/useAuth";
 import { useVisibleSports } from "../../hooks/useVisibleSports";
 import { useSportConfig } from "../../hooks/useSportConfig";
-import { useUserConfig } from "../../hooks/useUserConfig";
+import { useUnitSettings } from "../../hooks/usePreferences";
+import { getUserSettings } from "../../utils/units";
+import type { Preferences } from "../../services/userConfigService";
 
 const mockUseDailySportData = vi.mocked(useDailySportData);
 const mockUseAuth = vi.mocked(useAuth);
@@ -192,8 +195,8 @@ describe("MultiSportSparklineChart", () => {
     const yesterday = toLocalDateString(new Date(Date.now() - 24 * 60 * 60 * 1000));
 
     beforeEach(() => {
-      // Back to the factory's preferences-free return after the unit test replaces it.
-      vi.mocked(useUserConfig).mockReset();
+      // Back to the factory's default units after the unit test replaces them.
+      vi.mocked(useUnitSettings).mockReset();
       mockUseDailySportData.mockReturnValue({
         data: {
           cycling: { [today]: { distanceMeters: 20000, activities: 1, activityIds: [1] } },
@@ -221,9 +224,9 @@ describe("MultiSportSparklineChart", () => {
     });
 
     it("converts distances to the athlete's unit", async () => {
-      vi.mocked(useUserConfig).mockReturnValue({
-        data: { distanceUnit: "kilometers" },
-      } as unknown as ReturnType<typeof useUserConfig>);
+      vi.mocked(useUnitSettings).mockReturnValue(
+        getUserSettings({ distanceUnit: "kilometers" } as Preferences)
+      );
       hover.date = today;
       await renderWithRouter(<MultiSportSparklineChart timeRange="2weeks" />);
 

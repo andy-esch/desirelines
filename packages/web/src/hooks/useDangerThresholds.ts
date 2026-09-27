@@ -11,19 +11,17 @@ import {
   convertDistance,
   convertElevation,
   convertToMeters,
-  getUserSettings,
   METERS_TO_FEET,
   type DistanceUnit,
   type ElevationUnit,
 } from "../utils/units";
 import { DEFAULT_DANGER_PROXIMITY } from "../utils/chartScaling";
 import { usePublicSportConfig } from "./usePublicSportConfig";
-import { useUserConfig } from "./useUserConfig";
+import { useUnitSettings } from "./usePreferences";
 
 export function useDangerThresholds() {
   const { sportConfig } = usePublicSportConfig();
-  const { data: preferences } = useUserConfig("preferences");
-  const { distanceUnit, elevationUnit } = getUserSettings(preferences);
+  const { distanceUnit, elevationUnit } = useUnitSettings();
 
   const getThreshold = (sport: string): number => {
     const pace = sportConfig?.sportCategories?.[sport]?.dangerPace;
