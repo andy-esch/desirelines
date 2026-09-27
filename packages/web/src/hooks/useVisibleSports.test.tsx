@@ -57,6 +57,7 @@ describe("useVisibleSports", () => {
         isSaving: false,
         saveError: null,
         clearSaveError: vi.fn(),
+        isSaved: false,
       });
 
       const { result } = renderHook(() => useVisibleSports(), { wrapper: createWrapper() });
@@ -78,6 +79,7 @@ describe("useVisibleSports", () => {
         isSaving: false,
         saveError: null,
         clearSaveError: vi.fn(),
+        isSaved: false,
       });
 
       const { result } = renderHook(() => useVisibleSports(), { wrapper: createWrapper() });
@@ -99,6 +101,7 @@ describe("useVisibleSports", () => {
         isSaving: false,
         saveError: null,
         clearSaveError: vi.fn(),
+        isSaved: true,
       });
       const { result } = renderHook(() => useVisibleSports(), { wrapper: createWrapper() });
 
@@ -120,6 +123,7 @@ describe("useVisibleSports", () => {
         isSaving: false,
         saveError: null,
         clearSaveError: vi.fn(),
+        isSaved: true,
       });
       const { result } = renderHook(() => useVisibleSports(), { wrapper: createWrapper() });
 
@@ -143,6 +147,7 @@ describe("useVisibleSports", () => {
         isSaving: false,
         saveError: null,
         clearSaveError: vi.fn(),
+        isSaved: true,
       });
 
       const { result } = renderHook(() => useVisibleSports(["cycling", "running"]), {
@@ -167,6 +172,7 @@ describe("useVisibleSports", () => {
         isSaving: false,
         saveError: null,
         clearSaveError: vi.fn(),
+        isSaved: true,
       });
 
       const { result } = renderHook(() => useVisibleSports(["cycling", "running"]), {
@@ -200,6 +206,7 @@ describe("useVisibleSports", () => {
         isSaving: false,
         saveError: null,
         clearSaveError: vi.fn(),
+        isSaved: true,
       });
 
       const { result } = renderHook(() => useVisibleSports(), { wrapper: createWrapper() });
@@ -230,6 +237,7 @@ describe("useVisibleSports", () => {
         isSaving: false,
         saveError: null,
         clearSaveError: vi.fn(),
+        isSaved: true,
       });
 
       const { result } = renderHook(() => useVisibleSports(["cycling"]), {
@@ -258,6 +266,7 @@ describe("useVisibleSports", () => {
         isSaving: false,
         saveError: null,
         clearSaveError: vi.fn(),
+        isSaved: true,
       });
 
       const { result } = renderHook(() => useVisibleSports(), { wrapper: createWrapper() });

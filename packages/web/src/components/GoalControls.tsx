@@ -9,6 +9,7 @@ import { InlineAlert } from "./InlineAlert";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Alert } from "./ui/alert";
+import { logApiError } from "../api/errors";
 
 interface GoalControlsProps {
   goals: Goals;
@@ -26,6 +27,13 @@ interface GoalControlsProps {
   primaryMetric: string;
   /** Loaded sport registry (or null while loading) for metric-config lookup. */
   sportConfig: SportConfig | null;
+  /**
+   * The goals are suggestions (this year's pace, or the sport's floor), none saved yet. A note
+   * says so, with a button to save them as they are; changing one saves them too.
+   */
+  suggested?: boolean | undefined;
+  /** Save the suggested goals as they are. Required for the note's button. */
+  onSaveSuggested?: (() => Promise<void>) | undefined;
   // Loading/error state from parent (useUserConfig hook)
   isSaving?: boolean | undefined;
   saveError?: Error | null | undefined;
@@ -40,6 +48,8 @@ const GoalControls: React.FC<GoalControlsProps> = ({
   sport,
   primaryMetric,
   sportConfig,
+  suggested = false,
+  onSaveSuggested,
   isSaving = false,
   saveError = null,
   onClearSaveError,
@@ -99,6 +109,32 @@ const GoalControls: React.FC<GoalControlsProps> = ({
         </InlineAlert>
       )}
       {!validation.valid && <InlineAlert size="sm">{validation.error}</InlineAlert>}
+      {suggested && (
+        <Alert className="mb-2 flex flex-col items-start gap-2 px-2 py-2 text-sm">
+          <span>
+            {/* The suggestions follow the pace only above the sport's floor, where the
+                generator lifts a slower pace to the floor's goals. */}
+            {estimatedYearEnd > getMetricConfig(sport, sportConfig).defaultGoalValue
+              ? "Suggested from your pace so far."
+              : "Suggested starting goals."}{" "}
+            Save them, or change one to set your own.
+          </span>
+          {onSaveSuggested && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                onSaveSuggested().catch((err: unknown) =>
+                  logApiError(err, "[GoalControls] Failed to save the suggested goals")
+                );
+              }}
+              disabled={isSaving}
+            >
+              Save these
+            </Button>
+          )}
+        </Alert>
+      )}
 
       <div className="mb-2 flex flex-col divide-y divide-surface-border border-y border-surface-border">
         {goals.map((goal, index) => (

@@ -40,7 +40,8 @@
 - **Features**:
   - Multi-sport comparison chart
   - Sport cards with mini-charts
-  - Goal progress summaries
+  - Goal progress summaries; a sport without a goal says so and links to its
+    page to set one, with nothing measured against a default
   - Navigation to sport detail pages
 
 ### Sport Detail Pages
@@ -55,7 +56,9 @@
 - **Features**:
   - Cumulative metrics chart
   - Pacing analysis
-  - Goal controls
+  - Goal controls; with none saved for the sport and year, they show goals
+    suggested from this year's pace (never below the sport's starting goals),
+    with a note and a button to save them
   - Year navigation
 
 ### Activities Group

@@ -77,6 +77,13 @@ export interface SportPageData {
   goals: Goals;
   chartGoals: Goals;
   onGoalsChange: (goals: Goals) => Promise<void>;
+  /**
+   * The goals shown are suggestions (this year's pace, or the sport's floor), with none saved
+   * for the sport and year. False while the goals load.
+   */
+  goalsSuggested: boolean;
+  /** Save the suggested goals as they are. */
+  onSaveSuggestedGoals: () => Promise<void>;
   isGoalsSaving: boolean;
   goalsSaveError: Error | null;
   clearGoalsSaveError?: () => void;
@@ -259,6 +266,8 @@ export function useSportPageData(sport: string, year: number): SportPageData {
 
   const {
     data: goalsData,
+    loading: goalsLoading,
+    isSaved: goalsSaved,
     updateData: updateGoals,
     isSaving: isGoalsSaving,
     saveError: goalsSaveError,
@@ -342,6 +351,8 @@ export function useSportPageData(sport: string, year: number): SportPageData {
     goals,
     chartGoals: isViewingPrimaryMetric ? goals : [],
     onGoalsChange: handleGoalsChange,
+    goalsSuggested: !goalsLoading && !goalsSaved,
+    onSaveSuggestedGoals: () => updateGoals(defaultGoalsForYear),
     isGoalsSaving,
     goalsSaveError,
     clearGoalsSaveError,

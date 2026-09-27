@@ -7,6 +7,7 @@ import { UserConfigService, parseConfigData } from "../services/userConfigServic
 import type { GoalsForYear } from "../services/userConfigService";
 import { TestServiceProvider } from "../contexts/ServiceContext";
 import { demoConfigKey } from "../services/demoStorage";
+import { DEFAULT_PREFERENCES } from "../constants/settings";
 
 // Mock UserConfigService and parseConfigData. parseConfigData defaults to an
 // identity-passing validator since most tests pass already-shaped fixtures;
@@ -268,6 +269,114 @@ describe("useUserConfig", () => {
 
       await waitFor(() => expect(result.current.loading).toBe(false));
       expect(result.current.data).toEqual(callerDefault);
+    });
+  });
+
+  describe("isSaved", () => {
+    const goals = (id: string): GoalsForYear => ({
+      goals: [
+        {
+          id,
+          value: 100,
+          label: id,
+          metric: "distance_meters",
+          createdAt: "2025-01-01T00:00:00Z",
+          updatedAt: "2025-01-01T00:00:00Z",
+        },
+      ],
+    });
+
+    it.each([
+      ["nothing saved", false, null],
+      ["goals saved", true, goals("saved")],
+    ])("signed in with %s, is %s", async (_, saved, stored) => {
+      mockServiceInstance.getConfigSection.mockResolvedValue(stored);
+      const { result } = renderHook(
+        () => useUserConfig("goals", 2025, "cycling", goals("default")),
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      expect(result.current.isSaved).toBe(saved);
+      expect(result.current.data).toEqual(stored ?? goals("default"));
+    });
+
+    it("is false while loading", () => {
+      mockAuthState = { user: mockUser, loading: true };
+      const { result } = renderHook(
+        () => useUserConfig("goals", 2025, "cycling", goals("default")),
+        { wrapper: createWrapper() }
+      );
+      expect(result.current.isSaved).toBe(false);
+    });
+
+    describe("in the demo", () => {
+      beforeEach(() => {
+        mockAuthState = { user: null, loading: false };
+      });
+
+      it.each([
+        ["nothing saved", false, null],
+        ["goals saved", true, JSON.stringify(goals("saved"))],
+      ])("with %s, is %s", async (_, saved, stored) => {
+        localStorageMock.getItem.mockReturnValue(stored);
+        const { result } = renderHook(
+          () => useUserConfig("goals", 2025, "cycling", goals("default")),
+          { wrapper: createWrapper() }
+        );
+
+        await waitFor(() => expect(result.current.loading).toBe(false));
+        expect(result.current.isSaved).toBe(saved);
+      });
+
+      it("is false for a saved section that fails validation, which shows the default", async () => {
+        localStorageMock.getItem.mockReturnValue('{"goals":"not an array"}');
+        mockedParseConfigData.mockReturnValueOnce({ ok: false, error: { issues: [] } as any });
+        const { result } = renderHook(
+          () => useUserConfig("goals", 2025, "cycling", goals("default")),
+          { wrapper: createWrapper() }
+        );
+
+        await waitFor(() => expect(result.current.loading).toBe(false));
+        expect(result.current.isSaved).toBe(false);
+        expect(result.current.data).toEqual(goals("default"));
+      });
+
+      it("turns true once the default is saved", async () => {
+        const { result } = renderHook(
+          () => useUserConfig("goals", 2025, "cycling", goals("default")),
+          { wrapper: createWrapper() }
+        );
+        await waitFor(() => expect(result.current.loading).toBe(false));
+        expect(result.current.isSaved).toBe(false);
+
+        await act(() => result.current.updateData(goals("default")));
+
+        await waitFor(() => expect(result.current.isSaved).toBe(true));
+      });
+
+      it("shows the caller's current default, not the one it had when first read", async () => {
+        // The sport page's suggested goals follow this year's pace, which loads after the
+        // goals do. The demo used to cache the first default it was given.
+        const { result, rerender } = renderHook(
+          ({ fallback }) => useUserConfig("goals", 2025, "cycling", fallback),
+          { wrapper: createWrapper(), initialProps: { fallback: goals("early") } }
+        );
+        await waitFor(() => expect(result.current.data).toEqual(goals("early")));
+
+        rerender({ fallback: goals("paced") });
+
+        expect(result.current.data).toEqual(goals("paced"));
+      });
+
+      it("still falls back to the default preferences without a caller default", async () => {
+        const { result } = renderHook(() => useUserConfig("preferences"), {
+          wrapper: createWrapper(),
+        });
+        await waitFor(() => expect(result.current.loading).toBe(false));
+        expect(result.current.data).toEqual(DEFAULT_PREFERENCES);
+        expect(result.current.isSaved).toBe(false);
+      });
     });
   });
 
