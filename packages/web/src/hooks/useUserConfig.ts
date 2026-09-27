@@ -312,10 +312,9 @@ export function useUserConfig(
       return { previousData };
     },
     onError: (_err, _newData, context) => {
-      // If the mutation fails, use the context returned from onMutate to roll back
-      if (context?.previousData) {
-        queryClient.setQueryData(queryKey, context.previousData);
-      }
+      // Put back what was cached before the save, nothing included: a failed first save
+      // (an empty section caches null) must not stay on screen as if it had been saved.
+      if (context) queryClient.setQueryData(queryKey, context.previousData ?? null);
     },
     // No onSettled needed because subscription will update with server data
   });
