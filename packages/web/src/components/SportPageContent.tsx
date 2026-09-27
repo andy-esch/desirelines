@@ -54,6 +54,8 @@ export interface SportPageContentProps {
   goalsSuggested?: boolean | undefined;
   /** Save the suggested goals as they are. */
   onSaveSuggestedGoals?: (() => Promise<void>) | undefined;
+  /** The saved goals couldn't be loaded: none shown, and none can be changed. */
+  goalsUnavailable?: boolean | undefined;
   isGoalsSaving: boolean;
   goalsSaveError: Error | null;
   onClearGoalsSaveError?: (() => void) | undefined;
@@ -113,6 +115,7 @@ export default function SportPageContent({
   onGoalsChange,
   goalsSuggested = false,
   onSaveSuggestedGoals,
+  goalsUnavailable = false,
   isGoalsSaving,
   goalsSaveError,
   onClearGoalsSaveError,
@@ -182,6 +185,7 @@ export default function SportPageContent({
               sportConfig={sportConfig}
               suggested={goalsSuggested}
               onSaveSuggested={onSaveSuggestedGoals}
+              unavailable={goalsUnavailable}
               isSaving={isGoalsSaving}
               saveError={goalsSaveError}
               onClearSaveError={onClearGoalsSaveError}

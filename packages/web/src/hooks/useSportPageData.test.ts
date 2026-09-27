@@ -234,7 +234,7 @@ describe("useSportPageData", () => {
 
   describe("suggested goals", () => {
     /** useUserConfig as it answers for goals: the caller's default, or what's saved. */
-    function goalsConfig({ loading = false, isSaved = false } = {}) {
+    function goalsConfig({ loading = false, isSaved = false, error = null as Error | null } = {}) {
       const updateData = vi.fn().mockResolvedValue(undefined);
       vi.mocked(useUserConfig).mockImplementation(((
         configType: string,
@@ -243,7 +243,7 @@ describe("useSportPageData", () => {
         defaultValue?: unknown
       ) =>
         configType === "goals"
-          ? { data: defaultValue, loading, isSaved, error: null, updateData }
+          ? { data: defaultValue, loading, isSaved, error, updateData }
           : { data: { distanceUnit: "miles", elevationUnit: "feet" }, loading: false }) as any);
       return updateData;
     }
@@ -275,6 +275,28 @@ describe("useSportPageData", () => {
         .mock.calls.filter((c) => (c[0] as string) === "goals")
         .at(-1)?.[3];
       expect(updateData).toHaveBeenCalledWith(shown);
+    });
+
+    describe("when the saved goals couldn't be loaded", () => {
+      it("shows none, offers none to save, and says they can't be changed", () => {
+        // The default standing in isn't what's saved: saving it, or an edit of it, could put
+        // suggestions over the athlete's real goals.
+        goalsConfig({ error: new Error("permission-denied") });
+        const { result } = renderHook(() => useSportPageData("cycling", 2026));
+
+        expect(result.current.goalsUnavailable).toBe(true);
+        expect(result.current.goals).toEqual([]);
+        expect(result.current.goalsSuggested).toBe(false);
+      });
+
+      it("keeps the last good copy after the listener fails, and it can still be changed", () => {
+        goalsConfig({ error: new Error("offline"), isSaved: true });
+        const { result } = renderHook(() => useSportPageData("cycling", 2026));
+
+        expect(result.current.goalsUnavailable).toBe(false);
+        expect(result.current.goals.length).toBeGreaterThan(0);
+        expect(result.current.goalsSuggested).toBe(false);
+      });
     });
   });
 });

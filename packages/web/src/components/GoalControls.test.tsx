@@ -404,5 +404,15 @@ describe("GoalControls", () => {
       );
       expect(screen.getByRole("button", { name: "Save these" })).toBeDisabled();
     });
+
+    it("says the saved goals couldn't be loaded, and allows no change", () => {
+      render(<GoalControls {...defaultProps} goals={[]} unavailable />);
+
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Your saved goals couldn't be loaded, so they can't be changed right now."
+      );
+      expect(screen.getByRole("button", { name: "+ Add Goal" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: /Reset/ })).toBeDisabled();
+    });
   });
 });

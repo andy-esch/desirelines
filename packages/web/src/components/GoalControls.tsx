@@ -34,6 +34,11 @@ interface GoalControlsProps {
   suggested?: boolean | undefined;
   /** Save the suggested goals as they are. Required for the note's button. */
   onSaveSuggested?: (() => Promise<void>) | undefined;
+  /**
+   * The saved goals couldn't be loaded. A note says so, and nothing can be changed: a save
+   * could put an edit or the suggestions over goals that are saved.
+   */
+  unavailable?: boolean | undefined;
   // Loading/error state from parent (useUserConfig hook)
   isSaving?: boolean | undefined;
   saveError?: Error | null | undefined;
@@ -50,6 +55,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
   sportConfig,
   suggested = false,
   onSaveSuggested,
+  unavailable = false,
   isSaving = false,
   saveError = null,
   onClearSaveError,
@@ -84,6 +90,8 @@ const GoalControls: React.FC<GoalControlsProps> = ({
   });
 
   const validation = validateGoals(goals);
+  // No change while a save is in flight, or while what's saved isn't known.
+  const locked = isSaving || unavailable;
   const effectiveSaveError = saveError || managerSaveError;
   const effectiveClearSaveError = () => {
     if (onClearSaveError) onClearSaveError();
@@ -108,7 +116,14 @@ const GoalControls: React.FC<GoalControlsProps> = ({
           {effectiveSaveError.message || "Failed to save. Please try again."}
         </InlineAlert>
       )}
-      {!validation.valid && <InlineAlert size="sm">{validation.error}</InlineAlert>}
+      {unavailable && (
+        <InlineAlert variant="warning" size="sm">
+          Your saved goals couldn&apos;t be loaded, so they can&apos;t be changed right now. Reload
+          to try again.
+        </InlineAlert>
+      )}
+      {/* With the goals unknown there are none to validate. */}
+      {!unavailable && !validation.valid && <InlineAlert size="sm">{validation.error}</InlineAlert>}
       {suggested && (
         <Alert className="mb-2 flex flex-col items-start gap-2 px-2 py-2 text-sm">
           <span>
@@ -128,7 +143,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
                   logApiError(err, "[GoalControls] Failed to save the suggested goals")
                 );
               }}
-              disabled={isSaving}
+              disabled={locked}
             >
               Save these
             </Button>
@@ -155,7 +170,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
                   if (e.key === "Escape") setEditingLabel(null);
                 }}
                 placeholder="Label"
-                disabled={isSaving}
+                disabled={locked}
               />
               {goals.length > 1 && (
                 <Button
@@ -164,7 +179,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
                   className="ms-2 h-auto p-0 text-danger"
                   onClick={() => handleRemoveGoal(goal.id)}
                   title="Remove goal"
-                  disabled={isSaving}
+                  disabled={locked}
                 >
                   ×
                 </Button>
@@ -179,7 +194,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
                 size="sm"
                 className="rounded-e-none"
                 onClick={() => handleIncrement(goal.id, -incrementSize)}
-                disabled={goal.value <= 0 || isSaving}
+                disabled={goal.value <= 0 || locked}
               >
                 −
               </Button>
@@ -202,7 +217,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
                   }}
                   // eslint-disable-next-line jsx-a11y/no-autofocus -- user-initiated inline edit; focus is expected
                   autoFocus
-                  disabled={isSaving}
+                  disabled={locked}
                   aria-describedby={editValidationError ? `goal-error-${goal.id}` : undefined}
                 />
               ) : (
@@ -212,8 +227,8 @@ const GoalControls: React.FC<GoalControlsProps> = ({
                   value={`${goal.value.toLocaleString()} ${unit}`}
                   onFocus={() => handleStartEdit(goal.id, goal.value)}
                   readOnly
-                  disabled={isSaving}
-                  style={{ cursor: isSaving ? "not-allowed" : "pointer" }}
+                  disabled={locked}
+                  style={{ cursor: locked ? "not-allowed" : "pointer" }}
                 />
               )}
               <Button
@@ -221,7 +236,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
                 size="sm"
                 className="rounded-s-none"
                 onClick={() => handleIncrement(goal.id, incrementSize)}
-                disabled={isSaving}
+                disabled={locked}
               >
                 +
               </Button>
@@ -245,7 +260,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
           variant="outline"
           size="sm"
           onClick={handleAddGoal}
-          disabled={goals.length >= 5 || isSaving}
+          disabled={goals.length >= 5 || locked}
         >
           + Add Goal
         </Button>
@@ -268,7 +283,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
               })
             );
           }}
-          disabled={isSaving}
+          disabled={locked}
         >
           <svg
             width="14"

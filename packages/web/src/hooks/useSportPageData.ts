@@ -84,6 +84,11 @@ export interface SportPageData {
   goalsSuggested: boolean;
   /** Save the suggested goals as they are. */
   onSaveSuggestedGoals: () => Promise<void>;
+  /**
+   * The saved goals couldn't be loaded, so none are shown and none can be changed: a save
+   * now could put suggestions or an edit over goals that are saved.
+   */
+  goalsUnavailable: boolean;
   isGoalsSaving: boolean;
   goalsSaveError: Error | null;
   clearGoalsSaveError?: () => void;
@@ -268,6 +273,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
     data: goalsData,
     loading: goalsLoading,
     isSaved: goalsSaved,
+    error: goalsError,
     updateData: updateGoals,
     isSaving: isGoalsSaving,
     saveError: goalsSaveError,
@@ -277,7 +283,12 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   // One-time migration: convert legacy display-unit goal values to canonical
   // storage units (miles → meters for distance sports, hours → minutes for
   // time sports). No-op for sports without a canonical unit (e.g. sessions).
-  useGoalMigration(goalsData, user?.uid ?? "", year, sport, hasDistance, isTime, updateGoals);
+  // What's saved isn't known when the goals couldn't be loaded: `goalsData` is then the
+  // default standing in, which must be neither shown as goals nor saved.
+  const goalsUnavailable = goalsError !== null && !goalsSaved;
+  const knownGoals = goalsUnavailable ? null : goalsData;
+
+  useGoalMigration(knownGoals, user?.uid ?? "", year, sport, hasDistance, isTime, updateGoals);
 
   // Warn once per distinct goal when its stored `metric` disagrees with the
   // sport's primary metric (catches stale data, e.g. a goal copied across
@@ -286,7 +297,7 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   // StrictMode), and render stays a pure function.
   const warnedMetricMismatchRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    goalsData?.goals?.forEach((g) => {
+    knownGoals?.goals?.forEach((g) => {
       if (g.metric && g.metric !== primaryMetric) {
         const key = `${sport}/${year}/${g.id}`;
         if (!warnedMetricMismatchRef.current.has(key)) {
@@ -297,15 +308,15 @@ export function useSportPageData(sport: string, year: number): SportPageData {
         }
       }
     });
-  }, [goalsData, primaryMetric, sport, year]);
+  }, [knownGoals, primaryMetric, sport, year]);
 
   // Convert goals from storage units to display units for UI.
   // Carries all proto fields through to the display layer so a later write
   // doesn't need to re-derive metric/createdAt/updatedAt — closes the bolt-on
   // gap from harden-user-config-goal-data-integrity #2.
   const goalCtx: GoalUnitContext = { hasDistance, isTime, distanceUnit };
-  const goals: Goals = goalsData?.goals
-    ? goalsData.goals.map((g) => toDisplayGoal(g, goalCtx))
+  const goals: Goals = knownGoals?.goals
+    ? knownGoals.goals.map((g) => toDisplayGoal(g, goalCtx))
     : [];
 
   // Handle goals change: pure unit conversion. All proto metadata
@@ -351,8 +362,9 @@ export function useSportPageData(sport: string, year: number): SportPageData {
     goals,
     chartGoals: isViewingPrimaryMetric ? goals : [],
     onGoalsChange: handleGoalsChange,
-    goalsSuggested: !goalsLoading && !goalsSaved,
+    goalsSuggested: !goalsLoading && goalsError === null && !goalsSaved,
     onSaveSuggestedGoals: () => updateGoals(defaultGoalsForYear),
+    goalsUnavailable,
     isGoalsSaving,
     goalsSaveError,
     clearGoalsSaveError,
