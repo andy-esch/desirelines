@@ -48,10 +48,17 @@ export function useGoalManager({
   // Debounce timers for label changes (per goal ID)
   const labelDebounceTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
-  // Ref to access latest goals in debounce callbacks without stale closures
-  const goalsRef = useRef(goals);
+  // The goals every edit builds on. A save reaches the `goals` rendered here a tick later
+  // (the store updates its cache asynchronously), so an edit made in between would build
+  // on goals missing the one before it, and save over it. Each save sets these at once;
+  // the rendered goals take over again once no save is pending, which brings in a failed
+  // save's rollback and changes from elsewhere.
+  const latestGoals = useRef(goals);
+  const renderedGoals = useRef(goals);
+  const pendingSaves = useRef(0);
   useEffect(() => {
-    goalsRef.current = goals;
+    renderedGoals.current = goals;
+    if (pendingSaves.current === 0) latestGoals.current = goals;
   }, [goals]);
 
   /**
@@ -66,12 +73,18 @@ export function useGoalManager({
    * Note: We do NOT clear pending label debounces here to allow parallel edits.
    */
   const saveGoals = async (updatedGoals: Goals) => {
+    latestGoals.current = updatedGoals;
+    pendingSaves.current += 1;
     try {
       setSaveError(null);
       await onGoalsChange(updatedGoals);
     } catch (err) {
       logApiError(err, "[useGoalManager] Failed to save goals");
       setSaveError(err instanceof Error ? err : new Error(String(err)));
+      // What failed isn't saved: build on what's shown, which the store rolls back.
+      latestGoals.current = renderedGoals.current;
+    } finally {
+      pendingSaves.current -= 1;
     }
   };
 
@@ -84,12 +97,14 @@ export function useGoalManager({
     // Round based on sport type (100 for cycling, 10 for running/yoga)
     const rounded = Math.round(value / roundingFactor) * roundingFactor;
     const now = new Date().toISOString();
-    const updated = goals.map((g) => (g.id === id ? { ...g, value: rounded, updatedAt: now } : g));
+    const updated = latestGoals.current.map((g) =>
+      g.id === id ? { ...g, value: rounded, updatedAt: now } : g
+    );
     void saveGoals(updated);
   };
 
   const handleIncrement = (id: string, delta: number) => {
-    const goal = goals.find((g) => g.id === id);
+    const goal = latestGoals.current.find((g) => g.id === id);
     if (!goal) return;
     const newValue = Math.max(incrementSize, goal.value + delta); // Prevent going below minimum
     handleGoalValueChange(id, newValue);
@@ -118,17 +133,19 @@ export function useGoalManager({
 
     // Don't round manual text entry - allow any positive integer
     const now = new Date().toISOString();
-    const updated = goals.map((g) => (g.id === id ? { ...g, value, updatedAt: now } : g));
+    const updated = latestGoals.current.map((g) =>
+      g.id === id ? { ...g, value, updatedAt: now } : g
+    );
     void saveGoals(updated);
     setEditingId(null);
     setEditValidationError(null);
   };
 
   const handleGoalLabelChange = (id: string, label: string) => {
-    // Use goalsRef to ensure we work with latest state in async callbacks
-    const currentGoals = goalsRef.current;
     const now = new Date().toISOString();
-    const updated = currentGoals.map((g) => (g.id === id ? { ...g, label, updatedAt: now } : g));
+    const updated = latestGoals.current.map((g) =>
+      g.id === id ? { ...g, label, updatedAt: now } : g
+    );
     void saveGoals(updated);
   };
 
@@ -166,6 +183,7 @@ export function useGoalManager({
   };
 
   const handleAddGoal = () => {
+    const goals = latestGoals.current;
     if (goals.length >= 5) return;
 
     // Find unique value not in current goals
@@ -188,6 +206,7 @@ export function useGoalManager({
   };
 
   const handleRemoveGoal = (id: string) => {
+    const goals = latestGoals.current;
     if (goals.length <= 1) return;
     void saveGoals(goals.filter((g) => g.id !== id));
   };

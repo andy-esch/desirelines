@@ -7,6 +7,7 @@ import {
   estimateYearEndDistance,
   goalToDisplay,
   toStoredGoal,
+  toStoredGoals,
   type GoalUnitContext,
   type Goals,
 } from "../utils/goalCalculations";
@@ -144,10 +145,15 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
     });
   }, [goalsForYear, goalCtx, primaryMetric]);
 
-  // Persist canonical values; convert display → storage on write.
+  // Persist canonical values; convert display → storage on write, keeping untouched goals'
+  // stored values (see toStoredGoals).
   const handleGoalsChange = (newGoals: Goals): Promise<void> =>
     saveGoals({
-      goals: newGoals.map((g) => toStoredGoal(g, goalCtx)),
+      goals: toStoredGoals(
+        newGoals,
+        goalsForYear?.storageVersion === GOAL_STORAGE_VERSION ? goalsForYear.goals : [],
+        goalCtx
+      ),
       storageVersion: GOAL_STORAGE_VERSION,
     });
 

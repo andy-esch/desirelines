@@ -24,11 +24,12 @@ function isValidElevationUnit(value: unknown): value is ElevationUnit {
   return typeof value === "string" && VALID_ELEVATION_UNITS.includes(value as ElevationUnit);
 }
 
-// Conversion constants
-export const METERS_TO_MILES = 0.000621371;
+// Conversion constants. The mile is defined as 1609.344 m exactly, and its inverse is
+// derived rather than rounded, so a value converted to meters and back comes out as it went in.
+export const MILES_TO_METERS = 1609.344;
+export const METERS_TO_MILES = 1 / MILES_TO_METERS;
 export const METERS_TO_KM = 0.001;
 export const METERS_TO_FEET = 3.28084;
-export const MILES_TO_METERS = 1609.344;
 export const KM_TO_METERS = 1000;
 
 /**
@@ -72,7 +73,12 @@ export function convertElevation(meters: number, unit: ElevationUnit): number {
 export function formatDistance(meters: number, unit: DistanceUnit, decimals = 1): string {
   const value = convertDistance(meters, unit);
   const label = getDistanceLabel(unit);
-  return `${value.toFixed(decimals)} ${label}`;
+  // Group thousands (e.g. "1,234.5 mi"), as formatElevation does.
+  const formatted = value.toLocaleString(undefined, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+  return `${formatted} ${label}`;
 }
 
 /** A share of the goal as a percent, or null where there is none (render `MissingValue`). */

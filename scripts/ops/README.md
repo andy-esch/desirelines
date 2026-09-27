@@ -16,12 +16,18 @@ Operational scripts for setup, deployment, data management, and webhook administ
 |--------|---------|
 | `webhook-management.sh` | Manage Strava webhook subscriptions (create, view, delete) |
 | `dlq-replay.sh` | Replay dead-lettered messages onto their source topic |
+| `count-unstamped-goals.py` | Read-only: count stored goal sections without the canonical-units stamp (`storageVersion: 2`) |
 | `_gcp_env.sh` | Sourced helper: environment/project guards and destructive-action confirmation |
 
-Both are invoked via just: `just webhook <action> <env>` and
+The webhook and DLQ scripts are invoked via just: `just webhook <action> <env>` and
 `just dlq-replay <service> <env> [--execute]`. See the
 [Strava Webhook Guide](../../docs/guides/strava-webhook.md) and
 [Redriving a DLQ](../../docs/runbooks/dlq-redrive.md).
+
+`count-unstamped-goals.py` runs directly, with your gcloud login:
+`python3 scripts/ops/count-unstamped-goals.py --env prod`. It exits 1 and lists each
+section still in display units, or exits 0 when there are none, which is when the web
+app's goal-unit migration can be deleted.
 
 ## Related
 

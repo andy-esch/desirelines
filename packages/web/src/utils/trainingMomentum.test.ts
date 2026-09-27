@@ -166,6 +166,53 @@ describe("calculateLinearRegression", () => {
   });
 });
 
+describe("calculateLinearRegression with x-values", () => {
+  it("fits against the given x-values, not the indices", () => {
+    // y rises by 3 per step, but the steps are 3 apart: 1 per unit of x.
+    const result = calculateLinearRegression([10, 13, 16], [0, 3, 6]);
+    expect(result!.slope).toBeCloseTo(1, 10);
+    expect(result!.intercept).toBeCloseTo(10, 10);
+  });
+});
+
+describe("calculateTrainingMomentum over real day gaps", () => {
+  /** Cumulative entries from one activity every `gap` days, each `pace` per day since the last. */
+  const cumulative = (gap: number, paces: number[]): DistanceEntry[] => {
+    const start = Date.UTC(2025, 0, 1);
+    const entries: DistanceEntry[] = [{ x: "2025-01-01", y: 0 }];
+    let total = 0;
+    paces.forEach((pace, i) => {
+      total += pace * gap;
+      const day = new Date(start + (i + 1) * gap * 86_400_000).toISOString().slice(0, 10);
+      entries.push({ x: day, y: total });
+    });
+    return entries;
+  };
+  const paces = [8, 9, 10, 11, 12];
+
+  it("measures the trend per day, so the same rise over three times the days is a third", () => {
+    const daily = calculateTrainingMomentum(cumulative(1, paces), 10);
+    const everyThirdDay = calculateTrainingMomentum(cumulative(3, paces), 10);
+
+    // 1 per day on daily data: 10%/day of a 10/day average, 70%/week.
+    expect(daily).toBeCloseTo(70, 6);
+    expect(everyThirdDay).toBeCloseTo(70 / 3, 6);
+  });
+
+  it("weighs an uneven gap by its length", () => {
+    // Paces 10 (day 0-1), 11 (day 1-2), then 14 across a 4-day gap (days 2-6). Each pace sits
+    // at its interval's midpoint: days 0.5, 1.5 and 4, so the slope is 7.5/6.5 per day, where
+    // index spacing (0, 1, 2) would make it 2.
+    const data: DistanceEntry[] = [
+      { x: "2025-01-01", y: 0 },
+      { x: "2025-01-02", y: 10 },
+      { x: "2025-01-03", y: 21 },
+      { x: "2025-01-07", y: 77 },
+    ];
+    expect(calculateTrainingMomentum(data, 10)).toBeCloseTo((7.5 / 6.5) * 70, 6);
+  });
+});
+
 describe("calculateTrainingMomentum", () => {
   it("returns null for empty data", () => {
     const result = calculateTrainingMomentum([], 10.0);

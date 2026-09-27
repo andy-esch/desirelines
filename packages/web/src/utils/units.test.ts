@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  formatDistance,
   convertDistance,
   convertToMeters,
   convertElevation,
@@ -72,8 +73,18 @@ describe("units", () => {
     it("should have consistent mile conversion constants", () => {
       // 1 mile = 1609.344 meters
       expect(MILES_TO_METERS).toBe(1609.344);
-      // Inverse should be approximately equal
-      expect(1 / METERS_TO_MILES).toBeCloseTo(MILES_TO_METERS, 0);
+      // The inverse is exact, not an approximation of it
+      expect(METERS_TO_MILES).toBe(1 / MILES_TO_METERS);
+    });
+
+    it.each([
+      ["miles", [0.01, 1.23, 26.22, 1864.11, 12345.67, 49999.99, 50000]],
+      ["kilometers", [0.01, 1.23, 42.2, 3000.01, 80467.2, 99999.99]],
+    ] as const)("round-trips 2-decimal %s through whole meters", (unit, values) => {
+      for (const value of values) {
+        const stored = Math.round(convertToMeters(value, unit));
+        expect(Number(convertDistance(stored, unit).toFixed(2))).toBe(value);
+      }
     });
 
     it("should have consistent km conversion constants", () => {
@@ -212,6 +223,18 @@ describe("units", () => {
     it("should return meters unchanged when unit is meters", () => {
       const meters = 1000;
       expect(convertElevation(meters, "meters")).toBe(1000);
+    });
+  });
+
+  describe("formatDistance", () => {
+    it("groups thousands, as formatElevation does", () => {
+      expect(formatDistance(2_000_000, "kilometers")).toBe("2,000.0 km");
+      expect(formatDistance(convertToMeters(1234.5, "miles"), "miles", 2)).toBe("1,234.50 mi");
+    });
+
+    it("keeps its decimals below 1000", () => {
+      expect(formatDistance(convertToMeters(10, "miles"), "miles")).toBe("10.0 mi");
+      expect(formatDistance(500, "meters", 0)).toBe("500 m");
     });
   });
 
