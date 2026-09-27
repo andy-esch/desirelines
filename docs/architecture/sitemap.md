@@ -148,6 +148,3 @@ Notes:
 - Invalid sport (e.g., `/basketball/2025`) → Redirect to `/`
 - Invalid year format → Redirect to current year
 - Unknown paths → Redirect to `/`
-</content>
-
-</invoke>
