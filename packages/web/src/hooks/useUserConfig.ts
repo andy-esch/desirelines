@@ -12,7 +12,7 @@ import { useAuth } from "./useAuth";
 import { useServices } from "../contexts/ServiceContext";
 import { logApiError } from "../api/errors";
 import { DEFAULT_PREFERENCES } from "../constants/settings";
-import { demoConfigKey, saveDemoSection } from "../services/demoStorage";
+import { readDemoSection, saveDemoSection } from "../services/demoStorage";
 
 // Discriminator for the supported configuration sections
 type ConfigType = "goals" | "annotations" | "preferences";
@@ -20,20 +20,18 @@ type ConfigType = "goals" | "annotations" | "preferences";
 type ConfigData = GoalsForYear | AnnotationsForYear | Preferences;
 
 /**
- * Read from localStorage and validate against the section's Zod schema.
- *
- * Validated like any stored config, so demo-mode reads can't surface
- * partially-written or corrupted blobs to the rest of the app.
- * Invalid data is logged and treated the same as a missing entry — the
- * caller's `defaultValue` (or the configType-specific fallback below)
- * is returned instead.
+ * Read a demo section and validate it against the section's Zod schema, so demo-mode reads
+ * can't surface partially-written or corrupted blobs to the rest of the app. Invalid data is
+ * logged and treated like a missing entry: the caller's `defaultValue` (or the section's
+ * fallback below) is returned instead.
  */
-function readFromLocalStorage(
-  key: string,
+function readDemoConfig(
   configType: ConfigType,
+  year: number | undefined,
+  sport: string | undefined,
   defaultValue?: ConfigData
 ): ConfigData | null {
-  const stored = localStorage.getItem(key);
+  const stored = readDemoSection(configType, year, sport);
   if (stored) {
     try {
       const parsed = JSON.parse(stored) as unknown;
@@ -41,15 +39,17 @@ function readFromLocalStorage(
       if (result.ok) {
         return result.data;
       }
-      logApiError(result.error, `[useUserConfig] localStorage at ${key} failed schema validation`);
+      logApiError(
+        result.error,
+        `[useUserConfig] demo ${configType} failed schema validation; using defaults`
+      );
     } catch (err) {
-      logApiError(err, "Failed to parse stored config, using defaults");
+      logApiError(err, `[useUserConfig] demo ${configType} isn't valid JSON; using defaults`);
     }
   }
 
-  // Fall back to defaults. Goals callers (useSportPageData, DemoSportPage)
-  // always supply a sport-aware `defaultValue`, so returning null when one
-  // isn't passed is correct — the consumer's null-handling kicks in.
+  // Fall back to defaults. The goals caller (useSportPageData) supplies a sport-aware
+  // `defaultValue`; without one, null is correct and the consumer's null handling kicks in.
   if (configType === "goals") {
     return (defaultValue as GoalsForYear) ?? null;
   } else if (configType === "annotations") {
@@ -76,8 +76,8 @@ function readFromLocalStorage(
  * Signed in, `defaultValue` only shapes what the hook returns: the query cache
  * holds what Firestore holds (null for an empty section).
  *
- * Demo-mode reads (`readFromLocalStorage` below) apply the same Zod
- * validation, so corrupted localStorage can't surface junk to consumers.
+ * Demo-mode reads (`readDemoConfig` above) are validated with the same Zod
+ * schemas, so corrupted demo storage can't surface junk to consumers.
  */
 
 // Overload for "goals" - year and sport are required
@@ -158,13 +158,13 @@ export function useUserConfig(
 
   const effectiveUserId = userId ?? user?.uid ?? "anonymous";
   const effectiveVersion = version ?? "v1";
-  const isLocalStorageMode = !user;
+  const isDemoMode = !user;
 
   // Memoize configService to avoid recreating on every render
   const configService = useMemo(() => {
-    if (isLocalStorageMode) return null;
+    if (isDemoMode) return null;
     return new UserConfigService(userId, effectiveVersion, { authService, databaseService });
-  }, [userId, effectiveVersion, isLocalStorageMode, authService, databaseService]);
+  }, [userId, effectiveVersion, isDemoMode, authService, databaseService]);
 
   // Query Key includes all dependencies
   const queryKey = useMemo(
@@ -176,13 +176,9 @@ export function useUserConfig(
   const { data, isLoading, error } = useQuery({
     queryKey,
     queryFn: async () => {
-      // LocalStorage Mode
-      if (isLocalStorageMode) {
-        return readFromLocalStorage(
-          demoConfigKey(configType, year, sport),
-          configType,
-          defaultValue
-        );
+      // Demo mode
+      if (isDemoMode) {
+        return readDemoConfig(configType, year, sport, defaultValue);
       }
 
       // Firestore Mode
@@ -207,8 +203,8 @@ export function useUserConfig(
   // The cache holds what Firestore holds: null for an empty section, never the caller's
   // `defaultValue`, which is applied only where the hook returns.
   useEffect(() => {
-    // Skip if using localStorage mode or configService not ready
-    if (isLocalStorageMode || !configService) return;
+    // Skip in demo mode or before the config service is ready
+    if (isDemoMode || !configService) return;
 
     let unsubscribe: () => void;
 
@@ -239,12 +235,12 @@ export function useUserConfig(
     return () => {
       if (unsubscribe) unsubscribe();
     };
-  }, [configType, year, sport, configService, isLocalStorageMode, queryClient, queryKey]);
+  }, [configType, year, sport, configService, isDemoMode, queryClient, queryKey]);
 
   // WRITE MUTATION
   const mutation = useMutation({
     mutationFn: async (newData: ConfigData) => {
-      if (isLocalStorageMode) {
+      if (isDemoMode) {
         saveDemoSection(configType, newData, year, sport);
         return newData;
       }
@@ -273,7 +269,7 @@ export function useUserConfig(
       // `ThemeSync` as a change and prompt it to act on it.
       queryClient.setQueryData(
         queryKey,
-        !isLocalStorageMode && configType === "preferences"
+        !isDemoMode && configType === "preferences"
           ? {
               ...(newData as Preferences),
               theme: (previousData as Preferences | null | undefined)?.theme ?? "",
@@ -348,17 +344,17 @@ export function useFullUserConfig(
   const { authService, databaseService } = useServices();
   const queryClient = useQueryClient();
 
-  // Determine if we're in localStorage mode based on auth state
-  const isLocalStorageMode = !user;
+  // Signed out, the demo has no Firestore config to show
+  const isDemoMode = !user;
   const effectiveUserId = userId ?? user?.uid ?? "anonymous";
 
   // Memoize configService to avoid recreating on every render
   const configService = useMemo(() => {
-    if (isLocalStorageMode) {
+    if (isDemoMode) {
       return null;
     }
     return new UserConfigService(userId, version, { authService, databaseService });
-  }, [userId, version, isLocalStorageMode, authService, databaseService]);
+  }, [userId, version, isDemoMode, authService, databaseService]);
 
   const queryKey = useMemo(
     () => ["fullUserConfig", effectiveUserId, version],
@@ -373,7 +369,7 @@ export function useFullUserConfig(
   } = useQuery({
     queryKey,
     queryFn: async () => {
-      if (isLocalStorageMode || !configService) return null;
+      if (isDemoMode || !configService) return null;
       return configService.getConfig();
     },
     enabled: !authLoading,
@@ -382,14 +378,14 @@ export function useFullUserConfig(
 
   // REAL-TIME SUBSCRIPTION
   useEffect(() => {
-    if (isLocalStorageMode || !configService) return;
+    if (isDemoMode || !configService) return;
 
     const unsubscribe = configService.subscribeToConfig((fullConfig) => {
       queryClient.setQueryData(queryKey, fullConfig);
     });
 
     return unsubscribe;
-  }, [configService, isLocalStorageMode, queryClient, queryKey]);
+  }, [configService, isDemoMode, queryClient, queryKey]);
 
   // MUTATION
   const mutation = useMutation({
@@ -404,7 +400,7 @@ export function useFullUserConfig(
       year?: number | undefined;
       sport?: string | undefined;
     }) => {
-      if (isLocalStorageMode) {
+      if (isDemoMode) {
         logApiError(new Error("Fixture mode: Changes not persisted"), "useFullUserConfig");
         return;
       }

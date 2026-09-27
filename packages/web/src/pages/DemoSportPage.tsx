@@ -25,7 +25,7 @@ import { convertMetricsToChartData } from "../hooks/useSportPageData";
 import { GOAL_STORAGE_VERSION } from "../services/userConfigService";
 import SportPageContent from "../components/SportPageContent";
 import { DEMO_ROUTE_PREFIX } from "../constants/demoConfig";
-import { demoConfigKey, saveDemoSection } from "../services/demoStorage";
+import { demoConfigKey, readDemoSection, saveDemoSection } from "../services/demoStorage";
 import { Alert } from "../components/ui/alert";
 
 interface DemoSportPageProps {
@@ -35,7 +35,7 @@ interface DemoSportPageProps {
 
 /**
  * Demo version of SportPage that uses generated demo data.
- * Goals are stored in localStorage for demo persistence.
+ * Goals are kept in the demo's own storage (services/demoStorage.ts), apart from any account's.
  */
 export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
   const navigate = useNavigate();
@@ -92,7 +92,7 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
   );
 
   const loadGoals = useCallback((): Goals => {
-    const stored = localStorage.getItem(storageKey);
+    const stored = readDemoSection("goals", currentYear, sport);
     if (stored) {
       try {
         const parsed = JSON.parse(stored) as { goals?: Partial<Goal>[] } | null;
@@ -146,7 +146,7 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
       buildGoal({ id: "3", value: 3000, label: "Stretch", metric: primaryMetric }, now),
     ];
     // goalCtx is derived from sport/userSettings; including them transitively.
-  }, [storageKey, sport, goalCtx, primaryMetric]);
+  }, [currentYear, sport, goalCtx, primaryMetric]);
 
   const [goals, setGoals] = useState<Goals>(loadGoals);
   const [prevStorageKey, setPrevStorageKey] = useState(storageKey);

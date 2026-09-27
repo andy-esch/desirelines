@@ -19,6 +19,15 @@ export function demoConfigKey(section: DemoSection, year?: number, sport?: strin
   return `${DEMO_STORAGE_PREFIX}${section}`;
 }
 
+/** A demo section's stored JSON, or null when there is none. Parsing and validating are the caller's. */
+export function readDemoSection(
+  section: DemoSection,
+  year?: number,
+  sport?: string
+): string | null {
+  return localStorage.getItem(demoConfigKey(section, year, sport));
+}
+
 /** Save a demo section under its key. Throws if localStorage refuses the write. */
 export function saveDemoSection(
   section: DemoSection,
