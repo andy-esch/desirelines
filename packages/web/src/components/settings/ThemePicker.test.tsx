@@ -3,10 +3,10 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ThemePicker } from "./ThemePicker";
 import { ThemeProvider } from "../../contexts/ThemeContext";
-import { THEME_STORAGE_KEY, VISIBLE_THEMES, type ThemePreference } from "../../themes/registry";
+import { THEME_STORAGE_KEYS, VISIBLE_THEMES, type ThemePreference } from "../../themes/registry";
 
 function renderPicker(stored: ThemePreference) {
-  localStorage.setItem(THEME_STORAGE_KEY, stored);
+  localStorage.setItem(THEME_STORAGE_KEYS.demo, stored);
   return render(
     <ThemeProvider>
       <span id="theme-label">Theme</span>
@@ -51,7 +51,7 @@ describe("ThemePicker", () => {
 
     expect(screen.getByRole("radio", { name: "Light" })).toBeChecked();
     expect(document.documentElement.dataset.theme).toBe("legacy-light");
-    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("legacy-light");
+    expect(localStorage.getItem(THEME_STORAGE_KEYS.demo)).toBe("legacy-light");
   });
 
   it("checks nothing for a preference no card offers", () => {

@@ -5,7 +5,8 @@ import {
   DEFAULT_THEME_PREFERENCE,
   getTheme,
   type ThemeId,
-  THEME_STORAGE_KEY,
+  SIGNED_IN_HINT_KEY,
+  THEME_STORAGE_KEYS,
 } from "../themes/registry";
 
 const originalMatchMedia = window.matchMedia;
@@ -90,7 +91,7 @@ describe("ThemeProvider", () => {
 
   it("reads the old toggle 'dark' value as the default theme", () => {
     mockColorScheme(false);
-    localStorage.setItem(THEME_STORAGE_KEY, "dark");
+    localStorage.setItem(THEME_STORAGE_KEYS.demo, "dark");
     const provider = renderProvider();
 
     expect(provider.value.preference).toBe("miami");
@@ -99,7 +100,7 @@ describe("ThemeProvider", () => {
 
   it("reads a saved Legacy dark as Arcade, which carries that look now", () => {
     mockColorScheme(false);
-    localStorage.setItem(THEME_STORAGE_KEY, "legacy-dark");
+    localStorage.setItem(THEME_STORAGE_KEYS.demo, "legacy-dark");
     const provider = renderProvider();
 
     expect(provider.value.preference).toBe("arcade");
@@ -112,7 +113,7 @@ describe("ThemeProvider", () => {
 
     act(() => provider.value.setPreference("legacy-light"));
 
-    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("legacy-light");
+    expect(localStorage.getItem(THEME_STORAGE_KEYS.demo)).toBe("legacy-light");
     expect(provider.value.theme.id).toBe("legacy-light");
     // The first render that sees the new theme must already find it on the DOM.
     const firstLight = provider.seen.find((s) => s.themeId === "legacy-light");
@@ -123,7 +124,7 @@ describe("ThemeProvider", () => {
   // still follows the OS, and "Match system" returns with the light retro theme.
   it("tracks OS changes while following the system", () => {
     const os = mockColorScheme(true);
-    localStorage.setItem(THEME_STORAGE_KEY, "system");
+    localStorage.setItem(THEME_STORAGE_KEYS.demo, "system");
     const provider = renderProvider();
     expect(provider.value.theme.id).toBe("miami");
 
@@ -135,7 +136,7 @@ describe("ThemeProvider", () => {
 
   it("ignores OS changes for an explicit theme, then resolves freshly on returning to system", () => {
     const os = mockColorScheme(true);
-    localStorage.setItem(THEME_STORAGE_KEY, "arcade");
+    localStorage.setItem(THEME_STORAGE_KEYS.demo, "arcade");
     const provider = renderProvider();
 
     os.setDark(false);
@@ -143,5 +144,61 @@ describe("ThemeProvider", () => {
 
     act(() => provider.value.setPreference("system"));
     expect(document.documentElement.dataset.theme).toBe("legacy-light");
+  });
+
+  describe("demo and account scopes", () => {
+    it("starts in the account's scope while the signed-in hint is set, on its cached theme", () => {
+      mockColorScheme(true);
+      localStorage.setItem(THEME_STORAGE_KEYS.demo, "legacy-light");
+      localStorage.setItem(THEME_STORAGE_KEYS.account, "arcade");
+      localStorage.setItem(SIGNED_IN_HINT_KEY, "1");
+      const provider = renderProvider();
+
+      expect(provider.value.scope).toBe("account");
+      expect(provider.value.preference).toBe("arcade");
+    });
+
+    it("enters the account on the theme it's given, leaving the demo's alone", () => {
+      mockColorScheme(true);
+      localStorage.setItem(THEME_STORAGE_KEYS.demo, "legacy-light");
+      const provider = renderProvider();
+
+      act(() => provider.value.setScope("account", "arcade"));
+
+      expect(provider.value.scope).toBe("account");
+      expect(provider.value.preference).toBe("arcade");
+      expect(document.documentElement.dataset.theme).toBe("arcade");
+      expect(localStorage.getItem(SIGNED_IN_HINT_KEY)).toBe("1");
+      expect(localStorage.getItem(THEME_STORAGE_KEYS.account)).toBe("arcade");
+      expect(localStorage.getItem(THEME_STORAGE_KEYS.demo)).toBe("legacy-light");
+    });
+
+    it("saves a choice to the current scope's key only", () => {
+      mockColorScheme(true);
+      localStorage.setItem(THEME_STORAGE_KEYS.demo, "legacy-light");
+      const provider = renderProvider();
+      act(() => provider.value.setScope("account", "arcade"));
+
+      act(() => provider.value.setPreference("miami"));
+
+      expect(localStorage.getItem(THEME_STORAGE_KEYS.account)).toBe("miami");
+      expect(localStorage.getItem(THEME_STORAGE_KEYS.demo)).toBe("legacy-light");
+    });
+
+    it("leaves the account for the demo's theme, clearing the hint and the account's copy", () => {
+      mockColorScheme(true);
+      localStorage.setItem(THEME_STORAGE_KEYS.demo, "legacy-light");
+      localStorage.setItem(THEME_STORAGE_KEYS.account, "arcade");
+      localStorage.setItem(SIGNED_IN_HINT_KEY, "1");
+      const provider = renderProvider();
+
+      act(() => provider.value.setScope("demo"));
+
+      expect(provider.value.scope).toBe("demo");
+      expect(provider.value.preference).toBe("legacy-light");
+      expect(document.documentElement.dataset.theme).toBe("legacy-light");
+      expect(localStorage.getItem(SIGNED_IN_HINT_KEY)).toBeNull();
+      expect(localStorage.getItem(THEME_STORAGE_KEYS.account)).toBeNull();
+    });
   });
 });

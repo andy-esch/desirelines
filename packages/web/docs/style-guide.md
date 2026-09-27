@@ -285,37 +285,50 @@ it instead.
 ### First paint and switching
 
 `index.html` carries a placeholder that `vite.config.ts` replaces with a script generated
-from the theme list (`src/themes/bootScript.ts`). It applies the stored preference —
-including the old `dark` / `light` values — before the stylesheet loads, so the page never
-flashes the wrong theme, and it can't drift from the list because nobody hand-writes it.
+from the theme list (`src/themes/bootScript.ts`). It applies the stored preference before the
+stylesheet loads, so the page never flashes the wrong theme, and it can't drift from the list
+because nobody hand-writes it.
 
-The same script handles preferences that predate the current list, in two steps that answer
+Demo and account themes are stored apart (`THEME_STORAGE_KEYS`): the demo's under
+`demo.theme`, in the demo's own namespace, and a copy of the signed-in account's under
+`account.theme`. The script runs before the app knows who is signed in, so it reads the
+account's copy while the hint `account.signedIn` is set, and the demo's otherwise.
+
+The theme used to live under one shared `theme` key. The script moves that key into the
+demo's, once, handling values that predate the current list in two steps that answer
 different questions.
 
 **Aliases** (`LEGACY_PREFERENCE_ALIASES`) map a retired value onto the theme that replaced
 it, and write the result back so the value is migrated once rather than re-resolved forever.
+They apply to the new keys too.
 A saved `legacy-dark` becomes Arcade, which carries the look that choice was about. The old
 toggle's bare `dark` becomes the default instead: that toggle offered one dark, so the value
 is a light-or-dark preference, not a taste.
 
 **The one-time move to Miami** (`MIAMI_MIGRATION`) then covers a visitor who never chose at
-all, including the retired "System" entry, and a flag records that it happened so a choice
-made afterwards sticks. An explicit light choice is left alone. Both run in the script rather
-than in React, so a migrated visitor never sees the old theme paint first.
+all, including the retired "System" entry. Its flag recorded that it had run, so a choice
+made afterwards stuck; the script honours it during the move, then drops it, since the new
+keys only ever hold choices. An explicit light choice is left alone. Both run in the script
+rather than in React, so a returning visitor never sees the old theme paint first.
 
 `ThemeProvider` applies the attribute eagerly on change (not only in an effect), because
 consumers that read resolved token values would otherwise render one theme behind.
 
-**Across devices.** Signed in, the choice is also `preferences.theme` in the user's config,
-and `ThemeSync` (`src/contexts/ThemeSync.tsx`) keeps the two in step. On sign-in a synced
-theme is applied, and with none the device's choice is written; a change from another device
-is applied and never written back; a change made here is written by
-`UserConfigService.updateTheme`, the field's one writer, since a preferences save leaves the
-stored theme alone. Empty, `dark` and `light` read as no choice (`readSyncedTheme`): they are
-defaults older saves wrote, not picks. Signed out, nothing syncs. localStorage stays the
-device's copy either way, because the first-paint script reads it. The Theme row in Settings
-says which applies: "Saved to your account, so every device matches" signed in, "Saved on
-this device" in demo mode.
+**Demo and account.** Signed out, the demo's own theme shows and is saved on the device.
+Signed in, the account's theme is `preferences.theme` in its config, and `ThemeSync`
+(`src/contexts/ThemeSync.tsx`) switches `ThemeProvider` between the two scopes:
+- On sign-in the account's synced theme shows, or the default for an account with none.
+  Nothing from the device or the demo is written to the account.
+- A change from another device is applied and never written back.
+- A change made here is written by `UserConfigService.updateTheme`, the field's one writer,
+  since a preferences save leaves the stored theme alone.
+- Empty, `dark` and `light` read as no choice (`readSyncedTheme`): they are defaults older
+  saves wrote, not picks. When such a save leaves the theme unset, the account's theme is
+  written back.
+- On sign-out the demo's theme shows again, and the account's copy and the hint are cleared.
+
+The Theme row in Settings says which applies: "Saved to your account, so every device
+matches" signed in, "Saved on this device" in demo mode.
 
 **Fonts.** `src/themes/fontPreloads.ts` preloads the woff2 files of the applied theme's
 `fonts` before the app renders, so a headline doesn't paint in the fallback face first. The

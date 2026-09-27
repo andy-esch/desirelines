@@ -1,6 +1,8 @@
 /**
  * Demo mode's storage. What a signed-out visitor sets (goals, settings, annotations) lives in
- * localStorage under `demo.`, and only demo code reads or writes those keys.
+ * localStorage under `demo.`, and only demo code reads or writes those keys. The demo's theme
+ * is there too, as `demo.theme` (`THEME_STORAGE_KEYS` in `themes/registry.ts`); the first-paint
+ * script moves its legacy key, since it runs before this module.
  *
  * Demo and account data never mix: signing in doesn't import the demo's data, signing out
  * doesn't copy the account's into the demo, and signed-in code never reads a demo key.

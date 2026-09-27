@@ -2,26 +2,32 @@ import { useEffect, useMemo, useRef } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { useUserConfig } from "../hooks/useUserConfig";
 import { UserConfigService } from "../services/userConfigService";
-import { readSyncedTheme, type ThemePreference } from "../themes/registry";
+import {
+  DEFAULT_THEME_PREFERENCE,
+  readSyncedTheme,
+  type ThemePreference,
+} from "../themes/registry";
 import { logApiError } from "../api/errors";
 import { useServices } from "./ServiceContext";
 import { useTheme } from "./ThemeContext";
 
 /**
- * Carries the theme choice between a signed-in user's devices, through `preferences.theme`
- * in their config. localStorage stays where the theme lives on a device (the first-paint
- * script reads it), and this moves the choice between it and the synced value:
+ * Keeps the demo's theme and the signed-in account's apart, and carries the account's
+ * between devices through `preferences.theme` in its config:
  *
- * - On sign-in, a synced theme is applied here. With none, this device's choice is written.
- * - A change from another device is applied and never written back.
- * - A change made here is written, and the write sets the theme alone.
- * - Signed out (demo mode), nothing is read or written.
+ * - Signed out, the demo's own theme shows, and nothing is read or written.
+ * - On sign-in, the account's synced theme shows, or the default for an account with none.
+ *   Nothing from this device or the demo is written to the account.
+ * - Signed in, a change made here is written (the theme alone), and a change from another
+ *   device is applied and never written back.
+ * - On sign-out, the demo's theme shows again, and the account's cached copy is cleared.
  *
- * Renders nothing. Mount it inside `AuthProvider`.
+ * The switching itself is `ThemeContext`'s scope. Renders nothing; mount it inside
+ * `AuthProvider`.
  */
 export function ThemeSync() {
-  const { user } = useAuth();
-  const { preference, setPreference } = useTheme();
+  const { user, loading: authLoading } = useAuth();
+  const { preference, setPreference, scope, setScope } = useTheme();
   const { data, loading, error } = useUserConfig("preferences");
   const { authService, databaseService } = useServices();
   const service = useMemo(
@@ -31,30 +37,58 @@ export function ThemeSync() {
 
   const signedIn = user !== null;
   const synced = readSyncedTheme(data?.theme);
-  // The synced theme as this device last saw it, so a change there can be told from one
-  // made here. Undefined until the first read after signing in.
+  // The synced theme as last seen, undefined until the first read after signing in, so a
+  // change on another device can be told from one made here.
   const seen = useRef<ThemePreference | null | undefined>(undefined);
+  // The default shown for an account with no theme. It isn't a choice, so it isn't written.
+  const defaultShown = useRef<ThemePreference | null>(null);
 
   useEffect(() => {
+    if (authLoading) return;
     if (!signedIn) {
       seen.current = undefined;
+      if (scope !== "demo") setScope("demo");
       return;
     }
-    // Before the first read lands, or after it fails, "nothing synced" isn't known to be
-    // true, and writing on it would overwrite the choice another device made.
-    if (loading || error) return;
+    if (loading) return;
+    // With the first read failed, the account's theme isn't known: show its cached copy,
+    // and write nothing, which could overwrite the choice another device made.
+    if (error) {
+      if (scope !== "account") setScope("account");
+      return;
+    }
 
+    const first = seen.current === undefined;
     const changed = synced !== seen.current;
     seen.current = synced;
-    if (synced !== null && changed) {
+    if (first || scope !== "account") {
+      defaultShown.current = synced === null ? DEFAULT_THEME_PREFERENCE : null;
+      setScope("account", synced ?? DEFAULT_THEME_PREFERENCE);
+      return;
+    }
+    if (changed && synced !== null) {
+      defaultShown.current = null;
       if (synced !== preference) setPreference(synced);
       return;
     }
-    if (synced === preference) return;
+    // A change made here, or the account's theme left unset by an older client's save (a
+    // default it spread, not a choice): write the one showing.
+    if (preference === synced || preference === defaultShown.current) return;
     service
       .updateTheme(preference)
       .catch((err: unknown) => logApiError(err, "[ThemeSync] Failed to save the theme"));
-  }, [signedIn, loading, error, synced, preference, setPreference, service]);
+  }, [
+    authLoading,
+    signedIn,
+    loading,
+    error,
+    synced,
+    preference,
+    setPreference,
+    scope,
+    setScope,
+    service,
+  ]);
 
   return null;
 }

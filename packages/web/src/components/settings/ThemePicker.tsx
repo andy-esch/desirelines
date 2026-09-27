@@ -14,7 +14,8 @@ interface ThemePickerProps {
 /**
  * The Settings theme picker: one preview card per theme in the picker's list, as a radio
  * group. Native radios keep the keyboard behaviour (Tab to the chosen card, arrows to move
- * and choose). Choosing applies the theme at once; `ThemeSync` carries it to the account.
+ * and choose). Choosing applies the theme at once; signed in, `ThemeSync` carries it to the
+ * account, and in demo mode it stays the demo's own.
  *
  * Each card's thumbnail is drawn in its own theme; the frame, the selection (border, glow,
  * check badge, name color) and the name's case are the page's theme's.

@@ -3,9 +3,11 @@
 import {
   DEFAULT_THEME_PREFERENCE,
   LEGACY_PREFERENCE_ALIASES,
+  LEGACY_THEME_STORAGE_KEY,
   MIAMI_MIGRATION,
+  SIGNED_IN_HINT_KEY,
   SYSTEM_THEME_IDS,
-  THEME_STORAGE_KEY,
+  THEME_STORAGE_KEYS,
   THEMES,
 } from "./registry.ts";
 
@@ -23,12 +25,18 @@ export const THEME_BOOT_PLACEHOLDER = "<!-- theme-boot-script -->";
  * `parseThemePreference` + `resolveTheme`; `bootScript.test.ts` executes it against the
  * same inputs to keep the two in lockstep.
  *
- * It also runs the one-time move to Miami (`MIAMI_MIGRATION`) before resolving, so a
- * migrated visitor never sees the old theme paint first.
+ * It reads the signed-in account's cached theme while the signed-in hint is set, and the
+ * demo's otherwise: the two are kept apart (see `THEME_STORAGE_KEYS`).
+ *
+ * Before that, it moves the legacy shared key into the demo's key, once, applying the
+ * aliases and the one-time move to Miami (`MIAMI_MIGRATION`) on the way, so a returning
+ * visitor never sees the old theme paint first.
  */
 export function buildThemeBootScript(): string {
   const config = {
-    key: THEME_STORAGE_KEY,
+    keys: THEME_STORAGE_KEYS,
+    hint: SIGNED_IN_HINT_KEY,
+    legacy: LEGACY_THEME_STORAGE_KEY,
     fallback: DEFAULT_THEME_PREFERENCE,
     aliases: LEGACY_PREFERENCE_ALIASES,
     migration: {
@@ -45,24 +53,27 @@ export function buildThemeBootScript(): string {
   return `(function () {
   var c = ${JSON.stringify(config)};
   var has = function (o, k) { return Object.prototype.hasOwnProperty.call(o, k); };
-  var p = null;
-  var done = "1";
-  try { p = window.localStorage.getItem(c.key); } catch (e) {}
+  var read = function (k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } };
+  var write = function (k, v) { try { window.localStorage.setItem(k, v); } catch (e) {} };
+  var drop = function (k) { try { window.localStorage.removeItem(k); } catch (e) {} };
+  // The theme once lived under one key for demo and account alike. Move it into the demo's
+  // key, once, resolving a retired id and the one-time move to Miami on the way.
+  var old = read(c.legacy);
+  if (old !== null) {
+    if (has(c.aliases, old)) old = c.aliases[old];
+    if (read(c.migration.key) !== "1" && has(c.migration.from, old)) old = c.migration.to;
+    if (read(c.keys.demo) === null) write(c.keys.demo, old);
+    drop(c.legacy);
+  }
+  drop(c.migration.key);
+  var key = read(c.hint) === "1" ? c.keys.account : c.keys.demo;
+  var p = read(key);
   if (p !== null && has(c.aliases, p)) {
     p = c.aliases[p];
     // Write the resolved id back: a retired value is migrated once rather than re-resolved
     // on every load, so the alias table can eventually be dropped without stranding anyone.
-    try { window.localStorage.setItem(c.key, p); } catch (e) {}
+    write(key, p);
   }
-  try {
-    if (window.localStorage.getItem(c.migration.key) !== done) {
-      window.localStorage.setItem(c.migration.key, done);
-      if (p !== null && has(c.migration.from, p)) {
-        p = c.migration.to;
-        window.localStorage.setItem(c.key, p);
-      }
-    }
-  } catch (e) {}
   if (p !== "system" && !(p !== null && has(c.themes, p))) p = c.fallback;
   var id = p;
   if (p === "system") {
