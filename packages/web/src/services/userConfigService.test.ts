@@ -510,6 +510,18 @@ describe("UserConfigService", () => {
       });
     });
 
+    it("refuses, without writing, goals given no sport or annotations given no year", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const save = service.updateConfigSection.bind(service) as (
+        ...args: unknown[]
+      ) => Promise<void>;
+
+      await expect(save("goals", { goals: [] }, 2025)).rejects.toThrow();
+      await expect(save("annotations", { annotations: [] })).rejects.toThrow();
+
+      expect(firestore.setDoc).not.toHaveBeenCalled();
+    });
+
     it("should update lastUpdated timestamp", async () => {
       const beforeUpdate = new Date().toISOString();
       await service.updateConfigSection("goals", { goals: [] }, 2025, "cycling");

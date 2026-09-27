@@ -252,6 +252,41 @@ describe("useUserConfig", () => {
   });
 
   describe("Subscription Lifecycle", () => {
+    // The cache holds what Firestore holds; the sign-in migration reads it to tell an empty
+    // account from a populated one, so a default cached here would read as stored data.
+    it.each([
+      ["goals", 2025, "cycling", { goals: [], storageVersion: 2 }],
+      ["annotations", 2025, undefined, { annotations: [] }],
+      ["preferences", undefined, undefined, { theme: "", distanceUnit: "kilometers" }],
+    ] as const)(
+      "caches an empty %s report as null and returns the default",
+      async (configType, year, sport, defaultValue) => {
+        mockServiceInstance.getConfigSection.mockResolvedValue(null);
+        // Report after the first load, as a live listener does, so its value is what's cached.
+        let report: (data: unknown) => void = () => {};
+        mockServiceInstance.subscribeToConfigSection.mockImplementation((_type: any, cb: any) => {
+          report = cb;
+          return vi.fn();
+        });
+        const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        const wrapper = ({ children }: { children: React.ReactNode }) => (
+          <TestServiceProvider>
+            <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+          </TestServiceProvider>
+        );
+        const { result } = renderHook(
+          () => useUserConfig(configType as any, year as any, sport as any, defaultValue as any),
+          { wrapper }
+        );
+
+        await waitFor(() => expect(result.current.loading).toBe(false));
+        act(() => report(null));
+        await waitFor(() => expect(result.current.data).toEqual(defaultValue));
+        const cached = queryClient.getQueriesData({ queryKey: ["userConfig", configType] });
+        expect(cached.map(([, data]) => data)).toEqual([null]);
+      }
+    );
+
     it("should unsubscribe on unmount", async () => {
       const unsubscribeMock = vi.fn();
       mockServiceInstance.subscribeToConfigSection.mockReturnValue(unsubscribeMock);
