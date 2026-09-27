@@ -48,7 +48,10 @@ function PrefsConsumer({ withDefault }: { withDefault: boolean }) {
  * The database as Firestore behaves over a network: reads and writes answer a moment later,
  * while the subscription reports at once, as `onSnapshot` can from its cache. With an
  * instant database the first consumer's migration finishes before the next consumer looks,
- * which hides both bugs.
+ * which hides both bugs. One thing it doesn't model: Firestore shows a client its own
+ * pending writes, so in the browser a read that starts after another save has written
+ * locally sees that write. Here it doesn't, so overlapping saves read stale data more often
+ * than they do in one browser tab.
  */
 class NetworkDatabase extends MockDatabaseService {
   override async getDocument<T>(path: string): Promise<T | null> {
