@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useCallback } from "react";
-import { useQuery, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   UserConfigService,
   parseConfigData,
-  hasPreferencesBesidesTheme,
   type UserConfig,
   type GoalsForYear,
   type AnnotationsForYear,
@@ -13,6 +12,7 @@ import { useAuth } from "./useAuth";
 import { useServices } from "../contexts/ServiceContext";
 import { logApiError } from "../api/errors";
 import { DEFAULT_PREFERENCES } from "../constants/settings";
+import { readDemoSection, saveDemoSection } from "../services/demoStorage";
 
 // Discriminator for the supported configuration sections
 type ConfigType = "goals" | "annotations" | "preferences";
@@ -20,33 +20,18 @@ type ConfigType = "goals" | "annotations" | "preferences";
 type ConfigData = GoalsForYear | AnnotationsForYear | Preferences;
 
 /**
- * Helper to get localStorage key
+ * Read a demo section and validate it against the section's Zod schema, so demo-mode reads
+ * can't surface partially-written or corrupted blobs to the rest of the app. Invalid data is
+ * logged and treated like a missing entry: the caller's `defaultValue` (or the section's
+ * fallback below) is returned instead.
  */
-function getStorageKey(userId: string, configType: string, year?: number, sport?: string) {
-  if (configType === "goals" && year !== undefined && sport !== undefined) {
-    return `userConfig_${userId}_${configType}_${year}_${sport}`;
-  } else if (year !== undefined) {
-    return `userConfig_${userId}_${configType}_${year}`;
-  } else {
-    return `userConfig_${userId}_${configType}`;
-  }
-}
-
-/**
- * Read from localStorage and validate against the section's Zod schema.
- *
- * Mirrors the sign-in migration's validation path so demo-mode reads can't
- * surface partially-written or corrupted blobs to the rest of the app.
- * Invalid data is logged and treated the same as a missing entry — the
- * caller's `defaultValue` (or the configType-specific fallback below)
- * is returned instead.
- */
-function readFromLocalStorage(
-  key: string,
+function readDemoConfig(
   configType: ConfigType,
+  year: number | undefined,
+  sport: string | undefined,
   defaultValue?: ConfigData
 ): ConfigData | null {
-  const stored = localStorage.getItem(key);
+  const stored = readDemoSection(configType, year, sport);
   if (stored) {
     try {
       const parsed = JSON.parse(stored) as unknown;
@@ -54,15 +39,17 @@ function readFromLocalStorage(
       if (result.ok) {
         return result.data;
       }
-      logApiError(result.error, `[useUserConfig] localStorage at ${key} failed schema validation`);
+      logApiError(
+        result.error,
+        `[useUserConfig] demo ${configType} failed schema validation; using defaults`
+      );
     } catch (err) {
-      logApiError(err, "Failed to parse stored config, using defaults");
+      logApiError(err, `[useUserConfig] demo ${configType} isn't valid JSON; using defaults`);
     }
   }
 
-  // Fall back to defaults. Goals callers (useSportPageData, DemoSportPage)
-  // always supply a sport-aware `defaultValue`, so returning null when one
-  // isn't passed is correct — the consumer's null-handling kicks in.
+  // Fall back to defaults. The goals caller (useSportPageData) supplies a sport-aware
+  // `defaultValue`; without one, null is correct and the consumer's null handling kicks in.
   if (configType === "goals") {
     return (defaultValue as GoalsForYear) ?? null;
   } else if (configType === "annotations") {
@@ -74,21 +61,6 @@ function readFromLocalStorage(
 }
 
 /**
- * Sign-in migrations claimed so far, per query client (one per app, and a fresh one per
- * test): keys are the signed-in uid and the demo localStorage key. See the migration effect.
- */
-const migrationClaims = new WeakMap<QueryClient, Set<string>>();
-
-function claimedMigrations(client: QueryClient): Set<string> {
-  let claims = migrationClaims.get(client);
-  if (!claims) {
-    claims = new Set();
-    migrationClaims.set(client, claims);
-  }
-  return claims;
-}
-
-/**
  * Hook for accessing user config with real-time Firestore sync.
  *
  * Type-safe return based on configType:
@@ -96,28 +68,16 @@ function claimedMigrations(client: QueryClient): Set<string> {
  * - "annotations" → data is AnnotationsForYear | null (requires year)
  * - "preferences" → data is Preferences | null
  *
- * Beyond the basic query/mutation, the hook also owns two boundary effects:
- *
- *   1. **Sign-in migration**: when the user authenticates, demo localStorage
- *      data for the same section is Zod-validated and promoted into
- *      Firestore (`parseConfigData` is the gate — see `userConfigService.ts`).
- *      Malformed payloads are logged and left in place for diagnosis.
- *   2. **Orphan localStorage cleanup**: when Firestore already has data for
- *      the section, any leftover demo localStorage entry is deleted on next
- *      render — so a user who signed up, played in demo, then signed in
- *      doesn't accumulate stale localStorage forever. Preferences holding only
- *      the theme `ThemeSync` wrote count as empty, so demo preferences migrate.
- *
- * Both effects live inside the hook (search "MIGRATION + CLEANUP" in the
- * body) and run automatically, once per section however many consumers are
- * mounted; callers don't need to coordinate them.
+ * Signed out, the hook reads and writes the demo's own storage
+ * (`services/demoStorage.ts`); signed in, the account's Firestore document.
+ * The two never mix: signing in imports nothing from the demo, and signed-in
+ * code never reads a demo key.
  *
  * Signed in, `defaultValue` only shapes what the hook returns: the query cache
- * holds what Firestore holds (null for an empty section), which is how the
- * migration tells an empty account from a populated one.
+ * holds what Firestore holds (null for an empty section).
  *
- * Demo-mode reads (`readFromLocalStorage` below) apply the same Zod
- * validation, so corrupted localStorage can't surface junk to consumers.
+ * Demo-mode reads (`readDemoConfig` above) are validated with the same Zod
+ * schemas, so corrupted demo storage can't surface junk to consumers.
  */
 
 // Overload for "goals" - year and sport are required
@@ -198,13 +158,13 @@ export function useUserConfig(
 
   const effectiveUserId = userId ?? user?.uid ?? "anonymous";
   const effectiveVersion = version ?? "v1";
-  const isLocalStorageMode = !user;
+  const isDemoMode = !user;
 
   // Memoize configService to avoid recreating on every render
   const configService = useMemo(() => {
-    if (isLocalStorageMode) return null;
+    if (isDemoMode) return null;
     return new UserConfigService(userId, effectiveVersion, { authService, databaseService });
-  }, [userId, effectiveVersion, isLocalStorageMode, authService, databaseService]);
+  }, [userId, effectiveVersion, isDemoMode, authService, databaseService]);
 
   // Query Key includes all dependencies
   const queryKey = useMemo(
@@ -216,10 +176,9 @@ export function useUserConfig(
   const { data, isLoading, error } = useQuery({
     queryKey,
     queryFn: async () => {
-      // LocalStorage Mode
-      if (isLocalStorageMode) {
-        const key = getStorageKey(effectiveUserId, configType, year, sport);
-        return readFromLocalStorage(key, configType, defaultValue);
+      // Demo mode
+      if (isDemoMode) {
+        return readDemoConfig(configType, year, sport, defaultValue);
       }
 
       // Firestore Mode
@@ -242,12 +201,10 @@ export function useUserConfig(
   // REAL-TIME SUBSCRIPTION
   //
   // The cache holds what Firestore holds: null for an empty section, never the caller's
-  // `defaultValue`, which is applied only where the hook returns. The migration below reads
-  // the cache to tell an empty account from a populated one, so a default cached here made
-  // a new user's demo data look orphaned, and it was deleted instead of migrated.
+  // `defaultValue`, which is applied only where the hook returns.
   useEffect(() => {
-    // Skip if using localStorage mode or configService not ready
-    if (isLocalStorageMode || !configService) return;
+    // Skip in demo mode or before the config service is ready
+    if (isDemoMode || !configService) return;
 
     let unsubscribe: () => void;
 
@@ -278,14 +235,13 @@ export function useUserConfig(
     return () => {
       if (unsubscribe) unsubscribe();
     };
-  }, [configType, year, sport, configService, isLocalStorageMode, queryClient, queryKey]);
+  }, [configType, year, sport, configService, isDemoMode, queryClient, queryKey]);
 
-  // WRITE MUTATION (declared before migration effect which references it)
+  // WRITE MUTATION
   const mutation = useMutation({
     mutationFn: async (newData: ConfigData) => {
-      if (isLocalStorageMode) {
-        const key = getStorageKey(effectiveUserId, configType, year, sport);
-        localStorage.setItem(key, JSON.stringify(newData));
+      if (isDemoMode) {
+        saveDemoSection(configType, newData, year, sport);
         return newData;
       }
 
@@ -309,11 +265,11 @@ export function useUserConfig(
 
       // Optimistically update to the new value. A Firestore preferences save leaves the
       // stored theme in place (`updateTheme` is its writer), so the cached theme stays too:
-      // the payload's theme, often "" from demo data, would read to `ThemeSync` as no synced
-      // theme and prompt it to write one.
+      // the payload's theme, from a stale snapshot or "" from defaults, would read to
+      // `ThemeSync` as a change and prompt it to act on it.
       queryClient.setQueryData(
         queryKey,
-        !isLocalStorageMode && configType === "preferences"
+        !isDemoMode && configType === "preferences"
           ? {
               ...(newData as Preferences),
               theme: (previousData as Preferences | null | undefined)?.theme ?? "",
@@ -335,101 +291,6 @@ export function useUserConfig(
   const clearSaveError = useCallback(() => {
     mutation.reset();
   }, [mutation]);
-
-  // MIGRATION + CLEANUP: localStorage → Firestore
-  //
-  // Two paths, both gated on the user being authenticated and the auth/data
-  // load having settled:
-  //
-  //   1. **Migration** (Firestore empty for this section): if there's a demo
-  //      localStorage entry, validate it against the section's Zod schema and
-  //      promote it into Firestore. Delete on success. On validation failure,
-  //      leave the entry in place so it can be inspected during diagnosis
-  //      rather than silently dropped.
-  //   2. **Cleanup** (Firestore already has data for this section): the demo
-  //      entry is orphaned — Firestore is the source of truth and a user
-  //      signing in with both populated would otherwise leave the localStorage
-  //      key sitting around forever. Drop it.
-  //
-  // Every mounted consumer of a section runs this effect. The one that starts the save claims
-  // the section (`claimedMigrations`), and the rest skip it while the claim stands: they
-  // would save it again, or, once the optimistic update has put the demo data in the cache,
-  // drop the entry as an orphan. The claim is released when the save lands. A failed save
-  // keeps its claim until the next page load, which retries, rather than retrying in a loop.
-  useEffect(() => {
-    if (!user || isLoading || !configService) return;
-
-    // Read the key the *pre-sign-in* session wrote: the unauthenticated
-    // effectiveUserId, which is `userId ?? "anonymous"` (NOT `user.uid`). This
-    // effect only runs once signed in, so `effectiveUserId` here is the
-    // authenticated uid — using it (or the old hardcoded "default") reads a
-    // `userConfig_<uid|default>_*` key that nothing ever wrote, and the
-    // migration silently no-ops. See audit 2026-06-01-web C1.
-    const anonymousUserId = userId ?? "anonymous";
-    const key = getStorageKey(anonymousUserId, configType, year, sport);
-    const claims = claimedMigrations(queryClient);
-    const claim = `${user.uid} ${key}`;
-    if (claims.has(claim)) return;
-    const localDataRaw = localStorage.getItem(key);
-    if (!localDataRaw) return;
-
-    // Preferences holding only the theme `ThemeSync` wrote at sign-in count as empty, so
-    // demo preferences still migrate into them (and the save keeps that theme).
-    const hasRemoteData =
-      configType === "preferences"
-        ? hasPreferencesBesidesTheme(data)
-        : data !== null && data !== undefined;
-
-    // Path 2 — Firestore is authoritative; the demo entry is orphaned.
-    if (hasRemoteData) {
-      localStorage.removeItem(key);
-      return;
-    }
-
-    // Path 1 — Firestore is empty; try to migrate the demo entry into it.
-    try {
-      const parsedJson = JSON.parse(localDataRaw) as unknown;
-      // Validate the payload's shape against the Zod schema before trusting
-      // it. Without this we'd happily promote any malformed demo blob into
-      // Firestore — see the goal-storage incident where raw display values
-      // leaked in via this path.
-      const parseResult = parseConfigData(configType, parsedJson);
-      if (parseResult.ok) {
-        claims.add(claim);
-        mutation
-          .mutateAsync(parseResult.data)
-          .then(() => {
-            localStorage.removeItem(key);
-            claims.delete(claim);
-          })
-          .catch((err) => {
-            logApiError(err, `[useUserConfig] Migration failed for ${key}; retried on next load`);
-          });
-      } else {
-        // Don't delete: leave the entry in place so it can be inspected
-        // during diagnosis rather than silently dropping (potentially
-        // recoverable) data.
-        logApiError(
-          parseResult.error,
-          `[useUserConfig] localStorage data at ${key} failed schema validation; not migrating`
-        );
-      }
-    } catch (err) {
-      logApiError(err, `[useUserConfig] Invalid localStorage data for ${key}, clearing`);
-      localStorage.removeItem(key);
-    }
-  }, [
-    isLoading,
-    data,
-    user,
-    userId,
-    configType,
-    year,
-    sport,
-    configService,
-    queryClient,
-    mutation,
-  ]);
 
   return {
     data: data ?? defaultValue ?? null,
@@ -483,17 +344,17 @@ export function useFullUserConfig(
   const { authService, databaseService } = useServices();
   const queryClient = useQueryClient();
 
-  // Determine if we're in localStorage mode based on auth state
-  const isLocalStorageMode = !user;
+  // Signed out, the demo has no Firestore config to show
+  const isDemoMode = !user;
   const effectiveUserId = userId ?? user?.uid ?? "anonymous";
 
   // Memoize configService to avoid recreating on every render
   const configService = useMemo(() => {
-    if (isLocalStorageMode) {
+    if (isDemoMode) {
       return null;
     }
     return new UserConfigService(userId, version, { authService, databaseService });
-  }, [userId, version, isLocalStorageMode, authService, databaseService]);
+  }, [userId, version, isDemoMode, authService, databaseService]);
 
   const queryKey = useMemo(
     () => ["fullUserConfig", effectiveUserId, version],
@@ -508,7 +369,7 @@ export function useFullUserConfig(
   } = useQuery({
     queryKey,
     queryFn: async () => {
-      if (isLocalStorageMode || !configService) return null;
+      if (isDemoMode || !configService) return null;
       return configService.getConfig();
     },
     enabled: !authLoading,
@@ -517,14 +378,14 @@ export function useFullUserConfig(
 
   // REAL-TIME SUBSCRIPTION
   useEffect(() => {
-    if (isLocalStorageMode || !configService) return;
+    if (isDemoMode || !configService) return;
 
     const unsubscribe = configService.subscribeToConfig((fullConfig) => {
       queryClient.setQueryData(queryKey, fullConfig);
     });
 
     return unsubscribe;
-  }, [configService, isLocalStorageMode, queryClient, queryKey]);
+  }, [configService, isDemoMode, queryClient, queryKey]);
 
   // MUTATION
   const mutation = useMutation({
@@ -539,7 +400,7 @@ export function useFullUserConfig(
       year?: number | undefined;
       sport?: string | undefined;
     }) => {
-      if (isLocalStorageMode) {
+      if (isDemoMode) {
         logApiError(new Error("Fixture mode: Changes not persisted"), "useFullUserConfig");
         return;
       }

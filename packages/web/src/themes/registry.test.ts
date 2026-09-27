@@ -10,7 +10,10 @@ import {
   parseThemePreference,
   readSyncedTheme,
   resolveTheme,
+  THEME_STORAGE_KEYS,
+  themeScopeFromHint,
 } from "./registry";
+import { DEMO_STORAGE_PREFIX } from "../services/demoStorage";
 
 describe("theme list", () => {
   it("has unique ids", () => {
@@ -51,6 +54,19 @@ describe("theme list", () => {
     for (const value of MIAMI_MIGRATION.from) {
       expect(value === "system" || THEMES.some((t) => t.id === value)).toBe(true);
     }
+  });
+});
+
+describe("where themes are stored", () => {
+  it("keeps the demo's theme in the demo's namespace and the account's outside it", () => {
+    expect(THEME_STORAGE_KEYS.demo.startsWith(DEMO_STORAGE_PREFIX)).toBe(true);
+    expect(THEME_STORAGE_KEYS.account.startsWith(DEMO_STORAGE_PREFIX)).toBe(false);
+  });
+
+  it("reads the account's theme only while the signed-in hint is set", () => {
+    expect(themeScopeFromHint("1")).toBe("account");
+    expect(themeScopeFromHint(null)).toBe("demo");
+    expect(themeScopeFromHint("0")).toBe("demo");
   });
 });
 

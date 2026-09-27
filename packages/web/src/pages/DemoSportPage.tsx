@@ -25,6 +25,7 @@ import { convertMetricsToChartData } from "../hooks/useSportPageData";
 import { GOAL_STORAGE_VERSION } from "../services/userConfigService";
 import SportPageContent from "../components/SportPageContent";
 import { DEMO_ROUTE_PREFIX } from "../constants/demoConfig";
+import { demoConfigKey, readDemoSection, saveDemoSection } from "../services/demoStorage";
 import { Alert } from "../components/ui/alert";
 
 interface DemoSportPageProps {
@@ -34,7 +35,7 @@ interface DemoSportPageProps {
 
 /**
  * Demo version of SportPage that uses generated demo data.
- * Goals are stored in localStorage for demo persistence.
+ * Goals are kept in the demo's own storage (services/demoStorage.ts), apart from any account's.
  */
 export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
   const navigate = useNavigate();
@@ -78,13 +79,11 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
 
   const currentValue = chartData.length === 0 ? 0 : (chartData[chartData.length - 1]?.y ?? 0);
 
-  // Goals management - use localStorage for demo persistence.
-  //
-  // localStorage holds *canonical* values (meters for distance, minutes for
-  // time) so they round-trip cleanly into Firestore when a demo user signs in
-  // (see the localStorage→Firestore migration in useUserConfig). The Goals
-  // type returned to UI is in display units.
-  const storageKey = `demo_goals_${sport}_${currentYear}`;
+  // Goals management: the demo's own storage (services/demoStorage.ts), which the
+  // account never reads. It holds *canonical* values (meters for distance, minutes
+  // for time), like an account's goals; the Goals type returned to the UI is in
+  // display units.
+  const storageKey = demoConfigKey("goals", currentYear, sport);
   const isTime = isTimeSport(sport, sportConfig);
   const hasDistance = sportInfo?.hasDistance ?? false;
   const goalCtx: GoalUnitContext = useMemo(
@@ -93,12 +92,18 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
   );
 
   const loadGoals = useCallback((): Goals => {
-    const stored = localStorage.getItem(storageKey);
+    const stored = readDemoSection("goals", currentYear, sport);
     if (stored) {
       try {
-        const parsed = JSON.parse(stored) as { goals?: Partial<Goal>[] } | null;
+        const parsed = JSON.parse(stored) as {
+          goals?: Partial<Goal>[];
+          storageVersion?: number;
+        } | null;
         if (Array.isArray(parsed?.goals)) {
-          // Stored canonical → convert to display for the UI.
+          // Stored canonical (storageVersion 2) → convert to display for the UI. Older
+          // entries predate canonical storage and already hold display values; the next
+          // save stores them canonical and stamps the version.
+          const canonical = parsed.storageVersion === GOAL_STORAGE_VERSION;
           // Legacy demo payloads may lack proto metadata (pre-#2 fix); fill
           // defaults so the resulting Goals always satisfy the type.
           const now = new Date().toISOString();
@@ -109,7 +114,12 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
             const goal = buildGoal(
               {
                 id: g.id ?? now,
-                value: typeof g.value === "number" ? goalToDisplay(g.value, goalCtx) : 0,
+                value:
+                  typeof g.value !== "number"
+                    ? 0
+                    : canonical
+                      ? goalToDisplay(g.value, goalCtx)
+                      : g.value,
                 label: g.label ?? "",
                 metric: g.metric ?? primaryMetric,
               },
@@ -147,7 +157,7 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
       buildGoal({ id: "3", value: 3000, label: "Stretch", metric: primaryMetric }, now),
     ];
     // goalCtx is derived from sport/userSettings; including them transitively.
-  }, [storageKey, sport, goalCtx, primaryMetric]);
+  }, [currentYear, sport, goalCtx, primaryMetric]);
 
   const [goals, setGoals] = useState<Goals>(loadGoals);
   const [prevStorageKey, setPrevStorageKey] = useState(storageKey);
@@ -162,9 +172,11 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
     setGoals(newGoals);
     // Persist canonical values; convert display → storage on write.
     const canonical = newGoals.map((g) => ({ ...g, value: goalToStorage(g.value, goalCtx) }));
-    localStorage.setItem(
-      storageKey,
-      JSON.stringify({ goals: canonical, storageVersion: GOAL_STORAGE_VERSION })
+    saveDemoSection(
+      "goals",
+      { goals: canonical, storageVersion: GOAL_STORAGE_VERSION },
+      currentYear,
+      sport
     );
     return Promise.resolve();
   };

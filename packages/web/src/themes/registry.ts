@@ -265,8 +265,33 @@ export type ThemeId = (typeof THEMES)[number]["id"];
 /** A stored choice: a specific theme, or follow the OS color scheme. */
 export type ThemePreference = ThemeId | "system";
 
-/** localStorage key for the preference. Unchanged from the dark/light toggle era. */
-export const THEME_STORAGE_KEY = "theme";
+/**
+ * Where this device keeps a theme choice. The demo's and the signed-in account's are kept
+ * apart, as all demo and account data are: the demo's under the demo's own `demo.` keys
+ * (see `services/demoStorage.ts`), and the account's under `account.` as a local copy of its
+ * synced `preferences.theme`, which the first paint can read before Firestore answers.
+ */
+export const THEME_STORAGE_KEYS = { demo: "demo.theme", account: "account.theme" } as const;
+
+/** Whose theme is showing: the demo's, or the signed-in account's. */
+export type ThemeScope = keyof typeof THEME_STORAGE_KEYS;
+
+/**
+ * Set while an account is signed in, and cleared on sign-out. The first paint runs before
+ * the app knows who is signed in, so this is how it picks the account's theme over the demo's.
+ */
+export const SIGNED_IN_HINT_KEY = "account.signedIn";
+
+/** The scope the signed-in hint points at. */
+export function themeScopeFromHint(hint: string | null): ThemeScope {
+  return hint === "1" ? "account" : "demo";
+}
+
+/**
+ * The one key both kept the theme in before demo and account themes were separated. The
+ * first-paint script moves it into the demo's key once (see `bootScript.ts`).
+ */
+export const LEGACY_THEME_STORAGE_KEY = "theme";
 
 /**
  * Preference used when nothing (or nothing valid) is stored. Miami is the site's look, so
@@ -283,8 +308,9 @@ export const SYSTEM_THEME_IDS: Readonly<Record<ThemeScheme, ThemeId>> = {
 /**
  * The one-time move to Miami, for a visitor who had never chosen a theme. An explicit
  * choice is left alone: it goes through the aliases below instead, which is how a saved
- * Legacy dark now lands on Arcade rather than here. The flag makes it once-only, and the
- * first-paint script runs it (see `bootScript.ts`) before anything is painted.
+ * Legacy dark now lands on Arcade rather than here. It applies to the legacy key only: the
+ * first-paint script runs it while moving that key into the demo's (see `bootScript.ts`),
+ * then drops the flag, since the new keys only ever hold choices.
  */
 export const MIAMI_MIGRATION = {
   storageKey: "theme-migrated-miami",

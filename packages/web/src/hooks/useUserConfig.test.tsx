@@ -6,6 +6,7 @@ import { useUserConfig, useFullUserConfig } from "./useUserConfig";
 import { UserConfigService, parseConfigData } from "../services/userConfigService";
 import type { GoalsForYear } from "../services/userConfigService";
 import { TestServiceProvider } from "../contexts/ServiceContext";
+import { demoConfigKey } from "../services/demoStorage";
 
 // Mock UserConfigService and parseConfigData. parseConfigData defaults to an
 // identity-passing validator since most tests pass already-shaped fixtures;
@@ -26,11 +27,7 @@ vi.mock("../services/userConfigService", () => {
     ok: true as const,
     data: data as object,
   }));
-  // Only an absent section counts as empty here; the theme-only rule has its own tests.
-  const hasPreferencesBesidesTheme = vi.fn(
-    (prefs: unknown) => prefs !== null && prefs !== undefined
-  );
-  return { UserConfigService: MockUserConfigService, parseConfigData, hasPreferencesBesidesTheme };
+  return { UserConfigService: MockUserConfigService, parseConfigData };
 });
 
 const mockedParseConfigData = vi.mocked(parseConfigData);
@@ -79,11 +76,27 @@ const createWrapper = () => {
   );
 };
 
+// Tests give the service's methods their own results; clearAllMocks keeps those, and they
+// would leak into every later test. Reset each to what the mock factory made it.
+function resetServiceMocks() {
+  const proto = UserConfigService.prototype as unknown as Record<string, { mockReset(): void }>;
+  for (const method of [
+    "getConfigSection",
+    "updateConfigSection",
+    "subscribeToConfigSection",
+    "getConfig",
+    "subscribeToConfig",
+  ]) {
+    proto[method]!.mockReset();
+  }
+}
+
 describe("useUserConfig", () => {
   let mockServiceInstance: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    resetServiceMocks();
     mockServiceInstance = UserConfigService.prototype;
     // Default to authenticated state
     mockAuthState = { user: mockUser, loading: false };
@@ -182,10 +195,13 @@ describe("useUserConfig", () => {
       });
 
       expect(result.current.saveError).toBeNull();
-      expect(localStorageMock.setItem).toHaveBeenCalled();
-      // Note: Data assertion skipped due to test env race condition where initial queryFn (reading empty LS)
-      // resolves after onMutate, overwriting the cache. setItem check confirms persistence logic works.
-      // expect(result.current.data).toEqual(newGoals);
+      // Into the demo's own namespace, never an account key.
+      expect(localStorageMock.setItem).toHaveBeenCalledWith(
+        demoConfigKey("goals", 2025, "cycling"),
+        JSON.stringify(newGoals)
+      );
+      // React Query renders the optimistic value a tick after `act`.
+      await waitFor(() => expect(result.current.data).toEqual(newGoals));
       expect(mockServiceInstance.updateConfigSection).not.toHaveBeenCalled();
     });
 
@@ -225,7 +241,7 @@ describe("useUserConfig", () => {
     });
 
     it("falls back to default when localStorage data fails schema validation", async () => {
-      // Demo-mode read path mirrors the sign-in migration: corrupted
+      // Demo-mode reads are validated like any stored config: corrupted
       // localStorage shouldn't surface junk to the consumer. parseConfigData
       // rejects the blob → readFromLocalStorage returns the caller default.
       const callerDefault: GoalsForYear = {
@@ -256,8 +272,8 @@ describe("useUserConfig", () => {
   });
 
   describe("Subscription Lifecycle", () => {
-    // The cache holds what Firestore holds; the sign-in migration reads it to tell an empty
-    // account from a populated one, so a default cached here would read as stored data.
+    // The cache holds what Firestore holds; a default cached here would read as stored data
+    // to anything that reads the cache.
     it.each([
       ["goals", 2025, "cycling", { goals: [], storageVersion: 2 }],
       ["annotations", 2025, undefined, { annotations: [] }],
@@ -513,159 +529,6 @@ describe("useUserConfig", () => {
       expect(result.current.data).toBeNull();
     });
   });
-
-  describe("Migration (Auth Transition)", () => {
-    it("should migrate localStorage data when user signs in", async () => {
-      // 1. Start Unauthenticated
-      mockAuthState = { user: null, loading: false };
-
-      const lsData: GoalsForYear = {
-        goals: [
-          {
-            id: "migrated",
-            value: 1000,
-            label: "Migrated",
-            createdAt: "2025-01-01T00:00:00Z",
-            updatedAt: "2025-01-01T00:00:00Z",
-            metric: "",
-          },
-        ],
-      };
-      localStorageMock.getItem.mockReturnValue(JSON.stringify(lsData));
-
-      const { result, rerender } = renderHook(() => useUserConfig("goals", 2025, "cycling"), {
-        wrapper: createWrapper(),
-      });
-
-      await waitFor(() => expect(result.current.loading).toBe(false));
-      // Should have loaded from LS
-      expect(result.current.data).toEqual(lsData);
-
-      // 2. Simulate Sign In (Transition to Authenticated)
-      mockAuthState = { user: mockUser, loading: false };
-
-      // Mock Firestore response (empty initially)
-      mockServiceInstance.getConfigSection.mockResolvedValue(null);
-      // Subscription returns null (empty)
-      mockServiceInstance.subscribeToConfigSection.mockImplementation((_type: any, cb: any) => {
-        cb(null);
-        return vi.fn();
-      });
-      mockServiceInstance.updateConfigSection.mockResolvedValue(undefined);
-
-      // Clear getItem history from the unauthenticated read phase so the
-      // assertions below target the *migration's* read specifically (the
-      // pre-sign-in read also queried the anonymous key).
-      localStorageMock.getItem.mockClear();
-
-      // Rerender to trigger effect
-      rerender();
-
-      // 3. Verify Migration
-      await waitFor(() => {
-        expect(mockServiceInstance.updateConfigSection).toHaveBeenCalledWith(
-          "goals",
-          lsData,
-          2025,
-          "cycling"
-        );
-        expect(localStorageMock.removeItem).toHaveBeenCalled();
-      });
-
-      // Regression guard (audit C1): the migration must read the *anonymous*
-      // pre-sign-in key — not the old hardcoded "default", and not the
-      // signed-in uid (effectiveUserId resolves to the uid once authenticated).
-      expect(localStorageMock.getItem).toHaveBeenCalledWith(expect.stringContaining("anonymous"));
-      expect(localStorageMock.getItem).not.toHaveBeenCalledWith(expect.stringContaining("default"));
-      expect(localStorageMock.getItem).not.toHaveBeenCalledWith(
-        expect.stringContaining(mockUser.uid)
-      );
-    });
-
-    it("deletes orphan demo localStorage when Firestore already has data (Path 2)", async () => {
-      // Pre-populate demo localStorage AND give the authenticated user a
-      // populated Firestore section: the effect should treat the localStorage
-      // entry as orphaned and remove it without writing anything.
-      const orphanData: GoalsForYear = {
-        goals: [
-          {
-            id: "orphan",
-            value: 500,
-            label: "Orphan",
-            createdAt: "2025-01-01T00:00:00Z",
-            updatedAt: "2025-01-01T00:00:00Z",
-            metric: "",
-          },
-        ],
-      };
-      const firestoreData: GoalsForYear = {
-        goals: [
-          {
-            id: "remote",
-            value: 2000,
-            label: "Remote",
-            createdAt: "2025-01-01T00:00:00Z",
-            updatedAt: "2025-01-01T00:00:00Z",
-            metric: "",
-          },
-        ],
-      };
-      localStorageMock.getItem.mockReturnValue(JSON.stringify(orphanData));
-      mockServiceInstance.getConfigSection.mockResolvedValue(firestoreData);
-      mockServiceInstance.subscribeToConfigSection.mockImplementation((_t: any, cb: any) => {
-        cb(firestoreData);
-        return vi.fn();
-      });
-
-      const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling"), {
-        wrapper: createWrapper(),
-      });
-
-      await waitFor(() => expect(result.current.data).toEqual(firestoreData));
-
-      await waitFor(() => {
-        expect(localStorageMock.removeItem).toHaveBeenCalled();
-      });
-      expect(mockServiceInstance.updateConfigSection).not.toHaveBeenCalled();
-      // Regression guard (audit C1): the orphan removed is the *anonymous*
-      // pre-sign-in key, not "default" or the signed-in uid.
-      expect(localStorageMock.removeItem).toHaveBeenCalledWith(
-        expect.stringContaining("anonymous")
-      );
-      expect(localStorageMock.removeItem).not.toHaveBeenCalledWith(
-        expect.stringContaining("default")
-      );
-    });
-
-    it("does not migrate or delete when localStorage data fails schema validation", async () => {
-      // Validation rejects the payload — leave it in place for diagnosis
-      // rather than silently dropping potentially-recoverable data.
-      const malformed = { goals: [{ id: "bad", value: "not a number" }] };
-      localStorageMock.getItem.mockReturnValue(JSON.stringify(malformed));
-      mockServiceInstance.getConfigSection.mockResolvedValue(null);
-      mockServiceInstance.subscribeToConfigSection.mockImplementation((_t: any, cb: any) => {
-        cb(null);
-        return vi.fn();
-      });
-
-      // Drive parseConfigData to the failure branch for this test.
-      mockedParseConfigData.mockReturnValueOnce({
-        ok: false,
-        error: { issues: [] } as any,
-      });
-
-      const { result } = renderHook(() => useUserConfig("goals", 2025, "cycling"), {
-        wrapper: createWrapper(),
-      });
-
-      await waitFor(() => expect(result.current.loading).toBe(false));
-      // Give the migration effect a tick to run if it were going to.
-      await new Promise((r) => setTimeout(r, 10));
-
-      expect(mockServiceInstance.updateConfigSection).not.toHaveBeenCalled();
-      expect(localStorageMock.removeItem).not.toHaveBeenCalled();
-    });
-  });
 });
 
 describe("useFullUserConfig", () => {
@@ -673,6 +536,7 @@ describe("useFullUserConfig", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    resetServiceMocks();
     mockServiceInstance = UserConfigService.prototype;
     mockAuthState = { user: mockUser, loading: false };
   });

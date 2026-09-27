@@ -1,9 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import {
-  UserConfigService,
-  parseConfigData,
-  hasPreferencesBesidesTheme,
-} from "./userConfigService";
+import { UserConfigService, parseConfigData } from "./userConfigService";
 import type {
   UserConfig,
   GoalsForYear,
@@ -927,38 +923,6 @@ describe("UserConfigService", () => {
 
       expect(mockUnsubscribe).toHaveBeenCalled();
     });
-  });
-});
-
-describe("hasPreferencesBesidesTheme", () => {
-  it.each([
-    ["no section", null],
-    ["an empty section", {}],
-    ["the theme alone", { theme: "arcade" }],
-    [
-      "the theme with every other field at its default",
-      {
-        theme: "miami",
-        defaultYear: 0,
-        distanceUnit: "",
-        elevationUnit: "",
-        defaultSport: "",
-        timezone: "",
-        visibleSports: [],
-      },
-    ],
-  ])("is false for %s", (_label, preferences) => {
-    expect(hasPreferencesBesidesTheme(preferences)).toBe(false);
-  });
-
-  it.each([
-    ["a distance unit", { theme: "arcade", distanceUnit: "kilometers" }],
-    ["visible sports", { visibleSports: ["cycling"] }],
-    ["a default year", { defaultYear: 2025 }],
-    ["a field the schema doesn't know", { theme: "arcade", somethingNew: true }],
-    ["preferences it can't read", { distanceUnit: 5 }],
-  ])("is true for %s", (_label, preferences) => {
-    expect(hasPreferencesBesidesTheme(preferences)).toBe(true);
   });
 });
 
