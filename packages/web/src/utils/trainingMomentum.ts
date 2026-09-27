@@ -27,6 +27,44 @@ export function filterActualActivityData(distanceData: DistanceEntry[]): Distanc
   });
 }
 
+/** A daily pace, placed at the midpoint of the interval it covers, in days since the first entry. */
+export interface PacePoint {
+  day: number;
+  pace: number;
+}
+
+/**
+ * Calculates the daily pace between consecutive data points in the data's own units
+ * (miles/day for distance sports, hours/day for time sports, sessions/day, etc.), each
+ * placed at its interval's midpoint so a trend can be measured per day however far apart
+ * the activities are.
+ *
+ * @param data - Cumulative metric entries
+ * @returns One point per interval with a positive length
+ */
+export function calculateDailyPacePoints(data: DistanceEntry[]): PacePoint[] {
+  const points: PacePoint[] = [];
+  const first = data[0];
+  if (!first) return points;
+  const origin = new Date(first.x).getTime();
+  const dayOf = (x: string) => (new Date(x).getTime() - origin) / (1000 * 60 * 60 * 24);
+
+  for (let i = 1; i < data.length; i++) {
+    const prev = data[i - 1];
+    const curr = data[i];
+    if (!prev || !curr) continue;
+    const prevDay = dayOf(prev.x);
+    const currDay = dayOf(curr.x);
+    const daysDiff = currDay - prevDay;
+
+    if (daysDiff > 0) {
+      points.push({ day: (prevDay + currDay) / 2, pace: (curr.y - prev.y) / daysDiff });
+    }
+  }
+
+  return points;
+}
+
 /**
  * Calculates daily pace between consecutive data points in the data's own units
  * (miles/day for distance sports, hours/day for time sports, sessions/day, etc.).
@@ -35,31 +73,20 @@ export function filterActualActivityData(distanceData: DistanceEntry[]): Distanc
  * @returns Array of daily pace values
  */
 export function calculateDailyPaces(data: DistanceEntry[]): number[] {
-  const dailyPaces: number[] = [];
-
-  for (let i = 1; i < data.length; i++) {
-    const prev = data[i - 1];
-    const curr = data[i];
-    if (!prev || !curr) continue;
-    const prevDate = new Date(prev.x).getTime();
-    const currDate = new Date(curr.x).getTime();
-    const daysDiff = (currDate - prevDate) / (1000 * 60 * 60 * 24);
-
-    if (daysDiff > 0) {
-      dailyPaces.push((curr.y - prev.y) / daysDiff);
-    }
-  }
-
-  return dailyPaces;
+  return calculateDailyPacePoints(data).map((p) => p.pace);
 }
 
 /**
  * Performs simple linear regression on a dataset
  *
- * @param values - Y-values (X-values are assumed to be indices: 0, 1, 2, ...)
+ * @param values - Y-values
+ * @param xs - X-values, one per y; the indices (0, 1, 2, ...) when omitted
  * @returns Object containing slope and intercept, or null if insufficient data
  */
-export function calculateLinearRegression(values: number[]): {
+export function calculateLinearRegression(
+  values: number[],
+  xs?: number[]
+): {
   slope: number;
   intercept: number;
 } | null {
@@ -74,10 +101,11 @@ export function calculateLinearRegression(values: number[]): {
   for (let i = 0; i < n; i++) {
     const v = values[i];
     if (v === undefined) continue;
-    sumX += i;
+    const x = xs?.[i] ?? i;
+    sumX += x;
     sumY += v;
-    sumXY += i * v;
-    sumX2 += i * i;
+    sumXY += x * v;
+    sumX2 += x * x;
   }
 
   // Slope = (n*Σxy - Σx*Σy) / (n*Σx² - (Σx)²)
@@ -96,7 +124,7 @@ export function calculateLinearRegression(values: number[]): {
  * 1. Filtering out extended (flat-line) data
  * 2. Looking back N days of actual activity
  * 3. Computing daily paces between consecutive activities
- * 4. Applying linear regression to find pace trend
+ * 4. Applying linear regression, against each pace's day, to find the pace trend
  * 5. Converting slope to weekly percentage change relative to average pace
  *
  * @param distanceData - Full distance data (may include extended entries)
@@ -138,15 +166,19 @@ export function calculateTrainingMomentum(
     return null;
   }
 
-  // Calculate daily pace for each day
-  const dailyPaces = calculateDailyPaces(recentData);
+  // Calculate the daily pace for each interval between activities
+  const pacePoints = calculateDailyPacePoints(recentData);
 
-  if (dailyPaces.length < TRAINING_CONSTANTS.PACE.MIN_DATA_POINTS) {
+  if (pacePoints.length < TRAINING_CONSTANTS.PACE.MIN_DATA_POINTS) {
     return null;
   }
 
-  // Linear regression: calculate slope of pacing line
-  const regression = calculateLinearRegression(dailyPaces);
+  // Linear regression against each pace's day, so the slope is per day however far apart
+  // the activities are (per index, a pace three days after the last would count as one)
+  const regression = calculateLinearRegression(
+    pacePoints.map((p) => p.pace),
+    pacePoints.map((p) => p.day)
+  );
 
   if (!regression) {
     return null;
