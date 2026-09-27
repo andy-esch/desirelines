@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient, type QueryClient } from "@tansta
 import {
   UserConfigService,
   parseConfigData,
+  hasPreferencesBesidesTheme,
   type UserConfig,
   type GoalsForYear,
   type AnnotationsForYear,
@@ -104,7 +105,8 @@ function claimedMigrations(client: QueryClient): Set<string> {
  *   2. **Orphan localStorage cleanup**: when Firestore already has data for
  *      the section, any leftover demo localStorage entry is deleted on next
  *      render — so a user who signed up, played in demo, then signed in
- *      doesn't accumulate stale localStorage forever.
+ *      doesn't accumulate stale localStorage forever. Preferences holding only
+ *      the theme `ThemeSync` wrote count as empty, so demo preferences migrate.
  *
  * Both effects live inside the hook (search "MIGRATION + CLEANUP" in the
  * body) and run automatically, once per section however many consumers are
@@ -305,8 +307,19 @@ export function useUserConfig(
       // Snapshot the previous value
       const previousData = queryClient.getQueryData(queryKey);
 
-      // Optimistically update to the new value
-      queryClient.setQueryData(queryKey, newData);
+      // Optimistically update to the new value. A Firestore preferences save leaves the
+      // stored theme in place (`updateTheme` is its writer), so the cached theme stays too:
+      // the payload's theme, often "" from demo data, would read to `ThemeSync` as no synced
+      // theme and prompt it to write one.
+      queryClient.setQueryData(
+        queryKey,
+        !isLocalStorageMode && configType === "preferences"
+          ? {
+              ...(newData as Preferences),
+              theme: (previousData as Preferences | null | undefined)?.theme ?? "",
+            }
+          : newData
+      );
 
       // Return a context object with the snapshotted value
       return { previousData };
@@ -360,7 +373,12 @@ export function useUserConfig(
     const localDataRaw = localStorage.getItem(key);
     if (!localDataRaw) return;
 
-    const hasRemoteData = data !== null && data !== undefined;
+    // Preferences holding only the theme `ThemeSync` wrote at sign-in count as empty, so
+    // demo preferences still migrate into them (and the save keeps that theme).
+    const hasRemoteData =
+      configType === "preferences"
+        ? hasPreferencesBesidesTheme(data)
+        : data !== null && data !== undefined;
 
     // Path 2 — Firestore is authoritative; the demo entry is orphaned.
     if (hasRemoteData) {

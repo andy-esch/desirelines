@@ -157,6 +157,65 @@ describe("sign-in migration of demo data", () => {
     expect((await stored(db))?.goals?.["2026"]?.sports.cycling?.goals).toEqual(existing.goals);
   });
 
+  describe("into an account whose preferences hold only the synced theme", () => {
+    // What `ThemeSync` leaves on an account's first sign-in: the theme and nothing else.
+    const themedAccount = (preferences: Record<string, unknown>) => {
+      const db = new NetworkDatabase();
+      db.setMockData(PATH, {
+        schemaVersion: "2.1",
+        userId: UID,
+        lastUpdated: "2026-01-01T00:00:00.000Z",
+        preferences,
+      });
+      return db;
+    };
+    const DEMO_PREFS = { ...DEFAULT_PREFERENCES, distanceUnit: "kilometers" };
+
+    it.each(ARRIVALS)("migrates the demo preferences and keeps the theme, %s", async (arrival) => {
+      localStorage.setItem(DEMO_PREFS_KEY, JSON.stringify(DEMO_PREFS));
+      const db = themedAccount({ theme: "arcade" });
+      await renderAs(arrival, <PrefsConsumer withDefault />, db);
+
+      await waitFor(async () =>
+        expect((await stored(db))?.preferences?.distanceUnit).toBe("kilometers")
+      );
+      expect((await stored(db))?.preferences?.theme).toBe("arcade");
+      expect(localStorage.getItem(DEMO_PREFS_KEY)).toBeNull();
+    });
+
+    it("shows the stored theme throughout, never the demo payload's", async () => {
+      localStorage.setItem(DEMO_PREFS_KEY, JSON.stringify({ ...DEMO_PREFS, theme: "" }));
+      const db = themedAccount({ theme: "arcade" });
+      // An empty theme in the cache reads to ThemeSync as nothing synced, and it would write
+      // this device's theme over the account's.
+      const themes: unknown[] = [];
+      function ThemeReader() {
+        const { data } = useUserConfig("preferences");
+        themes.push(data?.theme);
+        return null;
+      }
+      await renderAs("returning signed in", <ThemeReader />, db);
+
+      await waitFor(async () =>
+        expect((await stored(db))?.preferences?.distanceUnit).toBe("kilometers")
+      );
+      await settle();
+      expect(themes.filter((theme) => theme !== undefined && theme !== "arcade")).toEqual([]);
+    });
+
+    it("drops the demo entry, and writes nothing, once another preference is set", async () => {
+      localStorage.setItem(DEMO_PREFS_KEY, JSON.stringify(DEMO_PREFS));
+      const db = themedAccount({ theme: "arcade", distanceUnit: "miles" });
+      const saves = vi.spyOn(UserConfigService.prototype, "updateConfigSection");
+      await renderAs("returning signed in", <PrefsConsumer withDefault />, db);
+
+      await waitFor(() => expect(localStorage.getItem(DEMO_PREFS_KEY)).toBeNull());
+      await settle();
+      expect(saves).not.toHaveBeenCalled();
+      expect((await stored(db))?.preferences?.distanceUnit).toBe("miles");
+    });
+  });
+
   it.each(ARRIVALS)("migrates once however many consumers are mounted, %s", async (arrival) => {
     localStorage.setItem(DEMO_GOALS_KEY, JSON.stringify(DEMO_GOALS));
     localStorage.setItem(

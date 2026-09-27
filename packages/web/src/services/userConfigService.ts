@@ -205,6 +205,26 @@ export function parseConfigData(
     : { ok: false, error: result.error };
 }
 
+/** Preferences as they read with nothing stored, less the theme. */
+const { theme: _unsetTheme, ...UNSET_PREFERENCES } = PreferencesSchema.parse({});
+
+/**
+ * Whether stored preferences hold anything besides the theme. `ThemeSync` writes the theme
+ * alone when an account first signs in, so an account can have a preferences section its
+ * user never set; the sign-in migration treats that as empty.
+ *
+ * Both sides are read through `PreferencesSchema`, which fills proto defaults in one key
+ * order, so they compare as JSON. A field the schema doesn't know counts as set, and so do
+ * preferences it can't read: either way they are left alone rather than migrated over.
+ */
+export function hasPreferencesBesidesTheme(preferences: unknown): boolean {
+  if (preferences === null || preferences === undefined) return false;
+  const result = PreferencesSchema.safeParse(preferences);
+  if (!result.success) return true;
+  const { theme: _theme, ...rest } = result.data;
+  return JSON.stringify(rest) !== JSON.stringify(UNSET_PREFERENCES);
+}
+
 /**
  * Convert database errors to user-friendly error messages
  */

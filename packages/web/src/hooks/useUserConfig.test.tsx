@@ -26,7 +26,11 @@ vi.mock("../services/userConfigService", () => {
     ok: true as const,
     data: data as object,
   }));
-  return { UserConfigService: MockUserConfigService, parseConfigData };
+  // Only an absent section counts as empty here; the theme-only rule has its own tests.
+  const hasPreferencesBesidesTheme = vi.fn(
+    (prefs: unknown) => prefs !== null && prefs !== undefined
+  );
+  return { UserConfigService: MockUserConfigService, parseConfigData, hasPreferencesBesidesTheme };
 });
 
 const mockedParseConfigData = vi.mocked(parseConfigData);
