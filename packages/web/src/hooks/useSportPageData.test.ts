@@ -6,7 +6,7 @@ import { useSportData } from "./useSportData";
 import { useGoals } from "./useGoals";
 import { useUnitSettings } from "./usePreferences";
 import { getUserSettings } from "../utils/units";
-import type { Preferences } from "../services/userConfigService";
+import type { GoalsForYear, Preferences } from "../services/userConfigService";
 import { useSidebarSportData } from "./useSidebarSportData";
 import { usePriorYearMetrics } from "./usePriorYearMetrics";
 import { logger } from "../lib/logger";
@@ -222,6 +222,37 @@ describe("useSportPageData", () => {
 
     expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("metric="));
     warnSpy.mockRestore();
+  });
+
+  it("saves an untouched goal with its stored value, not re-rounded from miles", async () => {
+    const stored = (id: string, value: number) => ({
+      id,
+      value,
+      label: id,
+      metric: "distance_meters",
+      createdAt: "2025-01-01T00:00:00Z",
+      updatedAt: "2025-01-01T00:00:00Z",
+    });
+    const save = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(useGoals).mockReturnValue(
+      goalsReturn({
+        // 3,000,000 m isn't a whole mile: it shows as 1,864 mi.
+        goalsForYear: {
+          goals: [stored("base", 3_000_000), stored("target", 3_500_000)],
+          storageVersion: 2,
+        },
+        isSaved: true,
+        save,
+      })
+    );
+    const { result } = renderHook(() => useSportPageData("cycling", 2026));
+    const [base, target] = result.current.goals;
+
+    await result.current.onGoalsChange([base!, { ...target!, value: target!.value + 100 }]);
+
+    const saved = (save.mock.calls[0]![0] as GoalsForYear).goals.map((g) => g.value);
+    expect(saved[0]).toBe(3_000_000);
+    expect(saved[1]).not.toBe(3_500_000);
   });
 
   it("reads the goals saved for its sport and year", () => {

@@ -9,6 +9,7 @@ import {
   calculateDynamicPacingGoal,
   goalToDisplay,
   goalToStorage,
+  toStoredGoals,
   validateGoals,
   type GoalUnitContext,
   type Goals,
@@ -462,5 +463,70 @@ describe("goal display ↔ storage round-trip", () => {
   it("leaves session/unitless values unchanged in storage", () => {
     expect(goalToStorage(42, sessions)).toBe(42);
     expect(goalToDisplay(42, sessions)).toBe(42);
+  });
+});
+
+describe("toStoredGoals", () => {
+  const miles: GoalUnitContext = { hasDistance: true, isTime: false, distanceUnit: "miles" };
+  const hours: GoalUnitContext = { hasDistance: false, isTime: true, distanceUnit: "miles" };
+  const shown = (values: [string, number][]) =>
+    testGoals(values.map(([id, value]) => ({ id, value, label: id })));
+
+  it("keeps an untouched goal's stored value, which a round trip would re-round", () => {
+    // 3,000,000 m isn't a whole mile: it shows as 1,864 mi, which would save as 2,999,817 m.
+    const saved = [
+      { id: "base", value: 3_000_000 },
+      { id: "target", value: 3_500_000 },
+    ];
+
+    const stored = toStoredGoals(
+      shown([
+        ["base", 1864],
+        ["target", 2300],
+      ]),
+      saved,
+      miles
+    );
+
+    expect(stored.map((g) => g.value)).toEqual([3_000_000, goalToStorage(2300, miles)]);
+  });
+
+  it("keeps an untouched time goal that isn't a whole hour", () => {
+    // A stored 90 min shows as 2 h; converting it back would save 120.
+    const saved = [
+      { id: "a", value: 90 },
+      { id: "b", value: 600 },
+    ];
+
+    const stored = toStoredGoals(
+      shown([
+        ["a", 2],
+        ["b", 11],
+      ]),
+      saved,
+      hours
+    );
+
+    expect(stored.map((g) => g.value)).toEqual([90, 660]);
+  });
+
+  it("converts a new goal, and carries every other field of the shown goal", () => {
+    const saved = [{ id: "a", value: 90 }];
+    const [kept, added] = toStoredGoals(
+      shown([
+        ["a", 2],
+        ["new", 5],
+      ]),
+      saved,
+      hours
+    );
+
+    expect(added!.value).toBe(300);
+    expect(kept).toEqual({ ...shown([["a", 2]])[0], value: 90 });
+  });
+
+  it("converts every goal when nothing is saved in canonical units", () => {
+    const stored = toStoredGoals(shown([["a", 2]]), [], hours);
+    expect(stored.map((g) => g.value)).toEqual([120]);
   });
 });

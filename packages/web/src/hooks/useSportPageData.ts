@@ -32,6 +32,7 @@ import {
   estimateYearEndDistance,
   toDisplayGoal,
   toStoredGoal,
+  toStoredGoals,
   type GoalUnitContext,
   type Goals,
 } from "../utils/goalCalculations";
@@ -327,8 +328,11 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   // write-side schema guard in UserConfigService) instead of silently
   // persisting partial records.
   const handleGoalsChange = async (newGoals: Goals) => {
+    // Untouched goals keep their stored values (see toStoredGoals).
+    const savedCanonical =
+      knownGoals?.storageVersion === GOAL_STORAGE_VERSION ? knownGoals.goals : [];
     const updatedGoalsForYear: GoalsForYear = {
-      goals: newGoals.map((goal) => toStoredGoal(goal, goalCtx)),
+      goals: toStoredGoals(newGoals, savedCanonical, goalCtx),
       storageVersion: GOAL_STORAGE_VERSION,
     };
     await updateGoals(updatedGoalsForYear);

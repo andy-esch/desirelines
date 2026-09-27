@@ -61,6 +61,28 @@ export function toDisplayGoal<T extends { value: number }>(goal: T, ctx: GoalUni
 }
 
 /**
+ * The goals to save, in storage units, from the goals shown. A goal the athlete didn't
+ * change keeps its stored value: converting it back from whole display units would
+ * re-round it (a stored 90 min shows as 2 h), so every save would move it. Only a goal
+ * whose shown value changed, or a new one, is converted.
+ *
+ * `saved` is the set as stored in canonical units; pass `[]` when what's stored isn't
+ * canonical, so every goal is converted.
+ */
+export function toStoredGoals<T extends { id: string; value: number }>(
+  shown: T[],
+  saved: readonly { id: string; value: number }[],
+  ctx: GoalUnitContext
+): T[] {
+  return shown.map((goal) => {
+    const before = saved.find((g) => g.id === goal.id);
+    return before && goalToDisplay(before.value, ctx) === goal.value
+      ? { ...goal, value: before.value }
+      : toStoredGoal(goal, ctx);
+  });
+}
+
+/**
  * Calculate the number of days in a year using UTC to avoid DST issues
  * @param year - The year to calculate for
  * @returns 365 for regular years, 366 for leap years
