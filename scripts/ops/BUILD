@@ -11,5 +11,9 @@ python_tests(
     # can't infer the dependency from imports. Declare it explicitly, or the
     # script is absent from the test sandbox and every case fails with
     # "can't open file 'scripts/ops/check-strava-sports.py'".
-    dependencies=["scripts/ops/check-strava-sports.py:ops0"],
+    # test_count_unstamped_goals.py loads count-unstamped-goals.py by path for the same reason.
+    dependencies=[
+        "scripts/ops/check-strava-sports.py:ops0",
+        "scripts/ops/count-unstamped-goals.py:ops0",
+    ],
 )

@@ -38,6 +38,7 @@ Consolidated operational scripts.
 - **`ops/webhook-management.sh`**: Webhook operations (create, view, delete)
 - **`ops/dlq-replay.sh`**: DLQ redrive (pull, republish to source topic, ack)
 - **`ops/check-strava-sports.py`**: Strava sport-type drift detector
+- **`ops/count-unstamped-goals.py`**: Read-only count of stored goal sections not yet in canonical units
 
 Historical backfills now run as the `desirelines-backfill` Cloud Run job
 (`packages/stravapipe/src/stravapipe/cloudrun/backfill_job.py`); the old
