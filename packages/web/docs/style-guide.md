@@ -342,9 +342,9 @@ active theme's `structure`, unless a `ThemeStructureProvider` overrides it for a
 
 | Component | Reads | Notes |
 |---|---|---|
-| `Panel` | `--panel-*`, `sectionLabelPlacement` | Title in a label above the frame, or a header bar inside it. `meta` and `actions` (a panel's own controls) share the title row. `accent` picks one of three frame accents; `emphasis` marks the panel that should stand out. |
+| `Panel` | `--panel-*`, `sectionLabelPlacement` | Title in a label above the frame, or a header bar inside it; either way the title is a heading (see heading levels below). `meta` and `actions` (a panel's own controls) share the title row. `accent` picks one of three frame accents; `emphasis` marks the panel that should stand out. |
 | `Section` | `--label-*`, `sectionLabelPlacement` | A heading, meta and actions over content that spans several panels. A single panel takes its title through `Panel`. |
-| `SectionLabel` | `--label-*` | Section and panel labels. |
+| `SectionLabel` | `--label-*` | Section and panel labels. `as` renders it as a heading that looks the same as the span. |
 | `SportLabel`, `SportMark` | `--sport-mark-radius`, `--data-label-case`, `sportMarkStyle` | A sport's name in a row: a glowing dot or swatch before it. `SportMark` is the mark alone (e.g. beside the sport page title). |
 | `HeroDecoration` | `heroDecoration` | The artwork behind the dashboard hero band. The recipes (Miami's sunset bands and blinds, Arcade's grid, Electric's gradient wash) are fixed in the component; the blinds use `--color-bg-body`. Bands too light for hero text sit a fixed distance from the bottom, inside `--hero-padding`, and `HeroDecoration.test.ts` checks text contrast on the rest, and across Electric's wash. `HeroDecorationPreview` draws each recipe small for `ThemePreview`. |
 | `ThemePreview` | the theme's own slots, `swatches`, `heroDecoration` | A theme drawn small (ground, two accent bars, its decoration) for the Settings theme picker. It renders inside the theme's own `data-theme`, so it looks like that theme whatever the page's theme is. The card around it is the page's: `--control-radius`, `--color-neon-accent` for the chosen card's border, glow, badge and name, `--color-on-accent` for the badge's check, `--control-case` for the name. The contract holds the chosen border and check to 3:1 and the name to 4.5:1. |
@@ -359,8 +359,14 @@ accent), `--stat-label-size`, `--stat-label-tracking`, `--stat-label-case`, `--s
 `--stat-sub-color`, `--color-meter-done`, `--color-meter-current`, `--color-meter-todo`,
 `--meter-done-glow`, `--meter-current-glow`, `--color-pace-tick`, `--color-status-good`,
 `--color-status-warn`, `--color-status-bad`, `--status-size`, `--status-tracking` and
-`--status-case`. `/dev/themes` shows every component in every theme, plus a structure
-preview of each structure a theme can choose.
+`--status-case`. `/dev/themes` shows every component in every theme, each in its own
+structure.
+
+**Heading levels.** A page has one `h1` (`PageTitle`, or the dashboard hero). `Section` and
+`Panel` titles take their level from `useHeadingLevel`: `h2` at the top of a page, one deeper
+inside each titled `Section`, `Panel` or `SettingsSection`, so the outline never skips a
+level. Wrap other content that introduces a level in `NextHeadingLevel`. A settings section's
+title is a heading holding its collapse button, and the description describes the button.
 
 **Buttons:** the shadcn `Button`. Variants: `default` (primary action), `secondary`, `outline`,
 `ghost` (tertiary, icon buttons), `destructive`, `link`, and `outline-danger` /
