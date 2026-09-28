@@ -87,6 +87,56 @@ describe("Panel", () => {
       expect(screen.getByText("227 activities")).toBeInTheDocument();
     }
   );
+
+  it.each(["above", "header-bar"] as const)(
+    "makes the title a heading, and only the title, for the %s placement",
+    (placement) => {
+      withStructure(
+        { sectionLabelPlacement: placement },
+        <Panel title="Goal achievability" meta="110 days left">
+          body
+        </Panel>
+      );
+      // An h2 on a page's top level, under its h1.
+      expect(
+        screen.getByRole("heading", { level: 2, name: "Goal achievability" })
+      ).toBeInTheDocument();
+      expect(screen.getAllByRole("heading")).toHaveLength(1);
+    }
+  );
+
+  it("renders no empty heading for a panel with only a meta", () => {
+    withStructure({ sectionLabelPlacement: "header-bar" }, <Panel meta="PAGE 1/5">body</Panel>);
+    expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+  });
+});
+
+describe("heading levels", () => {
+  it("puts a panel under a section one level below the section's heading", () => {
+    withStructure(
+      {},
+      <Section title="Recent activity">
+        <Panel title="Latest activities">
+          <Panel title="Filters">body</Panel>
+        </Panel>
+      </Section>
+    );
+    expect(screen.getByRole("heading", { level: 2, name: "Recent activity" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 3, name: "Latest activities" })
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 4, name: "Filters" })).toBeInTheDocument();
+  });
+
+  it("leaves a panel with no title out of the count", () => {
+    withStructure(
+      {},
+      <Panel>
+        <Panel title="This week">body</Panel>
+      </Panel>
+    );
+    expect(screen.getByRole("heading", { level: 2, name: "This week" })).toBeInTheDocument();
+  });
 });
 
 describe("Section", () => {

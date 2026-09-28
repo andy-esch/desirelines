@@ -16,6 +16,8 @@ const OWN_RING_FOR_NOW: Readonly<Record<string, string>> = {};
 
 /** Files that hide the outline, each with the reason focus doesn't need it there. */
 const HIDES_OUTLINE: Readonly<Record<string, string>> = {
+  "components/settings/SettingsSection.tsx":
+    "the collapse button stretches over its header row, and the row draws the ring (has-[:focus-visible])",
   "components/ui/combobox.tsx":
     "the input shows focus on the chips box around it (focus-within); the list and its positioner hold focus only in passing; an item shows focus as its highlighted row",
   "components/ui/dropdown-menu.tsx":

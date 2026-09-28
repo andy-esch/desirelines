@@ -23,7 +23,7 @@ describe.each(PLACEMENTS)("ChartContainer with $sectionLabelPlacement labels", (
       </ChartContainer>
     );
     const panel = container.querySelector("section");
-    expect(panel).toContainElement(screen.getByText("Cumulative Distance"));
+    expect(panel).toContainElement(screen.getByRole("heading", { name: "Cumulative Distance" }));
     expect(panel).toContainElement(screen.getByRole("button", { name: "YTD" }));
     expect(screen.getByText("chart")).not.toContainElement(screen.getByRole("button"));
   });
@@ -35,7 +35,7 @@ describe.each(PLACEMENTS)("ChartContainer with $sectionLabelPlacement labels", (
         <p>chart</p>
       </ChartContainer>
     );
-    expect(screen.getByText("Cumulative Distance")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Cumulative Distance" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "YTD" })).not.toBeInTheDocument();
     expect(screen.queryByText("chart")).not.toBeInTheDocument();
   });

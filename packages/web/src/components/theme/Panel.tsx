@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { NextHeadingLevel } from "./NextHeadingLevel";
 import { SectionLabel } from "./SectionLabel";
+import { useHeadingLevel } from "./useHeadingLevel";
 import { useThemeStructure } from "./useThemeStructure";
 
 export type PanelAccent = 1 | 2 | 3;
@@ -39,7 +41,9 @@ export interface PanelProps {
 
 /**
  * A framed content surface. The frame comes from the `--panel-*` slots; the title goes in
- * a label above the frame or a header bar inside it, per the theme.
+ * a label above the frame or a header bar inside it, per the theme. Either way the title is
+ * a heading at the level `useHeadingLevel` gives, and headings inside the panel sit one
+ * level below it.
  */
 export function Panel({
   title,
@@ -52,6 +56,10 @@ export function Panel({
   children,
 }: PanelProps) {
   const { sectionLabelPlacement } = useThemeStructure();
+  const heading = `h${useHeadingLevel()}` as const;
+  // A panel with only a meta or actions keeps an empty span in the title's place, which the
+  // row's spacing counts on; an empty heading would say nothing.
+  const labelElement = title != null ? heading : "span";
   const hasHeader = title != null || meta != null || actions != null;
   const actionsNode = actions != null && (
     <div className="flex min-w-0 flex-wrap items-center gap-2">{actions}</div>
@@ -65,7 +73,9 @@ export function Panel({
     "transition-colors hover:border-(color:--color-panel-border-hover)"
   );
   const body = (
-    <div className={cn("min-w-0 p-(--panel-body-padding)", bodyClassName)}>{children}</div>
+    <div className={cn("min-w-0 p-(--panel-body-padding)", bodyClassName)}>
+      {title != null ? <NextHeadingLevel>{children}</NextHeadingLevel> : children}
+    </div>
   );
 
   if (!hasHeader) {
@@ -87,7 +97,7 @@ export function Panel({
         >
           {/* With actions on the right, the meta joins the title on the left. */}
           <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1 min-w-0">
-            <SectionLabel>{title}</SectionLabel>
+            <SectionLabel as={labelElement}>{title}</SectionLabel>
             {meta != null && actions != null && (
               <SectionLabel className="text-(color:--color-muted-text)">{meta}</SectionLabel>
             )}
@@ -110,7 +120,7 @@ export function Panel({
           PANEL_ACCENT_BORDER[accent]
         )}
       >
-        <SectionLabel className={ACCENT_INK[accent]}>{title}</SectionLabel>
+        <SectionLabel as={labelElement} className={ACCENT_INK[accent]}>{title}</SectionLabel>
         <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
           {meta != null && <SectionLabel className={ACCENT_INK[accent]}>{meta}</SectionLabel>}
           {actionsNode}

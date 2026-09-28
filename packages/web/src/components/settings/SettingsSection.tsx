@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect, useCallback, useId, type ReactNode } from "react";
 import { ChevronDownIcon } from "../icons";
 import { useReducedMotion } from "../../hooks/useReducedMotion";
+import { NextHeadingLevel } from "../theme/NextHeadingLevel";
 import { Panel } from "../theme/Panel";
 import { SectionLabel } from "../theme/SectionLabel";
+import { useHeadingLevel } from "../theme/useHeadingLevel";
 
 interface SettingsSectionProps {
   title: string;
@@ -18,11 +20,11 @@ interface SettingsSectionProps {
  * Reusable collapsible section wrapper for the settings page.
  * Provides consistent styling for grouped settings with expand/collapse.
  *
- * - Click the header to toggle
+ * - The title is a heading holding the collapse button (the disclosure pattern), so the
+ *   sections show up in a screen reader's heading list; the description describes it
+ * - Clicking anywhere on the header row toggles, and keyboard focus rings the whole row
  * - Chevron rotates to indicate state
  * - Smooth height animation (respects prefers-reduced-motion)
- * - Keyboard accessible (Enter/Space to toggle)
- * - ARIA attributes for screen readers
  */
 export function SettingsSection({
   title,
@@ -38,6 +40,8 @@ export function SettingsSection({
   const generatedId = useId();
   const panelId = `${generatedId}-panel`;
   const headerId = `${generatedId}-header`;
+  const descriptionId = `${generatedId}-description`;
+  const Heading = `h${useHeadingLevel()}` as const;
 
   // Measure content height for animation
   useEffect(() => {
@@ -63,25 +67,29 @@ export function SettingsSection({
 
   const animationDuration = reducedMotion ? "0ms" : "200ms";
 
+  // The button's ::after stretches over the whole row, so a click anywhere on it toggles;
+  // the row draws the focus ring the button hides, as it did when the row was the control.
   const header = (
-    <div
-      id={headerId}
-      role="button"
-      tabIndex={0}
-      aria-expanded={expanded}
-      aria-controls={panelId}
-      className="flex cursor-pointer select-none items-start justify-between gap-4"
-      onClick={toggle}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          toggle();
-        }
-      }}
-    >
+    <div className="relative flex cursor-pointer select-none items-start justify-between gap-4 has-[:focus-visible]:control-focus-ring">
       <div className="flex-1">
-        <SectionLabel>{title}</SectionLabel>
-        {description && <p className="text-muted-text text-sm mb-0 mt-1.5">{description}</p>}
+        <Heading className="m-0 [font-family:inherit] font-normal">
+          <button
+            type="button"
+            id={headerId}
+            aria-expanded={expanded}
+            aria-controls={panelId}
+            aria-describedby={description ? descriptionId : undefined}
+            onClick={toggle}
+            className="cursor-pointer text-left outline-none after:absolute after:inset-0"
+          >
+            <SectionLabel>{title}</SectionLabel>
+          </button>
+        </Heading>
+        {description && (
+          <p id={descriptionId} className="text-muted-text text-sm mb-0 mt-1.5">
+            {description}
+          </p>
+        )}
       </div>
       <span
         className="inline-flex items-center mt-1 ms-3"
@@ -108,7 +116,7 @@ export function SettingsSection({
       }}
     >
       <div ref={contentRef} className="p-(--panel-body-padding)">
-        {children}
+        <NextHeadingLevel>{children}</NextHeadingLevel>
       </div>
     </div>
   );
