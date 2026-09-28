@@ -31,46 +31,48 @@ export interface ThemeFont {
 }
 
 /**
- * Choices that add, remove or rearrange markup, so they can't be a CSS value. Components
- * read these fields; they never check which theme is active. See "Theme slots" in the
- * style guide for what each one changes.
+ * Choices that add, remove or rearrange markup, so they can't be a CSS value, each with the
+ * values a theme may pick. Components read these fields; they never check which theme is
+ * active. See "Theme slots" in the style guide for what each one changes.
+ *
+ * Every value here is some theme's choice: `themeStructure.test.ts` fails on one no theme in
+ * `THEMES` picks, so an option can't outlive the theme that wanted it, as the pre-retro
+ * structure's did.
  */
-export interface ThemeStructure {
-  /** A small kicker line above page titles. */
-  readonly showPageKicker: boolean;
+export const STRUCTURE_OPTIONS = {
   /** The dashboard hero's decoration; also picks the Settings preview thumbnail. */
-  readonly heroDecoration: "none" | "sunset" | "grid" | "gradient";
-  /** Where a panel's title goes: a label above it, a bar inside it, or a card header. */
-  readonly sectionLabelPlacement: "card-header" | "above" | "header-bar";
-  /** How a row of big numbers is framed. */
-  readonly statRowStyle: "cards" | "divided" | "boxed";
+  heroDecoration: ["sunset", "grid", "gradient"],
+  /** Where a panel's title goes: a label above it, or a bar inside it. */
+  sectionLabelPlacement: ["above", "header-bar"],
+  /** How a row of big numbers is framed: one panel split into cells, or outline boxes. */
+  statRowStyle: ["divided", "boxed"],
   /** Range sliders draw a continuous track or a segmented meter. */
-  readonly sliderTrack: "continuous" | "segmented";
+  sliderTrack: ["continuous", "segmented"],
   /** A cursor glyph at the left edge of the hovered table row. */
-  readonly rowHoverCursor: boolean;
+  rowHoverCursor: [false, true],
   /** Paging a list: stacked arrows beside it, or a labelled row under it. */
-  readonly pagerStyle: "arrows" | "labelled";
-  /** How a sport is marked in rows and lists. */
-  readonly sportMarkStyle: "badge" | "dot" | "swatch";
-  /** Goal status: colored badges, or an SVG symbol plus text. */
-  readonly statusSymbolStyle: "badge" | "filled" | "outlined";
-  /** Goal progress: a bar with the percent on it, or a track with a pace tick. */
-  readonly goalTrackStyle: "bar-with-percent" | "track" | "outline-track";
+  pagerStyle: ["arrows", "labelled"],
+  /** How a sport is marked in rows and lists: a glowing dot or a square swatch. */
+  sportMarkStyle: ["dot", "swatch"],
+  /** Goal status as an SVG symbol plus text, the symbol filled or outlined. */
+  statusSymbolStyle: ["filled", "outlined"],
+  /** Goal progress as a track with a pace tick, plain or outlined. */
+  goalTrackStyle: ["track", "outline-track"],
   /** Year meters fill the current segment to today's share of it. */
-  readonly meterPartialCurrent: boolean;
-  /** Loading indicator. */
-  readonly loaderStyle: "spinner" | "chaser" | "block";
-  /** The pacing charts' danger zone: a translucent wash or a diagonal hatch. */
-  readonly dangerZoneFill: "wash" | "hatch";
+  meterPartialCurrent: [false, true],
+  /** Loading indicator: a chaser of lit segments, or a row of blocks with a cursor. */
+  loaderStyle: ["chaser", "block"],
   /** Axis marker dots on charts. */
-  readonly chartMarkerShape: "circle" | "square";
-  /** A legend row above line charts. */
-  readonly chartLegend: boolean;
+  chartMarkerShape: ["circle", "square"],
   /** Routes-map drawer sections: flat with rules, or stacked outline panels. */
-  readonly mapDrawerSections: "flat" | "panels";
+  mapDrawerSections: ["flat", "panels"],
   /** Dates: `Sep 12, 2026` or zero-padded `2026.09.12`. Integers are never padded. */
-  readonly dateFormat: "short" | "dotted";
-}
+  dateFormat: ["short", "dotted"],
+} as const;
+
+export type ThemeStructure = {
+  readonly [Field in keyof typeof STRUCTURE_OPTIONS]: (typeof STRUCTURE_OPTIONS)[Field][number];
+};
 
 /**
  * Base-map colors by map feature role. Mapbox paint can't read CSS variables, so these are
@@ -137,7 +139,6 @@ const MAPBOX_LIGHT = "mapbox://styles/mapbox/light-v11";
 
 /** Miami's structure, from the approved retro design. */
 const MIAMI_STRUCTURE: ThemeStructure = {
-  showPageKicker: true,
   heroDecoration: "sunset",
   sectionLabelPlacement: "above",
   statRowStyle: "divided",
@@ -149,9 +150,7 @@ const MIAMI_STRUCTURE: ThemeStructure = {
   goalTrackStyle: "track",
   meterPartialCurrent: true,
   loaderStyle: "chaser",
-  dangerZoneFill: "hatch",
   chartMarkerShape: "circle",
-  chartLegend: true,
   mapDrawerSections: "flat",
   dateFormat: "short",
 };
@@ -163,7 +162,6 @@ const MIAMI_FONTS: readonly ThemeFont[] = [
 ];
 
 const ARCADE_STRUCTURE: ThemeStructure = {
-  showPageKicker: true,
   heroDecoration: "grid",
   sectionLabelPlacement: "header-bar",
   statRowStyle: "boxed",
@@ -176,9 +174,7 @@ const ARCADE_STRUCTURE: ThemeStructure = {
   // The year meter counts 52 weeks, so the current segment is a whole week either way.
   meterPartialCurrent: false,
   loaderStyle: "block",
-  dangerZoneFill: "hatch",
   chartMarkerShape: "square",
-  chartLegend: true,
   mapDrawerSections: "panels",
   dateFormat: "dotted",
 };

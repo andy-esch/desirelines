@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render } from "@testing-library/react";
 import { ThemePreview } from "./ThemePreview";
-import { HeroDecorationPreview, PLAIN_PREVIEW_BANDS, SUNSET_PREVIEW_BANDS } from "./HeroDecoration";
+import { SUNSET_PREVIEW_BANDS } from "./HeroDecoration";
 import { THEMES, getTheme } from "../../themes/registry";
 
 const bandsOf = (el: Element | null) =>
@@ -44,13 +44,5 @@ describe("ThemePreview", () => {
 
     expect(decoration("arcade")).toHaveAttribute("data-decoration", "grid-preview");
     expect(decoration("electric")).toHaveAttribute("data-decoration", "gradient-preview");
-
-    // No decoration draws plain bands of the theme's own surfaces. No theme in the list has
-    // none, so the miniature is drawn on its own.
-    const plain = render(<HeroDecorationPreview kind="none" />).container.querySelector(
-      "[data-decoration]"
-    );
-    expect(plain).toHaveAttribute("data-decoration", "plain-preview");
-    expect(bandsOf(plain)).toEqual(PLAIN_PREVIEW_BANDS);
   });
 });

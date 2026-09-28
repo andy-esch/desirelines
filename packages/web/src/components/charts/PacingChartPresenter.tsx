@@ -35,8 +35,6 @@ import { CHART_CONFIG, DANGER_ZONE_CONFIG } from "../../constants/chartConfig";
 import ChartTooltip from "./ChartTooltip";
 import YAxisMarker from "./YAxisMarker";
 import { useThemeDateFormat } from "../theme/useThemeDateFormat";
-import { useThemeStructure } from "../theme/useThemeStructure";
-import type { ThemeStructure } from "../../themes/registry";
 
 // ============================================================================
 // Types
@@ -97,27 +95,9 @@ export interface PacingChartPresenterProps {
 // ============================================================================
 
 /**
- * How the danger zone is painted, for the theme's `dangerZoneFill`.
- *
- * A wash is the configured flat fill; a hatch swaps in a stripe pattern at full opacity,
- * since the stripes carry their own transparency. Exported for its test: the alternative is
- * mounting a chart in jsdom to read one attribute.
- */
-export function dangerZoneAreaFill(
-  style: ThemeStructure["dangerZoneFill"],
-  washFill: string,
-  washOpacity: number,
-  patternId: string
-): { hatched: boolean; fill: string; fillOpacity: number } {
-  if (style === "hatch") {
-    return { hatched: true, fill: `url(#${patternId})`, fillOpacity: 1 };
-  }
-  return { hatched: false, fill: washFill, fillOpacity: washOpacity };
-}
-
-/**
- * Renders the danger zone (zone of unachievability) visual elements.
- * Shows a shaded area and labeled threshold line.
+ * Renders the danger zone (zone of unachievability) visual elements: a hatched area and a
+ * labeled threshold line. The stripes carry their own transparency, so the area paints
+ * them at full opacity.
  */
 function DangerZoneOverlay({
   threshold,
@@ -129,40 +109,31 @@ function DangerZoneOverlay({
   unitLabel: string;
 }) {
   const { area, line, label } = DANGER_ZONE_CONFIG;
-  const { dangerZoneFill } = useThemeStructure();
   // Unique per chart: two pacing charts on a page would otherwise share one pattern id,
   // and the second would paint with the first chart's stripes.
   const hatchId = `danger-hatch-${useId().replace(/:/g, "")}`;
-  const { hatched, fill, fillOpacity } = dangerZoneAreaFill(
-    dangerZoneFill,
-    area.fill,
-    area.fillOpacity,
-    hatchId
-  );
 
   return (
     <>
-      {hatched && (
-        <defs>
-          {/* 2px stripes every 8px at 45 degrees, the weight the retro designs call for. */}
-          <pattern
-            id={hatchId}
-            width={8}
-            height={8}
-            patternUnits="userSpaceOnUse"
-            patternTransform="rotate(45)"
-          >
-            <rect width={2} height={8} fill={area.fill} fillOpacity={0.3} />
-          </pattern>
-        </defs>
-      )}
+      <defs>
+        {/* 2px stripes every 8px at 45 degrees, the weight the retro designs call for. */}
+        <pattern
+          id={hatchId}
+          width={8}
+          height={8}
+          patternUnits="userSpaceOnUse"
+          patternTransform="rotate(45)"
+        >
+          <rect width={2} height={8} fill={area.fill} fillOpacity={0.3} />
+        </pattern>
+      </defs>
 
       {/* Shaded danger zone area */}
       <ReferenceArea
         y1={threshold}
         y2={yMax}
-        fill={fill}
-        fillOpacity={fillOpacity}
+        fill={`url(#${hatchId})`}
+        fillOpacity={1}
         stroke={area.stroke}
         strokeDasharray={area.strokeDasharray}
       />

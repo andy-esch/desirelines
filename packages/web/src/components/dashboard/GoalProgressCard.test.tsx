@@ -3,8 +3,7 @@ import { screen, within } from "@testing-library/react";
 import GoalProgressCard, { getStatusForDashboard } from "./GoalProgressCard";
 import { renderWithRouter } from "../../test/renderWithRouter";
 import { ThemeStructureProvider } from "../theme/ThemeStructureProvider";
-import { getTheme, type ThemeId, type ThemeStructure } from "../../themes/registry";
-import { LEGACY_STRUCTURE } from "../../themes/legacyStructure";
+import { getTheme, type ThemeId } from "../../themes/registry";
 import type { SportGoalData } from "../../hooks/useDashboardGoalData";
 import type { YearContext } from "../../utils/yearContext";
 
@@ -64,11 +63,12 @@ function returnGoalData(
   });
 }
 
-function renderCard(theme: ThemeId | ThemeStructure = "miami") {
-  const structure = typeof theme === "string" ? getTheme(theme).structure : theme;
+function renderCard(theme: ThemeId = "miami") {
   return renderWithRouter(<GoalProgressCard />, {
     wrapper: ({ children }) => (
-      <ThemeStructureProvider structure={structure}>{children}</ThemeStructureProvider>
+      <ThemeStructureProvider structure={getTheme(theme).structure}>
+        {children}
+      </ThemeStructureProvider>
     ),
   });
 }
@@ -150,23 +150,18 @@ describe("GoalProgressCard", () => {
     expect(screen.getByText("400 mi / 1,000 mi")).toBeInTheDocument();
   });
 
-  it("draws a goal track in themes without the percent bar", async () => {
-    returnGoalData([cycling(400)]);
-    await renderCard("miami");
-    expect(screen.getByRole("progressbar", { name: "Cycling goal progress" })).toHaveAttribute(
-      "aria-valuenow",
-      "40"
-    );
-    expect(screen.queryByText("🐲")).not.toBeInTheDocument();
-    expect(screen.getByText("Pace today")).toBeInTheDocument();
-  });
-
-  it("draws the race track with the percent bar", async () => {
-    returnGoalData([cycling(400)]);
-    await renderCard(LEGACY_STRUCTURE);
-    expect(screen.queryByRole("progressbar", { name: "Cycling goal progress" })).toBeNull();
-    expect(screen.getAllByText("🐲").length).toBeGreaterThan(0);
-  });
+  it.each(["miami", "arcade"] as const)(
+    "draws a goal track with today's pace in %s",
+    async (theme) => {
+      returnGoalData([cycling(400)]);
+      await renderCard(theme);
+      expect(screen.getByRole("progressbar", { name: "Cycling goal progress" })).toHaveAttribute(
+        "aria-valuenow",
+        "40"
+      );
+      expect(screen.getByText("Pace today")).toBeInTheDocument();
+    }
+  );
 
   it("links each sport to its page for the year", async () => {
     returnGoalData([cycling(400)]);
@@ -207,20 +202,20 @@ describe("GoalProgressCard", () => {
       impactGoalLabel: "",
     });
 
-    it.each([
-      ["miami", "miami"],
-      ["the legacy structure", LEGACY_STRUCTURE],
-    ] as const)("says No goal and links to where one is set, in %s", async (_name, structure) => {
-      returnGoalData([cycling(400), running]);
-      await renderCard(structure);
+    it.each(["miami", "arcade"] as const)(
+      "says No goal and links to where one is set, in %s",
+      async (theme) => {
+        returnGoalData([cycling(400), running]);
+        await renderCard(theme);
 
-      expect(screen.getByText("No goal")).toBeInTheDocument();
-      expect(screen.getByText(/1,204 mi/)).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "Set a goal for Running" })).toHaveAttribute(
-        "href",
-        "/running/2026"
-      );
-    });
+        expect(screen.getByText("No goal")).toBeInTheDocument();
+        expect(screen.getByText(/1,204 mi/)).toBeInTheDocument();
+        expect(screen.getByRole("link", { name: "Set a goal for Running" })).toHaveAttribute(
+          "href",
+          "/running/2026"
+        );
+      }
+    );
 
     it("draws no track, status or target for it", async () => {
       returnGoalData([cycling(400), running]);

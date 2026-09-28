@@ -13,7 +13,6 @@ import type { TuningParams } from "../../utils/demoDataGenerator";
 import type { TimeRange } from "../../utils/dataNormalization";
 import { MissingValue } from "../theme/MissingValue";
 import { Panel } from "../theme/Panel";
-import { useThemeStructure } from "../theme/useThemeStructure";
 import { useThemeDateFormat } from "../theme/useThemeDateFormat";
 import { cn } from "@/lib/utils";
 
@@ -263,7 +262,6 @@ export default function MultiSportSparklineChart({
   className = "",
   tuningParams,
 }: MultiSportSparklineChartProps) {
-  const { chartLegend } = useThemeStructure();
   const { formatDate } = useThemeDateFormat();
   const {
     unifiedChartData,
@@ -307,8 +305,8 @@ export default function MultiSportSparklineChart({
 
   return (
     <Panel className={cn("h-full", className)} bodyClassName="flex flex-1 flex-col p-2">
-      {/* Legend with sport links, for themes whose design carries one. */}
-      {chartLegend && <SparklineLegend sportMeta={sportMeta} />}
+      {/* Legend with sport links. */}
+      <SparklineLegend sportMeta={sportMeta} />
 
       {/* Unified chart — grows to fill available height */}
       <div className="grow" style={{ minHeight: chartHeight }}>

@@ -1,40 +1,28 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { cn } from "@/lib/utils";
 import { useDashboardGoalData, type SportGoalData } from "../../hooks/useDashboardGoalData";
 import { PACE_THRESHOLDS } from "../../utils/goalCalculations";
 import { formatMetricDisplayValue } from "../../utils/units";
 import { getDaysInYear, getYearElapsedShare, type YearContext } from "../../utils/yearContext";
-import RaceTrack, { RaceTrackLegend } from "../RaceTrack";
 import Skeleton from "../Skeleton";
 import { Panel } from "../theme/Panel";
 import { Meter } from "../theme/Meter";
 import { MissingValue } from "../theme/MissingValue";
-import { useThemeStructure } from "../theme/useThemeStructure";
 
 /**
- * Per-sport goal progress. Themes that keep the percent bar (`goalTrackStyle` of
- * `bar-with-percent`) draw the race track; the others draw a goal track with a pace tick.
- *
- * The race track shows two emoji markers racing along a horizontal track:
- * - Dragon (🐲) at your actual progress toward the annual goal
- * - Ghost (👻) at where you'd be if perfectly on pace
- *
- * When ahead of pace, the dragon leads the ghost.
- * When behind, the ghost leads.
+ * Per-sport goal progress: a goal track filled to your progress, with a tick where an even
+ * pace puts you today.
  *
  * Features:
  * - Sport name links to detail pages
  * - Status text (Ahead/On Track/Behind) per sport
  * - Metric values below track (current / goal)
- * - Legend explaining the markers
+ * - A legend naming the fill and the tick
  * - A sport without a goal says "No goal" and links to its page to set one, with no track
  *   or status: there's nothing to measure against
  */
 export default function GoalProgressCard() {
   const { sportData, yearContext, isLoading, error } = useDashboardGoalData();
-  const { goalTrackStyle } = useThemeStructure();
-  const raceTrack = goalTrackStyle === "bar-with-percent";
   const title = `${yearContext.year} Goals`;
   const meta = yearContext.shouldShowPacing
     ? `Day ${yearContext.daysElapsed} of ${getDaysInYear(yearContext.year)}`
@@ -74,21 +62,13 @@ export default function GoalProgressCard() {
       ) : (
         <>
           {sportData.map((sport) => (
-            <SportProgressRow
-              key={sport.sport}
-              sport={sport}
-              yearContext={yearContext}
-              raceTrack={raceTrack}
-            />
+            <SportProgressRow key={sport.sport} sport={sport} yearContext={yearContext} />
           ))}
 
           {/* The legend names the track's marks, so it goes with the tracks. */}
-          {sportData.some((sport) => sport.hasGoal) &&
-            (raceTrack ? (
-              <RaceTrackLegend className="pt-2 mt-1" showPace={yearContext.shouldShowPacing} />
-            ) : (
-              <GoalTrackLegend showPace={yearContext.shouldShowPacing} />
-            ))}
+          {sportData.some((sport) => sport.hasGoal) && (
+            <GoalTrackLegend showPace={yearContext.shouldShowPacing} />
+          )}
         </>
       )}
     </Panel>
@@ -98,20 +78,12 @@ export default function GoalProgressCard() {
 interface SportProgressRowProps {
   sport: SportGoalData;
   yearContext: YearContext;
-  /** Draw the emoji race track rather than a goal track with a pace tick. */
-  raceTrack: boolean;
 }
 
-function SportProgressRow({ sport, yearContext, raceTrack }: SportProgressRowProps) {
+function SportProgressRow({ sport, yearContext }: SportProgressRowProps) {
   if (!sport.hasGoal) {
-    return <NoGoalRow sport={sport} year={yearContext.year} raceTrack={raceTrack} />;
+    return <NoGoalRow sport={sport} year={yearContext.year} />;
   }
-
-  // Calculate positions as percentages
-  const youPosition = sport.targetGoal > 0 ? (sport.currentValue / sport.targetGoal) * 100 : 0;
-
-  // Goal pace position: what % of the year has elapsed
-  const pacePosition = getYearElapsedShare(yearContext) * 100;
 
   const { label: status, delta } = getStatusForDashboard(
     sport.currentValue,
@@ -130,42 +102,9 @@ function SportProgressRow({ sport, yearContext, raceTrack }: SportProgressRowPro
   const current = formatMetricDisplayValue(sport.currentValue, sport.metricType, sport.metricUnit);
   const target = formatMetricDisplayValue(sport.targetGoal, sport.metricType, sport.metricUnit);
 
-  if (!raceTrack) {
-    return (
-      <div className="flex flex-col gap-2 mb-4">
-        <div className="flex justify-between items-baseline gap-3">
-          <Link
-            to="/$sport/$year"
-            params={{ sport: sport.sport, year: String(yearContext.year) }}
-            className="text-sm text-body-text"
-          >
-            {sport.displayName}
-          </Link>
-          <span className="text-(length:--status-size) tracking-(--status-tracking) [text-transform:var(--status-case)] text-subtle-text">
-            {statusDisplay}
-          </span>
-        </div>
-        <Meter
-          value={sport.targetGoal > 0 ? sport.currentValue / sport.targetGoal : 0}
-          marker={yearContext.shouldShowPacing ? pacePosition / 100 : undefined}
-          color={sport.color}
-          label={`${sport.displayName} goal progress`}
-        />
-        <span className="text-xs text-muted-text">
-          {current} / {target}
-        </span>
-      </div>
-    );
-  }
-
   return (
-    <div className="mb-2">
-      <div className="flex justify-between items-center mb-1">
-        {/* Neutral label, not the sport color: full-brightness neon as text is
-            unreadable on the light ground. The RaceTrack directly below is already
-            drawn in `sport.color`, so identity is carried by that mark and the label
-            doesn't need to repeat it. `text-body-text` is explicit because the global
-            `a` rule would otherwise tint this link accent-cyan. */}
+    <div className="flex flex-col gap-2 mb-4">
+      <div className="flex justify-between items-baseline gap-3">
         <Link
           to="/$sport/$year"
           params={{ sport: sport.sport, year: String(yearContext.year) }}
@@ -173,20 +112,19 @@ function SportProgressRow({ sport, yearContext, raceTrack }: SportProgressRowPro
         >
           {sport.displayName}
         </Link>
-        <span className="text-sm text-muted-text">{statusDisplay}</span>
+        <span className="text-(length:--status-size) tracking-(--status-tracking) [text-transform:var(--status-case)] text-subtle-text">
+          {statusDisplay}
+        </span>
       </div>
-
-      <RaceTrack
-        primaryPosition={youPosition}
-        pacePosition={pacePosition}
-        showPace={yearContext.shouldShowPacing}
-        trackColor={sport.color}
-        height={28}
+      <Meter
+        value={sport.targetGoal > 0 ? sport.currentValue / sport.targetGoal : 0}
+        marker={yearContext.shouldShowPacing ? getYearElapsedShare(yearContext) : undefined}
+        color={sport.color}
+        label={`${sport.displayName} goal progress`}
       />
-
-      <div className="text-sm text-muted-text" style={{ fontSize: "0.7rem" }}>
+      <span className="text-xs text-muted-text">
         {current} / {target}
-      </div>
+      </span>
     </div>
   );
 }
@@ -195,30 +133,15 @@ function SportProgressRow({ sport, yearContext, raceTrack }: SportProgressRowPro
  * A sport the athlete hasn't set a goal for: this year's total, and where goals are set.
  * The sport's page shows suggested goals until one is saved.
  */
-function NoGoalRow({
-  sport,
-  year,
-  raceTrack,
-}: {
-  sport: SportGoalData;
-  year: number;
-  /** Match the theme's goal rows: the race track's spacing and status, or the goal track's. */
-  raceTrack: boolean;
-}) {
+function NoGoalRow({ sport, year }: { sport: SportGoalData; year: number }) {
   const params = { sport: sport.sport, year: String(year) };
   return (
-    <div className={cn("flex flex-col gap-1", raceTrack ? "mb-2" : "mb-4")}>
+    <div className="flex flex-col gap-1 mb-4">
       <div className="flex justify-between items-baseline gap-3">
         <Link to="/$sport/$year" params={params} className="text-sm text-body-text">
           {sport.displayName}
         </Link>
-        <span
-          className={
-            raceTrack
-              ? "text-sm text-muted-text"
-              : "text-(length:--status-size) tracking-(--status-tracking) [text-transform:var(--status-case)] text-subtle-text"
-          }
-        >
+        <span className="text-(length:--status-size) tracking-(--status-tracking) [text-transform:var(--status-case)] text-subtle-text">
           No goal
         </span>
       </div>

@@ -2,7 +2,6 @@ import { Link } from "@tanstack/react-router";
 import { NarrowPageLayout } from "../components/layout/PageLayout";
 import { PageTitle } from "../components/theme/PageTitle";
 import { SectionLabel } from "../components/theme/SectionLabel";
-import { useThemeStructure } from "../components/theme/useThemeStructure";
 import { buttonVariants } from "../components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -18,15 +17,8 @@ const GitHubIcon = () => (
  * This is the basic static version. A more elaborate scrollytelling version
  * is planned for the future (see about-origins-page.md task).
  */
-/**
- * A section heading. Themes that label panels from outside get the page's tracked label
- * over a rule, as the design draws; the rest keep the cyan heading this page has had.
- */
+/** A section heading: the page's tracked label over a rule, as the design draws. */
 function OriginsHeading({ children, first = false }: { children: string; first?: boolean }) {
-  const { sectionLabelPlacement } = useThemeStructure();
-  if (sectionLabelPlacement === "card-header") {
-    return <h2 className="mb-3 text-accent-cyan font-normal text-2xl">{children}</h2>;
-  }
   return (
     <h2 className={cn("mb-4 pb-3 border-b border-divider", !first && "pt-1")}>
       <SectionLabel>{children}</SectionLabel>

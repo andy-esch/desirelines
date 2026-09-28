@@ -16,13 +16,13 @@ import { StatusSymbol } from "./StatusSymbol";
 import { PageTitle } from "./PageTitle";
 import { Section } from "./Section";
 import { SportLabel, SportMark } from "./SportLabel";
-import { LEGACY_STRUCTURE } from "../../themes/legacyStructure";
 
-const LEGACY = LEGACY_STRUCTURE;
-
+/** Miami's structure, with the fields a case varies laid over it. */
 function withStructure(overrides: Partial<ThemeStructure>, node: ReactNode) {
   return render(
-    <ThemeStructureProvider structure={{ ...LEGACY, ...overrides }}>{node}</ThemeStructureProvider>
+    <ThemeStructureProvider structure={{ ...getTheme("miami").structure, ...overrides }}>
+      {node}
+    </ThemeStructureProvider>
   );
 }
 
@@ -44,18 +44,6 @@ describe("useThemeStructure", () => {
 });
 
 describe("Panel", () => {
-  it("puts the title in a card header in Legacy themes", () => {
-    const { container } = withStructure(
-      {},
-      <Panel title="Goal achievability" meta="110 days left">
-        body
-      </Panel>
-    );
-    const panel = container.querySelector("section");
-    expect(panel).toHaveAttribute("data-placement", "card-header");
-    expect(panel).toContainElement(screen.getByRole("heading", { name: "Goal achievability" }));
-  });
-
   it("puts the title above the frame for the above placement", () => {
     const { container } = withStructure(
       { sectionLabelPlacement: "above" },
@@ -84,7 +72,7 @@ describe("Panel", () => {
     expect(container.querySelector("section")).toHaveAttribute("data-placement", "none");
   });
 
-  it.each(["card-header", "above", "header-bar"] as const)(
+  it.each(["above", "header-bar"] as const)(
     "keeps actions in the title row outside the body for the %s placement",
     (placement) => {
       withStructure(
@@ -126,23 +114,17 @@ describe("Section", () => {
 });
 
 describe("SportLabel", () => {
-  it("shows the plain name where the theme uses badges and no badge is asked for", () => {
-    const { container } = withStructure({}, <SportLabel color="#ff00ff">Cycling</SportLabel>);
-    expect(screen.getByText("Cycling")).toBeInTheDocument();
-    expect(container.querySelector("[data-mark]")).not.toBeInTheDocument();
-  });
-
-  it("draws no standalone mark where the theme uses badges", () => {
-    const { container } = withStructure({}, <SportMark color="#ff00ff" />);
-    expect(container).toBeEmptyDOMElement();
-  });
-
   it.each(["dot", "swatch"] as const)("marks the name with a %s", (style) => {
     const { container } = withStructure(
       { sportMarkStyle: style },
       <SportLabel color="#ff00ff">Cycling</SportLabel>
     );
     expect(container.querySelector(`[data-mark="${style}"]`)).toHaveTextContent("Cycling");
+  });
+
+  it.each(["dot", "swatch"] as const)("draws the mark alone as a %s", (style) => {
+    const { container } = withStructure({ sportMarkStyle: style }, <SportMark color="#ff00ff" />);
+    expect(container.querySelector(`[data-mark="${style}"]`)).toBeInTheDocument();
   });
 });
 
@@ -156,7 +138,6 @@ describe("StatRow", () => {
   );
 
   it.each([
-    ["cards", "card"],
     ["divided", "cell"],
     ["boxed", "box"],
   ] as const)("frames stats for the %s style", (style, frame) => {
@@ -230,7 +211,7 @@ describe("Meter", () => {
     expect(segmentsOf(container)).toEqual(Array(8).fill("chase"));
   });
 
-  it("draws a continuous track with a fill, a marker and, in Legacy themes, the percent", () => {
+  it("draws a continuous track with a fill and a marker, leaving the percent to the caller", () => {
     const { container } = withStructure(
       {},
       <Meter
@@ -242,23 +223,16 @@ describe("Meter", () => {
     );
     expect(container.querySelector('[data-meter="continuous"]')).toBeInTheDocument();
     expect((container.querySelector("[data-marker]") as HTMLElement).style.left).toMatch(/^70\.1/);
-    expect(screen.getByText("62%")).toBeInTheDocument();
-  });
-
-  it("leaves the percent off for track styles", () => {
-    withStructure(
-      { goalTrackStyle: "track" },
-      <Meter value={0.62} label="Conservative progress" />
-    );
     expect(screen.queryByText("62%")).not.toBeInTheDocument();
   });
 });
 
 describe("PageTitle", () => {
-  it("renders only the heading where the theme hides kickers", () => {
-    withStructure({ showPageKicker: false }, <PageTitle kicker="About">Origins</PageTitle>);
-    expect(screen.getByRole("heading", { level: 1, name: "Origins" })).toBeInTheDocument();
-    expect(screen.queryByText("About")).not.toBeInTheDocument();
+  it("renders only the heading without a kicker", () => {
+    const { container } = render(<PageTitle>Origins</PageTitle>);
+    expect(container.firstElementChild).toBe(
+      screen.getByRole("heading", { level: 1, name: "Origins" })
+    );
   });
 
   it("tints the glow with the color a caller passes", () => {
@@ -273,8 +247,8 @@ describe("PageTitle", () => {
     expect(screen.getByRole("heading", { level: 1 }).style.textShadow).toBe("");
   });
 
-  it("renders the kicker above the heading where the theme shows kickers", () => {
-    withStructure({ showPageKicker: true }, <PageTitle kicker="About">Origins</PageTitle>);
+  it("renders the kicker above the heading", () => {
+    render(<PageTitle kicker="About">Origins</PageTitle>);
     const heading = screen.getByRole("heading", { level: 1, name: "Origins" });
     const kicker = screen.getByText("About");
     expect(kicker.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -282,35 +256,6 @@ describe("PageTitle", () => {
 });
 
 describe("StatusSymbol", () => {
-  it("renders a badge in Legacy themes, keeping the caller's fill", () => {
-    withStructure(
-      {},
-      <StatusSymbol
-        status="behind"
-        label="Behind"
-        badgeStyle={{ backgroundColor: "rgb(255, 0, 255)" }}
-      />
-    );
-    const badge = screen.getByText("Behind");
-    expect(badge).toHaveAttribute("data-status", "behind");
-    expect(badge).toHaveStyle({ backgroundColor: "rgb(255, 0, 255)" });
-    expect(badge.querySelector("svg")).toBeNull();
-  });
-
-  it("shows badge content in badges and the label with symbols", () => {
-    const { unmount } = withStructure(
-      {},
-      <StatusSymbol status="ahead" label="145% of goal" badgeContent="145%" />
-    );
-    expect(screen.getByText("145%")).toHaveAttribute("data-status", "ahead");
-    unmount();
-    withStructure(
-      { statusSymbolStyle: "filled" },
-      <StatusSymbol status="ahead" label="145% of goal" badgeContent="145%" />
-    );
-    expect(screen.getByText("145% of goal")).toBeInTheDocument();
-  });
-
   it.each(["filled", "outlined"] as const)(
     "renders a symbol plus text in the %s style",
     (style) => {

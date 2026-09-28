@@ -180,7 +180,7 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                   </a>
                 </td>
                 <td>
-                  <SportLabel color={SPORT_COLORS[activity.sport] ?? DEFAULT_SPORT_COLOR} badge>
+                  <SportLabel color={SPORT_COLORS[activity.sport] ?? DEFAULT_SPORT_COLOR}>
                     {getSportDisplayName(activity.sport, sportConfig)}
                   </SportLabel>
                 </td>

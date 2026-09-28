@@ -216,7 +216,6 @@ export function HeroDecoration({ kind }: { kind: ThemeStructure["heroDecoration"
       />
     );
   }
-  if (kind !== "sunset") return null;
   return (
     <>
       <div aria-hidden="true" className="absolute inset-0" style={{ background: SUNSET_BANDS }} />
@@ -246,17 +245,6 @@ const GRID_PREVIEW =
   "repeating-linear-gradient(0deg, rgba(0, 255, 255, 0.7) 0 1px, transparent 1px 7px)";
 
 /**
- * A theme with no decoration shows three plain bands of its own surfaces: its raised
- * surface, its divider and its axis grey. They read from the theme's slots, so the preview
- * must render inside the theme's own `data-theme` (see `ThemePreview`).
- */
-export const PLAIN_PREVIEW_BANDS = [
-  "var(--color-surface-raised)",
-  "var(--color-divider)",
-  "var(--color-chart-axis)",
-];
-
-/**
  * `heroDecoration` in miniature, across the bottom of a theme preview card: the thumbnail
  * the Settings theme picker draws. `aria-hidden` like the full-size artwork.
  */
@@ -281,14 +269,13 @@ export function HeroDecorationPreview({ kind }: { kind: ThemeStructure["heroDeco
       />
     );
   }
-  const bands = kind === "sunset" ? SUNSET_PREVIEW_BANDS : PLAIN_PREVIEW_BANDS;
   return (
     <div
       aria-hidden="true"
-      data-decoration={kind === "sunset" ? "sunset-preview" : "plain-preview"}
+      data-decoration="sunset-preview"
       className="absolute inset-x-0 bottom-0 flex flex-col"
     >
-      {bands.map((band) => (
+      {SUNSET_PREVIEW_BANDS.map((band) => (
         <span key={band} className="h-[7px]" style={{ background: band }} />
       ))}
     </div>

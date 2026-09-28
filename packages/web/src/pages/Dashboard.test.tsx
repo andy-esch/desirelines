@@ -1,24 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { ReactNode } from "react";
 import { screen, waitFor } from "@testing-library/react";
 import Dashboard from "./Dashboard";
 import { renderWithRouter } from "../test/renderWithRouter";
-import { LEGACY_STRUCTURE } from "../themes/legacyStructure";
-import { ThemeStructureProvider } from "../components/theme/ThemeStructureProvider";
 
 // Mock useAuth hook
 vi.mock("../hooks/useAuth", () => ({
   useAuth: vi.fn(),
-}));
-
-// Mock useUserProfile hook
-vi.mock("../hooks/useUserProfile", () => ({
-  useUserProfile: vi.fn(() => ({
-    displayName: "Athlete",
-    loading: false,
-    profile: null,
-    error: null,
-  })),
 }));
 
 // Mock the unit reader (used by useMultiSportChartData for distance unit preference)
@@ -138,32 +125,15 @@ vi.mock("recharts", () => ({
 }));
 
 import { useAuth } from "../hooks/useAuth";
-import { useUserProfile } from "../hooks/useUserProfile";
 
 const mockUseAuth = vi.mocked(useAuth);
-const mockUseUserProfile = vi.mocked(useUserProfile);
 
 const mockSignIn = vi.fn();
 const mockSignOut = vi.fn();
 
-/**
- * A structure without a hero decoration opens on the welcome line instead of the hero band,
- * so the cases about that line render in the legacy structure, the one that has none.
- */
-function LegacyStructure({ children }: { children: ReactNode }) {
-  return <ThemeStructureProvider structure={LEGACY_STRUCTURE}>{children}</ThemeStructureProvider>;
-}
-
 describe("Dashboard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Default mock implementation
-    mockUseUserProfile.mockReturnValue({
-      displayName: "Athlete",
-      loading: false,
-      profile: null,
-      error: null,
-    });
   });
 
   describe("loading state", () => {
@@ -175,13 +145,6 @@ describe("Dashboard", () => {
         signIn: mockSignIn,
         signOut: mockSignOut,
       });
-      // Also set profile to loading
-      mockUseUserProfile.mockReturnValue({
-        displayName: "Athlete",
-        loading: true,
-        profile: null,
-        error: null,
-      });
       const { container } = await renderWithRouter(<Dashboard />);
 
       // Wait for router to finish rendering the component
@@ -190,7 +153,7 @@ describe("Dashboard", () => {
         expect(container.querySelectorAll(".react-loading-skeleton").length).toBeGreaterThan(0);
       });
       // Should not render the actual dashboard content
-      expect(screen.queryByRole("heading", { name: /Welcome/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: /Day \d+/ })).not.toBeInTheDocument();
     });
   });
 
@@ -203,23 +166,11 @@ describe("Dashboard", () => {
         signIn: mockSignIn,
         signOut: mockSignOut,
       });
-      mockUseUserProfile.mockReturnValue({
-        displayName: "Guest",
-        loading: false,
-        profile: null,
-        error: null,
-      });
     });
 
-    it("opens on the hero band, where the theme has a hero decoration", async () => {
+    it("opens on the hero band", async () => {
       await renderWithRouter(<Dashboard />);
       expect(screen.getByRole("heading", { name: /Day \d+/ })).toBeInTheDocument();
-      expect(screen.queryByRole("heading", { name: "Welcome!" })).not.toBeInTheDocument();
-    });
-
-    it("renders welcome message without user name, where the theme has no hero", async () => {
-      await renderWithRouter(<Dashboard />, { wrapper: LegacyStructure });
-      expect(screen.getByRole("heading", { name: "Welcome!" })).toBeInTheDocument();
     });
 
     it("shows sign-in prompt", async () => {
@@ -245,27 +196,17 @@ describe("Dashboard", () => {
         signIn: mockSignIn,
         signOut: mockSignOut,
       });
-      mockUseUserProfile.mockReturnValue({
-        displayName: "Jane Doe",
-        loading: false,
-        profile: { strava_athlete_id: 123, first_name: "Jane", last_name: "Doe" },
-        error: null,
-      });
     });
 
-    it("renders personalized welcome message, where the theme has no hero", async () => {
-      await renderWithRouter(<Dashboard />, { wrapper: LegacyStructure });
-      expect(screen.getByRole("heading", { name: /Welcome back, Jane/i })).toBeInTheDocument();
-    });
-
-    it("does not show sign-in prompt", async () => {
+    it("opens on the hero band", async () => {
       await renderWithRouter(<Dashboard />);
-      expect(screen.queryByText("Want to see your own data?")).not.toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: /Day \d+/ })).toBeInTheDocument();
     });
 
-    it("shows dashboard description, where the theme has no hero", async () => {
-      await renderWithRouter(<Dashboard />, { wrapper: LegacyStructure });
-      expect(screen.getByText("Your multi-sport activity dashboard")).toBeInTheDocument();
+    it("does not show sign-in prompt or the demo banner", async () => {
+      await renderWithRouter(<Dashboard />);
+      expect(screen.queryByText("Interested in using Desire Lines?")).not.toBeInTheDocument();
+      expect(screen.queryByText("Demo Mode")).not.toBeInTheDocument();
     });
   });
 

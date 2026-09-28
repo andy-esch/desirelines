@@ -1,12 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { ReactNode } from "react";
 import { render, screen } from "@testing-library/react";
 import GoalSummaryTable from "./GoalSummaryTable";
 import type { Goals } from "../utils/goalCalculations";
 import { testGoal, testGoals } from "../utils/goalTestFixtures";
 import { createYearContext } from "../utils/yearContext";
-import { ThemeStructureProvider } from "./theme/ThemeStructureProvider";
-import { LEGACY_STRUCTURE } from "../themes/legacyStructure";
 
 // useDangerThresholds pulls from the config store at runtime, which requires
 // app context. The threshold values themselves are exercised in this file's
@@ -27,16 +24,6 @@ vi.mock("../hooks/useDangerThresholds", () => ({
 // Mock the date for consistent testing (local time)
 // June 15, 2025 = 166 days elapsed, 200 days remaining
 const mockCurrentDate = new Date(2025, 5, 15, 12, 0, 0); // Mid-year (June 15 local noon)
-
-/**
- * The percent-on-the-bar progress these cases read is the legacy structure's drawing; the
- * retro themes show a track with a pace tick instead (see "Goal track" below).
- */
-function renderInLegacy(node: ReactNode) {
-  return render(
-    <ThemeStructureProvider structure={LEGACY_STRUCTURE}>{node}</ThemeStructureProvider>
-  );
-}
 
 describe("GoalSummaryTable", () => {
   beforeEach(() => {
@@ -144,8 +131,8 @@ describe("GoalSummaryTable", () => {
       expect(screen.getByText("50%")).toBeInTheDocument();
     });
 
-    it("caps progress at 100%", () => {
-      renderInLegacy(
+    it("caps the track at 100% while the text says how far past", () => {
+      render(
         <GoalSummaryTable
           goals={testGoals([{ id: "1", value: 1000, label: "Test Goal" }])}
           currentValue={1500}
@@ -155,9 +142,8 @@ describe("GoalSummaryTable", () => {
         />
       );
 
-      // Progress should show 150% but be capped visually
-      const progressBar = screen.getByRole("progressbar");
-      expect(progressBar).toHaveStyle({ width: "100%" });
+      expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "100");
+      expect(screen.getByText("150%")).toBeInTheDocument();
     });
 
     it("calculates remaining distance correctly", () => {
@@ -200,7 +186,7 @@ describe("GoalSummaryTable", () => {
     //   >= 1.1: "Ahead", >= 0.9: "On Track", >= 0.75: "Slightly Behind",
     //   >= 0.5: "Behind", < 0.5: "Far Behind"
 
-    it('shows "Achieved" with check icon for completed goals', () => {
+    it('shows "Achieved" for completed goals', () => {
       render(
         <GoalSummaryTable
           goals={testGoals([{ id: "1", value: 1000, label: "Test Goal" }])}
@@ -564,17 +550,15 @@ describe("GoalSummaryTable", () => {
   });
 
   describe("Goal track", () => {
-    it("draws a track with today's pace tick where the theme doesn't use the percent bar", () => {
+    it("draws a track with today's pace tick", () => {
       const { container } = render(
-        <ThemeStructureProvider structure={{ ...LEGACY_STRUCTURE, goalTrackStyle: "track" }}>
-          <GoalSummaryTable
-            goals={baseGoals}
-            currentValue={500}
-            yearContext={createYearContext(2025)}
-            unit="miles"
-            sport="cycling"
-          />
-        </ThemeStructureProvider>
+        <GoalSummaryTable
+          goals={baseGoals}
+          currentValue={500}
+          yearContext={createYearContext(2025)}
+          unit="miles"
+          sport="cycling"
+        />
       );
 
       const bar = screen.getByRole("progressbar", { name: "Conservative progress" });

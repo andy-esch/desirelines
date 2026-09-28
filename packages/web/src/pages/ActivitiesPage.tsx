@@ -50,7 +50,7 @@ const ActivitiesPage = () => {
   // Impact % is measured against one sport's goal, so the column only appears
   // under a single-sport filter. With no filter (or several sports) every row
   // would need its own goal and the one column cannot say which it used — the
-  // per-row Sport badge already carries that distinction.
+  // per-row sport label already carries that distinction.
   //
   // Only for a sport with a goal: without one there's nothing to take a share of.
   // Held back until everything the goal is converted with resolves too: the

@@ -23,7 +23,7 @@ const clamp = (n: number) => Math.min(1, Math.max(0, Number.isFinite(n) ? n : 0)
 /**
  * Progress drawn as segments or a continuous track. Sizes and colors come from the
  * `--meter-*` and `--track-*` slots. Whether the current segment fills partway, and
- * whether a continuous track prints its percent, come from the theme's structure.
+ * whether a continuous track is outlined, come from the theme's structure.
  */
 export function Meter({
   value,
@@ -137,11 +137,6 @@ export function Meter({
           className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-(--pace-tick-width) h-(--pace-tick-height) bg-(--color-pace-tick)"
           style={{ left: `${clamp(marker) * 100}%` }}
         />
-      )}
-      {goalTrackStyle === "bar-with-percent" && !indeterminate && (
-        <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-sm bg-scrim/50 px-1.5 py-0.5 text-xs leading-none font-medium text-on-scrim">
-          {pct}%
-        </span>
       )}
     </div>
   );

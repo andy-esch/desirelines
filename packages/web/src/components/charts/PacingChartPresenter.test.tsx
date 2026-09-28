@@ -1,16 +1,22 @@
+import { cloneElement, type ReactElement } from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { PacingChartPresenter } from "./PacingChartPresenter";
 import { createPacingPresenterProps } from "../../test/fixtures/chartTestHelpers";
 
-// Mock ResizeObserver which Recharts uses
+// jsdom has no layout for ResponsiveContainer to measure, so hand the chart a fixed size the
+// way the real container would; without one Recharts draws nothing.
 vi.mock("recharts", async () => {
   const actual = await vi.importActual("recharts");
   return {
     ...actual,
-    ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
+    ResponsiveContainer: ({
+      children,
+    }: {
+      children: ReactElement<{ width?: number; height?: number }>;
+    }) => (
       <div data-testid="responsive-container" style={{ width: 800, height: 400 }}>
-        {children}
+        {cloneElement(children, { width: 800, height: 400 })}
       </div>
     ),
   };
@@ -79,6 +85,18 @@ describe("PacingChartPresenter", () => {
         dangerZone: { show: true, threshold: 25, yMax: 33 },
       });
       expect(() => render(<PacingChartPresenter {...props} />)).not.toThrow();
+    });
+
+    it("hatches the zone with a pattern of its own", () => {
+      const props = createPacingPresenterProps({
+        dangerZone: { show: true, threshold: 25, yMax: 33 },
+      });
+      const { container } = render(<PacingChartPresenter {...props} />);
+      const pattern = container.querySelector('pattern[id^="danger-hatch-"]');
+      expect(pattern).not.toBeNull();
+      const area = container.querySelector(".recharts-reference-area-rect");
+      expect(area).toHaveAttribute("fill", `url(#${pattern?.id})`);
+      expect(area).toHaveAttribute("fill-opacity", "1");
     });
 
     it("should render with danger zone hidden", () => {

@@ -1,25 +1,21 @@
-import type { CSSProperties } from "react";
 import { useWeeklySummary } from "../../hooks/useWeeklySummary";
 import { formatMetricDisplayValue, formatHoursMinutes } from "../../utils/units";
-import { tint } from "../../utils/colorTokens";
 import Skeleton from "../Skeleton";
 import { StatusSymbol, type GoalStatus } from "../theme/StatusSymbol";
 import { Panel } from "../theme/Panel";
 import { MissingValue } from "../theme/MissingValue";
-import { useThemeStructure } from "../theme/useThemeStructure";
 
 /**
  * Compact card showing this-week totals per sport with prorated weekly goal %.
  *
  * Design:
  * - Sport color dots match sparkline spectrum colors
- * - Weekly goal % shows inline as the theme's status symbol (or a % badge in the legacy
- *   structure), for a sport with a goal; the goals card beside it says where to set one
+ * - Weekly goal % shows inline as the theme's status symbol, for a sport with a goal; the
+ *   goals card beside it says where to set one
  * - Shows "No activity yet this week" if all zeros
  */
 export default function WeeklySummaryCard() {
   const { sportTotals, weekLabel, isLoading, error } = useWeeklySummary();
-  const { statusSymbolStyle } = useThemeStructure();
 
   if (error) {
     return (
@@ -101,20 +97,13 @@ export default function WeeklySummaryCard() {
                     <MissingValue />
                   )}
                 </span>
-                {/* Badges only mark progress; symbols also say when a sport has none. */}
-                {sport.weeklyTotal === 0 && statusSymbolStyle !== "badge" && (
+                {sport.weeklyTotal === 0 && (
                   <StatusSymbol status="no-activity" label="No activity" />
                 )}
                 {sport.weeklyTotal > 0 && sport.hasGoal && (
                   <StatusSymbol
                     status={getAchievementStatus(sport.achievementPct)}
                     label={`${Math.round(sport.achievementPct)}% of goal`}
-                    badgeContent={`${Math.round(sport.achievementPct)}%`}
-                    badgeStyle={{
-                      ...getAchievementStyle(sport.achievementPct),
-                      fontSize: "0.65rem",
-                      minWidth: 42,
-                    }}
                   />
                 )}
               </div>
@@ -146,50 +135,10 @@ export default function WeeklySummaryCard() {
   );
 }
 
-/** Weekly progress as a goal status; thresholds match the badge colors below. */
+/** Weekly progress as a goal status. */
 function getAchievementStatus(pct: number): GoalStatus {
   if (pct >= 100) return "ahead";
   if (pct >= 75) return "on-track";
   if (pct >= 50) return "slightly-behind";
   return "behind";
-}
-
-/**
- * The badge colors, one per achievement band.
- *
- * Fixed neon primitives rather than theme roles, `--color-brand-cyan` included: only the
- * "badge" status style reads these, which no theme uses since Legacy light was deleted (the
- * retro themes draw symbols instead). They go when the legacy structure's options do.
- */
-function getAchievementStyle(pct: number): CSSProperties {
-  // >= 100%: Neon green (goal achieved)
-  if (pct >= 100) {
-    return {
-      backgroundColor: tint("--color-neon-green", 90),
-      color: "var(--color-on-accent)",
-      boxShadow: `0 0 6px ${tint("--color-neon-green", 60)}`,
-    };
-  }
-  // >= 75%: Electric cyan (on track)
-  if (pct >= 75) {
-    return {
-      backgroundColor: tint("--color-brand-cyan", 85),
-      color: "var(--color-on-accent)",
-      boxShadow: `0 0 5px ${tint("--color-brand-cyan", 50)}`,
-    };
-  }
-  // >= 50%: Neon yellow-orange (halfway)
-  if (pct >= 50) {
-    return {
-      backgroundColor: tint("--color-neon-yellow", 85),
-      color: "var(--color-on-accent)",
-      boxShadow: `0 0 4px ${tint("--color-neon-yellow", 40)}`,
-    };
-  }
-  // < 50%: Muted magenta (behind)
-  return {
-    backgroundColor: tint("--color-neon-purple", 50),
-    color: "#fff",
-    boxShadow: `0 0 3px ${tint("--color-neon-purple", 30)}`,
-  };
 }

@@ -162,7 +162,6 @@
   --hero-number-glow: 12px;
   --glass-blur: 0px;
   --glass-blur-sm: 0px;
-  --progress-shine: none;
 
   /* Panels: outline only, no fill, no radius. */
   --radius: 0px;
@@ -173,7 +172,6 @@
      the border and the header-bar label; a per-accent glow would need a slot per accent. */
   --panel-shadow: inset 0 0 24px rgba(0, 255, 255, 0.1);
   --panel-shadow-emphasis: inset 0 0 24px rgba(255, 0, 255, 0.12), 0 0 30px rgba(255, 0, 255, 0.14);
-  --panel-header-padding: 0.5625rem 0.875rem;
   --panel-body-padding: 0.75rem;
   --panel-accent-1: #00ffff;
   --panel-accent-2: #ff00ff;
