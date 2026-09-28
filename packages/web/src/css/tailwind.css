@@ -131,6 +131,8 @@
 
   /* === Status — semantic feedback colors === */
   --color-danger: #ff8a3d;
+  /* Ink on a danger fill: a hovered danger button, the destructive variant. */
+  --color-danger-ink: #160b2e;
   --color-success: #3dffa8;
   --color-warning: #ffc800;
 
@@ -230,7 +232,7 @@
   --color-accent: var(--color-surface-hover);
   --color-accent-foreground: var(--color-body-text);
   --color-destructive: var(--color-danger);
-  --color-destructive-foreground: #ffffff;
+  --color-destructive-foreground: var(--color-danger-ink);
   --color-border: var(--color-surface-border);
   --color-input: var(--color-control-border);
   --color-ring: var(--color-accent-cyan);

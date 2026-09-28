@@ -1,7 +1,7 @@
-import { useMemo, type CSSProperties } from "react";
+import { useMemo } from "react";
 import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 import { SPORT_COLORS, DEFAULT_SPORT_COLOR } from "../utils/sportConfig";
-import { sportChipClass, SportChipDot } from "./sportChip";
+import { sportChipClass, sportChipStyle, SportChipDot } from "./sportChip";
 
 interface SportOption {
   value: string;
@@ -62,7 +62,7 @@ export default function SportFilterPills({
           <ToggleGroupItem
             key={o.value}
             value={o.value}
-            style={{ "--chip": color } as CSSProperties}
+            style={sportChipStyle(color)}
             className={sportChipClass}
           >
             <SportChipDot />

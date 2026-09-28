@@ -62,8 +62,8 @@ black panel borders with grey muted text, say):
 | `--color-intensity-0` | The calendar heatmap's "no activity" cell |
 | `--color-surface-hover` (+ `-border`, `-overlay`, `-shadow`) | A hovered row's wash, hairline borders, a translucent layer over a chart, and the color of drop shadows |
 
-Each theme also sets the status colors (`--color-success`, `--color-danger`,
-`--color-warning`), the header chrome (`--color-header-bg`, `-border`, `-text`,
+Each theme also sets the status colors (`--color-success`, `--color-danger` with its
+`-ink` for a label on a danger fill, `--color-warning`), the header chrome (`--color-header-bg`, `-border`, `-text`,
 `-text-muted`, `-accent`), and the chart data colors: `--color-goal-1` to `-5` running cool
 (conservative) to warm (stretch), `--color-chart-average-line`, `--color-chart-neutral` for
 prior years, `--color-danger-zone` with its `-label` ink, the chart chrome (`--color-chart-grid`,
@@ -101,8 +101,9 @@ changes depend on `useTheme().theme.id`.
 
 **1. Neon is an accent, never the text.** A sport-colored control pairs a *neutral* label
 with a glowing color dot, a hairline mixed toward the color, and a full-brightness fill when
-selected. Because the color never carries the legibility burden, it never has to be dimmed
-to earn it. This replaces the old "full NEON = charts only, UI = toned-down" rule, which was
+selected (a theme may instead outline a selected chip, as Arcade does, with a label mixed
+toward the text ink until every sport clears 4.5:1). Because the color never carries the
+legibility burden, it never has to be dimmed to earn it. This replaces the old "full NEON = charts only, UI = toned-down" rule, which was
 itself a driver of the drift.
 
 Reference implementation: `src/components/sportChip.tsx`.
@@ -201,8 +202,8 @@ values.
 | Header | `--header-height`, `-border`, `-accent-line`, `-shadow-scrolled`, `--header-date-color`; `--nav-size`, `-tracking`, `-case`, `-color`, `-active-color`, `-active-bg`, `-active-hover-bg`, `-active-radius`, `-active-underline`, `-active-shadow`; `--avatar-radius`, `-border`, `-glow`; `--demo-bg`, `--demo-border`, `--demo-rule` | The top bar and its bottom accent line, nav items (the underline shows in the header bar, not the mobile drawer), avatar and the demo banner's rule |
 | Backgrounds | `--page-wash-strength`, `--sport-wash-strength`, `--hero-padding`, `--hero-ink`, `--hero-title-size`, `-title-color`, `-title-shadow`, `--hero-number-size`, `-number-glow`, `--glass-blur`, `--glass-blur-sm`, `--progress-shine` | Page and sport gradient strength (0 turns a wash off), the dashboard hero's padding (content must clear the decoration's bottom edge), text on the decoration, headline and numbers, frosted-glass blur for map chrome and for small floating pills (0 makes them solid), progress-bar shine |
 | Panels | `--radius`, `--panel-bg`, `-border-width`, `-radius`, `-shadow`, `-shadow-emphasis`, `-header-padding`, `-body-padding`, `-accent-1/2/3`, `-accent-1/2/3-ink` | Cards and panels, including the base radius the shadcn scale derives from, the three frame accents and the ink of a title in each |
-| Controls | `--control-height`, `-radius`, `-font-size`, `-case`, `-focus-color`, `-focus-width`, `-focus-glow`; `--toggle-gap`, `-frame-border-width`, `-frame-border-color`, `-frame-padding`, `-frame-radius`, `-item-border-width`, `-item-radius`, `-item-color`, `-font-size`, `-tracking`, `-case`; `--color-toggle-pressed`, `-pressed-border`, `-pressed-text`, `--toggle-pressed-glow`, `-pressed-text-glow`; `--button-radius`, `-case`, `-tracking`; `--stepper-gap` | Inputs, selects, toggle groups, buttons and steppers (height and font size are the default size; `sm` and `lg` buttons and caller overrides keep fixed sizes). A pressed toggle's fill, border and text default to the accent through `initial`; the glow is a single inset shadow, `0 0 #0000` for none. The focus ring is an outline in `--control-focus-color` (`initial` for the accent at 40%) and `--control-focus-width`, 2px clear of the element, with `--control-focus-glow` around the element |
-| Sliders and chips | `--slider-track-height`, `-track-radius`, `-track-bg`, `-fill-glow`, `-handle-size`, `-handle-radius`, `-handle-border-width`; `--color-slider-fill`; `--chip-radius`, `-border-strength`, `-hover-strength`, `-dot-radius` | Range sliders and sport chips (strengths are how much sport color mixes in) |
+| Controls | `--control-height`, `-radius`, `-font-size`, `-case`, `-focus-color`, `-focus-width`, `-focus-glow`; `--toggle-gap`, `-frame-border-width`, `-frame-border-color`, `-frame-padding`, `-frame-radius`, `-item-border-width`, `-item-radius`, `-item-color`, `-font-size`, `-tracking`, `-case`; `--color-toggle-pressed`, `-pressed-border`, `-pressed-text`, `--toggle-pressed-glow`, `-pressed-text-glow`; `--button-radius`, `-case`, `-tracking`, `-outline-border-color`, `-outline-glow`; `--stepper-gap`, `-button-text` | Inputs, selects, toggle groups, buttons and steppers (height and font size are the default size; `sm` and `lg` buttons and caller overrides keep fixed sizes). An outline button takes its own border color and an inner glow (`0 0 #0000` for none); a stepper's − and + take `--stepper-button-text`, or the outline button's text through `initial`. A pressed toggle's fill, border and text default to the accent through `initial`; the glow is a single inset shadow, `0 0 #0000` for none. The focus ring is an outline in `--control-focus-color` (`initial` for the accent at 40%) and `--control-focus-width`, 2px clear of the element, with `--control-focus-glow` around the element |
+| Sliders and chips | `--slider-track-height`, `-track-radius`, `-track-bg`, `-fill-glow`, `-handle-size`, `-handle-radius`, `-handle-border-width`; `--color-slider-fill`; `--chip-height`, `-height-drawer`, `-radius`, `-border-strength`, `-hover-strength`, `-dot-radius`; `--chip-selected-fill-strength`, `-label-strength`, `-ink`, `-glow-strength`, `-glow-size`, `-inset-glow-size` | Range sliders and sport chips (strengths are how much sport color mixes in; a height of `auto` leaves it to the toggle item's padding, and the map drawer's chips take the drawer height). A selected chip's fill strength splits the sport color between the fill and the border (100% fills it and keeps the mark outline; 0% leaves an outlined chip). Its label is the ink with the label strength of sport color mixed in; the ink is `--chip-selected-ink`, or through `initial` the black or white `sportChipStyle` picks for each sport. Its glows are an outer and an inset shadow in the sport color at the glow strength |
 | Tables | `--th-size`, `--th-weight`, `--th-color`, `--th-tracking`, `--th-case`, `--th-rule`, `--row-rule`, `--row-padding`, `--row-hover-bg`, `--missing-value-color`, `--sport-mark-radius` | Table headers, row rules and hover, sport marks, and the color of a missing value wherever `MissingValue` shows one |
 | Goals and meters | `--track-height`, `-bg`, `-border`, `-fill-height`, `-fill-glow`, `-radius`; `--pace-tick-width`, `-height`; `--meter-segment-width`, `-segment-height`, `--meter-gap`, `--meter-radius`, `-done-glow`, `-current-glow`; `--color-meter-done`, `-current`, `-todo`; `--color-pace-tick`; `--cell-empty-border`, `--cell-radius` | Goal tracks (the fill glows in its own color by `--track-fill-glow`) and their pace tick, segmented meters (the segments done, the current one and those to come), heatmap cells |
 | Status | `--status-size`, `-tracking`, `-case`; `--color-status-good`, `-warn`, `-bad` | Goal status labels, and their colors for on track, slightly behind and behind |
@@ -385,7 +386,8 @@ slots, which carry the panel border and its hover color.
 active-filter pill. Theme-aware via the decorative tokens; do not add elevation utilities
 (rule 5).
 
-**Sport chips:** `sportChipClass` + `<SportChipDot />` from `src/components/sportChip.tsx`.
+**Sport chips:** `sportChipClass`, `sportChipStyle(color)` for the item's style and
+`<SportChipDot />`, from `src/components/sportChip.tsx`.
 
 **Messages:** `Alert` with a `danger`, `warning`, `success` or `info` variant; the demo-mode
 banner is its `demo` variant. Pass `role="alert"` or `role="status"` where the message should

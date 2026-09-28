@@ -61,6 +61,13 @@ describe("MapFilterControls", () => {
     expect(onSportsChange).toHaveBeenCalledWith(["running"]);
   });
 
+  it("sizes its sport chips to the theme's drawer chip height", () => {
+    renderControls();
+    const classes = screen.getByRole("button", { name: "Cycling" }).className.split(/\s+/);
+    expect(classes).toContain("h-(--chip-height-drawer)");
+    expect(classes).not.toContain("h-(--chip-height)");
+  });
+
   it("hides the sport Clear control when no sports are selected", () => {
     renderControls();
     expect(screen.queryByRole("button", { name: /clear/i })).not.toBeInTheDocument();

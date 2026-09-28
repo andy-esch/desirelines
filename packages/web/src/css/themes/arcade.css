@@ -62,6 +62,7 @@
 
   --color-success: #00ff80;
   --color-danger: #ff5f1f;
+  --color-danger-ink: #000000;
   --color-warning: #ffc800;
 
   --color-header-bg: #000000;
@@ -205,7 +206,10 @@
   --button-radius: 0px;
   --button-case: uppercase;
   --button-tracking: 0.18em;
+  --button-outline-border-color: #00ffff;
+  --button-outline-glow: 0 0 10px rgba(0, 255, 255, 0.15);
   --stepper-gap: 4px;
+  --stepper-button-text: var(--color-accent-cyan);
   --slider-track-height: 8px;
   --slider-track-radius: 0px;
   --slider-handle-size: 12px;
@@ -214,9 +218,20 @@
   --slider-track-bg: #10292d;
   --slider-fill-glow: 0 0 8px rgba(0, 255, 255, 0.7);
   --color-slider-fill: #00ffff;
+  --chip-height: 24px;
+  --chip-height-drawer: 22px;
   --chip-radius: 0px;
   --chip-border-strength: 35%;
   --chip-hover-strength: 8%;
+  /* A selected chip stays outlined: its sport color moves to the border, the glows and the
+     label. The label is 70% sport color over the body text, since watersports' violet at
+     full strength is 3.6:1 on black. */
+  --chip-selected-fill-strength: 0%;
+  --chip-selected-label-strength: 70%;
+  --chip-selected-ink: var(--color-body-text);
+  --chip-selected-glow-strength: 25%;
+  --chip-selected-glow-size: 10px;
+  --chip-selected-inset-glow-size: 12px;
   --chip-dot-radius: 0px;
 
   /* Tables and lists */

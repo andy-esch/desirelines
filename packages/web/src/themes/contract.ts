@@ -104,6 +104,7 @@ export const THEME_CONTRACT = {
     "--color-danger-zone-label": "color",
     "--color-success": "color",
     "--color-danger": "color",
+    "--color-danger-ink": "color",
     "--color-warning": "color",
     "--color-header-bg": "color",
     "--color-header-border": "color",
@@ -247,7 +248,10 @@ export const THEME_CONTRACT = {
     "--button-radius": "length",
     "--button-case": "case",
     "--button-tracking": "tracking",
+    "--button-outline-border-color": "color",
+    "--button-outline-glow": "inset-glow",
     "--stepper-gap": "length",
+    "--stepper-button-text": { kind: "color", initial: true },
   },
   "Sliders and chips": {
     "--slider-track-height": "length",
@@ -258,9 +262,17 @@ export const THEME_CONTRACT = {
     "--slider-track-bg": "color",
     "--slider-fill-glow": "shadow",
     "--color-slider-fill": { kind: "color", initial: true },
+    "--chip-height": { kind: "length", keywords: ["auto"] },
+    "--chip-height-drawer": { kind: "length", keywords: ["auto"] },
     "--chip-radius": "length",
     "--chip-border-strength": "percentage",
     "--chip-hover-strength": "percentage",
+    "--chip-selected-fill-strength": "percentage",
+    "--chip-selected-label-strength": "percentage",
+    "--chip-selected-ink": { kind: "color", initial: true },
+    "--chip-selected-glow-strength": "percentage",
+    "--chip-selected-glow-size": "length",
+    "--chip-selected-inset-glow-size": "length",
     "--chip-dot-radius": "length",
   },
   Tables: {
@@ -426,9 +438,18 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = [
   { text: ["--color-accent-cyan"], on: ["--panel-bg"], min: 4.5 },
   { text: ["--color-accent-magenta"], on: ["--color-bg-body"], min: 4.5 },
   { text: ["--color-danger"], on: ["--panel-bg"], min: 4.5 },
+  { text: ["--color-danger"], on: ["--color-bg-body"], min: 4.5 },
   // Controls: a primary button's label, toggle items in their frame, and the pressed item,
   // whose transparent fill (Arcade's) shows the frame.
   { text: ["--color-accent-cyan-text"], on: ["--color-accent-cyan"], min: 4.5 },
+  // A danger button's label on its fill (hovered outline, or the solid variant), and a
+  // stepper's − and + on the outline button's card fill.
+  { text: ["--color-danger-ink"], on: ["--color-danger"], min: 4.5 },
+  {
+    text: ["--stepper-button-text", "--color-body-text"],
+    on: ["--color-surface-raised"],
+    min: 4.5,
+  },
   { text: ["--toggle-item-color"], on: ["--color-surface-raised"], min: 4.5 },
   {
     text: ["--color-toggle-pressed-text", "--color-accent-cyan-text"],
@@ -528,6 +549,8 @@ export const UNMEASURED_MARKS: Readonly<Partial<Record<ThemeSlot, string>>> = {
     "the frame groups toggles its items' labels identify; the pressed item is measured",
   "--color-chip-hairline":
     "a sport chip is identified by its label and dot, and a selected chip by its sport fill, which the sport palette's tests hold to 3:1",
+  "--button-outline-border-color":
+    "an outline button is identified by its label; the border frames it",
   "--slider-track-bg": "a slider's filled track and handle carry its value, and are measured",
   "--color-meter-todo": "a meter's done segments are measured, and its text states the same count",
 };

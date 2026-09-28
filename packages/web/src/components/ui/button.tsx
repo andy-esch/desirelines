@@ -18,13 +18,14 @@ const buttonVariants = cva(
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/90",
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        // The theme sets the outline's border color and an inner glow (`0 0 #0000` for none).
         outline:
-          "border border-input bg-card text-foreground hover:bg-accent hover:text-accent-foreground",
+          "border border-(color:--button-outline-border-color) bg-card text-foreground inset-shadow-(--button-outline-glow) hover:bg-accent hover:text-accent-foreground",
         ghost: "text-foreground hover:bg-accent hover:text-accent-foreground",
         destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         // Outlined status buttons: a retry inside an error, a show-sport action, a reset.
         "outline-danger":
-          "border border-danger bg-transparent text-danger hover:bg-danger hover:text-destructive-foreground",
+          "border border-danger bg-transparent text-danger hover:bg-danger hover:text-danger-ink",
         "outline-success":
           "border border-success bg-transparent text-success hover:bg-success hover:text-bg-body",
         "outline-warning":
