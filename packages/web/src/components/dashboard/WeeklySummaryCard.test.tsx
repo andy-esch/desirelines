@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import WeeklySummaryCard from "./WeeklySummaryCard";
 import { ThemeStructureProvider } from "../theme/ThemeStructureProvider";
-import { getTheme, type ThemeId } from "../../themes/registry";
+import { getTheme, type ThemeId, type ThemeStructure } from "../../themes/registry";
+import { LEGACY_STRUCTURE } from "../../themes/legacyStructure";
 import type { WeeklySportTotal } from "../../hooks/useWeeklySummary";
 
 vi.mock("../../hooks/useWeeklySummary", () => ({ useWeeklySummary: vi.fn() }));
@@ -41,9 +42,10 @@ function returnSummary(
   });
 }
 
-function renderCard(theme: ThemeId = "miami") {
+function renderCard(theme: ThemeId | ThemeStructure = "miami") {
+  const structure = typeof theme === "string" ? getTheme(theme).structure : theme;
   return render(
-    <ThemeStructureProvider structure={getTheme(theme).structure}>
+    <ThemeStructureProvider structure={structure}>
       <WeeklySummaryCard />
     </ThemeStructureProvider>
   );
@@ -88,9 +90,9 @@ describe("WeeklySummaryCard", () => {
     expect(symbol.closest("[data-status]")).toHaveAttribute("data-status", status);
   });
 
-  it("shows the percentage alone as a badge where the theme keeps badges", () => {
+  it("shows the percentage alone as a badge with badge status symbols", () => {
     returnSummary([total("cycling", 56)]);
-    renderCard("legacy-light");
+    renderCard(LEGACY_STRUCTURE);
 
     expect(within(row("Cycling")).getByText("112%")).toBeInTheDocument();
     expect(screen.queryByText("112% of goal")).toBeNull();
@@ -110,9 +112,9 @@ describe("WeeklySummaryCard", () => {
       }
     );
 
-    it("shows only the missing-value mark where the theme keeps badges", () => {
+    it("shows only the missing-value mark with badge status symbols", () => {
       returnSummary([total("cycling", 20), total("running", 0)]);
-      renderCard("legacy-light");
+      renderCard(LEGACY_STRUCTURE);
 
       const running = within(row("Running"));
       expect(running.getByText("none")).toBeInTheDocument();
@@ -121,9 +123,12 @@ describe("WeeklySummaryCard", () => {
     });
   });
 
-  it.each(["miami", "legacy-light"] as const)(
+  it.each([
+    ["miami", "miami"],
+    ["the legacy structure", LEGACY_STRUCTURE],
+  ] as const)(
     "shows a sport without a goal its total and no share of a goal, in %s",
-    (theme) => {
+    (_name, theme) => {
       returnSummary([
         total("cycling", 20),
         total("running", 22, { hasGoal: false, weeklyGoal: 0, achievementPct: 0 }),

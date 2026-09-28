@@ -22,10 +22,7 @@ import { composite, contrastBetween, parseRgba, type Rgba } from "../test/contra
  */
 
 /** Themes the pairs don't bind, each with the reason. */
-const EXEMPT: Readonly<Record<string, string>> = {
-  "legacy-light":
-    "predates the pairs and fails several (muted text 4.3:1, the accent's label 3.7:1); it is retired with Memphis",
-};
+const EXEMPT: Readonly<Record<string, string>> = {};
 
 /** Pairs a theme fails today, each with the reason. Keyed `<theme> <source> on <surface>`. */
 const FAILING_FOR_NOW: Readonly<Record<string, string>> = {};

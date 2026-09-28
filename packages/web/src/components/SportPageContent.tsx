@@ -14,7 +14,6 @@ import type { Goal } from "../utils/goalCalculations";
 import type { MetricUnit } from "../utils/units";
 import type { YearContext } from "../utils/yearContext";
 import type { DistanceEntry } from "../types/activity";
-import { getSportGradient } from "../constants/sportGradients";
 import { usePublicSportConfig } from "../hooks/usePublicSportConfig";
 import { getSportDisplayName } from "../utils/sportConfig";
 import { DEMO_ROUTE_PREFIX } from "../constants/demoConfig";
@@ -153,10 +152,7 @@ export default function SportPageContent({
   // not misleading loading spinners.
 
   return (
-    <div
-      className="overflow-x-hidden px-4 md:pl-0 md:pr-6"
-      style={{ background: getSportGradient(sport) }}
-    >
+    <div className="overflow-x-hidden px-4 md:pl-0 md:pr-6">
       <div className="flex">
         <Sidebar
           estimatedYearEnd={estimatedYearEnd}

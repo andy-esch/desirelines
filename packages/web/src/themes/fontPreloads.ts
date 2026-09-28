@@ -9,9 +9,8 @@ import { getTheme, isThemeId, type ThemeFont } from "./registry";
 
 /**
  * Latin files per family and weight. Only the faces a theme lists are preloaded, and only
- * the weights it names, so a theme never pays for another's faces. Families absent here
- * (the system stack, and Space Grotesk, which ships as one variable file already imported
- * by the stylesheet) simply have nothing to preload.
+ * the weights it names, so a theme never pays for another's faces. A family absent here
+ * (a system stack) simply has nothing to preload.
  */
 const FONT_FILES: Readonly<Record<string, Readonly<Record<number, string>>>> = {
   "IBM Plex Mono": { 400: plexMono400, 500: plexMono500, 600: plexMono600 },

@@ -97,7 +97,7 @@ export default function DashboardHero({
           <span className="text-(length:--kicker-size) tracking-(--kicker-tracking) text-(color:--hero-ink) [text-transform:var(--label-case)]">
             {yearContext.year} · Week {getIsoWeek(today)}
           </span>
-          <h1 className="m-0 font-display font-normal leading-none text-(length:--hero-title-size) text-(color:--hero-title-color) [text-shadow:var(--hero-title-shadow)] [text-transform:var(--page-title-case)]">
+          <h1 className="m-0 font-display font-normal leading-none text-(length:--hero-title-size) text-(color:--hero-title-color) [text-shadow:var(--hero-title-shadow)] [text-transform:var(--page-title-case)] neon-gradient-text">
             <span className="sr-only">Dashboard: </span>
             Day {yearContext.daysElapsed}
           </h1>

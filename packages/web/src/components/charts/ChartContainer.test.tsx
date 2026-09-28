@@ -2,15 +2,13 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { ChartContainer } from "./ChartContainer";
-import { getTheme } from "../../themes/registry";
+import { LEGACY_STRUCTURE } from "../../themes/legacyStructure";
 import { ThemeStructureProvider } from "../theme/ThemeStructureProvider";
 
-/** Legacy's structure puts a panel's title in a card header, as these cases expect. */
+/** The legacy structure puts a panel's title in a card header, as these cases expect. */
 function inLegacy(node: ReactNode) {
   return render(
-    <ThemeStructureProvider structure={getTheme("legacy-light").structure}>
-      {node}
-    </ThemeStructureProvider>
+    <ThemeStructureProvider structure={LEGACY_STRUCTURE}>{node}</ThemeStructureProvider>
   );
 }
 

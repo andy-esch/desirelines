@@ -16,10 +16,9 @@ interface EmptyStateProps {
 }
 
 /**
- * NEON-themed empty state component for when there's no data to display
- *
- * Displays a visually appealing "No data available" message with NEON glow effects
- * and optional context about the sport/year.
+ * Empty state for when there's no data to display: a "No data available" headline in the
+ * theme's accents, glowing as its page titles do, with optional context about the sport and
+ * year. The accents are role colors, so the headline stays legible on a light ground.
  *
  * @example
  * <EmptyState sport="yoga" year={2023} />
@@ -44,10 +43,11 @@ export function EmptyState({
   const yearStr = suggestedYear ? String(suggestedYear) : "";
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[200px] md:min-h-[300px] p-4 md:p-8 neon-backdrop">
-      <div className="text-2xl sm:text-[2rem] md:text-[2.5rem] font-bold mb-4 text-center">
-        <span className="neon-glow-pink">No</span> <span className="neon-glow-cyan">data</span>{" "}
-        <span className="neon-glow-green">available</span>
+    <div className="flex flex-col items-center justify-center min-h-[200px] md:min-h-[300px] p-4 md:p-8">
+      <div className="text-2xl sm:text-[2rem] md:text-[2.5rem] font-bold mb-4 text-center [text-shadow:0_0_var(--page-title-glow-size)_color-mix(in_srgb,currentColor_60%,transparent)]">
+        <span className="text-accent-magenta">No</span>{" "}
+        <span className="text-accent-cyan">data</span>{" "}
+        <span className="text-success">available</span>
       </div>
       <p className="text-muted-text text-sm md:text-base text-center m-0">
         {message || defaultMessage}

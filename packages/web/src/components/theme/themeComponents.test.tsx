@@ -4,7 +4,6 @@ import { render, screen } from "@testing-library/react";
 import {
   DEFAULT_THEME_PREFERENCE,
   getTheme,
-  THEMES,
   type ThemeId,
   type ThemeStructure,
 } from "../../themes/registry";
@@ -17,8 +16,9 @@ import { StatusSymbol } from "./StatusSymbol";
 import { PageTitle } from "./PageTitle";
 import { Section } from "./Section";
 import { SportLabel, SportMark } from "./SportLabel";
+import { LEGACY_STRUCTURE } from "../../themes/legacyStructure";
 
-const LEGACY = THEMES[0].structure;
+const LEGACY = LEGACY_STRUCTURE;
 
 function withStructure(overrides: Partial<ThemeStructure>, node: ReactNode) {
   return render(

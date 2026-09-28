@@ -1,0 +1,311 @@
+/* Electric: the light retro theme (neon gradients on a cool-white ground, ink text, Plex
+   Mono with an Archivo Black display face). Values from the approved design; see the style
+   guide.
+
+   Neon here is fill, border and mark, never small text: on a light ground cyan is 1.5:1
+   and pink 3.3:1, so text stays ink and the colors text does take (magenta, violet, blue)
+   are the deep ends of the gradient, each at least 4.5:1 on white.
+
+   Every file in this directory defines the same tokens; the rules for a theme file are
+   above the imports in ../tailwind.css. */
+[data-theme="electric"] {
+  --color-bg-body: #f7f8ff;
+
+  --color-muted-text: #5b4a7a;
+  --color-subtle-text: #3d2a5c;
+  --color-surface-raised: #ffffff;
+  --color-control-border: #8b7bb5;
+  --color-divider: rgba(29, 11, 58, 0.1);
+  --color-panel-border: rgba(29, 11, 58, 0.1);
+  --color-panel-border-hover: rgba(138, 61, 255, 0.45);
+  --color-fill-muted: #eceefa;
+  --color-intensity-0: #eceefa;
+
+  --color-on-accent: #1d0b3a;
+
+  --color-accent-cyan: #2d5bff;
+  --color-accent-cyan-glow: rgba(45, 91, 255, 0.15);
+  --color-accent-cyan-text: #ffffff;
+
+  --color-neon-accent: #d000b6;
+  --color-neon-accent-border: color-mix(in srgb, var(--color-neon-accent) 45%, transparent);
+  --color-neon-accent-glow: color-mix(in srgb, var(--color-neon-accent) 30%, transparent);
+
+  --color-map-chrome-accent: #2d5bff;
+
+  --color-accent-magenta: #d000b6;
+
+  --color-body-text: #1d0b3a;
+
+  --color-chip-hairline: #8b7bb5;
+
+  --color-chart-grid: rgba(29, 11, 58, 0.07);
+  /* Ink: 11 of the 16 sport colors are under 3:1 on this ground, so every mark takes an
+     ink outline. */
+  --color-chart-mark-outline: #1d0b3a;
+  --color-chart-line-casing: #1d0b3a;
+  --color-chart-axis: rgba(29, 11, 58, 0.3);
+  --color-chart-tick: #5b4a7a;
+  --color-chart-actual-line: #1d0b3a;
+  --color-chart-tooltip-bg: #ffffff;
+  --color-chart-tooltip-border: rgba(138, 61, 255, 0.45);
+  --color-chart-tooltip-text: #1d0b3a;
+  --color-chart-tooltip-muted: #3d2a5c;
+  --color-chart-tooltip-label: #5b4a7a;
+  --color-chart-tooltip-divider: rgba(29, 11, 58, 0.1);
+  /* Chart data: goal lines run the text-safe gradient, blue to magenta, then green and
+     orange; each clears 3:1 on white as a line. */
+  --color-goal-1: #1f4fe0;
+  --color-goal-2: #8a3dff;
+  --color-goal-3: #d000b6;
+  --color-goal-4: #00875a;
+  --color-goal-5: #c2410c;
+  --color-chart-average-line: #5b4a7a;
+  --color-chart-neutral: #8b7bb5;
+  --color-danger-zone: #e04e00;
+  --color-danger-zone-label: #c2410c;
+
+  --color-success: #00875a;
+  --color-danger: #c2410c;
+  --color-danger-ink: #ffffff;
+  --color-warning: #a16207;
+
+  --color-header-bg: #ffffff;
+  --color-header-border: rgba(29, 11, 58, 0.1);
+  --color-header-text: #3d2a5c;
+  --color-header-text-muted: #5b4a7a;
+  --color-header-ink: #1d0b3a;
+  --color-header-accent: #d000b6;
+
+  --color-surface-hover: rgba(255, 0, 212, 0.05);
+  --color-surface-border: rgba(29, 11, 58, 0.1);
+  --color-surface-overlay: rgba(247, 248, 255, 0.9);
+  --color-surface-shadow: rgba(29, 11, 58, 0.15);
+  /* Under each route line on the map: sport colors on the light base map need an ink edge. */
+  --color-map-route-casing: rgba(29, 11, 58, 0.42);
+
+  /* --- Non-color slots, from the approved Electric design (see "Theme slots" in the
+     style guide for what each controls). --- */
+
+  /* Typography */
+  --font-body: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --font-display: "Archivo Black", "Arial Black", sans-serif;
+  --font-chart: "IBM Plex Mono", ui-monospace, monospace;
+  --display-weight: 400;
+  --page-title-size: 2.25rem;
+  /* Titles draw in the gradient below; this is the solid color under it. */
+  --page-title-color: #8a3dff;
+  --page-title-shadow: none;
+  --page-title-glow-size: 0px;
+  --page-title-offset-shadow: 0 0 0 transparent;
+  --page-title-case: uppercase;
+  --page-title-leading: 1;
+  --page-title-glow-strength: 0%;
+  /* The deep, text-safe end of the gradient: magenta, violet, blue, each 4.5:1 or more on
+     white. The bright end (cyan) is kept to fills and edges. */
+  --display-text-gradient: linear-gradient(90deg, #d000b6, #8a3dff 55%, #2d5bff);
+  --display-text-fill: transparent;
+  --kicker-size: 0.6875rem;
+  --kicker-tracking: 0.3em;
+  --kicker-color: #5b4a7a;
+  --label-size: 0.6875rem;
+  --label-tracking: 0.26em;
+  --label-weight: 600;
+  --label-color: #8a3dff;
+  --label-case: uppercase;
+  --data-label-case: none;
+  --table-text-size: 0.78125rem;
+  --stat-value-size: 1.75rem;
+  --stat-value-size-wide: 2rem;
+  --stat-value-shadow: none;
+
+  /* Wordmark */
+  --wordmark-font: "Archivo Black", "Arial Black", sans-serif;
+  --wordmark-size: 1.3125rem;
+  --wordmark-weight: 400;
+  --wordmark-tracking: 0.01em;
+  --wordmark-case: lowercase;
+  --wordmark-color: #1d0b3a;
+  --wordmark-color-2: #1d0b3a;
+  --wordmark-slash-color: #d000b6;
+  --wordmark-slash-size: 1em;
+  --wordmark-slash-weight: 400;
+  --wordmark-shadow: none;
+
+  /* Header */
+  --header-height: 52px;
+  --header-border: 1px solid rgba(29, 11, 58, 0.1);
+  --header-accent-line: linear-gradient(90deg, #ff00d4, #8a3dff 50%, #00e5ff);
+  --header-shadow-scrolled: 0 8px 24px -12px rgba(138, 61, 255, 0.45);
+  --nav-size: 0.75rem;
+  --nav-tracking: 0.14em;
+  --nav-case: uppercase;
+  --nav-active-bg: transparent;
+  --nav-active-radius: 0px;
+  --nav-active-underline: 3px solid #d000b6;
+  --nav-active-shadow: none;
+  --nav-color: #5b4a7a;
+  --nav-active-color: #1d0b3a;
+  --nav-active-hover-bg: transparent;
+  --avatar-radius: 50%;
+  --avatar-border: 2px solid #8a3dff;
+  --avatar-glow: 0 0 14px rgba(138, 61, 255, 0.45);
+  --demo-rule: none;
+  /* The image's darkest stop, so the contrast pairs measure the worst case. */
+  --demo-bg: #ff7ae3;
+  --demo-bg-image: linear-gradient(90deg, #ff7ae3, #c9b0ff 50%, #9aefff);
+  --demo-label-color: #1d0b3a;
+  --demo-border: 1px solid rgba(29, 11, 58, 0.08);
+  --header-date-color: #5b4a7a;
+
+  /* Backgrounds and decoration */
+  --hero-padding: 38px 32px 42px;
+  --hero-ink: #5b4a7a;
+  --hero-title-size: 3.5rem;
+  --hero-title-color: #8a3dff;
+  --hero-title-shadow: none;
+  --hero-number-size: 2.375rem;
+  --hero-number-glow: 0px;
+  --glass-blur: 0px;
+  --glass-blur-sm: 0px;
+  --progress-shine: none;
+
+  /* Panels */
+  --radius: 0.5rem;
+  --panel-bg: #ffffff;
+  --panel-border-width: 1px;
+  --panel-radius: 14px;
+  --panel-shadow: 0 16px 36px -18px rgba(138, 61, 255, 0.55);
+  --panel-shadow-emphasis: 0 18px 40px -16px rgba(255, 0, 212, 0.5);
+  --panel-header-padding: 0.625rem 0.875rem;
+  --panel-body-padding: 0.875rem;
+  --panel-accent-1: rgba(29, 11, 58, 0.1);
+  --panel-accent-2: rgba(29, 11, 58, 0.1);
+  --panel-accent-3: rgba(29, 11, 58, 0.1);
+  --panel-top-strip: linear-gradient(90deg, #ff00d4, #8a3dff 50%, #00e5ff);
+
+  /* Controls */
+  --control-height: 1.875rem;
+  --control-radius: 8px;
+  --control-font-size: 0.78125rem;
+  --control-case: none;
+  --control-focus-color: #8a3dff;
+  --control-focus-width: 2px;
+  --control-focus-glow: 0 0 #0000;
+  --toggle-gap: 2px;
+  --toggle-frame-border-width: 1px;
+  --toggle-frame-padding: 3px;
+  --toggle-frame-radius: 9999px;
+  --toggle-item-border-width: 0px;
+  --toggle-item-radius: 9999px;
+  --toggle-font-size: 0.6875rem;
+  --toggle-tracking: 0.1em;
+  --toggle-case: uppercase;
+  --toggle-frame-border-color: rgba(29, 11, 58, 0.16);
+  --toggle-item-color: #5b4a7a;
+  /* A soft pink pill with ink text, edged in magenta so the choice clears 3:1 on white. */
+  --color-toggle-pressed: #ff7ae3;
+  --color-toggle-pressed-border: #d000b6;
+  --color-toggle-pressed-text: #1d0b3a;
+  --toggle-pressed-glow: 0 0 10px rgba(255, 79, 216, 0.35);
+  --toggle-pressed-text-glow: none;
+  --button-radius: 9999px;
+  --button-case: uppercase;
+  --button-tracking: 0.12em;
+  /* The design's gradient border, as its deep violet: a border color can't be a gradient. */
+  --button-outline-border-color: #8a3dff;
+  --button-outline-glow: 0 0 #0000;
+  --stepper-gap: 0px;
+  --stepper-button-text: var(--color-subtle-text);
+  --slider-track-height: 4px;
+  --slider-track-radius: 9999px;
+  --slider-handle-size: 14px;
+  --slider-handle-radius: 9999px;
+  --slider-handle-border-width: 2px;
+  --slider-track-bg: #eceefa;
+  --slider-fill-glow: 0 0 8px rgba(138, 61, 255, 0.45);
+  --color-slider-fill: #8a3dff;
+  --chip-height: 28px;
+  --chip-height-drawer: 26px;
+  --chip-radius: 9999px;
+  /* Idle chips take the control border, not a tint of their sport: most sport colors are
+     under 3:1 here. */
+  --chip-border-strength: 0%;
+  --chip-hover-strength: 16%;
+  --chip-selected-fill-strength: 100%;
+  --chip-selected-label-strength: 0%;
+  --chip-selected-ink: initial;
+  --chip-selected-glow-strength: 70%;
+  --chip-selected-glow-size: 14px;
+  --chip-selected-inset-glow-size: 0px;
+  --chip-dot-radius: 9999px;
+
+  /* Tables and lists */
+  --th-size: 0.625rem;
+  --th-weight: 600;
+  --th-color: #5b4a7a;
+  --th-tracking: 0.14em;
+  --th-case: uppercase;
+  --th-rule: 1px solid rgba(29, 11, 58, 0.2);
+  --row-rule: 1px solid rgba(29, 11, 58, 0.08);
+  --row-padding: 0.625rem 0.5rem;
+  --row-hover-bg: rgba(255, 0, 212, 0.05);
+  --missing-value-color: #5b4a7a;
+  --sport-mark-radius: 9999px;
+
+  /* Status, goals and meters */
+  --track-height: 12px;
+  --track-bg: #ffffff;
+  --track-border: 1.5px solid #1d0b3a;
+  --track-fill-height: 9px;
+  --track-fill-glow: 0px;
+  --track-radius: 9999px;
+  --pace-tick-width: 3px;
+  --pace-tick-height: 20px;
+  --meter-segment-width: 20px;
+  --meter-segment-height: 8px;
+  --meter-gap: 3px;
+  --meter-radius: 9999px;
+  --cell-empty-border: none;
+  --cell-radius: 3px;
+
+  /* Charts */
+  --chart-baseline: rgba(29, 11, 58, 0.3);
+  --chart-tick-size: 10px;
+  --chart-actual-glow: drop-shadow(0 0 4px rgba(255, 0, 212, 0.45));
+  --chart-average-dash: 5 5;
+  --chart-bar-radius: 3px;
+  --chart-bar-gap: 2px;
+  --chart-hover-column: rgba(138, 61, 255, 0.06);
+  --tooltip-radius: 10px;
+
+  /* Map chrome */
+  --map-chrome-bg: #ffffff;
+  --map-chrome-edge: 1px solid rgba(29, 11, 58, 0.12);
+  --map-chrome-shadow: 10px 0 30px -12px rgba(138, 61, 255, 0.45);
+  --popup-radius: 12px;
+  --popup-border: 1.5px solid #8a3dff;
+  --popup-shadow: 0 16px 34px -12px rgba(138, 61, 255, 0.55);
+
+  /* Theme components (src/components/theme). */
+  --panel-accent-1-ink: #8a3dff;
+  --panel-accent-2-ink: #8a3dff;
+  --panel-accent-3-ink: #8a3dff;
+  --stat-label-size: 0.625rem;
+  --stat-label-tracking: 0.22em;
+  --stat-label-case: uppercase;
+  --stat-sub-size: 0.75rem;
+  --stat-sub-color: #5b4a7a;
+  --color-meter-done: #8a3dff;
+  --color-meter-current: #2d5bff;
+  --color-meter-todo: #e6e8f5;
+  --meter-done-glow: none;
+  --meter-current-glow: none;
+  --color-pace-tick: #1d0b3a;
+  --color-status-good: #2d5bff;
+  --color-status-warn: #3d2a5c;
+  --color-status-bad: #c2410c;
+  --status-size: 0.6875rem;
+  --status-tracking: 0.12em;
+  --status-case: uppercase;
+}

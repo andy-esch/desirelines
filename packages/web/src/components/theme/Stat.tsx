@@ -1,6 +1,6 @@
 import { createContext, useContext, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { PANEL_ACCENT_BORDER, type PanelAccent } from "./Panel";
+import { PANEL_ACCENT_BORDER, PANEL_TOP_STRIP, type PanelAccent } from "./Panel";
 import { useThemeStructure } from "./useThemeStructure";
 
 /** How the surrounding `StatRow` frames each stat; a stat outside a row frames itself. */
@@ -39,11 +39,15 @@ export function Stat({
       className={cn(
         "flex flex-col gap-1 min-w-0",
         frame === "card" &&
-          "h-full p-3 md:p-4 border-solid border-(length:--panel-border-width) border-panel-border rounded-(--panel-radius) bg-(--panel-bg) transition-colors hover:border-panel-border-hover",
+          cn(
+            "h-full p-3 md:p-4 border-solid border-(length:--panel-border-width) border-panel-border rounded-(--panel-radius) bg-(--panel-bg) transition-colors hover:border-panel-border-hover",
+            PANEL_TOP_STRIP
+          ),
         frame === "cell" && "p-4 md:px-5",
         frame === "box" &&
           cn(
             "p-4 border-solid border-(length:--panel-border-width) rounded-(--panel-radius) bg-(--panel-bg)",
+            PANEL_TOP_STRIP,
             PANEL_ACCENT_BORDER[accent],
             emphasis
               ? "[box-shadow:var(--panel-shadow-emphasis)]"
@@ -80,6 +84,7 @@ export function StatRow({ children, className }: { children: ReactNode; classNam
           data-style="divided"
           className={cn(
             "grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-divider border-solid border-(length:--panel-border-width) border-(color:--panel-accent-1) rounded-(--panel-radius) bg-(--panel-bg) [box-shadow:var(--panel-shadow)]",
+            PANEL_TOP_STRIP,
             className
           )}
         >

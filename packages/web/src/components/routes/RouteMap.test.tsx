@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, act, screen, fireEvent } from "@testing-library/react";
 import RouteMap from "./RouteMap";
 import type { RegionSummary } from "../../api/map";
@@ -140,6 +140,7 @@ const STOCK_MAP: ThemeMap = { palette: null, labelFont: null };
 const baseLayer = () => h.captured.layers.filter((l) => l.id === "routes-lines").at(-1);
 const highlightLayer = () =>
   h.captured.layers.filter((l) => l.id === "routes-lines-highlight").at(-1);
+const casingLayer = () => h.captured.layers.filter((l) => l.id === "routes-lines-casing").at(-1);
 
 function renderMap(overrides: Partial<React.ComponentProps<typeof RouteMap>> = {}) {
   const props = {
@@ -275,6 +276,37 @@ describe("RouteMap layer setup", () => {
     renderMap({ filter: null });
 
     expect(baseLayer()!).not.toHaveProperty("filter");
+  });
+
+  describe("the route casing", () => {
+    afterEach(() => document.documentElement.style.removeProperty("--color-map-route-casing"));
+
+    it("draws under the base lines in the theme's casing color, with their filter", () => {
+      // Mapbox can't take var(), so the token is read off <html> as a value.
+      document.documentElement.style.setProperty(
+        "--color-map-route-casing",
+        "rgba(29, 11, 58, 0.42)"
+      );
+      const filter = ["in", ["get", "activity_id"], ["literal", [1, 2]]] as never;
+      renderMap({ filter });
+
+      const casing = casingLayer()!;
+      expect((casing.paint as Record<string, unknown>)["line-color"]).toBe(
+        "rgba(29, 11, 58, 0.42)"
+      );
+      expect(casing.filter).toEqual(filter);
+      expect(casing["source-layer"]).toBe(baseLayer()!["source-layer"]);
+      const order = h.captured.layers.map((l) => l.id);
+      expect(order.indexOf("routes-lines-casing")).toBeLessThan(order.indexOf("routes-lines"));
+    });
+
+    it("is transparent where the theme sets none", () => {
+      renderMap();
+
+      expect((casingLayer()!.paint as Record<string, unknown>)["line-color"]).toBe(
+        "rgba(0, 0, 0, 0)"
+      );
+    });
   });
 });
 

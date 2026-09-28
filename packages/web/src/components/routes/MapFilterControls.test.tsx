@@ -197,7 +197,7 @@ describe("MapFilterControls", () => {
     // The drawer remaps --color-accent-cyan on itself, but this popup renders in a
     // portal on <body>, so it inherits the page accent instead of the map's unless it
     // carries the remap too. In Arcade the two are different cyans, which is where
-    // the mismatch showed; in legacy-light they coincide and it looks correct by luck.
+    // the mismatch showed; in a theme where they coincide it looks correct by luck.
     const user = userEvent.setup();
     renderControls();
     await user.click(screen.getByRole("combobox"));

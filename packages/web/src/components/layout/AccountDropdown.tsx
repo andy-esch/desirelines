@@ -5,7 +5,13 @@ import { useUserProfile } from "../../hooks/useUserProfile";
 import { tint } from "../../utils/colorTokens";
 import { CheckIcon, ChevronDownIcon, SettingsIcon, SignOutIcon, SignInIcon } from "../icons";
 import { useTheme } from "../../contexts/ThemeContext";
-import { VISIBLE_THEMES, type ThemePreference } from "../../themes/registry";
+import {
+  MATCH_SYSTEM_LABEL,
+  SYSTEM_THEME_IDS,
+  VISIBLE_THEMES,
+  getTheme,
+  type ThemePreference,
+} from "../../themes/registry";
 
 // Focusable menu items for arrow-key navigation: enabled buttons/links and
 // anything explicitly tab-focusable. Shared by the querySelector (first item)
@@ -77,12 +83,30 @@ const ThemeSwatch = ({ colors }: { colors: readonly string[] }) => {
   );
 };
 
-const THEME_OPTIONS: readonly { value: ThemePreference; label: string; icon: React.ReactNode }[] =
-  VISIBLE_THEMES.map((t) => ({
+const systemDark = getTheme(SYSTEM_THEME_IDS.dark);
+const systemLight = getTheme(SYSTEM_THEME_IDS.light);
+
+/** The released themes, then "Match system", swatched as its two themes split corner to corner. */
+const THEME_OPTIONS: readonly { value: ThemePreference; label: string; icon: React.ReactNode }[] = [
+  ...VISIBLE_THEMES.map((t) => ({
     value: t.id,
     label: t.label,
     icon: <ThemeSwatch colors={t.swatches} />,
-  }));
+  })),
+  {
+    value: "system",
+    label: MATCH_SYSTEM_LABEL,
+    icon: (
+      <ThemeSwatch
+        colors={[
+          `linear-gradient(135deg, ${systemDark.background} 50%, ${systemLight.background} 50%)`,
+          systemDark.swatches[1] ?? "currentColor",
+          systemLight.swatches[1] ?? "currentColor",
+        ]}
+      />
+    ),
+  },
+];
 
 /**
  * Account dropdown menu for the header
@@ -332,8 +356,7 @@ export function AccountDropdown({
                     style={{
                       ...menuItemStyle,
                       // Inline only when checked, so the hover class still applies to the
-                      // rest. brand-cyan, not accent-cyan-glow: this dropdown lives in the
-                      // header, which is pinned dark, so it must not flip with the theme.
+                      // rest. A light brand-cyan tint, which reads on every theme's header.
                       ...(checked && { background: tint("--color-brand-cyan", 15) }),
                       color: checked
                         ? "var(--color-header-accent)"

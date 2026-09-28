@@ -379,7 +379,7 @@ export default function RoutesPage() {
   // /routes has always been auth-gated; demo users never reach it).
   if (!authLoading && !user) {
     return (
-      <PageLayout background="routes">
+      <PageLayout>
         <StatusMessage>
           <p className="text-muted-text">
             <Link to="/" className="text-accent-cyan no-underline">
@@ -395,7 +395,7 @@ export default function RoutesPage() {
   // Missing/absent Mapbox token (or gateway) → graceful degradation, no crash.
   if (!mapboxToken || !mapConfig) {
     return (
-      <PageLayout background="routes">
+      <PageLayout>
         <StatusMessage>
           <p className="text-muted-text text-sm" role="status">
             Map is unavailable right now.
@@ -413,7 +413,7 @@ export default function RoutesPage() {
   // avoids an infinite "Loading map…" hang when getIdToken() returns undefined.
   if (authLoading || regionsLoading || !tokenReady) {
     return (
-      <PageLayout background="routes">
+      <PageLayout>
         <StatusMessage>
           <p className="text-muted-text" role="status">
             Loading map…
@@ -425,7 +425,7 @@ export default function RoutesPage() {
 
   if (error) {
     return (
-      <PageLayout background="routes">
+      <PageLayout>
         <StatusMessage>
           <p className="text-danger" role="alert">
             Failed to load map. Please try again later.
@@ -436,7 +436,7 @@ export default function RoutesPage() {
   }
 
   return (
-    <PageLayout background="routes">
+    <PageLayout>
       <div className="fixed inset-x-0 bottom-0 bg-bg-body" style={{ top: HEADER_HEIGHT }}>
         <div className="relative w-full h-full">
           <Suspense fallback={<MapLoadingState />}>

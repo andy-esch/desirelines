@@ -111,17 +111,16 @@ describe("ThemeProvider", () => {
     mockColorScheme(true);
     const provider = renderProvider();
 
-    act(() => provider.value.setPreference("legacy-light"));
+    act(() => provider.value.setPreference("electric"));
 
-    expect(localStorage.getItem(THEME_STORAGE_KEYS.demo)).toBe("legacy-light");
-    expect(provider.value.theme.id).toBe("legacy-light");
+    expect(localStorage.getItem(THEME_STORAGE_KEYS.demo)).toBe("electric");
+    expect(provider.value.theme.id).toBe("electric");
     // The first render that sees the new theme must already find it on the DOM.
-    const firstLight = provider.seen.find((s) => s.themeId === "legacy-light");
-    expect(firstLight?.domTheme).toBe("legacy-light");
+    const firstLight = provider.seen.find((s) => s.themeId === "electric");
+    expect(firstLight?.domTheme).toBe("electric");
   });
 
-  // "System" is not in the picker today, but a preference stored before it went away
-  // still follows the OS, and "Match system" returns with the light retro theme.
+  // "Match system": Miami on a dark OS, Electric on a light one, following the OS.
   it("tracks OS changes while following the system", () => {
     const os = mockColorScheme(true);
     localStorage.setItem(THEME_STORAGE_KEYS.demo, "system");
@@ -130,8 +129,8 @@ describe("ThemeProvider", () => {
 
     os.setDark(false);
 
-    expect(provider.value.theme.id).toBe("legacy-light");
-    expect(document.documentElement.dataset.theme).toBe("legacy-light");
+    expect(provider.value.theme.id).toBe("electric");
+    expect(document.documentElement.dataset.theme).toBe("electric");
   });
 
   it("ignores OS changes for an explicit theme, then resolves freshly on returning to system", () => {
@@ -143,13 +142,13 @@ describe("ThemeProvider", () => {
     expect(document.documentElement.dataset.theme).toBe("arcade");
 
     act(() => provider.value.setPreference("system"));
-    expect(document.documentElement.dataset.theme).toBe("legacy-light");
+    expect(document.documentElement.dataset.theme).toBe("electric");
   });
 
   describe("demo and account scopes", () => {
     it("starts in the account's scope while the signed-in hint is set, on its cached theme", () => {
       mockColorScheme(true);
-      localStorage.setItem(THEME_STORAGE_KEYS.demo, "legacy-light");
+      localStorage.setItem(THEME_STORAGE_KEYS.demo, "electric");
       localStorage.setItem(THEME_STORAGE_KEYS.account, "arcade");
       localStorage.setItem(SIGNED_IN_HINT_KEY, "1");
       const provider = renderProvider();
@@ -160,7 +159,7 @@ describe("ThemeProvider", () => {
 
     it("enters the account on the theme it's given, leaving the demo's alone", () => {
       mockColorScheme(true);
-      localStorage.setItem(THEME_STORAGE_KEYS.demo, "legacy-light");
+      localStorage.setItem(THEME_STORAGE_KEYS.demo, "electric");
       const provider = renderProvider();
 
       act(() => provider.value.setScope("account", "arcade"));
@@ -170,24 +169,24 @@ describe("ThemeProvider", () => {
       expect(document.documentElement.dataset.theme).toBe("arcade");
       expect(localStorage.getItem(SIGNED_IN_HINT_KEY)).toBe("1");
       expect(localStorage.getItem(THEME_STORAGE_KEYS.account)).toBe("arcade");
-      expect(localStorage.getItem(THEME_STORAGE_KEYS.demo)).toBe("legacy-light");
+      expect(localStorage.getItem(THEME_STORAGE_KEYS.demo)).toBe("electric");
     });
 
     it("saves a choice to the current scope's key only", () => {
       mockColorScheme(true);
-      localStorage.setItem(THEME_STORAGE_KEYS.demo, "legacy-light");
+      localStorage.setItem(THEME_STORAGE_KEYS.demo, "electric");
       const provider = renderProvider();
       act(() => provider.value.setScope("account", "arcade"));
 
       act(() => provider.value.setPreference("miami"));
 
       expect(localStorage.getItem(THEME_STORAGE_KEYS.account)).toBe("miami");
-      expect(localStorage.getItem(THEME_STORAGE_KEYS.demo)).toBe("legacy-light");
+      expect(localStorage.getItem(THEME_STORAGE_KEYS.demo)).toBe("electric");
     });
 
     it("leaves the account for the demo's theme, clearing the hint and the account's copy", () => {
       mockColorScheme(true);
-      localStorage.setItem(THEME_STORAGE_KEYS.demo, "legacy-light");
+      localStorage.setItem(THEME_STORAGE_KEYS.demo, "electric");
       localStorage.setItem(THEME_STORAGE_KEYS.account, "arcade");
       localStorage.setItem(SIGNED_IN_HINT_KEY, "1");
       const provider = renderProvider();
@@ -195,8 +194,8 @@ describe("ThemeProvider", () => {
       act(() => provider.value.setScope("demo"));
 
       expect(provider.value.scope).toBe("demo");
-      expect(provider.value.preference).toBe("legacy-light");
-      expect(document.documentElement.dataset.theme).toBe("legacy-light");
+      expect(provider.value.preference).toBe("electric");
+      expect(document.documentElement.dataset.theme).toBe("electric");
       expect(localStorage.getItem(SIGNED_IN_HINT_KEY)).toBeNull();
       expect(localStorage.getItem(THEME_STORAGE_KEYS.account)).toBeNull();
     });

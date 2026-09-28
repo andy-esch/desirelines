@@ -53,7 +53,11 @@ vi.mock("recharts", () => ({
     hover.rows = data;
     return <div data-testid="line-chart">{children}</div>;
   },
-  Line: () => <div data-testid="chart-line" />,
+  Line: ({ stroke }: { stroke?: string }) => (
+    <div
+      data-testid={stroke === "var(--color-chart-line-casing)" ? "chart-casing" : "chart-line"}
+    />
+  ),
   XAxis: () => null,
   YAxis: () => null,
   ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
@@ -159,6 +163,16 @@ describe("MultiSportSparklineChart", () => {
 
       expect(screen.getByTestId("responsive-container")).toBeInTheDocument();
       expect(screen.getAllByTestId("chart-line")).toHaveLength(3);
+    });
+
+    it("draws each sport's line over a casing in the theme's casing color", async () => {
+      await renderWithRouter(<MultiSportSparklineChart timeRange="2weeks" />);
+
+      const marks = screen.getAllByTestId(/^chart-(casing|line)$/);
+      expect(marks.map((m) => m.dataset.testid)).toEqual([
+        ...Array<string>(3).fill("chart-casing"),
+        ...Array<string>(3).fill("chart-line"),
+      ]);
     });
 
     it("renders sport labels as links to year with most recent activity", async () => {

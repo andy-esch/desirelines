@@ -151,7 +151,7 @@ export default function SettingsPage() {
   // Show loading state
   if (authLoading || prefsLoading || profileLoading) {
     return (
-      <NarrowPageLayout background="settings">
+      <NarrowPageLayout>
         <div className="flex justify-center items-center" style={{ minHeight: "60vh" }}>
           <NeonSpinner />
         </div>
@@ -162,7 +162,7 @@ export default function SettingsPage() {
   const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   return (
-    <NarrowPageLayout background="settings">
+    <NarrowPageLayout>
       <PageTitle kicker="Account · Preferences" className="mb-3">
         Settings
       </PageTitle>
@@ -174,7 +174,7 @@ export default function SettingsPage() {
       )}
 
       {user && (
-        <Panel className="mb-8 overflow-hidden neon-backdrop" bodyClassName="p-6 md:p-8">
+        <Panel className="mb-8 overflow-hidden" bodyClassName="p-6 md:p-8">
           <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
             <LargeUserAvatar />
 

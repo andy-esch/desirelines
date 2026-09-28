@@ -36,6 +36,7 @@
 
   --color-chart-grid: rgba(242, 234, 255, 0.07);
   --color-chart-mark-outline: #1e1040;
+  --color-chart-line-casing: rgba(0, 0, 0, 0);
   --color-chart-axis: rgba(242, 234, 255, 0.18);
   --color-chart-tick: #8b7bb5;
   --color-chart-actual-line: #ffffff;
@@ -66,12 +67,14 @@
   --color-header-border: rgba(255, 46, 196, 0.35);
   --color-header-text: #c9b8e0;
   --color-header-text-muted: #8b7bb5;
+  --color-header-ink: #ffffff;
   --color-header-accent: #ff2ec4;
 
   --color-surface-hover: rgba(255, 46, 196, 0.07);
   --color-surface-border: rgba(201, 184, 224, 0.12);
   --color-surface-overlay: rgba(14, 6, 32, 0.8);
   --color-surface-shadow: rgba(0, 0, 0, 0.45);
+  --color-map-route-casing: rgba(0, 0, 0, 0);
 
   /* --- Non-color slots, from the approved Miami design (see "Theme slots" in the style
      guide for what each controls). --- */
@@ -88,6 +91,7 @@
   --page-title-offset-shadow: 2px 2px 0 #00e5ff;
   --page-title-case: uppercase;
   --page-title-leading: 1;
+  --page-title-glow-strength: 60%;
   --display-text-gradient: none;
   --display-text-fill: currentColor;
   --kicker-size: 0.6875rem;
@@ -137,12 +141,12 @@
   --avatar-glow: 0 0 10px rgba(255, 46, 196, 0.45);
   --demo-rule: none;
   --demo-bg: #1b0d36;
+  --demo-bg-image: none;
+  --demo-label-color: var(--color-accent-cyan);
   --demo-border: 1px solid rgba(0, 229, 255, 0.18);
   --header-date-color: #8b7bb5;
 
   /* Backgrounds and decoration */
-  --page-wash-strength: 0;
-  --sport-wash-strength: 0;
   --hero-padding: 36px 32px 86px;
   --hero-ink: #ffd9f2;
   --hero-title-size: 3.25rem;
@@ -166,6 +170,7 @@
   --panel-accent-1: rgba(255, 46, 196, 0.22);
   --panel-accent-2: rgba(255, 46, 196, 0.22);
   --panel-accent-3: rgba(255, 46, 196, 0.22);
+  --panel-top-strip: none;
 
   /* Controls */
   --control-height: 1.875rem;

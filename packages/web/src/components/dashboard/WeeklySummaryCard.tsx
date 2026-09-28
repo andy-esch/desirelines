@@ -13,8 +13,8 @@ import { useThemeStructure } from "../theme/useThemeStructure";
  *
  * Design:
  * - Sport color dots match sparkline spectrum colors
- * - Weekly goal % shows inline as the theme's status symbol (a % badge in Legacy light), for a
- *   sport with a goal; the goals card beside it says where to set one
+ * - Weekly goal % shows inline as the theme's status symbol (or a % badge in the legacy
+ *   structure), for a sport with a goal; the goals card beside it says where to set one
  * - Shows "No activity yet this week" if all zeros
  */
 export default function WeeklySummaryCard() {
@@ -158,8 +158,8 @@ function getAchievementStatus(pct: number): GoalStatus {
  * The badge colors, one per achievement band.
  *
  * Fixed neon primitives rather than theme roles, `--color-brand-cyan` included: only the
- * "badge" status style reads these, and only Legacy light uses it (the retro themes draw
- * symbols instead), so they keep that theme's look and leave with it.
+ * "badge" status style reads these, which no theme uses since Legacy light was deleted (the
+ * retro themes draw symbols instead). They go when the legacy structure's options do.
  */
 function getAchievementStyle(pct: number): CSSProperties {
   // >= 100%: Neon green (goal achieved)

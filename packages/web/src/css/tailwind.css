@@ -1,7 +1,6 @@
 @import "tailwindcss";
-@import "@fontsource-variable/space-grotesk";
-/* Retro theme faces. Declaring them is free: a browser downloads a face only when rendered
-   text uses it, so a Legacy theme never fetches these. Plex Mono stays at the three weights
+/* Theme faces. Declaring them is free: a browser downloads a face only when rendered text
+   uses it, so a theme never fetches another's. Plex Mono stays at the three weights
    the retro themes use, with no italics. */
 @import "@fontsource/ibm-plex-mono/400.css";
 @import "@fontsource/ibm-plex-mono/500.css";
@@ -30,9 +29,9 @@
    file too: custom properties resolve `var()` where they are declared, so a nested block
    changing only the base token would leave the derived one on the outer theme.
    ========================================================================== */
-@import "./themes/legacy-light.css";
 @import "./themes/miami.css";
 @import "./themes/arcade.css";
+@import "./themes/electric.css";
 
 /*
  * Tailwind Theme — registers every Desire Lines token with Tailwind, so each is available
@@ -70,10 +69,10 @@
   /* === Accent: Cyan — primary interactive color ===
      `--color-brand-cyan` is the PRIMITIVE: the fixed full-brightness value, the same
      in every theme. `--color-accent-cyan` is the SEMANTIC token: each theme sets its
-     own cyan, and Legacy light mutes it to a WCAG-safe teal. Only chrome that must not
-     follow the theme references the primitive directly: the header, pinned dark in
-     every theme, and what sits in it (the avatar, the account menu). Anything inside a
-     themed surface, glows included, takes a role token instead. */
+     own, and Electric's is a deep blue, since cyan fails as text on a light ground. Only
+     marks that should look the same in every theme reference the primitive directly
+     (the account menu's avatar and its chosen-theme tint). Anything inside a themed
+     surface, glows included, takes a role token instead. */
   --color-brand-cyan: #00d4ff;
   --color-accent-cyan: #00e5ff;
   --color-accent-cyan-glow: rgba(0, 229, 255, 0.15);
@@ -151,6 +150,9 @@
      hairline separating stacked segments. Light: ink, so the neon fill has a
      boundary that clears 3:1 against #f0f4f8. */
   --color-chart-mark-outline: #1e1040;
+  /* Under each sport-colored chart line, where the ground needs it; transparent on dark
+     grounds, where the neon clears 3:1 on its own. */
+  --color-chart-line-casing: rgba(0, 0, 0, 0);
   --color-chart-axis: rgba(242, 234, 255, 0.18);
   --color-chart-tick: #8b7bb5;
   --color-chart-actual-line: #ffffff;
@@ -177,14 +179,17 @@
   --color-danger-zone-label: #ff8a3d;
   /* Outline on the routes-map density dots, separating overlapping sports. */
   --color-map-point-outline: #0b0f1a;
+  /* Under each route line on the routes map, where a light base map needs it; transparent
+     elsewhere. Mapbox reads it resolved (see RouteMap). */
+  --color-map-route-casing: rgba(0, 0, 0, 0);
 
-  /* === Header — pinned dark regardless of theme === */
+  /* === Header === */
   --color-header-bg: #0e0620;
   --color-header-border: rgba(255, 46, 196, 0.35);
   --color-header-text: #c9b8e0;
   --color-header-text-muted: #8b7bb5;
-  /* The brightest header ink; used at partial alpha for dimmed text and hover fills
-     (e.g. text-header-ink/50, bg-header-ink/10). */
+  /* The header's strongest ink, set per theme like the rest of the header; used at partial
+     alpha for dimmed text and hover fills (e.g. text-header-ink/50, bg-header-ink/10). */
   --color-header-ink: #ffffff;
   --color-header-accent: #ff2ec4;
 
@@ -327,120 +332,6 @@
   }
 }
 
-/* ==========================================================================
-   Page Background Utilities — neon gradient backgrounds per page type. Every stop scales
-   with the theme's --page-wash-strength slot, so a theme turns the washes off with 0.
-   Only Legacy light turns them on, which is why their stops name fixed primitives rather
-   than theme roles: they keep that theme's look and leave with it.
-   ========================================================================== */
-
-@utility page-bg-dashboard {
-  background: linear-gradient(
-    120deg,
-    color-mix(
-        in srgb,
-        color-mix(in srgb, var(--color-neon-cyan) 18%, transparent)
-          calc(100% * var(--page-wash-strength, 1)),
-        transparent
-      )
-      0%,
-    color-mix(
-        in srgb,
-        color-mix(in srgb, var(--color-neon-magenta) 12%, transparent)
-          calc(100% * var(--page-wash-strength, 1)),
-        transparent
-      )
-      100%
-  );
-}
-
-@utility page-bg-activities {
-  background: linear-gradient(
-    140deg,
-    color-mix(
-        in srgb,
-        color-mix(in srgb, var(--color-neon-magenta) 15%, transparent)
-          calc(100% * var(--page-wash-strength, 1)),
-        transparent
-      )
-      0%,
-    color-mix(
-        in srgb,
-        color-mix(in srgb, var(--color-brand-cyan) 12%, transparent)
-          calc(100% * var(--page-wash-strength, 1)),
-        transparent
-      )
-      100%
-  );
-}
-
-@utility page-bg-origins {
-  background: linear-gradient(
-    135deg,
-    color-mix(
-        in srgb,
-        color-mix(in srgb, var(--color-neon-magenta) 18%, transparent)
-          calc(100% * var(--page-wash-strength, 1)),
-        transparent
-      )
-      0%,
-    color-mix(
-        in srgb,
-        color-mix(in srgb, var(--color-neon-cyan) 15%, transparent)
-          calc(100% * var(--page-wash-strength, 1)),
-        transparent
-      )
-      50%,
-    color-mix(
-        in srgb,
-        color-mix(in srgb, var(--color-neon-green) 10%, transparent)
-          calc(100% * var(--page-wash-strength, 1)),
-        transparent
-      )
-      100%
-  );
-}
-
-@utility page-bg-settings {
-  background: linear-gradient(
-    110deg,
-    color-mix(
-        in srgb,
-        color-mix(in srgb, var(--color-brand-cyan) 14%, transparent)
-          calc(100% * var(--page-wash-strength, 1)),
-        transparent
-      )
-      0%,
-    color-mix(
-        in srgb,
-        color-mix(in srgb, var(--color-neon-purple) 10%, transparent)
-          calc(100% * var(--page-wash-strength, 1)),
-        transparent
-      )
-      100%
-  );
-}
-
-@utility page-bg-routes {
-  background: linear-gradient(
-    155deg,
-    color-mix(
-        in srgb,
-        color-mix(in srgb, var(--color-neon-green) 16%, transparent)
-          calc(100% * var(--page-wash-strength, 1)),
-        transparent
-      )
-      0%,
-    color-mix(
-        in srgb,
-        color-mix(in srgb, var(--color-brand-cyan) 10%, transparent)
-          calc(100% * var(--page-wash-strength, 1)),
-        transparent
-      )
-      100%
-  );
-}
-
 /* Gradient display text: the theme's --display-text-gradient clipped to the glyphs. A
    theme without a gradient sets --display-text-fill to currentColor and keeps its text
    color. */
@@ -449,61 +340,6 @@
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: var(--display-text-fill);
-}
-
-/* Neon glow text — solid color + text-shadow glow */
-@utility neon-glow-pink {
-  color: var(--color-neon-magenta);
-  text-shadow:
-    0 0 10px var(--color-neon-magenta),
-    0 0 20px color-mix(in srgb, var(--color-neon-magenta) 50%, transparent);
-}
-
-@utility neon-glow-cyan {
-  color: var(--color-neon-cyan);
-  text-shadow:
-    0 0 10px var(--color-neon-cyan),
-    0 0 20px color-mix(in srgb, var(--color-neon-cyan) 50%, transparent);
-}
-
-@utility neon-glow-green {
-  color: var(--color-neon-green);
-  text-shadow:
-    0 0 10px var(--color-neon-green),
-    0 0 20px color-mix(in srgb, var(--color-neon-green) 50%, transparent);
-}
-
-/* Subtle neon gradient backdrop via ::before pseudo-element */
-@utility neon-backdrop {
-  position: relative;
-  &::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      135deg,
-      color-mix(
-        in srgb,
-        color-mix(in srgb, var(--color-neon-magenta) 5%, transparent)
-          calc(100% * var(--page-wash-strength, 1)),
-        transparent
-      ),
-      color-mix(
-        in srgb,
-        color-mix(in srgb, var(--color-neon-cyan) 5%, transparent)
-          calc(100% * var(--page-wash-strength, 1)),
-        transparent
-      ),
-      color-mix(
-        in srgb,
-        color-mix(in srgb, var(--color-neon-green) 5%, transparent)
-          calc(100% * var(--page-wash-strength, 1)),
-        transparent
-      )
-    );
-    border-radius: 0.5rem;
-    z-index: -1;
-  }
 }
 
 /* The focus ring: an outline in the theme's --control-focus-color and --control-focus-width,

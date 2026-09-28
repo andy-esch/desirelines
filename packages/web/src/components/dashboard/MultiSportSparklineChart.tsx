@@ -338,6 +338,22 @@ export default function MultiSportSparklineChart({
                 strokeWidth: 1,
               }}
             />
+            {/* Casings first, so every sport's line draws over all of them. A theme on a light
+                ground edges its lines in ink; on a dark one the casing is transparent. */}
+            {sportMeta.map(({ sport }) => (
+              <Line
+                key={`${sport}-casing`}
+                type="linear"
+                dataKey={sport}
+                stroke="var(--color-chart-line-casing)"
+                strokeWidth={3.5}
+                dot={false}
+                activeDot={false}
+                legendType="none"
+                tooltipType="none"
+                isAnimationActive={false}
+              />
+            ))}
             {sportMeta.map(({ sport, color }) => (
               <Line
                 key={sport}

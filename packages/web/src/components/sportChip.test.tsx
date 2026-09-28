@@ -67,10 +67,7 @@ describe("sportChipStyle", () => {
  * color mixed in, on the sport fill at the theme's fill strength.
  */
 describe("a selected chip's label", () => {
-  const EXEMPT: Readonly<Record<string, string>> = {
-    "legacy-light":
-      "predates the contrast pairs (its accent ink on watersports is 3.2:1); it is retired with Electric",
-  };
+  const EXEMPT: Readonly<Record<string, string>> = {};
   const percent = (themeId: string, slot: string) => parseFloat(themeToken(themeId, slot)) / 100;
   const color = (value: string): Rgba => {
     const rgba = parseRgba(value);

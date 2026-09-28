@@ -25,6 +25,7 @@ import { Meter } from "../../components/theme/Meter";
 import { StatusSymbol, type GoalStatus } from "../../components/theme/StatusSymbol";
 import { Alert } from "../../components/ui/alert";
 import { SportBadge } from "../../components/SportBadge";
+import { LEGACY_STRUCTURE } from "../../themes/legacyStructure";
 
 /**
  * Dev-only theme gallery: every theme in the list — hidden ones included — rendered side
@@ -279,7 +280,7 @@ function ComponentSamples() {
  * values. Lets retro structures be reviewed before any theme uses them.
  */
 function StructurePreview() {
-  const base = THEMES[0].structure;
+  const base = LEGACY_STRUCTURE;
   const variants: { name: string; structure: ThemeDefinition["structure"] }[] = [
     { name: "Legacy (card headers, cards, badges, bar with percent)", structure: base },
     {

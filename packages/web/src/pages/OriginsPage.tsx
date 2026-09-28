@@ -36,7 +36,7 @@ function OriginsHeading({ children, first = false }: { children: string; first?:
 
 export default function OriginsPage() {
   return (
-    <NarrowPageLayout background="origins" maxWidth="720px">
+    <NarrowPageLayout maxWidth="720px">
       <div className="text-muted-text">
         <PageTitle kicker="About" className="mb-3 font-light text-[2.5rem] neon-gradient-text">
           Origins

@@ -209,7 +209,7 @@ export default function ChartsPage() {
   const clearFilters = () => void navigate({ to: "/charts", search: {} });
 
   return (
-    <PageLayout background="activities">
+    <PageLayout>
       <ActiveFilterPill filters={activeFilters} onClear={clearFilters} />
       <div className="px-4 md:px-6 py-6 max-w-6xl mx-auto">
         <div className="mb-3">

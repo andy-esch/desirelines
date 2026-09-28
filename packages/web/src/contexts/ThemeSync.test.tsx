@@ -131,9 +131,9 @@ describe("ThemeSync", () => {
         JSON.stringify({ ...DEFAULT_PREFERENCES, theme: "arcade" })
       );
       const themeWrites = vi.spyOn(UserConfigService.prototype, "updateTheme");
-      const sync = renderSync({ user: null, stored: storedConfig("arcade"), demo: "legacy-light" });
+      const sync = renderSync({ user: null, stored: storedConfig("arcade"), demo: "electric" });
       await settle();
-      expect(sync.preference()).toBe("legacy-light");
+      expect(sync.preference()).toBe("electric");
       sync.choose("system");
       await settle();
 
@@ -145,13 +145,13 @@ describe("ThemeSync", () => {
     });
 
     it("shows the demo's theme again on sign-out, and forgets the account's", async () => {
-      const sync = renderSync({ stored: storedConfig("arcade"), demo: "legacy-light" });
+      const sync = renderSync({ stored: storedConfig("arcade"), demo: "electric" });
       await waitFor(() => expect(sync.preference()).toBe("arcade"));
       await act(() => sync.auth.signOut());
       await settle();
 
       expect(sync.scope()).toBe("demo");
-      expect(sync.preference()).toBe("legacy-light");
+      expect(sync.preference()).toBe("electric");
       expect(localStorage.getItem(SIGNED_IN_HINT_KEY)).toBeNull();
       expect(localStorage.getItem(THEME_STORAGE_KEYS.account)).toBeNull();
       sync.choose("miami");
@@ -163,25 +163,25 @@ describe("ThemeSync", () => {
 
   describe("on sign-in", () => {
     it("shows the account's synced theme, without writing, and leaves the demo's alone", async () => {
-      const sync = renderSync({ stored: storedConfig("arcade"), demo: "legacy-light" });
+      const sync = renderSync({ stored: storedConfig("arcade"), demo: "electric" });
 
       await waitFor(() => expect(sync.preference()).toBe("arcade"));
       expect(sync.scope()).toBe("account");
       expect(localStorage.getItem(THEME_STORAGE_KEYS.account)).toBe("arcade");
-      expect(localStorage.getItem(THEME_STORAGE_KEYS.demo)).toBe("legacy-light");
+      expect(localStorage.getItem(THEME_STORAGE_KEYS.demo)).toBe("electric");
       await settle();
       expect(sync.writes).not.toHaveBeenCalled();
     });
 
     it("goes straight from the demo's theme to the account's when signing in on the page", async () => {
-      const sync = renderSync({ user: null, stored: storedConfig("arcade"), demo: "legacy-light" });
+      const sync = renderSync({ user: null, stored: storedConfig("arcade"), demo: "electric" });
       await settle();
       await act(() => sync.auth.signIn());
 
       await waitFor(() => expect(sync.preference()).toBe("arcade"));
       await settle();
       // No stop at the default on the way.
-      expect(new Set(sync.shown)).toEqual(new Set(["legacy-light", "arcade"]));
+      expect(new Set(sync.shown)).toEqual(new Set(["electric", "arcade"]));
       expect(sync.writes).not.toHaveBeenCalled();
     });
 
@@ -189,10 +189,10 @@ describe("ThemeSync", () => {
       const sync = renderSync({
         stored: storedConfig("arcade"),
         demo: "miami",
-        cached: "legacy-light",
+        cached: "electric",
       });
 
-      expect(sync.shown[0]).toBe("legacy-light");
+      expect(sync.shown[0]).toBe("electric");
       await waitFor(() => expect(sync.preference()).toBe("arcade"));
       await settle();
       expect(sync.writes).not.toHaveBeenCalled();
@@ -229,7 +229,7 @@ describe("ThemeSync", () => {
     it.each(["", "dark", "light"])(
       "reads a synced %j as no choice: shows the default and writes nothing",
       async (unset) => {
-        const sync = renderSync({ stored: storedConfig(unset), demo: "legacy-light" });
+        const sync = renderSync({ stored: storedConfig(unset), demo: "electric" });
         await settle();
 
         expect(sync.preference()).toBe(DEFAULT_THEME_PREFERENCE);
@@ -334,13 +334,13 @@ describe("ThemeSync", () => {
 
       act(() => sync.db.failListeners(PATH, new Error("offline")));
       await settle();
-      sync.choose("legacy-light");
+      sync.choose("electric");
       await settle();
       expect(sync.writes).not.toHaveBeenCalled();
 
       act(() => sync.db.setMockData(PATH, storedConfig("arcade")));
       await settle();
-      expect((await storedPreferences(sync.db))?.theme).toBe("legacy-light");
+      expect((await storedPreferences(sync.db))?.theme).toBe("electric");
     });
 
     it("shows the account's cached theme, and writes nothing, while the first read has failed", async () => {
@@ -349,7 +349,7 @@ describe("ThemeSync", () => {
       vi.spyOn(console, "error").mockImplementation(() => {});
       const sync = renderSync({
         stored: storedConfig("arcade"),
-        demo: "legacy-light",
+        demo: "electric",
         cached: "system",
         prepare: (db) => {
           // The store's first read is the listener's first snapshot, which fails.

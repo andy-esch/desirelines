@@ -11,6 +11,10 @@ export const PANEL_ACCENT_BORDER: Record<PanelAccent, string> = {
   2: "border-(color:--panel-accent-2)",
   3: "border-(color:--panel-accent-3)",
 };
+/** A strip across a panel's top edge, where the theme draws one (`none` otherwise). */
+export const PANEL_TOP_STRIP =
+  "[background-image:var(--panel-top-strip)] bg-top bg-no-repeat [background-size:100%_4px]";
+
 const ACCENT_INK: Record<PanelAccent, string> = {
   1: "text-(color:--panel-accent-1-ink)",
   2: "text-(color:--panel-accent-2-ink)",
@@ -55,6 +59,7 @@ export function Panel({
 
   const frame = cn(
     "flex flex-col min-w-0 bg-(--panel-bg) border-solid border-(length:--panel-border-width) rounded-(--panel-radius)",
+    PANEL_TOP_STRIP,
     PANEL_ACCENT_BORDER[accent],
     emphasis ? "[box-shadow:var(--panel-shadow-emphasis)]" : "[box-shadow:var(--panel-shadow)]",
     "transition-colors hover:border-(color:--color-panel-border-hover)"

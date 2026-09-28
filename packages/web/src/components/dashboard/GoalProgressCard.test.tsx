@@ -3,7 +3,8 @@ import { screen, within } from "@testing-library/react";
 import GoalProgressCard, { getStatusForDashboard } from "./GoalProgressCard";
 import { renderWithRouter } from "../../test/renderWithRouter";
 import { ThemeStructureProvider } from "../theme/ThemeStructureProvider";
-import { getTheme, type ThemeId } from "../../themes/registry";
+import { getTheme, type ThemeId, type ThemeStructure } from "../../themes/registry";
+import { LEGACY_STRUCTURE } from "../../themes/legacyStructure";
 import type { SportGoalData } from "../../hooks/useDashboardGoalData";
 import type { YearContext } from "../../utils/yearContext";
 
@@ -63,12 +64,11 @@ function returnGoalData(
   });
 }
 
-function renderCard(theme: ThemeId = "miami") {
+function renderCard(theme: ThemeId | ThemeStructure = "miami") {
+  const structure = typeof theme === "string" ? getTheme(theme).structure : theme;
   return renderWithRouter(<GoalProgressCard />, {
     wrapper: ({ children }) => (
-      <ThemeStructureProvider structure={getTheme(theme).structure}>
-        {children}
-      </ThemeStructureProvider>
+      <ThemeStructureProvider structure={structure}>{children}</ThemeStructureProvider>
     ),
   });
 }
@@ -161,9 +161,9 @@ describe("GoalProgressCard", () => {
     expect(screen.getByText("Pace today")).toBeInTheDocument();
   });
 
-  it("draws the race track in themes with the percent bar", async () => {
+  it("draws the race track with the percent bar", async () => {
     returnGoalData([cycling(400)]);
-    await renderCard("legacy-light");
+    await renderCard(LEGACY_STRUCTURE);
     expect(screen.queryByRole("progressbar", { name: "Cycling goal progress" })).toBeNull();
     expect(screen.getAllByText("🐲").length).toBeGreaterThan(0);
   });
@@ -207,20 +207,20 @@ describe("GoalProgressCard", () => {
       impactGoalLabel: "",
     });
 
-    it.each(["miami", "legacy-light"] as const)(
-      "says No goal and links to where one is set, in %s",
-      async (theme) => {
-        returnGoalData([cycling(400), running]);
-        await renderCard(theme);
+    it.each([
+      ["miami", "miami"],
+      ["the legacy structure", LEGACY_STRUCTURE],
+    ] as const)("says No goal and links to where one is set, in %s", async (_name, structure) => {
+      returnGoalData([cycling(400), running]);
+      await renderCard(structure);
 
-        expect(screen.getByText("No goal")).toBeInTheDocument();
-        expect(screen.getByText(/1,204 mi/)).toBeInTheDocument();
-        expect(screen.getByRole("link", { name: "Set a goal for Running" })).toHaveAttribute(
-          "href",
-          "/running/2026"
-        );
-      }
-    );
+      expect(screen.getByText("No goal")).toBeInTheDocument();
+      expect(screen.getByText(/1,204 mi/)).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Set a goal for Running" })).toHaveAttribute(
+        "href",
+        "/running/2026"
+      );
+    });
 
     it("draws no track, status or target for it", async () => {
       returnGoalData([cycling(400), running]);

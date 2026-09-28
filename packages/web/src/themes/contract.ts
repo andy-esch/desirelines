@@ -84,6 +84,7 @@ export const THEME_CONTRACT = {
     "--color-chip-hairline": "color",
     "--color-chart-grid": "color",
     "--color-chart-mark-outline": "color",
+    "--color-chart-line-casing": "color",
     "--color-chart-axis": "color",
     "--color-chart-tick": "color",
     "--color-chart-actual-line": "color",
@@ -110,11 +111,13 @@ export const THEME_CONTRACT = {
     "--color-header-border": "color",
     "--color-header-text": "color",
     "--color-header-text-muted": "color",
+    "--color-header-ink": "color",
     "--color-header-accent": "color",
     "--color-surface-hover": "color",
     "--color-surface-border": "color",
     "--color-surface-overlay": "color",
     "--color-surface-shadow": "color",
+    "--color-map-route-casing": "color",
   },
   Type: {
     "--font-body": "font",
@@ -130,6 +133,7 @@ export const THEME_CONTRACT = {
     "--page-title-offset-shadow": "text-shadow",
     "--page-title-case": "case",
     "--page-title-leading": "number",
+    "--page-title-glow-strength": "percentage",
     "--display-text-gradient": "image",
     "--display-text-fill": "color",
   },
@@ -188,12 +192,12 @@ export const THEME_CONTRACT = {
     "--avatar-glow": "shadow",
     "--demo-rule": "border",
     "--demo-bg": "color",
+    "--demo-bg-image": "image",
+    "--demo-label-color": "color",
     "--demo-border": "border",
     "--header-date-color": "color",
   },
   Backgrounds: {
-    "--page-wash-strength": "number",
-    "--sport-wash-strength": "number",
     "--hero-padding": "lengths",
     "--hero-ink": "color",
     "--hero-title-size": "length",
@@ -217,6 +221,7 @@ export const THEME_CONTRACT = {
     "--panel-accent-1": "color",
     "--panel-accent-2": "color",
     "--panel-accent-3": "color",
+    "--panel-top-strip": "image",
     "--panel-accent-1-ink": "color",
     "--panel-accent-2-ink": "color",
     "--panel-accent-3-ink": "color",
@@ -355,8 +360,8 @@ export type ThemeColorSlot = {
 
 /**
  * Colors `tailwind.css` sets once, the same in every theme: the brand and neon primitives,
- * the heatmap's upper steps, the map's point outline, the header's brightest ink and the
- * scrim. A theme file never sets them.
+ * the heatmap's upper steps, the map's point outline and the scrim. A theme file never sets
+ * them.
  */
 export const FIXED_COLORS = [
   "--color-brand-cyan",
@@ -373,7 +378,6 @@ export const FIXED_COLORS = [
   "--color-intensity-3",
   "--color-intensity-4",
   "--color-map-point-outline",
-  "--color-header-ink",
   "--color-scrim",
   "--color-on-scrim",
 ] as const;
@@ -459,9 +463,13 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = [
   },
   // A chosen card's name in the Settings theme picker.
   { text: ["--color-neon-accent"], on: ["--panel-bg"], min: 4.5 },
-  // Header.
+  // Header, and the demo banner under it. A banner drawn with `--demo-bg-image` sets its
+  // `--demo-bg` to the image's darkest stop, so these measure its worst case.
   { text: ["--color-header-text"], on: ["--color-header-bg"], min: 4.5 },
+  { text: ["--demo-label-color"], on: ["--demo-bg"], min: 4.5 },
+  { text: ["--color-subtle-text"], on: ["--demo-bg"], min: 4.5 },
   { text: ["--color-header-text-muted"], on: ["--color-header-bg"], min: 4.5 },
+  { text: ["--color-header-ink"], on: ["--color-header-bg"], min: 4.5 },
   { text: ["--nav-color"], on: ["--color-header-bg"], min: 4.5 },
   { text: ["--nav-active-color"], on: ["--color-header-bg"], min: 4.5 },
   { text: ["--header-date-color"], on: ["--color-header-bg"], min: 4.5 },

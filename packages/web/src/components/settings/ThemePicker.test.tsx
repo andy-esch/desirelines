@@ -3,7 +3,13 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ThemePicker } from "./ThemePicker";
 import { ThemeProvider } from "../../contexts/ThemeContext";
-import { THEME_STORAGE_KEYS, VISIBLE_THEMES, type ThemePreference } from "../../themes/registry";
+import {
+  MATCH_SYSTEM_LABEL,
+  SYSTEM_THEME_IDS,
+  THEME_STORAGE_KEYS,
+  VISIBLE_THEMES,
+  type ThemePreference,
+} from "../../themes/registry";
 
 function renderPicker(stored: ThemePreference) {
   localStorage.setItem(THEME_STORAGE_KEYS.demo, stored);
@@ -20,7 +26,7 @@ describe("ThemePicker", () => {
   beforeEach(() => localStorage.clear());
   afterEach(() => document.documentElement.removeAttribute("data-theme"));
 
-  it("is a radio group named and described by its row, with one card per picker theme", () => {
+  it("is a radio group named and described by its row, with a card per picker theme, then Match system", () => {
     renderPicker("miami");
     const group = screen.getByRole("radiogroup", { name: "Theme" });
     expect(group).toHaveAccessibleDescription("Saved on this device");
@@ -28,7 +34,8 @@ describe("ThemePicker", () => {
       within(group)
         .getAllByRole("radio")
         .map((r) => r.getAttribute("value"))
-    ).toEqual(VISIBLE_THEMES.map((t) => t.id));
+    ).toEqual([...VISIBLE_THEMES.map((t) => t.id), "system"]);
+    expect(within(group).getByRole("radio", { name: MATCH_SYSTEM_LABEL })).toBeInTheDocument();
     for (const theme of VISIBLE_THEMES) {
       expect(within(group).getByRole("radio", { name: theme.label })).toBeInTheDocument();
     }
@@ -47,16 +54,28 @@ describe("ThemePicker", () => {
   it("applies a theme as soon as its card is chosen", async () => {
     const user = userEvent.setup();
     renderPicker("miami");
-    await user.click(screen.getByRole("radio", { name: "Light" }));
+    await user.click(screen.getByRole("radio", { name: "Electric" }));
 
-    expect(screen.getByRole("radio", { name: "Light" })).toBeChecked();
-    expect(document.documentElement.dataset.theme).toBe("legacy-light");
-    expect(localStorage.getItem(THEME_STORAGE_KEYS.demo)).toBe("legacy-light");
+    expect(screen.getByRole("radio", { name: "Electric" })).toBeChecked();
+    expect(document.documentElement.dataset.theme).toBe("electric");
+    expect(localStorage.getItem(THEME_STORAGE_KEYS.demo)).toBe("electric");
   });
 
-  it("checks nothing for a preference no card offers", () => {
-    // "system" survives from before the picker dropped it; no card claims it.
+  it("stores Match system as the system preference, and checks it", async () => {
+    const user = userEvent.setup();
+    renderPicker("arcade");
+    await user.click(screen.getByRole("radio", { name: MATCH_SYSTEM_LABEL }));
+
+    expect(screen.getByRole("radio", { name: MATCH_SYSTEM_LABEL })).toBeChecked();
+    expect(localStorage.getItem(THEME_STORAGE_KEYS.demo)).toBe("system");
+  });
+
+  it("draws Match system as its two themes", () => {
     renderPicker("system");
-    expect(screen.queryByRole("radio", { checked: true })).toBeNull();
+    const card = screen.getByRole("radio", { name: MATCH_SYSTEM_LABEL }).closest("label");
+    const drawn = [...(card?.querySelectorAll("[data-theme]") ?? [])].map((el) =>
+      el.getAttribute("data-theme")
+    );
+    expect(drawn).toEqual([SYSTEM_THEME_IDS.dark, SYSTEM_THEME_IDS.light]);
   });
 });
