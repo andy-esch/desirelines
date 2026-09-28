@@ -67,7 +67,6 @@ describe("sportChipStyle", () => {
  * color mixed in, on the sport fill at the theme's fill strength.
  */
 describe("a selected chip's label", () => {
-  const EXEMPT: Readonly<Record<string, string>> = {};
   const percent = (themeId: string, slot: string) => parseFloat(themeToken(themeId, slot)) / 100;
   const color = (value: string): Rgba => {
     const rgba = parseRgba(value);
@@ -81,36 +80,28 @@ describe("a selected chip's label", () => {
     a: 1,
   });
 
-  const measured = [...THEME_FILES.keys()]
-    .filter((id) => !(id in EXEMPT))
-    .flatMap((id) => {
-      const fill = percent(id, "--chip-selected-fill-strength");
-      const label = percent(id, "--chip-selected-label-strength");
-      const themeInk = themeToken(id, "--chip-selected-ink");
-      return ["--color-bg-body", "--map-chrome-bg"].flatMap((surface) => {
-        const ground = color(resolveVars(id, themeToken(id, surface)));
-        return Object.entries(SPORT_COLORS).map(([sport, value]) => {
-          const sportColor = color(value);
-          const ink = color(
-            themeInk === "initial" ? readableInk(value)! : resolveVars(id, themeInk)
-          );
-          const chip = composite({ ...sportColor, a: fill }, ground);
-          const ratio = contrastBetween(mix(sportColor, ink, label), chip);
-          return { key: `${id} ${sport} on ${surface}`, ratio };
-        });
+  const measured = [...THEME_FILES.keys()].flatMap((id) => {
+    const fill = percent(id, "--chip-selected-fill-strength");
+    const label = percent(id, "--chip-selected-label-strength");
+    const themeInk = themeToken(id, "--chip-selected-ink");
+    return ["--color-bg-body", "--map-chrome-bg"].flatMap((surface) => {
+      const ground = color(resolveVars(id, themeToken(id, surface)));
+      return Object.entries(SPORT_COLORS).map(([sport, value]) => {
+        const sportColor = color(value);
+        const ink = color(themeInk === "initial" ? readableInk(value)! : resolveVars(id, themeInk));
+        const chip = composite({ ...sportColor, a: fill }, ground);
+        const ratio = contrastBetween(mix(sportColor, ink, label), chip);
+        return { key: `${id} ${sport} on ${surface}`, ratio };
       });
     });
+  });
 
-  it("clears 4.5:1 for every sport in every theme not exempt", () => {
+  it("clears 4.5:1 for every sport in every theme", () => {
     expect(measured.length).toBeGreaterThan(0);
     expect(
       measured
         .filter(({ ratio }) => ratio < 4.5)
         .map(({ key, ratio }) => `${key}: ${ratio.toFixed(2)}`)
     ).toEqual([]);
-  });
-
-  it("names only themes that exist as exempt", () => {
-    expect(Object.keys(EXEMPT).filter((id) => !THEME_FILES.has(id))).toEqual([]);
   });
 });

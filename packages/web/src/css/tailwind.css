@@ -110,12 +110,7 @@
   --color-neon-purple: rgb(180, 0, 255);
   --color-neon-green: rgb(0, 255, 128);
   --color-neon-yellow: rgb(255, 200, 0);
-  --color-neon-orange: rgb(255, 95, 31);
   --color-neon-lime: #39ff14;
-  /* Pure yellow — used only by the logo slash, and deliberately NOT the same as
-     --color-neon-yellow (255,200,0). Kept distinct to preserve the mark exactly;
-     consolidate the two if the logo is ever restyled. */
-  --color-neon-yellow-pure: rgb(255, 255, 0);
 
   /* Ink for text/marks sitting ON a bright neon fill (a pressed sport chip, an
      achievement badge). It can't be --color-bg-body: the fill is bright in every theme,

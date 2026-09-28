@@ -28,9 +28,7 @@ not change with the theme.
 | `--color-neon-purple` | `rgb(180, 0, 255)` |
 | `--color-neon-green` | `rgb(0, 255, 128)` |
 | `--color-neon-yellow` | `rgb(255, 200, 0)` |
-| `--color-neon-orange` | `rgb(255, 95, 31)` |
 | `--color-neon-lime` | `#39ff14` |
-| `--color-neon-yellow-pure` | `rgb(255, 255, 0)`, the logo slash only |
 
 **2. Roles** — what a color *means*. These flip with the theme. There are three separate
 accent roles and conflating them is the most common mistake:
