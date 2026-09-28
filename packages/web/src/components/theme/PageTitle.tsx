@@ -1,6 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { useThemeStructure } from "./useThemeStructure";
 
 export interface PageTitleProps {
   children: ReactNode;
@@ -17,10 +16,9 @@ export interface PageTitleProps {
 
 /**
  * A page's `h1` in the display face, sized, colored and cased by the `--page-title-*`
- * slots. The kicker renders only in themes whose structure shows page kickers.
+ * slots, with its kicker line above it when given one.
  */
 export function PageTitle({ children, kicker, glowColor, className }: PageTitleProps) {
-  const { showPageKicker } = useThemeStructure();
   // Composed here, not in the slot: a slot holding var() would resolve at the theme root,
   // where the caller's color isn't set.
   const glow: CSSProperties | undefined = glowColor
@@ -42,7 +40,7 @@ export function PageTitle({ children, kicker, glowColor, className }: PageTitleP
     </h1>
   );
 
-  if (!showPageKicker || kicker == null) return title;
+  if (kicker == null) return title;
 
   return (
     <div className="flex flex-col gap-3">

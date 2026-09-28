@@ -3,8 +3,6 @@ import { ChevronDownIcon } from "../icons";
 import { useReducedMotion } from "../../hooks/useReducedMotion";
 import { Panel } from "../theme/Panel";
 import { SectionLabel } from "../theme/SectionLabel";
-import { useThemeStructure } from "../theme/useThemeStructure";
-import { cn } from "@/lib/utils";
 
 interface SettingsSectionProps {
   title: string;
@@ -64,10 +62,6 @@ export function SettingsSection({
   }, []);
 
   const animationDuration = reducedMotion ? "0ms" : "200ms";
-  // Themes that label a panel from outside put this section's title and description there
-  // too, with the collapse control beside them; the rest keep the title in a card header.
-  const { sectionLabelPlacement } = useThemeStructure();
-  const labelAbove = sectionLabelPlacement !== "card-header";
 
   const header = (
     <div
@@ -76,10 +70,7 @@ export function SettingsSection({
       tabIndex={0}
       aria-expanded={expanded}
       aria-controls={panelId}
-      className={cn(
-        "flex cursor-pointer select-none items-start justify-between",
-        labelAbove ? "gap-4" : "border-b border-divider p-(--panel-header-padding)"
-      )}
+      className="flex cursor-pointer select-none items-start justify-between gap-4"
       onClick={toggle}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -89,16 +80,8 @@ export function SettingsSection({
       }}
     >
       <div className="flex-1">
-        {labelAbove ? (
-          <SectionLabel>{title}</SectionLabel>
-        ) : (
-          <h5 className="mb-0 text-body-text">{title}</h5>
-        )}
-        {description && (
-          <p className={cn("text-muted-text text-sm mb-0", labelAbove ? "mt-1.5" : "mt-1")}>
-            {description}
-          </p>
-        )}
+        <SectionLabel>{title}</SectionLabel>
+        {description && <p className="text-muted-text text-sm mb-0 mt-1.5">{description}</p>}
       </div>
       <span
         className="inline-flex items-center mt-1 ms-3"
@@ -130,21 +113,12 @@ export function SettingsSection({
     </div>
   );
 
-  if (labelAbove) {
-    return (
-      <section className="mb-6 flex flex-col gap-3.5" id={id}>
-        {header}
-        <Panel bodyClassName="p-0">{body}</Panel>
-      </section>
-    );
-  }
-
+  // The title and description sit above the panel as its label, with the collapse control
+  // beside them.
   return (
-    <div className="mb-6" id={id}>
-      <Panel bodyClassName="p-0">
-        {header}
-        {body}
-      </Panel>
-    </div>
+    <section className="mb-6 flex flex-col gap-3.5" id={id}>
+      {header}
+      <Panel bodyClassName="p-0">{body}</Panel>
+    </section>
   );
 }

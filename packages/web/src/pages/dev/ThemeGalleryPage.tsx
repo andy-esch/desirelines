@@ -8,14 +8,13 @@ import {
 import { RETRO_BASE_MAPS } from "../../themes/baseMaps";
 import { THEME_CONTRACT, slotSpec } from "../../themes/contract";
 import { Button } from "../../components/ui/button";
-import { Badge } from "../../components/ui/badge";
 import { Input } from "../../components/ui/input";
 import { Slider } from "../../components/ui/slider";
 import { ToggleGroup, ToggleGroupItem } from "../../components/ui/toggle-group";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import KPICard from "../../components/dashboard/KPICard";
 import SportFilterPills from "../../components/SportFilterPills";
-import { DEFAULT_SPORT_COLOR, SPORT_COLORS } from "../../utils/sportConfig";
+import { SPORT_COLORS } from "../../utils/sportConfig";
 import { ThemeStructureProvider } from "../../components/theme/ThemeStructureProvider";
 import { Panel } from "../../components/theme/Panel";
 import { SectionLabel } from "../../components/theme/SectionLabel";
@@ -24,8 +23,6 @@ import { Stat, StatRow } from "../../components/theme/Stat";
 import { Meter } from "../../components/theme/Meter";
 import { StatusSymbol, type GoalStatus } from "../../components/theme/StatusSymbol";
 import { Alert } from "../../components/ui/alert";
-import { SportBadge } from "../../components/SportBadge";
-import { LEGACY_STRUCTURE } from "../../themes/legacyStructure";
 
 /**
  * Dev-only theme gallery: every theme in the list — hidden ones included — rendered side
@@ -250,12 +247,7 @@ function ComponentSamples() {
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-2">
             {SAMPLE_STATUSES.map(([status, label]) => (
-              <StatusSymbol
-                key={status}
-                status={status}
-                label={label}
-                badgeStyle={{ backgroundColor: SPORT_COLORS.hiking }}
-              />
+              <StatusSymbol key={status} status={status} label={label} />
             ))}
           </div>
         </div>
@@ -272,64 +264,6 @@ function ComponentSamples() {
         <Panel className="grow">A panel with no title</Panel>
       </div>
     </div>
-  );
-}
-
-/**
- * Every structure the theme components support, drawn with the surrounding theme's
- * values. Lets retro structures be reviewed before any theme uses them.
- */
-function StructurePreview() {
-  const base = LEGACY_STRUCTURE;
-  const variants: { name: string; structure: ThemeDefinition["structure"] }[] = [
-    { name: "Legacy (card headers, cards, badges, bar with percent)", structure: base },
-    {
-      name: "Labels above, divided stats, filled symbols, tracks, partial month",
-      structure: {
-        ...base,
-        sectionLabelPlacement: "above",
-        statRowStyle: "divided",
-        statusSymbolStyle: "filled",
-        goalTrackStyle: "track",
-        meterPartialCurrent: true,
-      },
-    },
-    {
-      name: "Header bars, boxed stats, outlined symbols, outline tracks",
-      structure: {
-        ...base,
-        sectionLabelPlacement: "header-bar",
-        statRowStyle: "boxed",
-        statusSymbolStyle: "outlined",
-        goalTrackStyle: "outline-track",
-      },
-    },
-  ];
-  return (
-    <section aria-labelledby="structure-preview" className="flex flex-col gap-4">
-      <div>
-        <h2 id="structure-preview" className="text-xl font-display">
-          Structure preview
-        </h2>
-        <p className="text-sm text-muted-text">
-          The same components in each structure a theme can choose, drawn with the page theme&apos;s
-          values.
-        </p>
-      </div>
-      <div className="grid gap-4 xl:grid-cols-3">
-        {variants.map((variant) => (
-          <div
-            key={variant.name}
-            className="flex flex-col gap-3 rounded-lg border border-border p-4 min-w-0"
-          >
-            <h3 className="text-sm font-medium">{variant.name}</h3>
-            <ThemeStructureProvider structure={variant.structure}>
-              <ComponentSamples />
-            </ThemeStructureProvider>
-          </div>
-        ))}
-      </div>
-    </section>
   );
 }
 
@@ -391,12 +325,6 @@ function ThemePanel({ theme }: { theme: ThemeDefinition }) {
           <Button variant="destructive">Destructive</Button>
           <Button variant="outline-danger">Outline danger</Button>
           <Button variant="link">Link</Button>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge>Default</Badge>
-          <Badge variant="secondary">Secondary</Badge>
-          <Badge variant="outline">Outline</Badge>
-          <SportBadge color={SPORT_COLORS.cycling ?? DEFAULT_SPORT_COLOR}>Cycling</SportBadge>
         </div>
         <Input placeholder="Input" aria-label={`Sample input, ${theme.label} theme`} />
         <ToggleGroup defaultValue={["full-year"]} aria-label={`Sample range, ${theme.label} theme`}>
@@ -473,7 +401,6 @@ export default function ThemeGalleryPage() {
           <ThemePanel key={theme.id} theme={theme} />
         ))}
       </div>
-      <StructurePreview />
       <RetroBaseMapPreview />
     </div>
   );

@@ -207,7 +207,6 @@ export const THEME_CONTRACT = {
     "--hero-number-glow": "length",
     "--glass-blur": "length",
     "--glass-blur-sm": "length",
-    "--progress-shine": "image",
   },
   Panels: {
     "--radius": "length",
@@ -216,7 +215,6 @@ export const THEME_CONTRACT = {
     "--panel-radius": "length",
     "--panel-shadow": "shadow",
     "--panel-shadow-emphasis": "shadow",
-    "--panel-header-padding": "lengths",
     "--panel-body-padding": "lengths",
     "--panel-accent-1": "color",
     "--panel-accent-2": "color",

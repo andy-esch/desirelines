@@ -1,6 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { SportBadge } from "../SportBadge";
 import { useThemeStructure } from "./useThemeStructure";
 
 export interface SportLabelProps {
@@ -8,26 +7,12 @@ export interface SportLabelProps {
   color: string;
   /** The sport's name. */
   children: ReactNode;
-  /**
-   * Draw a `SportBadge` where the theme marks sports with badges. Without it, those themes
-   * show the plain name, as rows that never had a badge do.
-   */
-  badge?: boolean | undefined;
   className?: string | undefined;
 }
 
-/**
- * A sport's name in a row or list, marked per the theme's `sportMarkStyle`: a glowing dot
- * or square swatch before the name (shaped by `--sport-mark-radius`), or a badge. The name's
- * case comes from `--data-label-case`.
- */
-/**
- * The mark alone, e.g. beside a page title: a dot or swatch per `sportMarkStyle`, and
- * nothing where the theme marks sports with badges.
- */
+/** The mark alone, e.g. beside a page title: a dot or swatch per `sportMarkStyle`. */
 export function SportMark({ color, className }: { color: string; className?: string | undefined }) {
   const { sportMarkStyle } = useThemeStructure();
-  if (sportMarkStyle === "badge") return null;
   return (
     <span
       aria-hidden="true"
@@ -41,17 +26,13 @@ export function SportMark({ color, className }: { color: string; className?: str
   );
 }
 
-export function SportLabel({ color, children, badge = false, className }: SportLabelProps) {
+/**
+ * A sport's name in a row or list, marked per the theme's `sportMarkStyle`: a glowing dot
+ * or square swatch before the name, shaped by `--sport-mark-radius`. The name's case comes
+ * from `--data-label-case`.
+ */
+export function SportLabel({ color, children, className }: SportLabelProps) {
   const { sportMarkStyle } = useThemeStructure();
-
-  if (sportMarkStyle === "badge") {
-    return badge ? (
-      <SportBadge color={color}>{children}</SportBadge>
-    ) : (
-      <span className={className}>{children}</span>
-    );
-  }
-
   return (
     <span
       data-mark={sportMarkStyle}

@@ -11,11 +11,15 @@ vi.mock("../../hooks/useAuth", () => ({ useAuth: () => ({ user: { uid: "u1" } })
 vi.mock("../../hooks/useDashboardGoalData", () => ({
   useDashboardGoalData: vi.fn(() => ({ sportData: [], distanceUnit: "kilometers" })),
 }));
-// The pagination cases read the legacy structure's arrow pager.
+// The pagination cases step through the arrow pager: Miami, with Arcade's pager.
 vi.mock("../../contexts/ThemeContext", async () => {
   const { getTheme } = await import("../../themes/registry");
-  const { LEGACY_STRUCTURE } = await import("../../themes/legacyStructure");
-  return { useTheme: () => ({ theme: { ...getTheme("miami"), structure: LEGACY_STRUCTURE } }) };
+  const miami = getTheme("miami");
+  return {
+    useTheme: () => ({
+      theme: { ...miami, structure: { ...miami.structure, pagerStyle: "arrows" } },
+    }),
+  };
 });
 vi.mock("../../hooks/useActivities", () => ({ useActivities: vi.fn() }));
 vi.mock("../../hooks/useSportConfig", () => ({ useSportConfig: () => ({ sportConfig: null }) }));

@@ -10,7 +10,6 @@ import { MapDrawerSection } from "../routes/MapDrawerSection";
 import { LineChart, Line } from "recharts";
 import { Slider } from "../ui/slider";
 import { YAxisMarker } from "../charts/YAxisMarker";
-import { dangerZoneAreaFill } from "../charts/PacingChartPresenter";
 
 /**
  * One test per structure field that had no reader, so a field going quiet again fails here
@@ -70,21 +69,19 @@ describe("rowHoverCursor", () => {
 });
 
 describe("loaderStyle", () => {
-  it("draws a ring, a chaser or a block row, keeping the status role", () => {
-    const shapes = (["spinner", "chaser", "block"] as const).map((loaderStyle) => {
+  it("draws a chaser or a block row, keeping the status role", () => {
+    const shapes = (["chaser", "block"] as const).map((loaderStyle) => {
       const { container, unmount } = withStructure({ loaderStyle }, <NeonSpinner />);
-      const status = screen.getByRole("status");
+      screen.getByRole("status");
       const segments = container.querySelectorAll(".loader-segment").length;
       const cursors = container.querySelectorAll(".loader-cursor").length;
-      const spins = status.className.includes("animate-spin");
       unmount();
-      return { loaderStyle, segments, cursors, spins };
+      return { loaderStyle, segments, cursors };
     });
 
     expect(shapes).toEqual([
-      { loaderStyle: "spinner", segments: 0, cursors: 0, spins: true },
-      { loaderStyle: "chaser", segments: 8, cursors: 0, spins: false },
-      { loaderStyle: "block", segments: 10, cursors: 1, spins: false },
+      { loaderStyle: "chaser", segments: 8, cursors: 0 },
+      { loaderStyle: "block", segments: 10, cursors: 1 },
     ]);
   });
 });
@@ -196,22 +193,5 @@ describe("chartMarkerShape", () => {
     expect(circle.circles).toBeGreaterThan(0);
     expect(square.circles).toBe(0);
     expect(square.rects).toBeGreaterThan(circle.rects);
-  });
-});
-
-describe("dangerZoneFill", () => {
-  it("paints the zone as a wash or as stripes", () => {
-    expect(dangerZoneAreaFill("wash", "#f00", 0.08, "hatch-1")).toEqual({
-      hatched: false,
-      fill: "#f00",
-      fillOpacity: 0.08,
-    });
-    // Full opacity with the pattern: the stripes carry their own transparency, so keeping
-    // the wash's 8% would fade them to nothing.
-    expect(dangerZoneAreaFill("hatch", "#f00", 0.08, "hatch-1")).toEqual({
-      hatched: true,
-      fill: "url(#hatch-1)",
-      fillOpacity: 1,
-    });
   });
 });

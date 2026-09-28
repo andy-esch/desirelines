@@ -71,8 +71,8 @@ export function Stat({
 }
 
 /**
- * A row of stats, framed per the theme's `statRowStyle`: separate cards, one panel split
- * into cells, or separate outline boxes.
+ * A row of stats, framed per the theme's `statRowStyle`: one panel split into cells, or
+ * separate outline boxes.
  */
 export function StatRow({ children, className }: { children: ReactNode; className?: string }) {
   const { statRowStyle } = useThemeStructure();
@@ -95,13 +95,12 @@ export function StatRow({ children, className }: { children: ReactNode; classNam
   }
 
   return (
-    <StatFrameContext.Provider value={statRowStyle === "boxed" ? "box" : "card"}>
+    <StatFrameContext.Provider value="box">
       <div
-        data-style={statRowStyle}
+        data-style="boxed"
         className={cn(
           // Two across on small screens: a lone third stat takes the full row.
-          "grid grid-cols-2 md:grid-cols-3 [&>:nth-child(3):last-child]:col-span-2 md:[&>:nth-child(3):last-child]:col-span-1",
-          statRowStyle === "boxed" ? "gap-5" : "gap-3 md:gap-4",
+          "grid grid-cols-2 md:grid-cols-3 gap-5 [&>:nth-child(3):last-child]:col-span-2 md:[&>:nth-child(3):last-child]:col-span-1",
           className
         )}
       >

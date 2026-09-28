@@ -125,7 +125,6 @@ export const DANGER_ZONE_CONFIG = {
   /** Shaded area fill */
   area: {
     fill: alpha("var(--color-danger-zone)", 8),
-    fillOpacity: 0.5,
     stroke: alpha("var(--color-danger-zone)", 30),
     strokeDasharray: "3 3",
   },

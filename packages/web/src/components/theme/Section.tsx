@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { useThemeStructure } from "./useThemeStructure";
 
 export interface SectionProps {
   /** The section heading, e.g. `Recent activity`. */
@@ -9,45 +8,16 @@ export interface SectionProps {
   meta?: ReactNode | undefined;
   /** Controls for everything in the section, e.g. a time range toggle. */
   actions?: ReactNode | undefined;
-  /**
-   * Classes for the heading where the theme titles sections with headings (the
-   * `card-header` placement). Themes that use section labels style the heading from the
-   * `--label-*` slots instead.
-   */
-  headingClassName?: string | undefined;
   className?: string | undefined;
   children: ReactNode;
 }
 
 /**
- * A heading row over content that spans more than one panel. A single panel takes its
- * title through `Panel` instead, so the theme can place it inside the frame.
+ * A heading row over content that spans more than one panel, titled in the `--label-*`
+ * slots. A single panel takes its title through `Panel` instead, so the theme can place it
+ * inside the frame.
  */
-export function Section({
-  title,
-  meta,
-  actions,
-  headingClassName,
-  className,
-  children,
-}: SectionProps) {
-  const { sectionLabelPlacement } = useThemeStructure();
-
-  if (sectionLabelPlacement === "card-header") {
-    return (
-      <section className={className}>
-        <div className="flex justify-between items-center gap-4 mb-3">
-          <h2 className={cn("m-0", headingClassName)}>
-            {title}
-            {meta != null && <span className="ms-2 text-sm font-normal">{meta}</span>}
-          </h2>
-          {actions}
-        </div>
-        {children}
-      </section>
-    );
-  }
-
+export function Section({ title, meta, actions, className, children }: SectionProps) {
   return (
     <section className={cn("flex flex-col gap-3.5", className)}>
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">

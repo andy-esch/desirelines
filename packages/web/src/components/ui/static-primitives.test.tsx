@@ -2,12 +2,10 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Button } from "./button";
-import { Badge } from "./badge";
 import { Input } from "./input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "./card";
 import { Alert } from "./alert";
 import { Table } from "./table";
-import { SportBadge } from "../SportBadge";
 
 describe("Button", () => {
   it("renders children and fires onClick", async () => {
@@ -52,16 +50,6 @@ describe("Button", () => {
 
     await user.click(screen.getByRole("button", { name: "Nope" }));
     expect(onClick).not.toHaveBeenCalled();
-  });
-});
-
-describe("Badge", () => {
-  it("renders with the default and outline variants", () => {
-    const { rerender } = render(<Badge>New</Badge>);
-    expect(screen.getByText("New").className).toContain("bg-primary");
-
-    rerender(<Badge variant="outline">Tag</Badge>);
-    expect(screen.getByText("Tag").className).toContain("border-border");
   });
 });
 
@@ -150,27 +138,5 @@ describe("Table", () => {
       </Table>
     );
     expect(container.querySelector("table")).not.toHaveAttribute("data-hover");
-  });
-});
-
-describe("SportBadge", () => {
-  it("shows the label and carries the sport color for its dot and hairline", () => {
-    render(<SportBadge color="rgb(0, 255, 255)">cycling</SportBadge>);
-    const badge = screen.getByText("cycling");
-    expect(badge.style.getPropertyValue("--sport-color")).toBe("rgb(0, 255, 255)");
-    expect(badge.querySelector('[aria-hidden="true"]')).not.toBeNull();
-  });
-});
-
-describe("Badge compact size", () => {
-  it("draws a small solid pill in the caller's fill", () => {
-    render(
-      <Badge variant="solid" size="compact" style={{ backgroundColor: "rgb(255, 0, 255)" }}>
-        Behind
-      </Badge>
-    );
-    const badge = screen.getByText("Behind");
-    expect(badge).toHaveClass("text-on-accent", "rounded-sm");
-    expect(badge).toHaveStyle({ backgroundColor: "rgb(255, 0, 255)" });
   });
 });

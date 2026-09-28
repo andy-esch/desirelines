@@ -35,7 +35,7 @@ accent roles and conflating them is the most common mistake:
 
 | Role | Token | Job |
 | --- | --- | --- |
-| Interactive | `--color-accent-cyan` (+ `-text`, `-glow`) | Links, buttons, focus. **Mutes to a WCAG-safe teal `#0891b2` in light** so controls stay legible. `-text` is the label ink on an accent fill (a primary button); `-glow` a faint accent wash. |
+| Interactive | `--color-accent-cyan` (+ `-text`, `-glow`) | Links, buttons, focus. **Electric takes a deep blue, `#2d5bff`,** since cyan fails as text on a light ground. `-text` is the label ink on an accent fill (a primary button); `-glow` a faint accent wash. |
 | Second interactive | `--color-accent-magenta` | Hover states and highlights that need an accent apart from the first. |
 | Map chrome | `--color-map-chrome-accent` | The accent inside the routes-map drawers: `MAP_CHROME_STYLE` puts it in place of `--color-accent-cyan` there, bright enough to read over the map. |
 | Decorative | `--color-neon-accent` (+ `-border`, `-glow`) | Pill borders, glows, status dots. **Stays bright in light (`#00b8e6`)** — it must not inherit the interactive mute. |
@@ -72,8 +72,8 @@ where the ground doesn't need it) and the tooltips (`--color-chart-tooltip-bg`, 
 `-muted`, `-label`, `-divider`). `themeCss.test.ts` keeps each
 theme's five goal colors apart from each other. Besides the primitives, a few colors stay fixed across
 themes (`FIXED_COLORS` in `src/themes/contract.ts` lists them all):
-`--color-scrim` / `--color-on-scrim`, the darkening layer for modal backdrops, menu shadows and
-a label drawn over a bright fill (`bg-scrim/50`, `shadow-scrim/40`); the calendar heatmap's
+`--color-scrim` / `--color-on-scrim`, the darkening layer for modal backdrops and menu shadows
+(`bg-scrim/50`, `shadow-scrim/40`); the calendar heatmap's
 busier steps `--color-intensity-1` to `-4` (its empty step is the theme's `--color-intensity-0`);
 and `--color-map-point-outline`, the ring around route-map points.
 
@@ -201,8 +201,8 @@ values.
 | Numbers | `--table-text-size`, `--stat-value-size`, `--stat-value-size-wide`, `--stat-value-shadow`; `--stat-label-size`, `-label-tracking`, `-label-case`, `-sub-size`, `-sub-color` | Table text, big stat numbers (wide = from `md` up), and the label above a stat and the line under it |
 | Wordmark | `--wordmark-font`, `-size`, `-weight`, `-tracking`, `-case`, `-color`, `-color-2`, `-slash-color`, `-slash-size`, `-slash-weight`, `-shadow` | The logo's two words and slash |
 | Header | `--header-height`, `-border`, `-accent-line`, `-shadow-scrolled`, `--header-date-color`; `--nav-size`, `-tracking`, `-case`, `-color`, `-active-color`, `-active-bg`, `-active-hover-bg`, `-active-radius`, `-active-underline`, `-active-shadow`; `--avatar-radius`, `-border`, `-glow`; `--demo-bg`, `-bg-image`, `-border`, `-rule`, `-label-color` | The top bar and its bottom accent line, nav items (the underline shows in the header bar, not the mobile drawer), avatar, and the demo banner: its fill, an image over it (`none` for a flat fill; a theme with one sets the fill to the image's darkest stop, which the contrast pairs measure), its border, rule and the "Demo Mode" label |
-| Backgrounds | `--hero-padding`, `--hero-ink`, `--hero-title-size`, `-title-color`, `-title-shadow`, `--hero-number-size`, `-number-glow`, `--glass-blur`, `--glass-blur-sm`, `--progress-shine` | The dashboard hero's padding (content must clear the decoration's bottom edge), text on the decoration, headline and numbers, frosted-glass blur for map chrome and for small floating pills (0 makes them solid), progress-bar shine |
-| Panels | `--radius`, `--panel-bg`, `-border-width`, `-radius`, `-shadow`, `-shadow-emphasis`, `-header-padding`, `-body-padding`, `-accent-1/2/3`, `-accent-1/2/3-ink`, `-top-strip` | Cards and panels, including the base radius the shadcn scale derives from, the three frame accents, the ink of a title in each, and an image drawn as a 4px strip across the top edge (`none` for no strip) |
+| Backgrounds | `--hero-padding`, `--hero-ink`, `--hero-title-size`, `-title-color`, `-title-shadow`, `--hero-number-size`, `-number-glow`, `--glass-blur`, `--glass-blur-sm` | The dashboard hero's padding (content must clear the decoration's bottom edge), text on the decoration, headline and numbers, frosted-glass blur for map chrome and for small floating pills (0 makes them solid) |
+| Panels | `--radius`, `--panel-bg`, `-border-width`, `-radius`, `-shadow`, `-shadow-emphasis`, `-body-padding`, `-accent-1/2/3`, `-accent-1/2/3-ink`, `-top-strip` | Cards and panels, including the base radius the shadcn scale derives from, the three frame accents, the ink of a title in each, and an image drawn as a 4px strip across the top edge (`none` for no strip) |
 | Controls | `--control-height`, `-radius`, `-font-size`, `-case`, `-focus-color`, `-focus-width`, `-focus-glow`; `--toggle-gap`, `-frame-border-width`, `-frame-border-color`, `-frame-padding`, `-frame-radius`, `-item-border-width`, `-item-radius`, `-item-color`, `-font-size`, `-tracking`, `-case`; `--color-toggle-pressed`, `-pressed-border`, `-pressed-text`, `--toggle-pressed-glow`, `-pressed-text-glow`; `--button-radius`, `-case`, `-tracking`, `-outline-border-color`, `-outline-glow`; `--stepper-gap`, `-button-text` | Inputs, selects, toggle groups, buttons and steppers (height and font size are the default size; `sm` and `lg` buttons and caller overrides keep fixed sizes). An outline button takes its own border color and an inner glow (`0 0 #0000` for none); a stepper's − and + take `--stepper-button-text`, or the outline button's text through `initial`. A pressed toggle's fill, border and text default to the accent through `initial`; the glow is a single inset shadow, `0 0 #0000` for none. The focus ring is an outline in `--control-focus-color` (`initial` for the accent at 40%) and `--control-focus-width`, 2px clear of the element, with `--control-focus-glow` around the element |
 | Sliders and chips | `--slider-track-height`, `-track-radius`, `-track-bg`, `-fill-glow`, `-handle-size`, `-handle-radius`, `-handle-border-width`; `--color-slider-fill`; `--chip-height`, `-height-drawer`, `-radius`, `-border-strength`, `-hover-strength`, `-dot-radius`; `--chip-selected-fill-strength`, `-label-strength`, `-ink`, `-glow-strength`, `-glow-size`, `-inset-glow-size` | Range sliders and sport chips (strengths are how much sport color mixes in; a height of `auto` leaves it to the toggle item's padding, and the map drawer's chips take the drawer height). A selected chip's fill strength splits the sport color between the fill and the border (100% fills it and keeps the mark outline; 0% leaves an outlined chip). Its label is the ink with the label strength of sport color mixed in; the ink is `--chip-selected-ink`, or through `initial` the black or white `sportChipStyle` picks for each sport. Its glows are an outer and an inset shadow in the sport color at the glow strength |
 | Tables | `--th-size`, `--th-weight`, `--th-color`, `--th-tracking`, `--th-case`, `--th-rule`, `--row-rule`, `--row-padding`, `--row-hover-bg`, `--missing-value-color`, `--sport-mark-radius` | Table headers, row rules and hover, sport marks, and the color of a missing value wherever `MissingValue` shows one |
@@ -215,21 +215,18 @@ Structure fields (`structure` on the list entry):
 
 | Field | Values | Changes |
 |---|---|---|
-| `showPageKicker` | `true` / `false` | Renders the kicker line above page titles |
-| `heroDecoration` | `none`, `sunset`, `grid`, `gradient` | The dashboard hero's decoration, and the Settings preview thumbnail. `none` opens the dashboard on a welcome line instead of the hero band |
-| `sectionLabelPlacement` | `card-header`, `above`, `header-bar` | Where a panel's title goes |
-| `statRowStyle` | `cards`, `divided`, `boxed` | How a row of big numbers is framed |
+| `heroDecoration` | `sunset`, `grid`, `gradient` | The dashboard hero's decoration, and the Settings preview thumbnail |
+| `sectionLabelPlacement` | `above`, `header-bar` | Where a panel's title goes: a label above the frame, or a bar inside it |
+| `statRowStyle` | `divided`, `boxed` | How a row of big numbers is framed: one panel split into cells, or outline boxes |
 | `sliderTrack` | `continuous`, `segmented` | Slider tracks as a bar or a segmented meter |
 | `rowHoverCursor` | `true` / `false` | A cursor glyph on the hovered table row |
 | `pagerStyle` | `arrows`, `labelled` | Paging a list: stacked arrows beside it, or a `Prev 1 / 5 Next` row under it |
-| `sportMarkStyle` | `badge`, `dot`, `swatch` | How a sport is marked in rows and lists |
-| `statusSymbolStyle` | `badge`, `filled`, `outlined` | Goal status as colored badges or an SVG symbol plus text |
-| `goalTrackStyle` | `bar-with-percent`, `track`, `outline-track` | Goal progress drawing |
+| `sportMarkStyle` | `dot`, `swatch` | How a sport is marked in rows and lists |
+| `statusSymbolStyle` | `filled`, `outlined` | Goal status as an SVG symbol plus text, the symbol filled or outlined |
+| `goalTrackStyle` | `track`, `outline-track` | Goal progress as a track with a pace tick, plain or outlined |
 | `meterPartialCurrent` | `true` / `false` | Year meters fill the current segment to today |
-| `loaderStyle` | `spinner`, `chaser`, `block` | The loading indicator |
-| `dangerZoneFill` | `wash`, `hatch` | The pacing charts' danger zone |
+| `loaderStyle` | `chaser`, `block` | The loading indicator: a chaser of lit segments, or blocks with a cursor |
 | `chartMarkerShape` | `circle`, `square` | Axis marker dots |
-| `chartLegend` | `true` / `false` | A legend row above line charts |
 | `mapDrawerSections` | `flat`, `panels` | Routes-map drawer section framing |
 | `dateFormat` | `short`, `dotted` | `Sep 12, 2026` or `2026.09.12`; integers are never zero-padded |
 
@@ -345,16 +342,16 @@ active theme's `structure`, unless a `ThemeStructureProvider` overrides it for a
 
 | Component | Reads | Notes |
 |---|---|---|
-| `Panel` | `--panel-*`, `sectionLabelPlacement` | Title in a card header, a label above the frame, or a header bar inside it. `meta` and `actions` (a panel's own controls) share the title row. `accent` picks one of three frame accents; `emphasis` marks the panel that should stand out. |
+| `Panel` | `--panel-*`, `sectionLabelPlacement` | Title in a label above the frame, or a header bar inside it. `meta` and `actions` (a panel's own controls) share the title row. `accent` picks one of three frame accents; `emphasis` marks the panel that should stand out. |
 | `Section` | `--label-*`, `sectionLabelPlacement` | A heading, meta and actions over content that spans several panels. A single panel takes its title through `Panel`. |
 | `SectionLabel` | `--label-*` | Section and panel labels. |
-| `SportLabel`, `SportMark` | `--sport-mark-radius`, `--data-label-case`, `sportMarkStyle` | A sport's name in a row: a glowing dot or swatch before it, or a `SportBadge` (with `badge`) where the theme keeps badges. `SportMark` is the mark alone (e.g. beside the sport page title), and draws nothing where the theme uses badges. |
-| `HeroDecoration` | `heroDecoration` | The artwork behind the dashboard hero band. The recipes (Miami's sunset bands and blinds, Arcade's grid, Electric's gradient wash) are fixed in the component; the blinds use `--color-bg-body`. Bands too light for hero text sit a fixed distance from the bottom, inside `--hero-padding`, and `HeroDecoration.test.ts` checks text contrast on the rest, and across Electric's wash. `HeroDecorationPreview` draws each recipe small for `ThemePreview`; a theme without one gets three plain bands of its own `--color-surface-raised`, `--color-divider` and `--color-chart-axis`. |
+| `SportLabel`, `SportMark` | `--sport-mark-radius`, `--data-label-case`, `sportMarkStyle` | A sport's name in a row: a glowing dot or swatch before it. `SportMark` is the mark alone (e.g. beside the sport page title). |
+| `HeroDecoration` | `heroDecoration` | The artwork behind the dashboard hero band. The recipes (Miami's sunset bands and blinds, Arcade's grid, Electric's gradient wash) are fixed in the component; the blinds use `--color-bg-body`. Bands too light for hero text sit a fixed distance from the bottom, inside `--hero-padding`, and `HeroDecoration.test.ts` checks text contrast on the rest, and across Electric's wash. `HeroDecorationPreview` draws each recipe small for `ThemePreview`. |
 | `ThemePreview` | the theme's own slots, `swatches`, `heroDecoration` | A theme drawn small (ground, two accent bars, its decoration) for the Settings theme picker. It renders inside the theme's own `data-theme`, so it looks like that theme whatever the page's theme is. The card around it is the page's: `--control-radius`, `--color-neon-accent` for the chosen card's border, glow, badge and name, `--color-on-accent` for the badge's check, `--control-case` for the name. The contract holds the chosen border and check to 3:1 and the name to 4.5:1. |
-| `PageTitle` | `--page-title-*`, `--kicker-*`, `--label-case`, `showPageKicker` | A page's `h1`, with an optional kicker line above it where the theme shows kickers. `glowColor` tints the glow (the sport page passes the sport's color), sized by `--page-title-glow-size` over `--page-title-offset-shadow`. |
-| `Stat`, `StatRow` | `--stat-*`, `--font-display`, `--display-weight`, `statRowStyle` | A row frames its stats as separate cards, one divided panel, or outline boxes. |
+| `PageTitle` | `--page-title-*`, `--kicker-*`, `--label-case` | A page's `h1`, with an optional kicker line above it. `glowColor` tints the glow (the sport page passes the sport's color), sized by `--page-title-glow-size` over `--page-title-offset-shadow`. |
+| `Stat`, `StatRow` | `--stat-*`, `--font-display`, `--display-weight`, `statRowStyle` | A row frames its stats as one divided panel or as outline boxes; a stat outside a row frames itself as a card. |
 | `Meter` | `--meter-*`, `--color-meter-*`, `--track-*`, `--color-pace-tick`, `meterPartialCurrent`, `goalTrackStyle` | Segmented (months, weeks) or continuous with an optional pace tick. `indeterminate` animates the segments for loading, and stops under reduced motion. |
-| `StatusSymbol` | `--status-*`, `--color-status-*`, `statusSymbolStyle` | A goal status as an SVG symbol plus text, or the old colored badge where a theme keeps badges. The words always show. |
+| `StatusSymbol` | `--status-*`, `--color-status-*`, `statusSymbolStyle` | A goal status as an SVG symbol plus text. The words always show. |
 | `MissingValue` | `--missing-value-color` | A value that isn't there, anywhere it would show: an em dash, and "none" to a screen reader. A theme that leaves the slot `initial` keeps the surrounding text's color. |
 
 The component slots and tokens: `--panel-accent-{1,2,3}-ink` (header-bar label color per
@@ -393,7 +390,7 @@ be announced.
 **Tables:** `Table` (cells take `--row-padding`; `hover` highlights rows with `--row-hover-bg`; header
 cells take `--th-size`, `--th-weight`, `--th-color`, `--th-tracking`, `--th-case` and `--th-rule`, body
 rows `--row-rule`, and the table `--table-text-size`).
-A sport in a row is a `SportLabel`; a status or count pill is `Badge` with `size="compact"`.
+A sport in a row is a `SportLabel`; a goal status is a `StatusSymbol`.
 A value that isn't there (no distance for a yoga session, no pace yet) is `MissingValue`: an em
 dash in `--missing-value-color` that screen readers hear as "none". A value still loading keeps
 its loading placeholder instead.
@@ -479,4 +476,4 @@ Candidates for pull-back toward the direction:
 
 - The shadcn migration left several primitives reading modern-neutral rather than neon.
 - Sparkline and map line marks are distinguished by hue alone (rule 6).
-- Thin neon marks — sparkline dashes, `RaceTrack` bars — remain low-contrast on light.
+- Thin neon marks, such as sparkline dashes, remain low-contrast on light.

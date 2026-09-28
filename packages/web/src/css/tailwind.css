@@ -51,7 +51,7 @@
        muted-text / subtle-text   secondary copy; subtle reads one step stronger
        surface-raised             cards, popovers, pills lifted off the page ground
        control-border             form fields and outlined controls
-       divider                    rules inside a surface (e.g. under a card header)
+       divider                    rules inside a surface (e.g. between a divided stat row's cells)
        panel-border               the outline of a panel or card (+ hover)
        fill-muted                 neutral fills: secondary buttons, the active toggle
        intensity-0                the "no activity" cell of the calendar heatmap
@@ -112,9 +112,9 @@
   --color-neon-yellow: rgb(255, 200, 0);
   --color-neon-lime: #39ff14;
 
-  /* Ink for text/marks sitting ON a bright neon fill (a pressed sport chip, an
-     achievement badge). It can't be --color-bg-body: the fill is bright in every theme,
-     but the ground is light in light themes. */
+  /* Ink for text/marks sitting ON a bright neon fill (a pressed sport chip, the theme
+     picker's check). It can't be --color-bg-body: the fill is bright in every theme, but
+     the ground is light in light themes. */
   --color-on-accent: #160b2e;
 
   /* Activity-intensity ramp (calendar heatmap): soft purple → neon magenta. */
@@ -160,8 +160,8 @@
 
   /* === Chart data colors: set per theme, unlike SPORT_COLORS ===
      Goal lines run cool (conservative) to warm (stretch) and must stay distinct from
-     each other in every theme. The neutral is the ghost color for prior-year lines and an
-     unassigned RaceTrack; callers apply alpha with alpha(). The danger zone is the pacing
+     each other in every theme. The neutral is the ghost color for prior-year lines; callers
+     apply alpha with alpha(). The danger zone is the pacing
      charts' "zone of unachievability": its line, and the ink for its label. */
   --color-goal-1: #00e5ff;
   --color-goal-2: #3dffa8;

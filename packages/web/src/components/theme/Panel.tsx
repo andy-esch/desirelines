@@ -39,7 +39,7 @@ export interface PanelProps {
 
 /**
  * A framed content surface. The frame comes from the `--panel-*` slots; the title goes in
- * a card header, a label above the frame, or a header bar inside it, per the theme.
+ * a label above the frame or a header bar inside it, per the theme.
  */
 export function Panel({
   title,
@@ -67,11 +67,16 @@ export function Panel({
   const body = (
     <div className={cn("min-w-0 p-(--panel-body-padding)", bodyClassName)}>{children}</div>
   );
-  const metaNode = meta != null && (
-    <span className="shrink-0 text-(color:--color-muted-text)">{meta}</span>
-  );
 
-  if (hasHeader && sectionLabelPlacement === "above") {
+  if (!hasHeader) {
+    return (
+      <section className={cn(frame, className)} data-placement="none">
+        {body}
+      </section>
+    );
+  }
+
+  if (sectionLabelPlacement === "above") {
     return (
       <section className={cn("flex flex-col gap-3.5 min-w-0", className)} data-placement="above">
         <div
@@ -97,47 +102,20 @@ export function Panel({
     );
   }
 
-  if (hasHeader && sectionLabelPlacement === "header-bar") {
-    return (
-      <section className={cn(frame, className)} data-placement="header-bar">
-        <div
-          className={cn(
-            "flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3.5 py-2.5 border-b border-solid border-(length:--panel-border-width)",
-            PANEL_ACCENT_BORDER[accent]
-          )}
-        >
-          <SectionLabel className={ACCENT_INK[accent]}>{title}</SectionLabel>
-          <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
-            {meta != null && <SectionLabel className={ACCENT_INK[accent]}>{meta}</SectionLabel>}
-            {actionsNode}
-          </div>
-        </div>
-        {body}
-      </section>
-    );
-  }
-
   return (
-    <section className={cn(frame, className)} data-placement={hasHeader ? "card-header" : "none"}>
-      {hasHeader && (
-        <div
-          className={cn(
-            // Wraps so a panel's controls drop below its title on narrow screens.
-            "flex flex-wrap justify-between gap-x-4 gap-y-2 p-(--panel-header-padding) border-b border-divider",
-            actions != null ? "items-center" : "items-baseline"
-          )}
-        >
-          <h3 className="m-0 text-base font-normal [font-family:inherit] text-body-text">
-            {title}
-          </h3>
-          {(meta != null || actions != null) && (
-            <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
-              {metaNode}
-              {actionsNode}
-            </div>
-          )}
+    <section className={cn(frame, className)} data-placement="header-bar">
+      <div
+        className={cn(
+          "flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3.5 py-2.5 border-b border-solid border-(length:--panel-border-width)",
+          PANEL_ACCENT_BORDER[accent]
+        )}
+      >
+        <SectionLabel className={ACCENT_INK[accent]}>{title}</SectionLabel>
+        <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
+          {meta != null && <SectionLabel className={ACCENT_INK[accent]}>{meta}</SectionLabel>}
+          {actionsNode}
         </div>
-      )}
+      </div>
       {body}
     </section>
   );

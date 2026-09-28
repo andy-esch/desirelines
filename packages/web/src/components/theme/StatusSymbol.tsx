@@ -1,7 +1,6 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { useThemeStructure } from "./useThemeStructure";
-import { Badge } from "../ui/badge";
 
 export type GoalStatus =
   | "achieved"
@@ -67,43 +66,16 @@ export interface StatusSymbolProps {
   status: GoalStatus;
   /** The status in words; always shown, so color is never the only cue. */
   label: ReactNode;
-  /** What a badge shows instead of `label`, when a theme renders badges (e.g. a percent). */
-  badgeContent?: ReactNode | undefined;
-  /**
-   * Badge fill for themes that render statuses as badges (e.g. the goal's own color). Only
-   * used when the theme's `statusSymbolStyle` is `badge`.
-   */
-  badgeStyle?: CSSProperties | undefined;
   className?: string | undefined;
 }
 
 /**
- * A goal status as a symbol plus text, or as a colored badge where the theme keeps badges.
- * Symbol color follows the status tone through the `--color-status-*` tokens.
+ * A goal status as a symbol plus text, the symbol filled or outlined per the theme's
+ * `statusSymbolStyle`. Its color follows the status tone through the `--color-status-*`
+ * tokens.
  */
-export function StatusSymbol({
-  status,
-  label,
-  badgeContent,
-  badgeStyle,
-  className,
-}: StatusSymbolProps) {
+export function StatusSymbol({ status, label, className }: StatusSymbolProps) {
   const { statusSymbolStyle } = useThemeStructure();
-
-  if (statusSymbolStyle === "badge") {
-    return (
-      <Badge
-        variant="solid"
-        size="compact"
-        className={cn("inline-block whitespace-nowrap", className)}
-        style={badgeStyle}
-        data-status={status}
-      >
-        {badgeContent ?? label}
-      </Badge>
-    );
-  }
-
   return (
     <span
       data-status={status}
