@@ -60,6 +60,7 @@
 
   --color-success: #00ff80;
   --color-danger: #dc3545;
+  --color-danger-ink: #ffffff;
   --color-warning: #ffc107;
 
   --color-header-bg: #2d3748;
@@ -216,7 +217,10 @@
   --button-radius: 0.375rem;
   --button-case: none;
   --button-tracking: normal;
+  --button-outline-border-color: var(--color-control-border);
+  --button-outline-glow: 0 0 #0000;
   --stepper-gap: 0px;
+  --stepper-button-text: initial;
   --slider-track-height: 0.375rem;
   --slider-track-radius: 9999px;
   --slider-handle-size: 1rem;
@@ -226,9 +230,18 @@
   --slider-fill-glow: none;
   /* initial: sliders fall back to the accent, which the routes-map chrome remaps. */
   --color-slider-fill: initial;
+  /* The toggle item's own padding sets a chip's height. */
+  --chip-height: auto;
+  --chip-height-drawer: auto;
   --chip-radius: 4px;
   --chip-border-strength: 55%;
   --chip-hover-strength: 10%;
+  --chip-selected-fill-strength: 100%;
+  --chip-selected-label-strength: 0%;
+  --chip-selected-ink: var(--color-on-accent);
+  --chip-selected-glow-strength: 0%;
+  --chip-selected-glow-size: 0px;
+  --chip-selected-inset-glow-size: 0px;
   --chip-dot-radius: 9999px;
 
   /* Tables and lists */

@@ -59,6 +59,7 @@
 
   --color-success: #3dffa8;
   --color-danger: #ff8a3d;
+  --color-danger-ink: #160b2e;
   --color-warning: #ffc800;
 
   --color-header-bg: #0e0620;
@@ -193,7 +194,10 @@
   --button-radius: 4px;
   --button-case: uppercase;
   --button-tracking: 0.14em;
+  --button-outline-border-color: rgba(255, 46, 196, 0.45);
+  --button-outline-glow: 0 0 #0000;
   --stepper-gap: 0px;
+  --stepper-button-text: var(--color-subtle-text);
   --slider-track-height: 4px;
   --slider-track-radius: 9999px;
   --slider-handle-size: 14px;
@@ -202,9 +206,17 @@
   --slider-track-bg: rgba(255, 255, 255, 0.1);
   --slider-fill-glow: 0 0 8px rgba(255, 46, 196, 0.7);
   --color-slider-fill: #ff2ec4;
+  --chip-height: 26px;
+  --chip-height-drawer: 24px;
   --chip-radius: 4px;
   --chip-border-strength: 55%;
   --chip-hover-strength: 10%;
+  --chip-selected-fill-strength: 100%;
+  --chip-selected-label-strength: 0%;
+  --chip-selected-ink: initial;
+  --chip-selected-glow-strength: 40%;
+  --chip-selected-glow-size: 12px;
+  --chip-selected-inset-glow-size: 0px;
   --chip-dot-radius: 9999px;
 
   /* Tables and lists */

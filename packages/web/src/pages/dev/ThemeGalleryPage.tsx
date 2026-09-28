@@ -388,6 +388,7 @@ function ThemePanel({ theme }: { theme: ThemeDefinition }) {
           <Button variant="outline">Outline</Button>
           <Button variant="ghost">Ghost</Button>
           <Button variant="destructive">Destructive</Button>
+          <Button variant="outline-danger">Outline danger</Button>
           <Button variant="link">Link</Button>
         </div>
         <div className="flex flex-wrap items-center gap-2">

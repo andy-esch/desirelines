@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import type { CSSProperties } from "react";
 import { Slider } from "../ui/slider";
 import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
 import { Button } from "../ui/button";
@@ -10,7 +9,7 @@ import { type RouteFilterState, yearRange } from "../../utils/routeFilters";
 import type { RegionSummary } from "../../api/map";
 import { convertDistance, getDistanceLabel, type DistanceUnit } from "../../utils/units";
 import { SportVisibilityHint } from "../SportVisibilityHint";
-import { sportChipClass, SportChipDot } from "../sportChip";
+import { sportChipClass, sportChipStyle, SportChipDot } from "../sportChip";
 
 /** A selectable sport: app-category key + display label + legend color. */
 export interface SportOption {
@@ -318,8 +317,8 @@ export default function MapFilterControls({
               <ToggleGroupItem
                 key={s.value}
                 value={s.value}
-                style={{ "--chip": s.color } as CSSProperties}
-                className={cn(sportChipClass, "transition-colors")}
+                style={sportChipStyle(s.color)}
+                className={cn(sportChipClass, "h-(--chip-height-drawer) transition-colors")}
               >
                 <SportChipDot />
                 {s.label}

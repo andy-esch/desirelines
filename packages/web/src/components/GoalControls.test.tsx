@@ -187,6 +187,21 @@ describe("GoalControls", () => {
   });
 
   describe("Goal Editing", () => {
+    it("draws the stepper's − and + in the theme's stepper text, else the outline button's", () => {
+      render(<GoalControls {...defaultProps} />);
+
+      const steppers = [
+        ...screen.getAllByRole("button", { name: "−" }),
+        ...screen.getAllByRole("button", { name: "+" }),
+      ];
+      expect(steppers).toHaveLength(4);
+      for (const button of steppers) {
+        expect(button.className.split(/\s+/)).toContain(
+          "text-[color:var(--stepper-button-text,var(--color-foreground))]"
+        );
+      }
+    });
+
     it("allows editing goal values", () => {
       render(<GoalControls {...defaultProps} />);
 

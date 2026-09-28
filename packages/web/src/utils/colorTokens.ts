@@ -69,17 +69,17 @@ export interface Rgb {
   b: number;
 }
 
-/**
- * Parse a CSS color into channels, accepting the forms our tokens actually hold:
- * `#rgb`, `#rrggbb`, and `rgb()`/`rgba()`. Returns null for anything else, so
- * callers can fall back rather than render a broken color.
- */
 /** Clamp a parsed colour channel into the valid 0-255 range. */
 function clampChannel(n: number): number {
   if (!Number.isFinite(n)) return 0;
   return Math.min(255, Math.max(0, Math.round(n)));
 }
 
+/**
+ * Parse a CSS color into channels, accepting the forms our tokens actually hold:
+ * `#rgb`, `#rrggbb`, and `rgb()`/`rgba()`. Returns null for anything else, so
+ * callers can fall back rather than render a broken color.
+ */
 export function parseRgb(color: string): Rgb | null {
   // Trim once, up front: `getComputedStyle().getPropertyValue()` commonly returns a
   // leading space, and anchoring the rgb() pattern against an untrimmed string made it
@@ -107,4 +107,25 @@ export function parseRgb(color: string): Rgb | null {
     return { r: clampChannel(+fn[1]!), g: clampChannel(+fn[2]!), b: clampChannel(+fn[3]!) };
   }
   return null;
+}
+
+/** WCAG relative luminance of sRGB channels. */
+function luminance({ r, g, b }: Rgb): number {
+  const linear = (channel: number) => {
+    const c = channel / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
+}
+
+/**
+ * Black or white, whichever contrasts more with `color`: the ink for a label on a fill of
+ * that color. The better of the two is always at least 4.58:1 (the square root of 21). Null
+ * when the color can't be parsed, so the caller can leave the ink to its CSS fallback.
+ */
+export function readableInk(color: string): "#000000" | "#ffffff" | null {
+  const rgb = parseRgb(color);
+  if (!rgb) return null;
+  const l = luminance(rgb);
+  return (l + 0.05) / 0.05 >= 1.05 / (l + 0.05) ? "#000000" : "#ffffff";
 }
