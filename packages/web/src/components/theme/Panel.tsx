@@ -120,7 +120,9 @@ export function Panel({
           PANEL_ACCENT_BORDER[accent]
         )}
       >
-        <SectionLabel as={labelElement} className={ACCENT_INK[accent]}>{title}</SectionLabel>
+        <SectionLabel as={labelElement} className={ACCENT_INK[accent]}>
+          {title}
+        </SectionLabel>
         <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
           {meta != null && <SectionLabel className={ACCENT_INK[accent]}>{meta}</SectionLabel>}
           {actionsNode}
