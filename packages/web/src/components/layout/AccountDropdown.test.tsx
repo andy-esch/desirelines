@@ -112,16 +112,16 @@ describe("AccountDropdown", () => {
     const themeGroup = screen.getByRole("group", { name: /theme/i });
     expect(themeGroup).toBeInTheDocument();
 
-    // One radio per released theme; "System" is gone until "Match system" returns.
+    // One radio per released theme, then "Match system".
     const radios = screen.getAllByRole("menuitemradio");
-    expect(radios).toHaveLength(VISIBLE_THEMES.length);
-    expect(screen.queryByRole("menuitemradio", { name: /system theme/i })).not.toBeInTheDocument();
+    expect(radios).toHaveLength(VISIBLE_THEMES.length + 1);
+    expect(radios.at(-1)).toHaveAccessibleName("Match system theme");
 
     expect(screen.getByRole("menuitemradio", { name: /miami theme/i })).toHaveAttribute(
       "aria-checked",
       "true"
     );
-    for (const name of [/light theme/i, /arcade theme/i]) {
+    for (const name of [/electric theme/i, /arcade theme/i, /match system theme/i]) {
       expect(screen.getByRole("menuitemradio", { name })).toHaveAttribute("aria-checked", "false");
     }
   });
@@ -130,9 +130,18 @@ describe("AccountDropdown", () => {
     render(<AccountDropdown user={null} onSignIn={vi.fn()} onSignOut={vi.fn()} />);
 
     openMenu();
-    fireEvent.click(screen.getByRole("menuitemradio", { name: /light theme/i }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: /electric theme/i }));
 
-    expect(setPreference).toHaveBeenCalledWith("legacy-light");
+    expect(setPreference).toHaveBeenCalledWith("electric");
+  });
+
+  it("chooses Match system as the system preference", () => {
+    render(<AccountDropdown user={null} onSignIn={vi.fn()} onSignOut={vi.fn()} />);
+
+    openMenu();
+    fireEvent.click(screen.getByRole("menuitemradio", { name: /match system theme/i }));
+
+    expect(setPreference).toHaveBeenCalledWith("system");
   });
 
   it("closes the menu after a successful sign-out", async () => {

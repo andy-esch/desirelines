@@ -39,7 +39,7 @@ export interface ThemeStructure {
   /** A small kicker line above page titles. */
   readonly showPageKicker: boolean;
   /** The dashboard hero's decoration; also picks the Settings preview thumbnail. */
-  readonly heroDecoration: "none" | "sunset" | "grid";
+  readonly heroDecoration: "none" | "sunset" | "grid" | "gradient";
   /** Where a panel's title goes: a label above it, a bar inside it, or a card header. */
   readonly sectionLabelPlacement: "card-header" | "above" | "header-bar";
   /** How a row of big numbers is framed. */
@@ -189,51 +189,16 @@ const ARCADE_FONTS: readonly ThemeFont[] = [
   { family: "Michroma", weights: [400] },
 ];
 
-/** Legacy light shows the stock Mapbox styles. */
+/** Electric shows the stock Mapbox style. */
 const STOCK_MAP: ThemeMap = { palette: null, labelFont: null };
 
-/** Legacy light keeps the pre-retro structure until Memphis replaces it. */
-const LEGACY_LIGHT_STRUCTURE: ThemeStructure = {
-  showPageKicker: false,
-  heroDecoration: "none",
-  sectionLabelPlacement: "card-header",
-  statRowStyle: "cards",
-  sliderTrack: "continuous",
-  rowHoverCursor: false,
-  pagerStyle: "arrows",
-  sportMarkStyle: "badge",
-  statusSymbolStyle: "badge",
-  goalTrackStyle: "bar-with-percent",
-  meterPartialCurrent: false,
-  loaderStyle: "spinner",
-  dangerZoneFill: "wash",
-  chartMarkerShape: "circle",
-  // True, not false: the sparkline legend has rendered since February 2026, months before
-  // this field existed, so `false` never described Legacy. Now that something reads the
-  // field, honouring the old value would delete a legend Legacy has always shown.
-  chartLegend: true,
-  mapDrawerSections: "flat",
-  dateFormat: "short",
-};
-
-/** Legacy light body text is the system sans stack, so only the display face is a web font. */
-const LEGACY_LIGHT_FONTS: readonly ThemeFont[] = [
-  { family: "Space Grotesk Variable", weights: [300, 400, 500, 600, 700] },
-];
+/**
+ * Electric's structure is Miami's: its approved pages were drawn over Miami's, so only the
+ * hero differs, a gradient wash in place of the sunset.
+ */
+const ELECTRIC_STRUCTURE: ThemeStructure = { ...MIAMI_STRUCTURE, heroDecoration: "gradient" };
 
 export const THEMES = [
-  {
-    id: "legacy-light",
-    label: "Light",
-    scheme: "light",
-    mapStyle: MAPBOX_LIGHT,
-    map: STOCK_MAP,
-    hidden: false,
-    background: "#f0f4f8",
-    swatches: ["#f0f4f8", "#0891b2", "#c026d3"],
-    fonts: LEGACY_LIGHT_FONTS,
-    structure: LEGACY_LIGHT_STRUCTURE,
-  },
   {
     id: "miami",
     label: "Miami",
@@ -257,6 +222,19 @@ export const THEMES = [
     swatches: ["#000000", "#00ffff", "#ff00ff"],
     fonts: ARCADE_FONTS,
     structure: ARCADE_STRUCTURE,
+  },
+  {
+    id: "electric",
+    label: "Electric",
+    scheme: "light",
+    mapStyle: MAPBOX_LIGHT,
+    map: STOCK_MAP,
+    hidden: false,
+    background: "#f7f8ff",
+    swatches: ["#f7f8ff", "#d000b6", "#2d5bff"],
+    // Miami's faces: Plex Mono and Archivo Black.
+    fonts: MIAMI_FONTS,
+    structure: ELECTRIC_STRUCTURE,
   },
 ] as const satisfies readonly ThemeDefinition[];
 
@@ -299,10 +277,13 @@ export const LEGACY_THEME_STORAGE_KEY = "theme";
  */
 export const DEFAULT_THEME_PREFERENCE: ThemePreference = "miami";
 
+/** The pickers' name for the `system` preference, which follows the OS color scheme. */
+export const MATCH_SYSTEM_LABEL = "Match system";
+
 /** The theme "system" resolves to for each OS color scheme. */
 export const SYSTEM_THEME_IDS: Readonly<Record<ThemeScheme, ThemeId>> = {
   dark: "miami",
-  light: "legacy-light",
+  light: "electric",
 };
 
 /**
@@ -332,11 +313,15 @@ export const MIAMI_MIGRATION = {
  * it lands on Arcade, which carries the neon look that choice was about. `dark` came from the
  * old two-option toggle, where dark was the only dark there was: that is a light-or-dark
  * preference rather than a taste, so it lands on the default like everyone who never chose.
+ *
+ * Both light values land on Electric, the one light theme: `legacy-light` was Legacy light,
+ * which Electric replaced, and `light` asked for a light page, which only Electric still is.
  */
 export const LEGACY_PREFERENCE_ALIASES: Readonly<Record<string, ThemeId>> = {
   dark: "miami",
   "legacy-dark": "arcade",
-  light: "legacy-light",
+  light: "electric",
+  "legacy-light": "electric",
 };
 
 /** Themes offered in the picker. */

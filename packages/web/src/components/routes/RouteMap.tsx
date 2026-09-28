@@ -122,6 +122,27 @@ const LINE_WIDTH: ExpressionSpecification = [
  */
 const LINE_OPACITY: ExpressionSpecification = ["interpolate", ["linear"], ["zoom"], 14, 1, 18, 0.6];
 /**
+ * An edge under each route line, in the theme's `--color-map-route-casing`: on a light base
+ * map most sport colors fall under 3:1, so a light theme draws them over ink. A theme that
+ * needs no edge leaves the color transparent. About 1px wider than the line on each side.
+ */
+const CASING_LAYER_ID = "routes-lines-casing";
+const CASING_WIDTH: ExpressionSpecification = [
+  "interpolate",
+  ["linear"],
+  ["zoom"],
+  4,
+  2.4,
+  10,
+  3.6,
+  14,
+  5.3,
+  16,
+  7,
+  18,
+  9,
+];
+/**
  * Thicker line for the hovered/selected route, drawn by a separate highlight
  * layer filtered to those ids. (We deliberately do NOT use `feature-state` in
  * `line-width` — mapbox-gl GL JS doesn't support it there, and an invalid paint
@@ -445,6 +466,16 @@ export default function RouteMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [theme.id]
   );
+  // The route casing, resolved the same way.
+  const casingPaint = useMemo<NonNullable<LineLayerSpecification["paint"]>>(
+    () => ({
+      "line-color": resolveThemeColor("--color-map-route-casing", "rgba(0, 0, 0, 0)"),
+      "line-width": CASING_WIDTH,
+      "line-opacity": LINE_OPACITY,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [theme.id]
+  );
 
   // Low-zoom density dots (the `route_points` layer). One dot per sport per grid cell,
   // colored by sport (same expression as the lines) and sized by that sport's
@@ -711,6 +742,15 @@ export default function RouteMap({
           // feature-state, so this is only for reading the id off click/hover.
           promoteId={{ [SOURCE_LAYER]: "activity_id" }}
         >
+          <Layer
+            id={CASING_LAYER_ID}
+            type="line"
+            source-layer={SOURCE_LAYER}
+            minzoom={tileMeta.lineMinZoom}
+            {...(filter ? { filter } : {})}
+            layout={{ "line-join": "round", "line-cap": "round" }}
+            paint={casingPaint}
+          />
           <Layer
             id={LAYER_ID}
             type="line"

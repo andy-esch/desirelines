@@ -47,7 +47,7 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <PageLayout background="dashboard">
+      <PageLayout>
         <DashboardSkeleton />
       </PageLayout>
     );
@@ -56,12 +56,12 @@ export default function Dashboard() {
   const tuningParams = !user ? DASHBOARD_DEMO_TUNING : undefined;
 
   return (
-    <PageLayout background="dashboard">
+    <PageLayout>
       {/* Demo mode banner for unauthenticated users */}
       {!user && (
         <Alert variant="demo" className="rounded-none py-3" role="alert">
           <div className="px-4 md:px-6">
-            <strong className="text-accent-cyan">Demo Mode</strong>
+            <strong className="text-(color:--demo-label-color)">Demo Mode</strong>
             <span className="mx-2">—</span>
             Viewing generated sample data. <span className="text-sm">Sign-in is invite-only.</span>
           </div>

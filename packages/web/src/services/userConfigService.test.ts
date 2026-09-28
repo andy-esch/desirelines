@@ -255,7 +255,7 @@ describe("UserConfigService", () => {
       const newPreferences: Preferences = {
         // A save carries whatever theme its snapshot or defaults held; the merge must keep
         // the stored one instead.
-        theme: "legacy-light",
+        theme: "electric",
         defaultYear: 2025,
         distanceUnit: "",
         elevationUnit: "",

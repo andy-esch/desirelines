@@ -1,34 +1,18 @@
 import type { ReactNode } from "react";
 
-/** Page background keys matching @utility page-bg-* classes in tailwind.css */
-export type PageBackgroundKey = "dashboard" | "activities" | "origins" | "settings" | "routes";
-
-const bgClasses: Record<PageBackgroundKey, string> = {
-  dashboard: "page-bg-dashboard",
-  activities: "page-bg-activities",
-  origins: "page-bg-origins",
-  settings: "page-bg-settings",
-  routes: "page-bg-routes",
-};
-
 interface PageLayoutProps {
-  /** Page background gradient key */
-  background: PageBackgroundKey;
   /** Page content */
   children: ReactNode;
 }
 
 /**
- * Full-width page layout with gradient background.
- * Wraps content in a flex-grow container with the page's background gradient.
+ * Full-width page layout: a flex-grow container over the theme's page ground.
  */
-export function PageLayout({ background, children }: PageLayoutProps) {
-  return <div className={`grow overflow-x-hidden ${bgClasses[background]}`}>{children}</div>;
+export function PageLayout({ children }: PageLayoutProps) {
+  return <div className="grow overflow-x-hidden">{children}</div>;
 }
 
 interface NarrowPageLayoutProps {
-  /** Page background gradient key */
-  background: PageBackgroundKey;
   /** Maximum width (defaults to 800px) */
   maxWidth?: string;
   /** Page content */
@@ -36,16 +20,12 @@ interface NarrowPageLayoutProps {
 }
 
 /**
- * Narrow centered page layout with gradient background.
+ * Narrow centered page layout over the theme's page ground.
  * Used for settings, forms, and focused content pages.
  */
-export function NarrowPageLayout({
-  background,
-  maxWidth = "800px",
-  children,
-}: NarrowPageLayoutProps) {
+export function NarrowPageLayout({ maxWidth = "800px", children }: NarrowPageLayoutProps) {
   return (
-    <div className={`grow overflow-x-hidden ${bgClasses[background]}`}>
+    <div className="grow overflow-x-hidden">
       {/* Tailwind's `container` carries no side padding of its own, so the gutter has to
           be set here or the content sits against the screen edge on a phone. */}
       <div className="container mx-auto px-4 md:px-6 py-6" style={{ maxWidth }}>

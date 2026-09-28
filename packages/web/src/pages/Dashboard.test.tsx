@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { screen, waitFor } from "@testing-library/react";
 import Dashboard from "./Dashboard";
 import { renderWithRouter } from "../test/renderWithRouter";
-import { getTheme } from "../themes/registry";
+import { LEGACY_STRUCTURE } from "../themes/legacyStructure";
 import { ThemeStructureProvider } from "../components/theme/ThemeStructureProvider";
 
 // Mock useAuth hook
@@ -147,15 +147,11 @@ const mockSignIn = vi.fn();
 const mockSignOut = vi.fn();
 
 /**
- * Themes without a hero decoration (Legacy) open on the welcome line instead of the hero
- * band, so the cases about that line render in Legacy's structure.
+ * A structure without a hero decoration opens on the welcome line instead of the hero band,
+ * so the cases about that line render in the legacy structure, the one that has none.
  */
 function LegacyStructure({ children }: { children: ReactNode }) {
-  return (
-    <ThemeStructureProvider structure={getTheme("legacy-light").structure}>
-      {children}
-    </ThemeStructureProvider>
-  );
+  return <ThemeStructureProvider structure={LEGACY_STRUCTURE}>{children}</ThemeStructureProvider>;
 }
 
 describe("Dashboard", () => {

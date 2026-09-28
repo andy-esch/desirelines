@@ -30,7 +30,7 @@ describe("preloadThemeFonts", () => {
     expect(new Set(preloadedHrefs()).size).toBe(weights);
   });
 
-  it("preloads nothing for a theme on the system font stack", () => {
+  it("preloads nothing for a theme id the list no longer has", () => {
     document.documentElement.dataset.theme = "legacy-light";
     preloadThemeFonts(document);
 

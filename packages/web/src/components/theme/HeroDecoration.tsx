@@ -179,16 +179,43 @@ function GridFloor() {
 }
 
 /**
+ * Electric's wash: a faint magenta-violet-cyan tint across the band, over the ground, with
+ * a hairline under it. Faint enough that the ink and the text-safe gradient on it keep
+ * their contrast.
+ */
+export const GRADIENT_WASH_STOPS = [
+  "rgba(255, 0, 212, 0.1)",
+  "rgba(138, 61, 255, 0.07)",
+  "rgba(0, 229, 255, 0.14)",
+] as const;
+
+const GRADIENT_WASH = `linear-gradient(90deg, ${GRADIENT_WASH_STOPS[0]}, ${GRADIENT_WASH_STOPS[1]} 50%, ${GRADIENT_WASH_STOPS[2]})`;
+
+/** The same three hues at full strength, for edges and the preview. */
+const GRADIENT_EDGE = "linear-gradient(90deg, #ff00d4, #8a3dff 50%, #00e5ff)";
+
+/**
  * The decoration behind a hero band, per the theme's `heroDecoration`. The recipes are
  * fixed artwork, so they live here rather than in slots. Hero content must clear the
  * bottom of the band, which the theme's `--hero-padding` accounts for: the sunset's light
  * bands and blinds stay within its bottom 58px, and the grid's floor within its bottom 176px.
+ * The gradient wash is even across the band, so it asks nothing of the padding.
  *
- * Neither decoration animates, so there is nothing for reduced motion to stop; both are
- * `aria-hidden`, since neither carries information the text does not.
+ * None of them animates, so there is nothing for reduced motion to stop; all are
+ * `aria-hidden`, since none carries information the text does not.
  */
 export function HeroDecoration({ kind }: { kind: ThemeStructure["heroDecoration"] }) {
   if (kind === "grid") return <GridFloor />;
+  if (kind === "gradient") {
+    return (
+      <div
+        aria-hidden="true"
+        data-decoration="gradient-wash"
+        className="absolute inset-0 border-b border-(color:--color-divider)"
+        style={{ background: GRADIENT_WASH }}
+      />
+    );
+  }
   if (kind !== "sunset") return null;
   return (
     <>
@@ -234,6 +261,16 @@ export const PLAIN_PREVIEW_BANDS = [
  * the Settings theme picker draws. `aria-hidden` like the full-size artwork.
  */
 export function HeroDecorationPreview({ kind }: { kind: ThemeStructure["heroDecoration"] }) {
+  if (kind === "gradient") {
+    return (
+      <div
+        aria-hidden="true"
+        data-decoration="gradient-preview"
+        className="absolute inset-x-0 bottom-0 h-[22px]"
+        style={{ background: `${GRADIENT_EDGE} top / 100% 4px no-repeat, ${GRADIENT_WASH}` }}
+      />
+    );
+  }
   if (kind === "grid") {
     return (
       <div

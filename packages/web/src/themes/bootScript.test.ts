@@ -47,7 +47,8 @@ describe("theme boot script", () => {
     document.documentElement.style.colorScheme = "";
   });
 
-  // "dark" and "legacy-dark" are retired values a returning visitor can still have stored.
+  // "dark", "light", "legacy-dark" and "legacy-light" are retired values a returning visitor
+  // can still have stored.
   const stored = [
     null,
     "system",
@@ -85,7 +86,7 @@ describe("theme boot script", () => {
   describe("demo and account themes", () => {
     it("paints the account's theme while the signed-in hint is set", () => {
       runBootScript("dark", {
-        [THEME_STORAGE_KEYS.demo]: "legacy-light",
+        [THEME_STORAGE_KEYS.demo]: "electric",
         [THEME_STORAGE_KEYS.account]: "arcade",
         [SIGNED_IN_HINT_KEY]: "1",
       });
@@ -94,10 +95,10 @@ describe("theme boot script", () => {
 
     it("paints the demo's theme without the hint, whatever the account's cache holds", () => {
       runBootScript("dark", {
-        [THEME_STORAGE_KEYS.demo]: "legacy-light",
+        [THEME_STORAGE_KEYS.demo]: "electric",
         [THEME_STORAGE_KEYS.account]: "arcade",
       });
-      expect(painted()).toBe("legacy-light");
+      expect(painted()).toBe("electric");
     });
 
     it("paints the default for a signed-in account with nothing cached, not the demo's theme", () => {
@@ -105,25 +106,28 @@ describe("theme boot script", () => {
       expect(painted()).toBe(resolveTheme(parseThemePreference(null), "dark").id);
     });
 
-    it("writes a resolved retired id back to the key it read", () => {
+    it.each([
+      ["legacy-dark", "arcade"],
+      ["legacy-light", "electric"],
+    ])("writes a resolved retired id back to the key it read: %s becomes %s", (retired, theme) => {
       runBootScript("dark", {
-        [THEME_STORAGE_KEYS.account]: "legacy-dark",
+        [THEME_STORAGE_KEYS.account]: retired,
         [SIGNED_IN_HINT_KEY]: "1",
       });
-      expect(painted()).toBe("arcade");
-      expect(localStorage.getItem(THEME_STORAGE_KEYS.account)).toBe("arcade");
+      expect(painted()).toBe(theme);
+      expect(localStorage.getItem(THEME_STORAGE_KEYS.account)).toBe(theme);
     });
   });
 
   describe("the legacy shared key", () => {
     it("moves into the demo's key once and is removed, with the Miami flag", () => {
       runBootScript("dark", {
-        [LEGACY_THEME_STORAGE_KEY]: "legacy-light",
+        [LEGACY_THEME_STORAGE_KEY]: "electric",
         [MIAMI_MIGRATION.storageKey]: "1",
       });
 
-      expect(painted()).toBe("legacy-light");
-      expect(localStorage.getItem(THEME_STORAGE_KEYS.demo)).toBe("legacy-light");
+      expect(painted()).toBe("electric");
+      expect(localStorage.getItem(THEME_STORAGE_KEYS.demo)).toBe("electric");
       expect(localStorage.getItem(LEGACY_THEME_STORAGE_KEY)).toBeNull();
       expect(localStorage.getItem(MIAMI_MIGRATION.storageKey)).toBeNull();
     });
@@ -131,22 +135,22 @@ describe("theme boot script", () => {
     it("never overwrites a demo theme already chosen", () => {
       runBootScript("dark", {
         [LEGACY_THEME_STORAGE_KEY]: "arcade",
-        [THEME_STORAGE_KEYS.demo]: "legacy-light",
+        [THEME_STORAGE_KEYS.demo]: "electric",
       });
 
-      expect(painted()).toBe("legacy-light");
+      expect(painted()).toBe("electric");
       expect(localStorage.getItem(LEGACY_THEME_STORAGE_KEY)).toBeNull();
     });
 
     it("moves into the demo's key even when signed in, and doesn't paint it then", () => {
       runBootScript("dark", {
-        [LEGACY_THEME_STORAGE_KEY]: "legacy-light",
+        [LEGACY_THEME_STORAGE_KEY]: "electric",
         [SIGNED_IN_HINT_KEY]: "1",
         [THEME_STORAGE_KEYS.account]: "arcade",
       });
 
       expect(painted()).toBe("arcade");
-      expect(localStorage.getItem(THEME_STORAGE_KEYS.demo)).toBe("legacy-light");
+      expect(localStorage.getItem(THEME_STORAGE_KEYS.demo)).toBe("electric");
     });
 
     it.each(MIAMI_MIGRATION.from)(

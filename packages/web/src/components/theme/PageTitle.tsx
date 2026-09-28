@@ -25,7 +25,7 @@ export function PageTitle({ children, kicker, glowColor, className }: PageTitleP
   // where the caller's color isn't set.
   const glow: CSSProperties | undefined = glowColor
     ? {
-        textShadow: `0 0 var(--page-title-glow-size) color-mix(in srgb, ${glowColor} 60%, transparent), var(--page-title-offset-shadow)`,
+        textShadow: `0 0 var(--page-title-glow-size) color-mix(in srgb, ${glowColor} var(--page-title-glow-strength), transparent), var(--page-title-offset-shadow)`,
       }
     : undefined;
   const title = (
@@ -33,6 +33,8 @@ export function PageTitle({ children, kicker, glowColor, className }: PageTitleP
       style={glow}
       className={cn(
         "m-0 font-display font-normal text-(length:--page-title-size) leading-(--page-title-leading) text-(color:--page-title-color) [text-shadow:var(--page-title-shadow)] [text-transform:var(--page-title-case)]",
+        // Drawn in the theme's display gradient, where it has one; solid otherwise.
+        "neon-gradient-text",
         className
       )}
     >

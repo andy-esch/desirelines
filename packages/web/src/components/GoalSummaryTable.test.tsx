@@ -5,8 +5,8 @@ import GoalSummaryTable from "./GoalSummaryTable";
 import type { Goals } from "../utils/goalCalculations";
 import { testGoal, testGoals } from "../utils/goalTestFixtures";
 import { createYearContext } from "../utils/yearContext";
-import { THEMES } from "../themes/registry";
 import { ThemeStructureProvider } from "./theme/ThemeStructureProvider";
+import { LEGACY_STRUCTURE } from "../themes/legacyStructure";
 
 // useDangerThresholds pulls from the config store at runtime, which requires
 // app context. The threshold values themselves are exercised in this file's
@@ -29,12 +29,12 @@ vi.mock("../hooks/useDangerThresholds", () => ({
 const mockCurrentDate = new Date(2025, 5, 15, 12, 0, 0); // Mid-year (June 15 local noon)
 
 /**
- * The percent-on-the-bar progress these cases read is Legacy's drawing; the retro themes
- * show a track with a pace tick instead (see "Goal track" below).
+ * The percent-on-the-bar progress these cases read is the legacy structure's drawing; the
+ * retro themes show a track with a pace tick instead (see "Goal track" below).
  */
 function renderInLegacy(node: ReactNode) {
   return render(
-    <ThemeStructureProvider structure={THEMES[0].structure}>{node}</ThemeStructureProvider>
+    <ThemeStructureProvider structure={LEGACY_STRUCTURE}>{node}</ThemeStructureProvider>
   );
 }
 
@@ -566,7 +566,7 @@ describe("GoalSummaryTable", () => {
   describe("Goal track", () => {
     it("draws a track with today's pace tick where the theme doesn't use the percent bar", () => {
       const { container } = render(
-        <ThemeStructureProvider structure={{ ...THEMES[0].structure, goalTrackStyle: "track" }}>
+        <ThemeStructureProvider structure={{ ...LEGACY_STRUCTURE, goalTrackStyle: "track" }}>
           <GoalSummaryTable
             goals={baseGoals}
             currentValue={500}

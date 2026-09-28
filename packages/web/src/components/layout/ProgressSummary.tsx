@@ -38,8 +38,7 @@ export default function ProgressSummary({
         {/* Same face and weight as the value above it: these are a pair, read together, and
             the display face is for headlines and big numbers. The glow is what marks this one
             as the projection. It takes the theme's decorative accent, the role for glows,
-            rather than the brand cyan: this sidebar is themed, unlike the header, which is
-            pinned dark whatever the theme. */}
+            rather than the fixed brand cyan. */}
         <span
           className="font-semibold"
           style={{ textShadow: `0 0 12px ${tint("--color-neon-accent", 20)}` }}

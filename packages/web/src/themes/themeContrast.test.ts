@@ -21,12 +21,6 @@ import { composite, contrastBetween, parseRgba, type Rgba } from "../test/contra
  * unless given).
  */
 
-/** Themes the pairs don't bind, each with the reason. */
-const EXEMPT: Readonly<Record<string, string>> = {
-  "legacy-light":
-    "predates the pairs and fails several (muted text 4.3:1, the accent's label 3.7:1); it is retired with Memphis",
-};
-
 /** Pairs a theme fails today, each with the reason. Keyed `<theme> <source> on <surface>`. */
 const FAILING_FOR_NOW: Readonly<Record<string, string>> = {};
 
@@ -91,12 +85,12 @@ function measure(themeId: string, pair: Pair): number | string {
   return contrastBetween(composite(fg as Rgba, surface), surface);
 }
 
-const measured = [...THEME_FILES.keys()]
-  .filter((id) => !(id in EXEMPT))
-  .flatMap((id) => PAIRS.map((pair) => ({ id, pair, ratio: measure(id, pair) })));
+const measured = [...THEME_FILES.keys()].flatMap((id) =>
+  PAIRS.map((pair) => ({ id, pair, ratio: measure(id, pair) }))
+);
 
 describe("contrast", () => {
-  it("measures every pair in every theme not exempt", () => {
+  it("measures every pair in every theme", () => {
     const unmeasurable = measured.flatMap(({ id, pair, ratio }) =>
       typeof ratio === "string" ? [`${id} ${pair.key}: ${ratio}`] : []
     );
@@ -124,10 +118,6 @@ describe("contrast", () => {
       (key) => !measured.some(({ id, pair }) => `${id} ${pair.key}` === key)
     );
     expect([...passing, ...unknown]).toEqual([]);
-  });
-
-  it("names only themes that exist as exempt", () => {
-    expect(Object.keys(EXEMPT).filter((id) => !THEME_FILES.has(id))).toEqual([]);
   });
 
   it("leaves out only slots it doesn't measure, each with a reason", () => {

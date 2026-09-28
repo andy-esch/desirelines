@@ -1,7 +1,18 @@
 import { describe, it, expect } from "vitest";
 import { themeToken } from "../../test/themeCss";
-import { contrastRatio as contrast } from "../../test/contrast";
-import { SUNSET_STOPS, GRID_FLOOR_HEIGHT, projectedPlaneHeight } from "./HeroDecoration";
+import {
+  composite,
+  contrastBetween,
+  contrastRatio as contrast,
+  parseRgba,
+  type Rgba,
+} from "../../test/contrast";
+import {
+  GRADIENT_WASH_STOPS,
+  SUNSET_STOPS,
+  GRID_FLOOR_HEIGHT,
+  projectedPlaneHeight,
+} from "./HeroDecoration";
 
 const slot = (name: string) => themeToken("miami", name);
 
@@ -59,5 +70,41 @@ describe("plane projection", () => {
 
   it("lies flatter as the pitch steepens", () => {
     expect(projectedPlaneHeight(360, 78, 700)).toBeLessThan(projectedPlaneHeight(360, 67, 700));
+  });
+});
+
+describe("Electric gradient wash", () => {
+  const color = (value: string): Rgba => {
+    const rgba = parseRgba(value);
+    if (!rgba) throw new Error(`can't measure ${value}`);
+    return rgba;
+  };
+  const electric = (name: string) => color(themeToken("electric", name));
+  // The wash over the ground, at each of its stops.
+  const washes = GRADIENT_WASH_STOPS.map((stop) =>
+    composite(color(stop), electric("--color-bg-body"))
+  );
+  // The title's gradient, from the theme's --display-text-gradient.
+  const titleStops = [
+    ...themeToken("electric", "--display-text-gradient").matchAll(/#[0-9a-f]{6}/gi),
+  ].map(([hex]) => color(hex));
+
+  it("keeps 4.5:1 for the hero ink across the wash", () => {
+    for (const wash of washes) {
+      expect(contrastBetween(electric("--hero-ink"), wash)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("keeps 3:1 for the title's gradient and the big numbers, which are large text", () => {
+    expect(titleStops.length).toBeGreaterThanOrEqual(3);
+    const large = [
+      ...titleStops,
+      electric("--hero-title-color"),
+      electric("--color-accent-cyan"),
+      electric("--color-accent-magenta"),
+    ];
+    for (const wash of washes) {
+      for (const ink of large) expect(contrastBetween(ink, wash)).toBeGreaterThanOrEqual(3);
+    }
   });
 });
