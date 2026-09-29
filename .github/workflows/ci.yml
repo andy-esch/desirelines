@@ -175,7 +175,7 @@ jobs:
       # env and does not put `uv` on PATH. Same action/version the
       # integration-tests job uses.
       - name: Set up uv
-        uses: astral-sh/setup-uv@v10.1.0
+        uses: astral-sh/setup-uv@v10.2.0
         with:
           # Without this, setup-uv installs whatever uv is newest that day.
           # pyproject.toml isn't at the repo root, so the action's default
@@ -289,7 +289,7 @@ jobs:
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.13.2
+          version: v2.14.0
           working-directory: packages/${{ matrix.package }}
           args: --timeout=5m
 
@@ -406,7 +406,7 @@ jobs:
           cache-dependency-path: go.work.sum
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.1.0
+        uses: astral-sh/setup-uv@v10.2.0
         with:
           # See the note on the pants-python job's "Set up uv" step.
           version-file: packages/stravapipe/pyproject.toml
