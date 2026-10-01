@@ -10,6 +10,7 @@ import { getIsoWeek, getMonthShareOfYear } from "../../utils/yearClock";
 import { getYearElapsedShare } from "../../utils/yearContext";
 import { HeroDecoration } from "../theme/HeroDecoration";
 import { Meter } from "../theme/Meter";
+import { LoadingValue } from "../theme/LoadingValue";
 import { MissingValue } from "../theme/MissingValue";
 import { useThemeStructure } from "../theme/useThemeStructure";
 
@@ -83,7 +84,7 @@ export default function DashboardHero({
   const weekDistance = distanceSports.reduce((sum, s) => sum + s.weeklyTotal, 0);
   const distanceUnit = distanceSports[0]?.metricUnit ?? "mi";
   const goals = countGoalsOnPace(sportData, getYearElapsedShare(yearContext));
-  const pending = "--";
+  const pending = <LoadingValue />;
 
   return (
     <section

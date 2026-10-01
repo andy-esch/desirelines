@@ -3,7 +3,7 @@ import { useSportConfig } from "../../hooks/useSportConfig";
 import { useVisibleSports } from "../../hooks/useVisibleSports";
 import { getMetricDisplayLabel } from "../../config/metricConfig";
 import { CheckIcon, CloseIcon, EyeIcon, EyeSlashIcon } from "../icons";
-import NeonSpinner from "../NeonSpinner";
+import Loader from "../Loader";
 import { InlineAlert } from "../InlineAlert";
 import { logger } from "../../lib/logger";
 import { Button } from "../ui/button";
@@ -357,7 +357,7 @@ export function SportVisibilitySettings() {
   if (configLoading || prefsLoading) {
     return (
       <div className="flex justify-center py-6">
-        <NeonSpinner />
+        <Loader />
       </div>
     );
   }
@@ -384,7 +384,7 @@ export function SportVisibilitySettings() {
         <Input
           type="text"
           className="h-8 pe-8"
-          placeholder="Filter sports..."
+          placeholder="Filter sports…"
           value={filterText}
           onChange={(e) => setFilterText(e.target.value)}
         />
@@ -443,7 +443,7 @@ export function SportVisibilitySettings() {
 
         {/* Auto-save status indicator */}
         <span className="text-sm flex items-center gap-1">
-          {isSaving && <span className="text-muted-text">Saving...</span>}
+          {isSaving && <span className="text-muted-text">Saving…</span>}
           {showSaveSuccess && (
             <span className="text-success flex items-center gap-1">
               <CheckIcon />

@@ -313,6 +313,10 @@ export const THEME_CONTRACT = {
     "--meter-current-glow": "shadow",
     "--color-pace-tick": "color",
   },
+  Loading: {
+    "--color-skeleton": "color",
+    "--color-skeleton-shimmer": "color",
+  },
   Status: {
     "--color-status-good": "color",
     "--color-status-warn": "color",
@@ -437,6 +441,8 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = [
   { text: ["--color-accent-cyan"], on: ["--color-bg-body"], min: 4.5 },
   { text: ["--color-accent-cyan"], on: ["--panel-bg"], min: 4.5 },
   { text: ["--color-accent-magenta"], on: ["--color-bg-body"], min: 4.5 },
+  // The empty-state headline, display text in both accents inside a panel.
+  { text: ["--color-accent-magenta"], on: ["--panel-bg"], min: 3 },
   { text: ["--color-danger"], on: ["--panel-bg"], min: 4.5 },
   { text: ["--color-danger"], on: ["--color-bg-body"], min: 4.5 },
   // Controls: a primary button's label, toggle items in their frame, and the pressed item,
@@ -535,12 +541,28 @@ export const MARK_PAIRS: readonly MarkPair[] = [
   },
   // A slider's filled track and handle, in the routes-map drawer that holds the sliders.
   { mark: ["--color-slider-fill", "--color-accent-cyan"], on: ["--map-chrome-bg"] },
-  // A year meter's done segments.
+  // A year meter's done segments, and a loader's lit ones, which reuse them on the page
+  // ground as well as in panels.
   { mark: ["--color-meter-done"], on: ["--panel-bg"] },
+  { mark: ["--color-meter-done"], on: ["--color-bg-body"] },
   // The Settings theme picker's chosen card: its border on the panel, and the check in its
   // badge, which marks the choice without relying on color.
   { mark: ["--color-neon-accent"], on: ["--panel-bg"] },
   { mark: ["--color-on-accent"], on: ["--color-neon-accent"] },
+];
+
+/**
+ * A loading placeholder's floor. WCAG sets none, since a loading state is announced as text,
+ * but a block that can't be seen reads as an empty page: 1.3:1 keeps a skeleton in view
+ * without competing with the content that replaces it.
+ */
+export const PLACEHOLDER_MIN = 1.3;
+
+/** Skeleton blocks on each ground they sit on, and the shimmer on the block it sweeps. */
+export const PLACEHOLDER_PAIRS: readonly MarkPair[] = [
+  { mark: ["--color-skeleton"], on: ["--panel-bg"] },
+  { mark: ["--color-skeleton"], on: ["--color-bg-body"] },
+  { mark: ["--color-skeleton-shimmer"], on: ["--color-skeleton"] },
 ];
 
 /**

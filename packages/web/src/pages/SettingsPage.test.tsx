@@ -87,7 +87,7 @@ describe("SettingsPage", () => {
 
     await renderWithRouter(<SettingsPage />);
 
-    // NeonSpinner renders a div with role="status"
+    // Loader renders a div with role="status"
     await waitFor(() => {
       expect(screen.getByRole("status")).toBeInTheDocument();
     });
@@ -396,7 +396,7 @@ describe("SettingsPage", () => {
     for (const name of ["Distance Unit", "Elevation Unit", "Timezone"]) {
       expect(screen.getByRole("combobox", { name })).toBeEnabled();
     }
-    expect(screen.getByText("Saving...")).toHaveAttribute("role", "status");
+    expect(screen.getByText("Saving…")).toHaveAttribute("role", "status");
   });
 
   it("renders sport visibility and goals sections", async () => {

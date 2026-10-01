@@ -23,6 +23,10 @@ import { Stat, StatRow } from "../../components/theme/Stat";
 import { Meter } from "../../components/theme/Meter";
 import { StatusSymbol, type GoalStatus } from "../../components/theme/StatusSymbol";
 import { Alert } from "../../components/ui/alert";
+import Loader from "../../components/Loader";
+import Skeleton from "../../components/Skeleton";
+import EmptyState from "../../components/EmptyState";
+import { LoadingValue } from "../../components/theme/LoadingValue";
 
 /**
  * Dev-only theme gallery: every theme in the list — hidden ones included — rendered side
@@ -359,6 +363,30 @@ function ThemePanel({ theme }: { theme: ThemeDefinition }) {
         <h3 className="text-sm font-medium">Theme components</h3>
         <ThemeStructureProvider structure={theme.structure}>
           <ComponentSamples />
+        </ThemeStructureProvider>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <h3 className="text-sm font-medium">Loading and empty</h3>
+        <ThemeStructureProvider structure={theme.structure}>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Panel title="Loading" bodyClassName="flex flex-col gap-3 p-3">
+              <Loader />
+              <Skeleton width="60%" height={14} />
+              <Skeleton height={48} borderRadius={4} />
+              <Stat label="This week" value={<LoadingValue />} unit="mi" />
+            </Panel>
+            <Panel title="Empty" bodyClassName="p-0">
+              <EmptyState
+                message="No activities found for the selected filters."
+                action={
+                  <Button variant="outline" size="sm">
+                    Clear filters
+                  </Button>
+                }
+              />
+            </Panel>
+          </div>
         </ThemeStructureProvider>
       </div>
 

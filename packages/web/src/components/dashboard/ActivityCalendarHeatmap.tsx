@@ -6,7 +6,7 @@ import { useSportConfig } from "../../hooks/useSportConfig";
 import { filterValidSports } from "../../utils/sportConfig";
 import { toLocalDateString } from "../../utils/dateUtils";
 import { getCalendarRange, type TimeRangeOption } from "../../utils/calendarRange";
-import NeonSpinner from "../NeonSpinner";
+import Loader from "../Loader";
 import StyledSelect from "../StyledSelect";
 import type { TuningParams } from "../../utils/demoDataGenerator";
 import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
@@ -272,7 +272,7 @@ export default function ActivityCalendarHeatmap({
           title="Activity Calendar"
           bodyClassName="flex h-[120px] items-center justify-center p-2"
         >
-          <NeonSpinner size="sm" />
+          <Loader size="sm" />
         </Panel>
       </div>
     );

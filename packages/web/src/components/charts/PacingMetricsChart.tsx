@@ -153,7 +153,6 @@ const PacingMetricsChart = (props: PacingMetricsChartProps) => {
       hideHeader={hideHeader}
       onRetry={onRetry}
       emptyStateConfig={{ sport, year, unit, message: "No pacing data available" }}
-      framed
     >
       <PacingChartPresenter
         mergedData={mergedData}

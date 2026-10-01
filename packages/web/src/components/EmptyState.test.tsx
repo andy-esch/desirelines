@@ -22,12 +22,22 @@ vi.mock("../hooks/usePublicSportConfig", () => ({
 
 describe("EmptyState", () => {
   describe("default rendering", () => {
-    it("renders neon 'No data available' heading", async () => {
+    it("leads with the shared 'No signal' headline", async () => {
       await renderWithRouter(<EmptyState />);
 
-      expect(screen.getByText("No")).toBeInTheDocument();
-      expect(screen.getByText("data")).toBeInTheDocument();
-      expect(screen.getByText("available")).toBeInTheDocument();
+      expect(screen.getByText("No").parentElement).toHaveTextContent("No signal");
+    });
+
+    it("offers the caller's action under the message", async () => {
+      await renderWithRouter(
+        <EmptyState message="Nothing matches" action={<button>Clear</button>} />
+      );
+
+      const message = screen.getByText("Nothing matches");
+      const action = screen.getByRole("button", { name: "Clear" });
+      expect(
+        message.compareDocumentPosition(action) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
     });
 
     it("shows default subtitle when no sport/year provided", async () => {

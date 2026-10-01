@@ -1,4 +1,4 @@
-import Skeleton from "../Skeleton";
+import Skeleton, { SkeletonRegion } from "../Skeleton";
 import { Panel } from "../theme/Panel";
 
 /**
@@ -7,7 +7,7 @@ import { Panel } from "../theme/Panel";
  */
 export default function DashboardSkeleton() {
   return (
-    <div className="px-4 md:px-6 py-6">
+    <SkeletonRegion className="px-4 md:px-6 py-6">
       {/* Header */}
       <div className="mb-3">
         <Skeleton width={220} height={28} />
@@ -44,6 +44,6 @@ export default function DashboardSkeleton() {
           <Skeleton width="100%" height={160} borderRadius={8} />
         </div>
       </Panel>
-    </div>
+    </SkeletonRegion>
   );
 }

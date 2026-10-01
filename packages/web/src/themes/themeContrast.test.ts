@@ -3,6 +3,8 @@ import {
   CONTRAST_PAIRS,
   MARK_MIN,
   MARK_PAIRS,
+  PLACEHOLDER_MIN,
+  PLACEHOLDER_PAIRS,
   UNMEASURED_MARKS,
   slotSpec,
   type ColorSource,
@@ -14,8 +16,8 @@ import { splitTop } from "../test/themeValues";
 import { composite, contrastBetween, parseRgba, type Rgba } from "../test/contrast";
 
 /**
- * The contract's contrast pairs, measured in every theme: text at its pair's floor, and
- * non-text marks at WCAG 1.4.11's 3:1. A slot a theme sets to `initial` or `currentColor`
+ * The contract's contrast pairs, measured in every theme: text at its pair's floor,
+ * non-text marks at WCAG 1.4.11's 3:1, and loading placeholders at their own floor. A slot a theme sets to `initial` or `currentColor`
  * falls through to the next source in its list, a shadow or border is measured by its first
  * layer's color, and a translucent surface is painted over its `over` slot (the page ground
  * unless given).
@@ -48,6 +50,13 @@ const PAIRS: readonly Pair[] = [
     on: pair.on,
     over: pair.over ?? "--color-bg-body",
     min: MARK_MIN,
+  })),
+  ...PLACEHOLDER_PAIRS.map((pair) => ({
+    key: `${nameOf(pair.mark[0])} on ${pair.on[0]}`,
+    source: pair.mark,
+    on: pair.on,
+    over: pair.over ?? "--color-bg-body",
+    min: PLACEHOLDER_MIN,
   })),
 ];
 

@@ -18,7 +18,7 @@ describe.each(PLACEMENTS)("ChartContainer with $sectionLabelPlacement labels", (
   it("frames the chart in a panel with the title and controls in its header", () => {
     const { container } = inStructure(
       structure,
-      <ChartContainer {...base} framed headerControls={<button>YTD</button>}>
+      <ChartContainer {...base} headerControls={<button>YTD</button>}>
         <p>chart</p>
       </ChartContainer>
     );
@@ -31,7 +31,7 @@ describe.each(PLACEMENTS)("ChartContainer with $sectionLabelPlacement labels", (
   it("keeps the title but not the controls while loading", () => {
     inStructure(
       structure,
-      <ChartContainer {...base} isLoading framed headerControls={<button>YTD</button>}>
+      <ChartContainer {...base} isLoading headerControls={<button>YTD</button>}>
         <p>chart</p>
       </ChartContainer>
     );
@@ -40,14 +40,18 @@ describe.each(PLACEMENTS)("ChartContainer with $sectionLabelPlacement labels", (
     expect(screen.queryByText("chart")).not.toBeInTheDocument();
   });
 
-  it("draws its own header row when not framed", () => {
-    const { container } = inStructure(
+  it("titles an error one level under the chart's heading", () => {
+    inStructure(
       structure,
-      <ChartContainer {...base} headerControls={<button>YTD</button>}>
+      <ChartContainer {...base} error={new Error("timeout")}>
         <p>chart</p>
       </ChartContainer>
     );
-    expect(container.querySelector("section")).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Cumulative Distance" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Cumulative Distance" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 3, name: "Failed to load chart data" })
+    ).toBeInTheDocument();
   });
 });

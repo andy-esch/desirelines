@@ -287,6 +287,8 @@
   --meter-done-glow: 0 0 6px rgba(255, 46, 196, 0.55);
   --meter-current-glow: 0 0 8px rgba(0, 229, 255, 0.9);
   --color-pace-tick: #ffd9f2;
+  --color-skeleton: rgba(242, 234, 255, 0.14);
+  --color-skeleton-shimmer: rgba(255, 46, 196, 0.3);
   --color-status-good: #00e5ff;
   --color-status-warn: #ffd9f2;
   --color-status-bad: #ff8a3d;

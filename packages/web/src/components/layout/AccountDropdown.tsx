@@ -383,7 +383,7 @@ export function AccountDropdown({
                 disabled={actionLoading}
               >
                 <SignOutIcon />
-                <span>{actionLoading ? "Signing out..." : "Sign Out"}</span>
+                <span>{actionLoading ? "Signing out…" : "Sign Out"}</span>
               </button>
             ) : (
               <button
@@ -398,7 +398,7 @@ export function AccountDropdown({
                 disabled={actionLoading}
               >
                 <SignInIcon />
-                <span>{actionLoading ? "Signing in..." : "Sign In"}</span>
+                <span>{actionLoading ? "Signing in…" : "Sign In"}</span>
               </button>
             )}
           </div>

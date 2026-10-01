@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useCurrentYear } from "../../hooks/useCurrentYear";
 import { useAllGoals } from "../../hooks/useGoals";
 import { DEMO_SPORT_LABELS, type DemoSport } from "../../constants/demoConfig";
-import NeonSpinner from "../NeonSpinner";
+import Loader from "../Loader";
 import { InlineAlert } from "../InlineAlert";
 import { Table } from "../ui/table";
 
@@ -70,7 +70,7 @@ export function GoalManagementTable() {
   if (loading) {
     return (
       <div className="flex justify-center py-6">
-        <NeonSpinner />
+        <Loader />
       </div>
     );
   }

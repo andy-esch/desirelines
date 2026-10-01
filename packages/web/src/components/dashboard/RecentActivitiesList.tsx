@@ -4,7 +4,7 @@ import { useActivities } from "../../hooks/useActivities";
 import { useAuth } from "../../hooks/useAuth";
 import { useDashboardGoalData } from "../../hooks/useDashboardGoalData";
 import type { SportGoalData } from "../../hooks/useDashboardGoalData";
-import NeonSpinner from "../NeonSpinner";
+import Loader from "../Loader";
 import { MapPinIcon } from "../ui/MapPinIcon";
 import type { TimeRange } from "../../utils/dataNormalization";
 import { convertDistance, formatDistance, formatImpactPct } from "../../utils/units";
@@ -215,7 +215,7 @@ export default function RecentActivitiesList({
   if (isLoading && activities.length === 0) {
     return (
       <div ref={containerRef} className="flex items-center justify-center h-full">
-        <NeonSpinner size="sm" />
+        <Loader size="sm" />
       </div>
     );
   }

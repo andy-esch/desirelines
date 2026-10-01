@@ -4,7 +4,7 @@
  * the theme's `--missing-value-color`; a theme that leaves that slot `initial` keeps the
  * surrounding text's color. Screen readers hear "none" rather than a dash.
  *
- * A value still loading is not missing: it keeps its loading placeholder.
+ * A value still loading is not missing: it shows a `LoadingValue`.
  */
 export function MissingValue() {
   return (

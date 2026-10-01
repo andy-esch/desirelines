@@ -1,4 +1,4 @@
-import NeonSpinner from "../NeonSpinner";
+import Loader from "../Loader";
 
 /**
  * Shared loading state for the routes map, used in two phases:
@@ -6,17 +6,14 @@ import NeonSpinner from "../NeonSpinner";
  *  - the in-map overlay shown from mount until Mapbox fires `load`.
  *
  * Its own module (not exported from `RouteMap`) so the Suspense fallback doesn't
- * drag `mapbox-gl` into the main bundle. `NeonSpinner` already carries the
- * `role="status"` live region, so the wrapper deliberately omits one to avoid a
- * duplicate screen-reader announcement.
+ * drag `mapbox-gl` into the main bundle. `Loader` carries the `role="status"`
+ * live region and the label, so the wrapper omits both to avoid a duplicate
+ * screen-reader announcement.
  */
 export default function MapLoadingState() {
   return (
     <div className="pointer-events-none absolute inset-0 grid place-items-center bg-bg-body/60 backdrop-blur-(--glass-blur-sm)">
-      <div className="flex flex-col items-center gap-3">
-        <NeonSpinner />
-        <span className="text-sm text-muted-text">Loading map…</span>
-      </div>
+      <Loader label="Loading map…" />
     </div>
   );
 }

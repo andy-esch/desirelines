@@ -1,4 +1,4 @@
-import Skeleton from "./Skeleton";
+import Skeleton, { SkeletonRegion } from "./Skeleton";
 import { Panel } from "./theme/Panel";
 
 /**
@@ -8,7 +8,7 @@ import { Panel } from "./theme/Panel";
  */
 export default function PageLoader() {
   return (
-    <div className="px-4 md:px-6 py-6 grow" style={{ minHeight: "50vh" }}>
+    <SkeletonRegion className="px-4 md:px-6 py-6 grow min-h-[50vh]">
       {/* Title placeholder */}
       <div className="mb-4">
         <Skeleton width={200} height={28} />
@@ -29,6 +29,6 @@ export default function PageLoader() {
       <Panel bodyClassName="p-4">
         <Skeleton width="100%" height={300} borderRadius={8} />
       </Panel>
-    </div>
+    </SkeletonRegion>
   );
 }

@@ -1,7 +1,7 @@
 /**
  * Tests for LoadingChart component
  *
- * Simple presentation component that shows a loading spinner.
+ * Simple presentation component that shows the theme's loader.
  */
 
 import { describe, it, expect } from "vitest";
@@ -16,12 +16,11 @@ describe("LoadingChart", () => {
     expect(spinner).toBeInTheDocument();
   });
 
-  it('shows visually hidden "Loading..." text for screen readers', () => {
+  it('labels the loader "Loading…", shown and announced', () => {
     render(<LoadingChart />);
 
-    const loadingText = screen.getByText("Loading...");
-    expect(loadingText).toBeInTheDocument();
-    expect(loadingText).toHaveClass("sr-only");
+    expect(screen.getByRole("status")).toHaveTextContent("Loading…");
+    expect(screen.getByText("Loading…")).not.toHaveClass("sr-only");
   });
 
   it("applies Tailwind styling classes", () => {

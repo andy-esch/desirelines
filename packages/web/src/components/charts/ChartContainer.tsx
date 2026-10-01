@@ -2,10 +2,10 @@
  * ChartContainer - Wrapper component for chart loading/error/empty states.
  *
  * Provides consistent handling of:
- * - Loading state with spinner
+ * - Loading state with the theme's loader
  * - Error state with retry button
- * - Empty state with styled message
- * - Optional header with title and controls
+ * - Empty state with the shared "No signal" headline
+ * - A theme Panel holding the title and controls, which the theme places
  */
 import type { ReactNode } from "react";
 import { ErrorBoundary } from "react-error-boundary";
@@ -47,11 +47,6 @@ interface ChartContainerProps {
   emptyStateConfig?: EmptyStateConfig | undefined;
   /** Optional info tooltip content shown next to title */
   infoTooltip?: string | undefined;
-  /**
-   * Frame the chart in a theme `Panel`, which places the title and controls per the theme.
-   * Without it the chart draws its own header row and the caller provides any frame.
-   */
-  framed?: boolean | undefined;
 }
 
 /**
@@ -80,44 +75,6 @@ function InfoBadge({ text }: { text: string }) {
     >
       ?
     </span>
-  );
-}
-
-/**
- * Header component with title and optional controls.
- * Handles both simple (no controls) and full header cases.
- */
-function ChartHeader({
-  title,
-  controls,
-  infoTooltip,
-  simple = false,
-}: {
-  title: string;
-  controls?: ReactNode | undefined;
-  infoTooltip?: string | undefined;
-  simple?: boolean | undefined;
-}) {
-  // Simple header for loading/error/empty states
-  if (simple) {
-    return (
-      <h3 className="text-muted-text mb-6" style={{ fontSize: "1rem", fontWeight: "500" }}>
-        {title}
-      </h3>
-    );
-  }
-
-  // Full header with optional controls and tooltip
-  return (
-    <div className="flex justify-between items-center mb-6">
-      <div className="flex items-center gap-2">
-        <h3 className="text-muted-text mb-0" style={{ fontSize: "1rem", fontWeight: "500" }}>
-          {title}
-        </h3>
-        {infoTooltip && <InfoBadge text={infoTooltip} />}
-      </div>
-      {controls && <div className="flex gap-2">{controls}</div>}
-    </div>
   );
 }
 
@@ -152,73 +109,28 @@ export function ChartContainer({
   children,
   emptyStateConfig,
   infoTooltip,
-  framed = false,
 }: ChartContainerProps) {
   const ready = !isLoading && !error && !isEmpty;
 
-  // Framed: the Panel owns the title row, with the controls only once the chart can use them.
-  if (framed) {
-    const panelTitle = hideHeader ? undefined : (
-      <span className="inline-flex items-center gap-2">
-        {title}
-        {ready && infoTooltip && <InfoBadge text={infoTooltip} />}
-      </span>
-    );
-    return (
-      <Panel
-        title={panelTitle}
-        actions={ready && !hideHeader ? headerControls : undefined}
-        className={className}
-        bodyClassName="p-2"
-      >
-        {isLoading ? (
-          <LoadingChart />
-        ) : error ? (
-          <ErrorChart error={error} onRetry={onRetry} />
-        ) : isEmpty ? (
-          <EmptyState
-            sport={emptyStateConfig?.sport}
-            year={emptyStateConfig?.year}
-            unit={emptyStateConfig?.unit}
-            message={emptyStateConfig?.message}
-            suggestedYear={emptyStateConfig?.suggestedYear}
-          />
-        ) : (
-          <ErrorBoundary
-            fallbackRender={({ error }) => <ErrorChart error={error as Error} onRetry={onRetry} />}
-          >
-            {children}
-          </ErrorBoundary>
-        )}
-      </Panel>
-    );
-  }
-
-  // Loading state
-  if (isLoading) {
-    return (
-      <div className={className}>
-        {!hideHeader && <ChartHeader title={title} simple />}
+  // The Panel owns the title row, with the controls only once the chart can use them.
+  const panelTitle = hideHeader ? undefined : (
+    <span className="inline-flex items-center gap-2">
+      {title}
+      {ready && infoTooltip && <InfoBadge text={infoTooltip} />}
+    </span>
+  );
+  return (
+    <Panel
+      title={panelTitle}
+      actions={ready && !hideHeader ? headerControls : undefined}
+      className={className}
+      bodyClassName="p-2"
+    >
+      {isLoading ? (
         <LoadingChart />
-      </div>
-    );
-  }
-
-  // Error state
-  if (error) {
-    return (
-      <div className={className}>
-        {!hideHeader && <ChartHeader title={title} simple />}
+      ) : error ? (
         <ErrorChart error={error} onRetry={onRetry} />
-      </div>
-    );
-  }
-
-  // Empty state
-  if (isEmpty) {
-    return (
-      <div className={className}>
-        {!hideHeader && <ChartHeader title={title} simple />}
+      ) : isEmpty ? (
         <EmptyState
           sport={emptyStateConfig?.sport}
           year={emptyStateConfig?.year}
@@ -226,22 +138,14 @@ export function ChartContainer({
           message={emptyStateConfig?.message}
           suggestedYear={emptyStateConfig?.suggestedYear}
         />
-      </div>
-    );
-  }
-
-  // Normal state - render chart
-  return (
-    <div className={className}>
-      {!hideHeader && (
-        <ChartHeader title={title} controls={headerControls} infoTooltip={infoTooltip} />
+      ) : (
+        <ErrorBoundary
+          fallbackRender={({ error }) => <ErrorChart error={error as Error} onRetry={onRetry} />}
+        >
+          {children}
+        </ErrorBoundary>
       )}
-      <ErrorBoundary
-        fallbackRender={({ error }) => <ErrorChart error={error as Error} onRetry={onRetry} />}
-      >
-        {children}
-      </ErrorBoundary>
-    </div>
+    </Panel>
   );
 }
 

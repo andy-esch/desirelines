@@ -5,7 +5,7 @@ import { THEMES, type ThemeStructure } from "../../themes/registry";
 import { ThemeStructureProvider } from "./ThemeStructureProvider";
 import { useThemeDateFormat } from "./useThemeDateFormat";
 import { Table } from "../ui/table";
-import NeonSpinner from "../NeonSpinner";
+import Loader from "../Loader";
 import { MapDrawerSection } from "../routes/MapDrawerSection";
 import { LineChart, Line } from "recharts";
 import { Slider } from "../ui/slider";
@@ -71,7 +71,7 @@ describe("rowHoverCursor", () => {
 describe("loaderStyle", () => {
   it("draws a chaser or a block row, keeping the status role", () => {
     const shapes = (["chaser", "block"] as const).map((loaderStyle) => {
-      const { container, unmount } = withStructure({ loaderStyle }, <NeonSpinner />);
+      const { container, unmount } = withStructure({ loaderStyle }, <Loader />);
       screen.getByRole("status");
       const segments = container.querySelectorAll(".loader-segment").length;
       const cursors = container.querySelectorAll(".loader-cursor").length;

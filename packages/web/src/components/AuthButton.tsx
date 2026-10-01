@@ -47,7 +47,7 @@ export default function AuthButton() {
           onClick={() => void handleSignOut()}
           disabled={actionLoading}
         >
-          {actionLoading ? "Signing out..." : "Sign Out"}
+          {actionLoading ? "Signing out…" : "Sign Out"}
         </Button>
         {error && (
           <div className="text-danger text-sm mt-1" role="alert">
@@ -62,7 +62,7 @@ export default function AuthButton() {
   return (
     <div>
       <Button size="sm" onClick={() => void handleSignIn()} disabled={actionLoading}>
-        {actionLoading ? "Connecting..." : "Connect with Strava"}
+        {actionLoading ? "Connecting…" : "Connect with Strava"}
       </Button>
       {error && (
         <div className="text-danger text-sm mt-1" role="alert">

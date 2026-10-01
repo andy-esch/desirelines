@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { MetricUnit } from "../../utils/units";
 import { tint } from "../../utils/colorTokens";
+import { LoadingValue } from "../theme/LoadingValue";
 import { MissingValue } from "../theme/MissingValue";
 
 interface ProgressSummaryProps {
@@ -22,7 +23,7 @@ export default function ProgressSummary({
   isLoading = false,
 }: ProgressSummaryProps) {
   const formatValue = (value: number): ReactNode => {
-    if (isLoading) return "--";
+    if (isLoading) return <LoadingValue />;
     if (value === 0) return <MissingValue />; // No data yet for this metric
     return `${value.toLocaleString(undefined, { maximumFractionDigits: 0 })} ${unit}`;
   };
