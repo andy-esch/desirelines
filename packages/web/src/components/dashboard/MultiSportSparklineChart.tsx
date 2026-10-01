@@ -7,7 +7,7 @@ import {
   formatHoursMinutes,
   type DistanceUnit,
 } from "../../utils/units";
-import { SparklineSkeleton } from "../Skeleton";
+import { SkeletonRegion, SparklineSkeleton } from "../Skeleton";
 import { useMultiSportChartData } from "../../hooks/useMultiSportChartData";
 import type { TuningParams } from "../../utils/demoDataGenerator";
 import type { TimeRange } from "../../utils/dataNormalization";
@@ -280,17 +280,16 @@ export default function MultiSportSparklineChart({
   if (isLoading) {
     return (
       <Panel className={cn("h-full", className)} bodyClassName="flex flex-1 flex-col p-2">
-        <div
+        <SkeletonRegion
+          label="Loading chart data"
           className="flex flex-1 flex-col justify-center gap-2"
           style={{ minHeight: sparklineContainerHeight }}
-          role="status"
-          aria-label="Loading chart data"
         >
           <SparklineSkeleton rowHeight={SPARKLINE_ROW_HEIGHT} />
           <SparklineSkeleton rowHeight={SPARKLINE_ROW_HEIGHT} />
           <SparklineSkeleton rowHeight={SPARKLINE_ROW_HEIGHT} />
           <SparklineSkeleton rowHeight={SPARKLINE_ROW_HEIGHT} />
-        </div>
+        </SkeletonRegion>
       </Panel>
     );
   }

@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Button, buttonVariants } from "./ui/button";
 import { Alert } from "./ui/alert";
+import { useHeadingLevel } from "./theme/useHeadingLevel";
 
 type ErrorFallbackVariant = "page" | "inline" | "full";
 
@@ -25,6 +26,10 @@ const defaultHeadings: Record<ErrorFallbackVariant, string> = {
  * - "full"   — Full-page layout for top-level error boundaries (index.tsx)
  * - "page"   — Container-width card for route-level errors (App.tsx)
  * - "inline" — Compact alert for component-level errors (charts, cards)
+ *
+ * The full and page variants stand in for a whole page, so their title is its `h1`; the
+ * inline one sits in the outline at the level `useHeadingLevel` gives (under a chart's
+ * title, one below it). Each heading keeps the body face, as the `h4` it replaced did.
  */
 export function PageErrorFallback({
   error,
@@ -33,6 +38,7 @@ export function PageErrorFallback({
   heading,
 }: PageErrorFallbackProps) {
   const title = heading ?? defaultHeadings[variant];
+  const InlineHeading = `h${useHeadingLevel()}` as const;
   const errorMessage = error instanceof Error ? error.message : String(error);
 
   // Full-page: monospace layout, no router available
@@ -57,7 +63,7 @@ export function PageErrorFallback({
   if (variant === "inline") {
     return (
       <Alert variant="danger" role="alert">
-        <h4>{title}</h4>
+        <InlineHeading className="[font-family:inherit]">{title}</InlineHeading>
         <p>{errorMessage}</p>
         {onReset && (
           <>
@@ -75,7 +81,7 @@ export function PageErrorFallback({
   return (
     <div className="container py-12" style={{ maxWidth: "600px" }}>
       <Alert variant="danger" role="alert">
-        <h4>{title}</h4>
+        <h1 className="[font-family:inherit]">{title}</h1>
         <p>This page encountered an unexpected error.</p>
         <hr />
         <p className="mb-6">

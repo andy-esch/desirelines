@@ -9,7 +9,7 @@ import { ThemePicker } from "../components/settings/ThemePicker";
 import { GoalManagementTable } from "../components/settings/GoalManagementTable";
 import { SportVisibilitySettings } from "../components/settings/SportVisibilitySettings";
 import { CheckIcon } from "../components/icons";
-import NeonSpinner from "../components/NeonSpinner";
+import Loader from "../components/Loader";
 import StyledSelect from "../components/StyledSelect";
 import { InlineAlert } from "../components/InlineAlert";
 import { NarrowPageLayout } from "../components/layout/PageLayout";
@@ -153,7 +153,7 @@ export default function SettingsPage() {
     return (
       <NarrowPageLayout>
         <div className="flex justify-center items-center" style={{ minHeight: "60vh" }}>
-          <NeonSpinner />
+          <Loader />
         </div>
       </NarrowPageLayout>
     );
@@ -212,7 +212,7 @@ export default function SettingsPage() {
                 onClick={() => void handleSignOut()}
                 disabled={signingOut}
               >
-                {signingOut ? "Signing out..." : "Sign Out"}
+                {signingOut ? "Signing out…" : "Sign Out"}
               </Button>
             </div>
           </div>
@@ -294,7 +294,7 @@ export default function SettingsPage() {
       {/* The dropdowns stay enabled while saving: disabling the focused one would drop
           keyboard focus to the page. */}
       <div role="status" className="text-muted-text text-sm text-right">
-        {isSaving ? "Saving..." : ""}
+        {isSaving ? "Saving…" : ""}
       </div>
     </NarrowPageLayout>
   );

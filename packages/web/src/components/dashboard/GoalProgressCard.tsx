@@ -4,7 +4,7 @@ import { useDashboardGoalData, type SportGoalData } from "../../hooks/useDashboa
 import { PACE_THRESHOLDS } from "../../utils/goalCalculations";
 import { formatMetricDisplayValue } from "../../utils/units";
 import { getDaysInYear, getYearElapsedShare, type YearContext } from "../../utils/yearContext";
-import Skeleton from "../Skeleton";
+import Skeleton, { SkeletonRegion } from "../Skeleton";
 import { Panel } from "../theme/Panel";
 import { Meter } from "../theme/Meter";
 import { MissingValue } from "../theme/MissingValue";
@@ -41,20 +41,20 @@ export default function GoalProgressCard() {
   return (
     <Panel className="h-full" bodyClassName="p-2" title={title} meta={meta}>
       {isLoading ? (
-        <div role="status" aria-label="Loading goal progress">
+        <SkeletonRegion label="Loading goal progress">
           {[0, 1, 2, 3].map((i) => (
             <div key={i} className="mb-2">
               <div className="flex justify-between items-center mb-1">
-                <Skeleton width={70} height={14} dualTheme={1} />
-                <Skeleton width={90} height={14} dualTheme={1} />
+                <Skeleton width={70} height={14} />
+                <Skeleton width={90} height={14} />
               </div>
-              <Skeleton height={28} borderRadius={4} dualTheme={1} />
+              <Skeleton height={28} borderRadius={4} />
               <div className="mt-1">
-                <Skeleton width={100} height={10} dualTheme={1} />
+                <Skeleton width={100} height={10} />
               </div>
             </div>
           ))}
-        </div>
+        </SkeletonRegion>
       ) : sportData.length === 0 ? (
         <div className="text-center text-muted-text py-6">
           <small>No sports configured</small>

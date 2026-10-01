@@ -206,7 +206,8 @@ values.
 | Controls | `--control-height`, `-radius`, `-font-size`, `-case`, `-focus-color`, `-focus-width`, `-focus-glow`; `--toggle-gap`, `-frame-border-width`, `-frame-border-color`, `-frame-padding`, `-frame-radius`, `-item-border-width`, `-item-radius`, `-item-color`, `-font-size`, `-tracking`, `-case`; `--color-toggle-pressed`, `-pressed-border`, `-pressed-text`, `--toggle-pressed-glow`, `-pressed-text-glow`; `--button-radius`, `-case`, `-tracking`, `-outline-border-color`, `-outline-glow`; `--stepper-gap`, `-button-text` | Inputs, selects, toggle groups, buttons and steppers (height and font size are the default size; `sm` and `lg` buttons and caller overrides keep fixed sizes). An outline button takes its own border color and an inner glow (`0 0 #0000` for none); a stepper's − and + take `--stepper-button-text`, or the outline button's text through `initial`. A pressed toggle's fill, border and text default to the accent through `initial`; the glow is a single inset shadow, `0 0 #0000` for none. The focus ring is an outline in `--control-focus-color` (`initial` for the accent at 40%) and `--control-focus-width`, 2px clear of the element, with `--control-focus-glow` around the element |
 | Sliders and chips | `--slider-track-height`, `-track-radius`, `-track-bg`, `-fill-glow`, `-handle-size`, `-handle-radius`, `-handle-border-width`; `--color-slider-fill`; `--chip-height`, `-height-drawer`, `-radius`, `-border-strength`, `-hover-strength`, `-dot-radius`; `--chip-selected-fill-strength`, `-label-strength`, `-ink`, `-glow-strength`, `-glow-size`, `-inset-glow-size` | Range sliders and sport chips (strengths are how much sport color mixes in; a height of `auto` leaves it to the toggle item's padding, and the map drawer's chips take the drawer height). A selected chip's fill strength splits the sport color between the fill and the border (100% fills it and keeps the mark outline; 0% leaves an outlined chip). Its label is the ink with the label strength of sport color mixed in; the ink is `--chip-selected-ink`, or through `initial` the black or white `sportChipStyle` picks for each sport. Its glows are an outer and an inset shadow in the sport color at the glow strength |
 | Tables | `--th-size`, `--th-weight`, `--th-color`, `--th-tracking`, `--th-case`, `--th-rule`, `--row-rule`, `--row-padding`, `--row-hover-bg`, `--missing-value-color`, `--sport-mark-radius` | Table headers, row rules and hover, sport marks, and the color of a missing value wherever `MissingValue` shows one |
-| Goals and meters | `--track-height`, `-bg`, `-border`, `-fill-height`, `-fill-glow`, `-radius`; `--pace-tick-width`, `-height`; `--meter-segment-width`, `-segment-height`, `--meter-gap`, `--meter-radius`, `-done-glow`, `-current-glow`; `--color-meter-done`, `-current`, `-todo`; `--color-pace-tick`; `--cell-empty-border`, `--cell-radius` | Goal tracks (the fill glows in its own color by `--track-fill-glow`) and their pace tick, segmented meters (the segments done, the current one and those to come), heatmap cells |
+| Goals and meters | `--track-height`, `-bg`, `-border`, `-fill-height`, `-fill-glow`, `-radius`; `--pace-tick-width`, `-height`; `--meter-segment-width`, `-segment-height`, `--meter-gap`, `--meter-radius`, `-done-glow`, `-current-glow`; `--color-meter-done`, `-current`, `-todo`; `--color-pace-tick`; `--cell-empty-border`, `--cell-radius` | Goal tracks (the fill glows in its own color by `--track-fill-glow`) and their pace tick, segmented meters (the segments done, the current one and those to come) and loaders, which light theirs in the done color, heatmap cells |
+| Loading | `--color-skeleton`, `-shimmer` | Skeleton placeholders: blocks in a faint tint of the body text, so they show on dark and white grounds alike, and a shimmer in the theme's accent sweeping across them. The contract holds a block to 1.3:1 on the panel and the page, and the shimmer to 1.3:1 on the block |
 | Status | `--status-size`, `-tracking`, `-case`; `--color-status-good`, `-warn`, `-bad` | Goal status labels, and their colors for on track, slightly behind and behind |
 | Charts | `--chart-baseline`, `--chart-tick-size`, `--chart-actual-glow`, `--chart-average-dash`, `--chart-bar-radius`, `--chart-bar-gap`, `--chart-hover-column`, `--tooltip-radius` | Chart chrome beyond the color tokens: the x axis line, tick labels, the actual line's glow (a `filter`, `none` for crisp), the average line's dash, the top corners of a bar stack, the gap between stacked sports, the hovered column, and every chart tooltip's corner. Recharts can't take `var()` for the dash or the bar radius, so those two are read off the chart's element with `useThemeTokenValue` |
 | Map chrome | `--map-chrome-bg`, `-edge`, `-shadow`; `--popup-radius`, `--popup-border`, `--popup-shadow` | The routes-map drawers and their toggles (the edge is drawn on the map-facing side), and the route popup |
@@ -225,7 +226,7 @@ Structure fields (`structure` on the list entry):
 | `statusSymbolStyle` | `filled`, `outlined` | Goal status as an SVG symbol plus text, the symbol filled or outlined |
 | `goalTrackStyle` | `track`, `outline-track` | Goal progress as a track with a pace tick, plain or outlined |
 | `meterPartialCurrent` | `true` / `false` | Year meters fill the current segment to today |
-| `loaderStyle` | `chaser`, `block` | The loading indicator: a chaser of lit segments, or blocks with a cursor |
+| `loaderStyle` | `chaser`, `block` | The loading indicator: a chaser of lit segments, or blocks with a cursor after the label |
 | `chartMarkerShape` | `circle`, `square` | Axis marker dots |
 | `mapDrawerSections` | `flat`, `panels` | Routes-map drawer section framing |
 | `dateFormat` | `short`, `dotted` | `Sep 12, 2026` or `2026.09.12`; integers are never zero-padded |
@@ -353,6 +354,7 @@ active theme's `structure`, unless a `ThemeStructureProvider` overrides it for a
 | `Meter` | `--meter-*`, `--color-meter-*`, `--track-*`, `--color-pace-tick`, `meterPartialCurrent`, `goalTrackStyle` | Segmented (months, weeks) or continuous with an optional pace tick. `indeterminate` animates the segments for loading, and stops under reduced motion. |
 | `StatusSymbol` | `--status-*`, `--color-status-*`, `statusSymbolStyle` | A goal status as an SVG symbol plus text. The words always show. |
 | `MissingValue` | `--missing-value-color` | A value that isn't there, anywhere it would show: an em dash, and "none" to a screen reader. A theme that leaves the slot `initial` keeps the surrounding text's color. |
+| `LoadingValue` | — | A value still loading: an ellipsis in the surrounding text's color, and "loading" to a screen reader. |
 
 The component slots and tokens: `--panel-accent-{1,2,3}-ink` (header-bar label color per
 accent), `--stat-label-size`, `--stat-label-tracking`, `--stat-label-case`, `--stat-sub-size`,
@@ -374,9 +376,11 @@ title is a heading holding its collapse button, and the description describes th
 A link that should look like a button takes `buttonVariants(...)` as its class. A row of
 mutually exclusive choices (a time range, a sport filter) is a `ToggleGroup`, not buttons.
 
-**Links:** cyan, no underline. Hover: magenta underline.
+**Links:** `--color-accent-cyan` (blue in Electric), no underline. Hover: an underline in
+`--color-accent-magenta`.
 
-**Focus:** cyan ring via `--color-accent-cyan`.
+**Focus:** the theme's ring on every focusable element: an outline in `--control-focus-color`, 2px
+clear of the element (the `control-focus-ring` utility, below).
 
 **Panels:** frame content with `Panel` (a title, when there is one, goes in the `title` prop so
 the theme can place it) and big numbers with `Stat`. Both draw their frame from the `--panel-*`
@@ -398,8 +402,16 @@ cells take `--th-size`, `--th-weight`, `--th-color`, `--th-tracking`, `--th-case
 rows `--row-rule`, and the table `--table-text-size`).
 A sport in a row is a `SportLabel`; a goal status is a `StatusSymbol`.
 A value that isn't there (no distance for a yoga session, no pace yet) is `MissingValue`: an em
-dash in `--missing-value-color` that screen readers hear as "none". A value still loading keeps
-its loading placeholder instead.
+dash in `--missing-value-color` that screen readers hear as "none". A value still loading is a
+`LoadingValue` instead.
+
+**Loading and empty states** share one set of words in every theme; a theme changes only their
+case, face and colors. The loader (`Loader`, in each theme's `loaderStyle`) says "Loading…" beside its segments, in the
+label style, or names what loads through `label` ("Loading map…"); the label is what screen
+readers hear. Skeleton screens (`Skeleton`, `PageLoader` and the page skeletons) draw blocks from
+the Loading slots and say "Loading…" to screen readers. `EmptyState` leads with "No signal" in the
+display face, over the specific line ("No Yoga sessions recorded for 2026"), and takes an `action`
+such as a Clear filters button. A value still loading is "…" (`LoadingValue`), never "--".
 
 **shadcn/Base UI primitives** (`src/components/ui/`) take colors from the `@theme inline`
 alias block in `tailwind.css` (`bg-card`, `border-input`, `bg-primary`) and

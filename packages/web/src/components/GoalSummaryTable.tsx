@@ -7,6 +7,7 @@ import { WarningIcon } from "./icons";
 import { StatusSymbol, type GoalStatus } from "./theme/StatusSymbol";
 import { getYearElapsedShare, type YearContext } from "../utils/yearContext";
 import { Panel } from "./theme/Panel";
+import { LoadingValue } from "./theme/LoadingValue";
 import { Meter } from "./theme/Meter";
 import { Alert } from "./ui/alert";
 import { Table } from "./ui/table";
@@ -129,7 +130,7 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
               const remaining = isLoading ? 0 : Math.max(0, goal.value - currentValue);
               const paceNeeded = isLoading ? 0 : calculateDailyPaceNeeded(goal.value);
               const status = isLoading
-                ? ({ status: "no-activity", label: "Loading..." } as const)
+                ? ({ status: "no-activity", label: "Loading…" } as const)
                 : getStatus(goal.value);
               const isDangerous = dangerousGoalIds.has(goal.id);
 
@@ -165,15 +166,15 @@ const GoalSummaryTable: React.FC<GoalSummaryTableProps> = ({
                         className="grow"
                       />
                       <span className="w-10 shrink-0 text-right tabular-nums">
-                        {isLoading ? "--" : `${progress.toFixed(0)}%`}
+                        {isLoading ? <LoadingValue /> : `${progress.toFixed(0)}%`}
                       </span>
                     </div>
                   </td>
-                  <td>{isLoading ? "--" : `${remaining.toFixed(0)} ${unit}`}</td>
+                  <td>{isLoading ? <LoadingValue /> : `${remaining.toFixed(0)} ${unit}`}</td>
                   {yearContext.shouldShowPacing && (
                     <td>
                       {isLoading ? (
-                        "--"
+                        <LoadingValue />
                       ) : (
                         <span className={isDangerous ? "font-bold text-danger" : ""}>
                           {paceNeeded.toFixed(1)} {unit}/day

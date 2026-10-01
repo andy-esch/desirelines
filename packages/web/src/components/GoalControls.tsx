@@ -100,14 +100,16 @@ const GoalControls: React.FC<GoalControlsProps> = ({
 
   return (
     <div className="mb-6">
-      <h6 className="text-muted-text">
+      {/* A label, not a heading: the sidebar comes before the page's h1, and its "Goals"
+          section toggle already names the area. */}
+      <p className="text-muted-text">
         Desirelines ({goals.length}/5)
         {isSaving && (
           <span className="ms-2 text-muted-text text-sm" aria-live="polite">
-            Saving...
+            Saving…
           </span>
         )}
-      </h6>
+      </p>
       {effectiveSaveError && (
         <InlineAlert
           size="sm"

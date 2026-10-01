@@ -424,7 +424,7 @@
     );
   }
 
-  /* --- Loading indicators (NeonSpinner's chaser and block variants) --- */
+  /* --- Loading indicators (Loader's chaser and block variants) --- */
 
   .loader-segment {
     opacity: 0.25;
@@ -441,7 +441,7 @@
     }
     10% {
       opacity: 1;
-      box-shadow: 0 0 8px currentColor;
+      box-shadow: var(--meter-done-glow);
     }
   }
   @keyframes loader-blink {

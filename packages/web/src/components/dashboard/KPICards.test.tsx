@@ -115,10 +115,10 @@ describe("KPICards", () => {
     it("shows loading placeholders when isLoading is true", () => {
       render(<KPICards {...getDefaultProps()} isLoading={true} />);
 
-      // All values should show "--"
-      expect(screen.getAllByText("--")).toHaveLength(3);
-      // All subtitles should show "Loading..."
-      expect(screen.getAllByText("Loading...")).toHaveLength(3);
+      // Each value shows the loading mark, read as "loading", over a "Loading…" subtitle
+      expect(screen.getAllByText("…")).toHaveLength(3);
+      expect(screen.getAllByText("loading")).toHaveLength(3);
+      expect(screen.getAllByText("Loading…")).toHaveLength(3);
     });
   });
 
@@ -126,9 +126,9 @@ describe("KPICards", () => {
     it("shows no data message for current year when currentValue is 0", () => {
       render(<KPICards {...getDefaultProps()} currentValue={0} />);
 
-      // All three cards show a missing value when there's no data; "--" is for loading
+      // All three cards show a missing value when there's no data; "…" is for loading
       expect(screen.getAllByText("—")).toHaveLength(3);
-      expect(screen.queryByText("--")).not.toBeInTheDocument();
+      expect(screen.queryByText("…")).not.toBeInTheDocument();
       expect(screen.getByText(/295 days elapsed · No data available/)).toBeInTheDocument();
       expect(screen.getByText("No data available")).toBeInTheDocument();
     });

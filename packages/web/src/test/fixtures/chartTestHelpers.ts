@@ -1,11 +1,9 @@
 /**
  * Chart Test Helpers
  *
- * Mock data generators and test utilities for chart component testing.
- * These helpers create realistic data structures that match what the
- * chart hooks and presenters expect.
+ * Props for the chart presenters' tests, shaped as the chart hooks hand them over, and the
+ * achievement markers the cumulative chart stars.
  */
-import type { DistanceEntry } from "../../types/activity";
 import type {
   CumulativeChartDataPoint,
   PacingChartDataPoint,
@@ -15,125 +13,6 @@ import type {
   GoalAchievement,
 } from "../../types/chartData";
 import { GOAL_COLORS } from "../../constants/chartColors";
-
-// ============================================================================
-// Distance Data Generators
-// ============================================================================
-
-/**
- * Generate cumulative distance data for a given date range.
- *
- * @param options - Configuration options
- * @returns Array of DistanceEntry points
- */
-export function generateDistanceData(options: {
-  year: number;
-  startDay?: number;
-  endDay?: number;
-  startValue?: number;
-  dailyIncrement?: number;
-  variance?: number;
-}): DistanceEntry[] {
-  const {
-    year,
-    startDay = 1,
-    endDay = 30,
-    startValue = 0,
-    dailyIncrement = 10,
-    variance = 2,
-  } = options;
-
-  const data: DistanceEntry[] = [];
-  let cumulative = startValue;
-
-  for (let day = startDay; day <= endDay; day++) {
-    // Add some randomness
-    const dailyAmount = dailyIncrement + (Math.random() - 0.5) * variance * 2;
-    cumulative += Math.max(0, dailyAmount);
-
-    const date = new Date(Date.UTC(year, 0, day));
-    data.push({
-      x: date.toISOString(),
-      y: Math.round(cumulative * 10) / 10, // Round to 1 decimal
-    });
-  }
-
-  return data;
-}
-
-/**
- * Generate sample distance data for a specific scenario.
- */
-export const sampleDistanceData = {
-  /** Minimal data - just 2 points */
-  minimal: (): DistanceEntry[] => [
-    { x: "2024-01-01T00:00:00Z", y: 10 },
-    { x: "2024-01-02T00:00:00Z", y: 20 },
-  ],
-
-  /** Typical January data */
-  january: (): DistanceEntry[] =>
-    generateDistanceData({ year: 2024, startDay: 1, endDay: 31, dailyIncrement: 15 }),
-
-  /** Half-year data */
-  halfYear: (): DistanceEntry[] =>
-    generateDistanceData({ year: 2024, startDay: 1, endDay: 180, dailyIncrement: 12 }),
-
-  /** Full year of data */
-  fullYear: (): DistanceEntry[] =>
-    generateDistanceData({ year: 2024, startDay: 1, endDay: 365, dailyIncrement: 10 }),
-
-  /** Empty data */
-  empty: (): DistanceEntry[] => [],
-
-  /** Single point */
-  single: (): DistanceEntry[] => [{ x: "2024-06-15T00:00:00Z", y: 1500 }],
-};
-
-// ============================================================================
-// Goal Generators
-// ============================================================================
-
-/**
- * Build a chart-shaped goal record (`GoalMeta`).
- *
- * Chart presenters only render the legend-relevant subset of `Goal` — id,
- * value, and label. This helper is *not* a full `Goal` constructor; for that,
- * use `testGoal` from `utils/goalTestFixtures`. Naming this `createGoalMeta`
- * keeps the difference obvious.
- */
-export function createGoalMeta(options: { id?: string; value: number; label?: string }) {
-  return {
-    id: options.id || `goal-${Date.now()}`,
-    value: options.value,
-    label: options.label || `${options.value} Goal`,
-  };
-}
-
-/**
- * Sample goal configurations (chart-meta shape).
- */
-export const sampleGoals = {
-  /** Single goal */
-  single: () => [createGoalMeta({ id: "1", value: 3000, label: "Base Goal" })],
-
-  /** Two goals - typical setup */
-  dual: () => [
-    createGoalMeta({ id: "1", value: 3000, label: "Base Goal" }),
-    createGoalMeta({ id: "2", value: 5000, label: "Stretch Goal" }),
-  ],
-
-  /** Multiple goals */
-  multiple: () => [
-    createGoalMeta({ id: "1", value: 2000, label: "Minimum" }),
-    createGoalMeta({ id: "2", value: 3000, label: "Target" }),
-    createGoalMeta({ id: "3", value: 4000, label: "Stretch" }),
-    createGoalMeta({ id: "4", value: 5000, label: "Epic" }),
-  ],
-
-  /** No goals */
-  empty: () => [],
-};
 
 // ============================================================================
 // Presenter Props Generators
@@ -278,40 +157,3 @@ export function createAchievement(options: {
     goalIndex,
   };
 }
-
-/**
- * Sample achievement configurations.
- */
-export const sampleAchievements = {
-  /** Single achievement */
-  single: (year = 2024): GoalAchievement[] => [
-    createAchievement({
-      date: new Date(Date.UTC(year, 9, 15)), // Oct 15
-      goalLabel: "Base Goal",
-      goalValue: 3000,
-      actualValue: 3050,
-      goalIndex: 0,
-    }),
-  ],
-
-  /** Multiple achievements */
-  multiple: (year = 2024): GoalAchievement[] => [
-    createAchievement({
-      date: new Date(Date.UTC(year, 7, 20)), // Aug 20
-      goalLabel: "Base Goal",
-      goalValue: 3000,
-      actualValue: 3025,
-      goalIndex: 0,
-    }),
-    createAchievement({
-      date: new Date(Date.UTC(year, 10, 5)), // Nov 5
-      goalLabel: "Stretch Goal",
-      goalValue: 5000,
-      actualValue: 5100,
-      goalIndex: 1,
-    }),
-  ],
-
-  /** No achievements */
-  empty: (): GoalAchievement[] => [],
-};

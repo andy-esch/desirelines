@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import type { ActivityTotals } from "../../utils/routeFilters";
+import { LoadingValue } from "../theme/LoadingValue";
 import { MAP_CHROME_STYLE } from "./mapChrome";
 import {
   convertDistance,
@@ -117,10 +118,13 @@ function RefreshIcon({ className }: { className?: string }) {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="min-w-0">
-      <div className="truncate font-semibold tabular-nums text-body-text" title={value}>
+      <div
+        className="truncate font-semibold tabular-nums text-body-text"
+        title={typeof value === "string" ? value : undefined}
+      >
         {value}
       </div>
       <div className="text-(length:--label-size) font-(weight:--label-weight) tracking-(--label-tracking) [text-transform:var(--label-case)] text-(color:--label-color)">
@@ -209,18 +213,20 @@ export default function MapFilterDrawer({
   }, [open, toggleButtonRef]);
 
   const distanceLabel = getDistanceLabel(distanceUnit);
-  const stats = isLoading
-    ? { count: "—", distance: "—", time: "—", elevation: "—" }
-    : {
-        count: totals.count.toLocaleString(),
-        distance: formatMetricDisplayValue(
-          convertDistance(totals.distanceMeters, distanceUnit),
-          "distance",
-          distanceLabel
-        ),
-        time: formatHoursMinutes(totals.movingTimeSeconds / 3600),
-        elevation: formatElevation(totals.elevationMeters, elevationUnit),
-      };
+  const stats = {
+    count: totals.count.toLocaleString(),
+    distance: formatMetricDisplayValue(
+      convertDistance(totals.distanceMeters, distanceUnit),
+      "distance",
+      distanceLabel
+    ),
+    time: formatHoursMinutes(totals.movingTimeSeconds / 3600),
+    elevation: formatElevation(totals.elevationMeters, elevationUnit),
+  };
+  const loading = <LoadingValue />;
+  const shownStats = isLoading
+    ? { count: loading, distance: loading, time: loading, elevation: loading }
+    : stats;
 
   // Three "nothing to total" states, shown kindly in place of the stats grid:
   //   error          — the fetch failed (gentle, not an alarming red alert);
@@ -417,7 +423,7 @@ export default function MapFilterDrawer({
               <div aria-hidden="true">
                 <div className="flex items-baseline gap-2">
                   <span className="font-display font-(weight:--display-weight) text-3xl tabular-nums text-accent-cyan [text-shadow:var(--stat-value-shadow)]">
-                    {stats.count}
+                    {shownStats.count}
                   </span>
                   <span className="text-sm text-muted-text">
                     {totals.count === 1 && !isLoading ? "activity" : "activities"}
@@ -433,9 +439,9 @@ export default function MapFilterDrawer({
                         : "this year"}
                 </p>
                 <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
-                  <Stat label="Distance" value={stats.distance} />
-                  <Stat label="Time" value={stats.time} />
-                  <Stat label="Elevation" value={stats.elevation} />
+                  <Stat label="Distance" value={shownStats.distance} />
+                  <Stat label="Time" value={shownStats.time} />
+                  <Stat label="Elevation" value={shownStats.elevation} />
                 </div>
               </div>
               {canReset && (

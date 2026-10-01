@@ -301,6 +301,8 @@
   --meter-done-glow: 0 0 6px rgba(0, 255, 255, 0.55);
   --meter-current-glow: 0 0 8px rgba(255, 0, 255, 0.9);
   --color-pace-tick: #ffffff;
+  --color-skeleton: rgba(223, 224, 226, 0.18);
+  --color-skeleton-shimmer: rgba(0, 255, 255, 0.2);
   --color-status-good: #00ffff;
   --color-status-warn: #ffc800;
   --color-status-bad: #ff5f1f;

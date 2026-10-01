@@ -1,19 +1,13 @@
-import NeonSpinner from "../NeonSpinner";
+import Loader from "../Loader";
 
 /**
- * Simple loading spinner for charts
- *
- * Shows the theme's loading indicator while chart data loads.
- * Uses sr-only text for screen reader accessibility.
+ * A chart's loading state: the theme's `Loader`, which carries its own label and status
+ * role, centered in the chart's height while its data loads.
  */
 export default function LoadingChart() {
   return (
-    <div
-      className="flex justify-center items-center"
-      style={{ minHeight: "300px" }}
-      aria-label="Loading chart data"
-    >
-      <NeonSpinner />
+    <div className="flex justify-center items-center" style={{ minHeight: "300px" }}>
+      <Loader />
     </div>
   );
 }

@@ -13,13 +13,14 @@ import {
 import { SPORT_COLORS, DEFAULT_SPORT_COLOR, getSportDisplayName } from "../utils/sportConfig";
 import { useSportConfig } from "../hooks/useSportConfig";
 import { useThemeDateFormat } from "./theme/useThemeDateFormat";
-import NeonSpinner from "./NeonSpinner";
+import Loader from "./Loader";
 import { ExternalLinkIcon } from "./ui/ExternalLinkIcon";
 import { MapPinIcon } from "./ui/MapPinIcon";
 import { Button } from "./ui/button";
 import { Panel } from "./theme/Panel";
 import { Alert } from "./ui/alert";
 import { MissingValue } from "./theme/MissingValue";
+import EmptyState from "./EmptyState";
 import { Table } from "./ui/table";
 import { SportLabel } from "./theme/SportLabel";
 
@@ -53,6 +54,8 @@ interface ActivityTableProps {
    *  Only used for the header tooltip — the percentage itself comes from
    *  `goalTarget`. Omit and the header renders bare. */
   goalLabel?: string;
+  /** Clears the page's filters; given, the empty state offers it. */
+  onClearFilters?: (() => void) | undefined;
 }
 
 /** Format seconds to MM:SS or H:MM:SS */
@@ -109,6 +112,7 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
   goalTarget,
   isSessionSport = false,
   goalLabel,
+  onClearFilters,
 }) => {
   const { formatActivityDate } = useThemeDateFormat();
   const { sportConfig } = useSportConfig();
@@ -126,9 +130,20 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
 
   if (!isLoading && activities.length === 0) {
     return (
-      <Alert variant="info" role="alert">
-        No activities found for the selected filters.
-      </Alert>
+      <Panel>
+        <div role="alert">
+          <EmptyState
+            message="No activities found for the selected filters."
+            action={
+              onClearFilters && (
+                <Button variant="outline" size="sm" onClick={onClearFilters}>
+                  Clear filters
+                </Button>
+              )
+            }
+          />
+        </div>
+      </Panel>
     );
   }
 
@@ -254,7 +269,7 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
       {/* Loading indicator */}
       {isLoading && (
         <div className="text-center py-6">
-          <NeonSpinner />
+          <Loader />
         </div>
       )}
 

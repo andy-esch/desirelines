@@ -250,19 +250,26 @@ describe("GoalControls", () => {
     });
   });
 
+  it("labels the goal count without adding a heading ahead of the page's h1", () => {
+    render(<GoalControls {...defaultProps} />);
+
+    expect(screen.getByText(/^Desirelines \(\d\/5\)/)).toBeInTheDocument();
+    expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+  });
+
   describe("Loading and Error States", () => {
     it("shows saving indicator when isSaving prop is true", () => {
       render(<GoalControls {...defaultProps} isSaving={true} />);
 
       // Should show saving indicator
-      expect(screen.getByText("Saving...")).toBeInTheDocument();
+      expect(screen.getByText("Saving…")).toBeInTheDocument();
     });
 
     it("hides saving indicator when isSaving prop is false", () => {
       render(<GoalControls {...defaultProps} isSaving={false} />);
 
       // Should not show saving indicator
-      expect(screen.queryByText("Saving...")).not.toBeInTheDocument();
+      expect(screen.queryByText("Saving…")).not.toBeInTheDocument();
     });
 
     it("disables inputs when isSaving prop is true", () => {

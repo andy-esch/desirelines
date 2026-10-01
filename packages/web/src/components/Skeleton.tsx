@@ -1,21 +1,13 @@
-import { useId } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import ReactSkeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
-import { tint } from "../utils/colorTokens";
 
-/** Skeleton loader color themes using subtle neon tints */
-const SKELETON_THEMES = [
-  { baseColor: tint("--color-neon-cyan", 12), highlightColor: tint("--color-neon-cyan", 22) },
-  { baseColor: tint("--color-neon-magenta", 12), highlightColor: tint("--color-neon-magenta", 22) },
-  { baseColor: tint("--color-neon-purple", 12), highlightColor: tint("--color-neon-purple", 22) },
-] as const;
-
-/** Dual-color skeleton themes — base and highlight are different neon colors */
-const SKELETON_DUAL_THEMES = [
-  { baseColor: tint("--color-neon-cyan", 12), highlightColor: tint("--color-neon-magenta", 22) },
-  { baseColor: tint("--color-neon-green", 12), highlightColor: tint("--color-neon-yellow", 22) },
-  { baseColor: tint("--color-neon-purple", 12), highlightColor: tint("--color-neon-cyan", 22) },
-] as const;
+/**
+ * The shimmer fades in from transparent rather than from the block's color: the block is
+ * translucent, so a sweep that started from it would paint it twice and trail a band.
+ */
+const SHIMMER =
+  "linear-gradient(90deg, transparent 0%, var(--color-skeleton-shimmer) 50%, transparent 100%)";
 
 interface SkeletonProps {
   /** Number of skeleton lines to render */
@@ -32,15 +24,14 @@ interface SkeletonProps {
   style?: React.CSSProperties;
   /** Additional CSS class */
   className?: string;
-  /** Explicit dual-color theme index (0–2). When set, uses SKELETON_DUAL_THEMES instead of random single-color. */
-  dualTheme?: number;
 }
 
 /**
  * Skeleton loader component for showing loading placeholders.
  *
- * Uses a dark theme that matches the app's aesthetic.
- * Wraps react-loading-skeleton with pre-configured theming.
+ * Blocks take the theme's `--color-skeleton`, a faint tint of its text that shows on dark
+ * and white grounds alike, and a shimmer in `--color-skeleton-shimmer` sweeps across them.
+ * The sweep stops under reduced motion. Wraps react-loading-skeleton.
  *
  * @example
  * // Single line skeleton
@@ -63,23 +54,9 @@ export default function Skeleton({
   borderRadius,
   style,
   className,
-  dualTheme,
 }: SkeletonProps) {
-  // Derive a stable theme from the component's unique ID.
-  // useId() is SSR-safe, Strict Mode-safe, and pure (no module-level mutation).
-  const id = useId();
-  const theme = (() => {
-    if (dualTheme != null) {
-      return (
-        SKELETON_DUAL_THEMES[dualTheme % SKELETON_DUAL_THEMES.length] ?? SKELETON_DUAL_THEMES[0]
-      );
-    }
-    const hash = Array.from(id).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
-    return SKELETON_THEMES[hash % SKELETON_THEMES.length] ?? SKELETON_THEMES[0];
-  })();
-
   return (
-    <SkeletonTheme baseColor={theme.baseColor} highlightColor={theme.highlightColor}>
+    <SkeletonTheme baseColor="var(--color-skeleton)" customHighlightBackground={SHIMMER}>
       <ReactSkeleton
         count={count}
         circle={circle}
@@ -94,6 +71,30 @@ export default function Skeleton({
 }
 
 /**
+ * Skeleton blocks standing in for content that's loading: a status region that says
+ * "Loading…" to screen readers, since the blocks themselves say nothing. `label` names the
+ * region when a page has several (e.g. "Loading weekly summary").
+ */
+export function SkeletonRegion({
+  label,
+  className,
+  style,
+  children,
+}: {
+  label?: string | undefined;
+  className?: string | undefined;
+  style?: CSSProperties | undefined;
+  children: ReactNode;
+}) {
+  return (
+    <div role="status" aria-label={label} className={className} style={style}>
+      <span className="sr-only">Loading…</span>
+      {children}
+    </div>
+  );
+}
+
+/**
  * Pre-built skeleton for sparkline rows.
  * Matches the layout of SparklineRow component.
  */
@@ -103,7 +104,7 @@ export function SparklineSkeleton({ rowHeight = 36 }: { rowHeight?: number }) {
       {/* Label placeholder */}
       <Skeleton width={70} height={14} />
       {/* Sparkline placeholder */}
-      <div style={{ flex: 1 }}>
+      <div className="flex-1">
         <Skeleton height={rowHeight - 8} borderRadius={4} />
       </div>
     </div>

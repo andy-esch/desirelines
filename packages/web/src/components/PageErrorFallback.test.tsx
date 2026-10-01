@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PageErrorFallback } from "./PageErrorFallback";
+import { NextHeadingLevel } from "./theme/NextHeadingLevel";
 import { renderWithRouter } from "../test/renderWithRouter";
 
 describe("PageErrorFallback", () => {
@@ -12,6 +13,26 @@ describe("PageErrorFallback", () => {
 
     expect(screen.getByText("Something went wrong")).toBeInTheDocument();
     expect(screen.getByText(/Component render failed/)).toBeInTheDocument();
+  });
+
+  it("titles the page it stands in for with its h1", async () => {
+    await renderWithRouter(<PageErrorFallback error={mockError} onReset={vi.fn()} />);
+
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Something went wrong" })
+    ).toBeInTheDocument();
+  });
+
+  it("puts an inline error's title at the outline's current level", async () => {
+    await renderWithRouter(
+      <NextHeadingLevel>
+        <PageErrorFallback error={mockError} variant="inline" />
+      </NextHeadingLevel>
+    );
+
+    expect(
+      screen.getByRole("heading", { level: 3, name: "Failed to load chart data" })
+    ).toBeInTheDocument();
   });
 
   it("renders try again button that calls onReset", async () => {

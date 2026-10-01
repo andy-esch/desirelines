@@ -131,7 +131,7 @@ describe("ChartsPage", () => {
   it("shows the loading state while the activity set is still paging in", async () => {
     mockAllActivities([], { isLoading: true });
     await renderChartsPage();
-    expect(screen.getByLabelText(/loading chart data/i)).toBeInTheDocument();
+    expect(screen.getAllByRole("status")[0]).toHaveTextContent("Loading…");
   });
 
   it("surfaces an error with a working Retry instead of masking it as loading", async () => {

@@ -1,6 +1,6 @@
 import { useWeeklySummary } from "../../hooks/useWeeklySummary";
 import { formatMetricDisplayValue, formatHoursMinutes } from "../../utils/units";
-import Skeleton from "../Skeleton";
+import Skeleton, { SkeletonRegion } from "../Skeleton";
 import { StatusSymbol, type GoalStatus } from "../theme/StatusSymbol";
 import { Panel } from "../theme/Panel";
 import { MissingValue } from "../theme/MissingValue";
@@ -44,7 +44,7 @@ export default function WeeklySummaryCard() {
   return (
     <Panel className="h-full" bodyClassName="p-2" title="This Week" meta={weekLabel}>
       {isLoading ? (
-        <div role="status" aria-label="Loading weekly summary">
+        <SkeletonRegion label="Loading weekly summary">
           {[0, 1, 2, 3].map((i) => (
             <div
               key={i}
@@ -52,16 +52,16 @@ export default function WeeklySummaryCard() {
               style={{ borderBottom: "1px solid var(--color-surface-border)" }}
             >
               <div className="flex items-center gap-2">
-                <Skeleton circle height={8} width={8} dualTheme={0} />
-                <Skeleton width={60} height={14} dualTheme={0} />
+                <Skeleton circle height={8} width={8} />
+                <Skeleton width={60} height={14} />
               </div>
               <div className="flex items-center gap-2">
-                <Skeleton width={50} height={14} dualTheme={0} />
-                <Skeleton width={36} height={16} borderRadius={10} dualTheme={0} />
+                <Skeleton width={50} height={14} />
+                <Skeleton width={36} height={16} borderRadius={10} />
               </div>
             </div>
           ))}
-        </div>
+        </SkeletonRegion>
       ) : !hasAnyActivity ? (
         <div className="text-center text-muted-text py-6">
           <small>No activity yet this week</small>

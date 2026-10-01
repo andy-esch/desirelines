@@ -1,166 +1,226 @@
+import { cloneElement, type ReactElement } from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
-import { CumulativeChartPresenter } from "./CumulativeChartPresenter";
 import {
+  CumulativeChartPresenter,
+  type CumulativeChartPresenterProps,
+} from "./CumulativeChartPresenter";
+import {
+  createAchievement,
   createCumulativePresenterProps,
-  sampleAchievements,
 } from "../../test/fixtures/chartTestHelpers";
 
-// Mock ResizeObserver which Recharts uses
+// jsdom has no layout for ResponsiveContainer to measure, so hand the chart a fixed size the
+// way the real container would; without one Recharts draws nothing.
 vi.mock("recharts", async () => {
   const actual = await vi.importActual("recharts");
   return {
     ...actual,
-    ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
+    ResponsiveContainer: ({
+      children,
+    }: {
+      children: ReactElement<{ width?: number; height?: number }>;
+    }) => (
       <div data-testid="responsive-container" style={{ width: 800, height: 400 }}>
-        {children}
+        {cloneElement(children, { width: 800, height: 400 })}
       </div>
     ),
   };
 });
 
+type PropOverrides = Parameters<typeof createCumulativePresenterProps>[0];
+
+/** Draws the chart from the fixture props, with animation off so lines draw at once. */
+function draw(overrides?: PropOverrides, extra?: Partial<CumulativeChartPresenterProps>) {
+  const props = createCumulativePresenterProps(overrides);
+  return render(<CumulativeChartPresenter {...props} isAnimationActive={false} {...extra} />);
+}
+
+/** Each line in drawing order: its stroke, and its path (empty when it has no points). */
+function linesIn(container: HTMLElement) {
+  return [...container.querySelectorAll(".recharts-line")].map((line) => {
+    const path = line.querySelector("path.recharts-curve");
+    return { stroke: path?.getAttribute("stroke"), path: path?.getAttribute("d") ?? "" };
+  });
+}
+
+/** The labels on the y axis that mark where each line sits today. */
+function markersIn(container: HTMLElement) {
+  return [...container.querySelectorAll(".recharts-reference-line")].map((m) => m.textContent);
+}
+
+/** The y axis's title, the chart's one text label (the markers draw their own). */
+const yAxisLabel = (container: HTMLElement) =>
+  container.querySelector(".recharts-label")?.textContent;
+
+const ACTUAL = "var(--color-chart-actual-line)";
+const AVERAGE = "var(--color-chart-average-line)";
+
 describe("CumulativeChartPresenter", () => {
   describe("rendering", () => {
-    it("should render without crashing", () => {
-      const props = createCumulativePresenterProps();
-      expect(() => render(<CumulativeChartPresenter {...props} />)).not.toThrow();
+    it("draws the year, each goal and the average as lines", () => {
+      const { container } = draw();
+      const lines = linesIn(container);
+      expect(lines.map((line) => line.stroke)).toEqual([
+        ACTUAL,
+        "var(--color-goal-1)",
+        "var(--color-goal-2)",
+        AVERAGE,
+      ]);
+      for (const line of lines) expect(line.path).toMatch(/^M/);
     });
 
-    it("should render the responsive container", () => {
-      const props = createCumulativePresenterProps();
-      render(<CumulativeChartPresenter {...props} />);
-      expect(screen.getByTestId("responsive-container")).toBeInTheDocument();
+    it("marks where the year and each goal sit today on the y axis", () => {
+      const { container } = draw();
+      expect(markersIn(container)).toEqual(["Actual", "Base", "Stretch"]);
     });
 
-    it("should render with minimal data", () => {
-      const props = createCumulativePresenterProps({
-        mergedData: [{ date: new Date(2024, 0, 1), actual: 10 }],
-        goalLines: [],
-        currentValues: { actual: 10, goals: [] },
+    it("labels the y axis with the unit", () => {
+      const { container } = draw({ unitLabel: "km" });
+      expect(yAxisLabel(container)).toBe("km");
+    });
+
+    it("starts the year's line at the axis's left edge for the year shown", () => {
+      const { container } = draw({
+        year: 2025,
+        startDate: new Date(Date.UTC(2025, 0, 1)),
+        displayEndDate: new Date(Date.UTC(2025, 11, 31)),
       });
-      expect(() => render(<CumulativeChartPresenter {...props} />)).not.toThrow();
+      const plotLeft = container.querySelector(".recharts-xAxis line")?.getAttribute("x1");
+      expect(linesIn(container)[0]?.path).toMatch(new RegExp(`^M${plotLeft},`));
     });
 
-    it("should render with empty data", () => {
-      const props = createCumulativePresenterProps({
+    it("draws the axes and markers, and no line, for a year without data", () => {
+      const { container } = draw({
         mergedData: [],
         goalLines: [],
         goalAchievements: [],
         currentValues: { actual: 0, goals: [] },
       });
-      expect(() => render(<CumulativeChartPresenter {...props} />)).not.toThrow();
-    });
-  });
-
-  describe("props handling", () => {
-    it("should accept all required props", () => {
-      const props = createCumulativePresenterProps();
-      const { container } = render(<CumulativeChartPresenter {...props} />);
-      expect(container).toBeTruthy();
+      expect(container.querySelector(".recharts-xAxis")).toBeInTheDocument();
+      expect(yAxisLabel(container)).toBe("mi");
+      expect(markersIn(container)).toEqual(["Actual"]);
+      expect(linesIn(container)).toEqual([]);
     });
 
-    it("should handle sessions mode", () => {
-      const props = createCumulativePresenterProps({
-        isSessionsMode: true,
-        unitLabel: "sessions",
+    it("draws only the year and its average without goals", () => {
+      const { container } = draw({
+        goalLines: [],
+        currentValues: { actual: 310, goals: [] },
       });
-      expect(() => render(<CumulativeChartPresenter {...props} />)).not.toThrow();
+      expect(linesIn(container).map((line) => line.stroke)).toEqual([ACTUAL, AVERAGE]);
+      expect(markersIn(container)).toEqual(["Actual"]);
     });
 
-    it("should handle different years", () => {
-      const props = createCumulativePresenterProps({
-        year: 2025,
-        startDate: new Date(Date.UTC(2025, 0, 1)),
-        displayEndDate: new Date(Date.UTC(2025, 11, 31)),
-      });
-      expect(() => render(<CumulativeChartPresenter {...props} />)).not.toThrow();
-    });
-  });
-
-  describe("achievements", () => {
-    it("should render with achievements when showAchievements is true", () => {
-      const props = createCumulativePresenterProps({
-        goalAchievements: sampleAchievements.multiple(2024),
-        showAchievements: true,
-      });
-      expect(() => render(<CumulativeChartPresenter {...props} />)).not.toThrow();
-    });
-
-    it("should render without achievements when showAchievements is false", () => {
-      const props = createCumulativePresenterProps({
-        goalAchievements: sampleAchievements.multiple(2024),
-        showAchievements: false,
-      });
-      expect(() => render(<CumulativeChartPresenter {...props} />)).not.toThrow();
-    });
-
-    it("should render achievement legend when achievements exist", () => {
-      const props = createCumulativePresenterProps({
-        goalAchievements: sampleAchievements.single(2024),
-        showAchievements: true,
-      });
-      render(<CumulativeChartPresenter {...props} />);
-      expect(screen.getByText("Goals Achieved")).toBeInTheDocument();
-    });
-
-    it("should not render achievement legend when showAchievements is false", () => {
-      const props = createCumulativePresenterProps({
-        goalAchievements: sampleAchievements.single(2024),
-        showAchievements: false,
-      });
-      render(<CumulativeChartPresenter {...props} />);
-      expect(screen.queryByText("Goals Achieved")).not.toBeInTheDocument();
+    it("labels the y axis in sessions for a sessions sport", () => {
+      const { container } = draw({ isSessionsMode: true, unitLabel: "sessions" });
+      expect(yAxisLabel(container)).toBe("# Sessions");
     });
   });
 
   describe("goals", () => {
-    it("should handle multiple goals", () => {
-      const props = createCumulativePresenterProps({
-        goalLines: [
-          { goal: { id: "1", value: 2000, label: "Min" }, line: [] },
-          { goal: { id: "2", value: 3000, label: "Target" }, line: [] },
-          { goal: { id: "3", value: 4000, label: "Stretch" }, line: [] },
-          { goal: { id: "4", value: 5000, label: "Epic" }, line: [] },
-        ],
+    it("draws a line and a marker for each of several goals", () => {
+      const labels = ["Min", "Target", "Stretch", "Epic"];
+      const { container } = draw({
+        mergedData: [0, 15, 30].map((day, i) => ({
+          date: new Date(Date.UTC(2024, 0, 1 + day)),
+          actual: 10 + 150 * i,
+          average: 12 + 180 * i,
+          goal0: 5 + 80 * i,
+          goal1: 8 + 120 * i,
+          goal2: 11 + 160 * i,
+          goal3: 14 + 200 * i,
+        })),
+        goalLines: labels.map((label, i) => ({
+          goal: { id: String(i), value: 2000 + 1000 * i, label },
+          line: [],
+        })),
         currentValues: {
-          actual: 1500,
-          goals: [
-            { label: "Min", value: 1200, color: "#00ffff" },
-            { label: "Target", value: 1800, color: "#00ff80" },
-            { label: "Stretch", value: 2400, color: "#ff00ff" },
-            { label: "Epic", value: 3000, color: "#ffc800" },
-          ],
+          actual: 310,
+          goals: labels.map((label, i) => ({ label, value: 165 + 40 * i, color: "#00ffff" })),
         },
       });
-      expect(() => render(<CumulativeChartPresenter {...props} />)).not.toThrow();
-    });
-
-    it("should handle zero goals", () => {
-      const props = createCumulativePresenterProps({
-        goalLines: [],
-        currentValues: { actual: 100, goals: [] },
-      });
-      expect(() => render(<CumulativeChartPresenter {...props} />)).not.toThrow();
+      const goals = linesIn(container).filter((line) => line.stroke?.includes("--color-goal-"));
+      expect(goals.map((line) => line.stroke)).toEqual(
+        [1, 2, 3, 4].map((n) => `var(--color-goal-${n})`)
+      );
+      for (const line of goals) expect(line.path).toMatch(/^M/);
+      expect(markersIn(container)).toEqual(["Actual", ...labels]);
     });
   });
 
-  describe("units", () => {
-    it("should handle miles unit", () => {
-      const props = createCumulativePresenterProps({ unitLabel: "mi" });
-      expect(() => render(<CumulativeChartPresenter {...props} />)).not.toThrow();
+  describe("prior years and the danger zone", () => {
+    it("draws a prior year's line behind the year's, in a faded neutral", () => {
+      const props = createCumulativePresenterProps();
+      const { container } = draw(
+        { mergedData: props.mergedData.map((point, i) => ({ ...point, prior_2023: 20 + 90 * i })) },
+        { priorYearLines: [{ year: 2023, dataKey: "prior_2023" }] }
+      );
+      const [prior, actual] = linesIn(container);
+      expect(prior?.stroke).toContain("var(--color-chart-neutral)");
+      expect(prior?.path).toMatch(/^M/);
+      expect(actual?.stroke).toBe(ACTUAL);
     });
 
-    it("should handle kilometers unit", () => {
-      const props = createCumulativePresenterProps({ unitLabel: "km" });
-      expect(() => render(<CumulativeChartPresenter {...props} />)).not.toThrow();
+    it("draws the most a sustainable pace could reach as a dashed line", () => {
+      const props = createCumulativePresenterProps();
+      const { container } = draw(
+        {
+          mergedData: props.mergedData.map((point, i) => ({
+            ...point,
+            dangerBoundary: 400 + 100 * i,
+          })),
+        },
+        { dangerZone: { show: true, threshold: 25 } }
+      );
+      const boundary = container.querySelector(
+        '.recharts-line path[stroke="var(--color-danger-zone)"]'
+      );
+      expect(boundary).toHaveAttribute("stroke-dasharray", "5 5");
+      expect(boundary?.getAttribute("d")).toMatch(/^M/);
     });
+  });
 
-    it("should handle sessions unit", () => {
-      const props = createCumulativePresenterProps({
-        unitLabel: "sessions",
-        isSessionsMode: true,
+  describe("selection", () => {
+    it("shades the range being dragged across", () => {
+      const props = createCumulativePresenterProps();
+      const { container } = draw(undefined, {
+        selectionLeft: props.mergedData[0]!.date.getTime(),
+        selectionRight: props.mergedData[2]!.date.getTime(),
       });
-      expect(() => render(<CumulativeChartPresenter {...props} />)).not.toThrow();
+      expect(container.querySelector(".recharts-reference-area-rect")).toBeInTheDocument();
+    });
+
+    it("shades nothing without a selection", () => {
+      const { container } = draw();
+      expect(linesIn(container)).not.toEqual([]);
+      expect(container.querySelector(".recharts-reference-area")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("achievements", () => {
+    // Inside the fixture's data, which runs to Jan 31 at 310 mi; a star off the axis isn't drawn.
+    const reached = [
+      createAchievement({
+        date: new Date(Date.UTC(2024, 0, 31)),
+        goalLabel: "Base",
+        goalValue: 300,
+        actualValue: 310,
+      }),
+    ];
+
+    it("stars the day each goal was reached, and lists it in the legend", () => {
+      const { container } = draw({ goalAchievements: reached, showAchievements: true });
+      const stars = [...container.querySelectorAll(".recharts-reference-dot title")];
+      expect(stars.map((title) => title.textContent)).toEqual(["Base achieved! (300 mi)"]);
+      expect(screen.getByText("Goals Achieved")).toBeInTheDocument();
+    });
+
+    it("draws no stars and no legend when achievements are hidden", () => {
+      const { container } = draw({ goalAchievements: reached, showAchievements: false });
+      expect(linesIn(container)).not.toEqual([]);
+      expect(container.querySelector(".recharts-reference-dot title")).not.toBeInTheDocument();
+      expect(screen.queryByText("Goals Achieved")).not.toBeInTheDocument();
     });
   });
 });

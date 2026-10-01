@@ -36,6 +36,7 @@ import { SPORT_COLORS, DEFAULT_SPORT_COLOR } from "../utils/sportConfig";
 import { useIsMobile } from "../hooks/useIsMobile";
 import { useRefreshMapData } from "../hooks/useRefreshMapData";
 import MapLoadingState from "../components/routes/MapLoadingState";
+import Loader from "../components/Loader";
 import type { SportOption } from "../components/routes/MapFilterControls";
 import type { SelectedRoute } from "../components/routes/RouteMap";
 import { useCameraController } from "../hooks/useCameraController";
@@ -415,9 +416,7 @@ export default function RoutesPage() {
     return (
       <PageLayout>
         <StatusMessage>
-          <p className="text-muted-text" role="status">
-            Loading map…
-          </p>
+          <Loader label="Loading map…" />
         </StatusMessage>
       </PageLayout>
     );

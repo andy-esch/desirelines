@@ -275,7 +275,6 @@ export default function ChartsPage() {
 
         <ChartContainer
           title="Activity volume"
-          framed
           isLoading={isLoading}
           error={error}
           // Empty only when there are no activities at all in the range+sport. A

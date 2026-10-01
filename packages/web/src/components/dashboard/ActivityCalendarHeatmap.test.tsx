@@ -56,7 +56,7 @@ describe("ActivityCalendarHeatmap", () => {
       render(<ActivityCalendarHeatmap />);
 
       expect(screen.getByRole("status")).toBeInTheDocument();
-      expect(screen.getByText("Loading...")).toBeInTheDocument();
+      expect(screen.getByText("Loading…")).toBeInTheDocument();
     });
 
     it("shows Activity Calendar header while loading", () => {
@@ -79,7 +79,7 @@ describe("ActivityCalendarHeatmap", () => {
       render(<ActivityCalendarHeatmap />);
 
       expect(screen.getByRole("status")).toBeInTheDocument();
-      expect(screen.getByText("Loading...")).toBeInTheDocument();
+      expect(screen.getByText("Loading…")).toBeInTheDocument();
     });
 
     it("shows loading spinner when useSportConfig is loading", () => {
@@ -94,7 +94,7 @@ describe("ActivityCalendarHeatmap", () => {
       render(<ActivityCalendarHeatmap />);
 
       expect(screen.getByRole("status")).toBeInTheDocument();
-      expect(screen.getByText("Loading...")).toBeInTheDocument();
+      expect(screen.getByText("Loading…")).toBeInTheDocument();
     });
 
     it("shows loading spinner when all hooks are loading simultaneously", () => {

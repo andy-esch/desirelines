@@ -14,13 +14,13 @@ describe("ProgressSummary", () => {
     render(<ProgressSummary currentValue={0} estimatedYearEnd={0} unit="miles" />);
 
     expect(screen.getAllByText("—")).toHaveLength(2);
-    expect(screen.queryByText("--")).not.toBeInTheDocument();
+    expect(screen.queryByText("…")).not.toBeInTheDocument();
   });
 
-  it("keeps the loading placeholder while loading", () => {
+  it("shows the loading mark while loading", () => {
     render(<ProgressSummary currentValue={0} estimatedYearEnd={0} unit="miles" isLoading />);
 
-    expect(screen.getAllByText("--")).toHaveLength(2);
+    expect(screen.getAllByText("…")).toHaveLength(2);
     expect(screen.queryByText("—")).not.toBeInTheDocument();
   });
 });

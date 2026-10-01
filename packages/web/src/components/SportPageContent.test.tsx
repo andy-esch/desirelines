@@ -127,9 +127,7 @@ describe("SportPageContent", () => {
   describe("empty state", () => {
     it("renders EmptyState when no chart data and not loading", async () => {
       await renderContent({ chartData: [], currentValue: 0 });
-      expect(screen.getByText("No")).toBeInTheDocument();
-      expect(screen.getByText("data")).toBeInTheDocument();
-      expect(screen.getByText("available")).toBeInTheDocument();
+      expect(screen.getByText("No").parentElement).toHaveTextContent("No signal");
     });
   });
 

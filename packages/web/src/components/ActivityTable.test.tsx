@@ -245,8 +245,7 @@ describe("ActivityTable", () => {
     it("shows loading spinner when loading", () => {
       render(<ActivityTable {...defaultProps} isLoading={true} />);
 
-      expect(screen.getByRole("status")).toBeInTheDocument();
-      expect(screen.getByText("Loading...")).toBeInTheDocument();
+      expect(screen.getByRole("status")).toHaveTextContent("Loading…");
     });
 
     it("shows activities while loading more", () => {
@@ -270,6 +269,23 @@ describe("ActivityTable", () => {
       expect(
         screen.queryByText("No activities found for the selected filters.")
       ).not.toBeInTheDocument();
+    });
+
+    it("announces the empty result under the shared headline", () => {
+      render(<ActivityTable {...defaultProps} activities={[]} />);
+
+      const alert = screen.getByRole("alert");
+      expect(alert).toHaveTextContent("No signal");
+      expect(alert).toHaveTextContent("No activities found for the selected filters.");
+      expect(screen.queryByRole("button", { name: "Clear filters" })).not.toBeInTheDocument();
+    });
+
+    it("offers to clear the page's filters", async () => {
+      const onClearFilters = vi.fn();
+      render(<ActivityTable {...defaultProps} activities={[]} onClearFilters={onClearFilters} />);
+
+      await userEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+      expect(onClearFilters).toHaveBeenCalledOnce();
     });
   });
 
