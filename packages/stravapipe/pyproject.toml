@@ -18,7 +18,11 @@ dependencies = [
     "pydantic-settings>=2.10.1",
     "python-dotenv>=1.1.1",
     "requests>=2.32.4",
-    "sqlalchemy>=2.0.0",
+    # <2.1: opentelemetry-instrumentation-sqlalchemy (0.66b0) only instruments
+    # sqlalchemy<2.1.0. Outside that range it logs an error and silently skips
+    # instrumentation, so DB spans disappear without a failure. Lift the cap once
+    # an instrumentor release supports 2.1.
+    "sqlalchemy>=2.0.0,<2.1",
     "psycopg>=3.2.0",
     "psycopg-binary>=3.2.0",
     "opentelemetry-api>=1.28.0",

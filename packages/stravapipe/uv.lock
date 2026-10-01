@@ -1842,7 +1842,7 @@ requires-dist = [
     { name = "requests", specifier = ">=2.32.4" },
     { name = "requests-mock", marker = "extra == 'dev'", specifier = ">=1.12.1" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.12.9" },
-    { name = "sqlalchemy", specifier = ">=2.0.0" },
+    { name = "sqlalchemy", specifier = ">=2.0.0,<2.1" },
     { name = "types-protobuf", marker = "extra == 'dev'", specifier = ">=6.32.1.20250918" },
     { name = "types-requests", marker = "extra == 'dev'", specifier = ">=2.32.4.20250809" },
 ]
