@@ -61,6 +61,11 @@ export function useWeeklySummary(): {
   weekLabel: string;
   isLoading: boolean;
   error: Error | null;
+  /**
+   * Fetches the week's days again after they failed. Undefined when the goals are what
+   * failed: their listener stops on an error, and only a reload starts it again.
+   */
+  retry: (() => void) | undefined;
 } {
   const { user, loading: authLoading } = useAuth();
   const { doc: userConfig, loading: goalsLoading, error: goalsError } = useConfigDocument();
@@ -93,6 +98,7 @@ export function useWeeklySummary(): {
     data: dailyData,
     isLoading: dataLoading,
     error: dataError,
+    retry: retryData,
   } = useDailySportData({
     year: currentYear,
     from: mondayStr,
@@ -194,11 +200,13 @@ export function useWeeklySummary(): {
     prefsLoading || configLoading || authLoading || dataLoading || (!!user && goalsLoading);
   // As on the goals card: goals that couldn't be loaded are an error, not "no goal".
   const error = dataError ?? (user && userConfig === undefined ? goalsError : null) ?? null;
+  const retry = dataError ? retryData : undefined;
 
   return {
     sportTotals,
     weekLabel,
     isLoading,
     error,
+    retry,
   };
 }

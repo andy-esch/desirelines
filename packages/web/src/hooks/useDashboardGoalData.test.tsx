@@ -415,6 +415,21 @@ describe("useDashboardGoalData", () => {
 
       await waitFor(() => expect(result.current.isLoading).toBe(false));
       expect(result.current.error).toBeInstanceOf(Error);
+      // The listener stopped on the error; fetching again can't bring the goals back.
+      expect(result.current.retry).toBeUndefined();
+    });
+
+    it("fetches the year's totals again when they failed", async () => {
+      vi.spyOn(activitiesApi, "fetchMultiSportMetrics").mockRejectedValueOnce(new Error("timeout"));
+      const { result } = renderSignedIn({});
+      await waitFor(() => expect(result.current.error?.message).toBe("timeout"));
+
+      act(() => result.current.retry!());
+
+      await waitFor(() => expect(result.current.error).toBeNull());
+      expect(result.current.retry).toBeUndefined();
+      const cycling = result.current.sportData.find((s) => s.sport === "cycling")!;
+      expect(cycling.currentValue).toBeGreaterThan(0);
     });
 
     it("measures a sport with saved goals against them", async () => {

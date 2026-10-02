@@ -224,11 +224,13 @@ export function mockDailySportDataReturn(overrides?: {
   data?: MultiSportData;
   isLoading?: boolean;
   error?: Error | null;
+  retry?: () => void;
 }): DailySportDataResult {
   return {
     data: overrides?.data ?? mockDailySportData,
     isLoading: overrides?.isLoading ?? false,
     error: overrides?.error ?? null,
+    retry: overrides?.retry ?? (() => {}),
   };
 }
 

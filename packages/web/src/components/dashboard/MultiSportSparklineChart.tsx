@@ -271,6 +271,7 @@ export default function MultiSportSparklineChart({
     distanceUnit,
     isLoading,
     error,
+    retry,
     sparklineContainerHeight,
     SPARKLINE_ROW_HEIGHT,
   } = useMultiSportChartData(timeRange, tuningParams);
@@ -298,7 +299,9 @@ export default function MultiSportSparklineChart({
   if (error) {
     return (
       <Panel className={className} bodyClassName="p-4" tone="danger">
-        <ErrorState title="Error loading chart data">{error.message}</ErrorState>
+        <ErrorState title="Error loading chart data" onRetry={retry}>
+          {error.message}
+        </ErrorState>
       </Panel>
     );
   }

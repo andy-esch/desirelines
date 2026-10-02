@@ -169,6 +169,7 @@ describe("useWeeklySummary", () => {
         data: {},
         isLoading: true,
         error: null,
+        retry: vi.fn(),
       });
 
       const { result } = renderHook(() => useWeeklySummary(), { wrapper });
@@ -322,6 +323,7 @@ describe("useWeeklySummary", () => {
         data: {},
         isLoading: false,
         error: mockError,
+        retry: vi.fn(),
       });
 
       const { result } = renderHook(() => useWeeklySummary(), { wrapper });
@@ -361,6 +363,7 @@ describe("useWeeklySummary", () => {
         data: { cycling: {}, running: {}, yoga: {} },
         isLoading: false,
         error: null,
+        retry: vi.fn(),
       });
 
       const { result } = renderHook(() => useWeeklySummary(), { wrapper });
@@ -397,7 +400,10 @@ describe("useWeeklySummary", () => {
   describe("signed in", () => {
     const year = new Date().getFullYear();
 
-    function renderSignedIn(goalsBySport: Parameters<typeof accountServices>[1]) {
+    function renderSignedIn(
+      goalsBySport: Parameters<typeof accountServices>[1],
+      prepare?: (db: ReturnType<typeof accountServices>["databaseService"]) => void
+    ) {
       vi.spyOn(useAuthModule, "useAuth").mockReturnValue({
         user: ACCOUNT_USER,
         loading: false,
@@ -406,6 +412,7 @@ describe("useWeeklySummary", () => {
         signOut: vi.fn(),
       });
       const services = accountServices(year, goalsBySport);
+      prepare?.(services.databaseService);
       return renderHook(() => useWeeklySummary(), {
         wrapper: ({ children }) => (
           <TestServiceProvider {...services}>
@@ -442,6 +449,33 @@ describe("useWeeklySummary", () => {
       expect(running.hasGoal).toBe(false);
       expect(running.weeklyGoal).toBe(0);
       expect(running.achievementPct).toBe(0);
+    });
+
+    it("fetches the week's days again when they failed", async () => {
+      const retryDays = vi.fn();
+      vi.spyOn(useDailySportDataModule, "useDailySportData").mockReturnValue({
+        data: {},
+        isLoading: false,
+        error: new Error("timeout"),
+        retry: retryDays,
+      });
+      const { result } = renderSignedIn({});
+      await waitFor(() => expect(result.current.error?.message).toBe("timeout"));
+
+      result.current.retry!();
+      expect(retryDays).toHaveBeenCalledOnce();
+    });
+
+    it("offers no retry when the goals failed, which only a reload restarts", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const { result } = renderSignedIn({}, (db) =>
+        vi.spyOn(db, "subscribeToDocument").mockImplementation((_path, _onData, onError) => {
+          onError?.(new Error("permission-denied"));
+          return () => {};
+        })
+      );
+      await waitFor(() => expect(result.current.error?.message).toBe("permission-denied"));
+      expect(result.current.retry).toBeUndefined();
     });
   });
 });

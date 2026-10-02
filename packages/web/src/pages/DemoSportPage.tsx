@@ -26,7 +26,7 @@ import { GOAL_STORAGE_VERSION, type GoalsForYear } from "../services/userConfigS
 import { useGoals } from "../hooks/useGoals";
 import SportPageContent from "../components/SportPageContent";
 import { DEMO_ROUTE_PREFIX } from "../constants/demoConfig";
-import { Alert } from "../components/ui/alert";
+import { DemoBanner } from "../components/DemoBanner";
 
 interface DemoSportPageProps {
   sport: string;
@@ -173,13 +173,8 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
 
   return (
     <>
-      {/* Demo mode banner - outside container for full width */}
-      <Alert variant="demo" className="rounded-none" role="alert">
-        <div>
-          <strong>Demo Mode</strong> - Viewing sample data.{" "}
-          <span className="text-sm">Sign-in is invite-only.</span>
-        </div>
-      </Alert>
+      {/* Outside the content's container, so it spans the page */}
+      <DemoBanner />
 
       <SportPageContent
         sport={sport}

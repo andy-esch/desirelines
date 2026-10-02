@@ -23,7 +23,7 @@ import { MissingValue } from "../theme/MissingValue";
  *   or status: there's nothing to measure against
  */
 export default function GoalProgressCard() {
-  const { sportData, yearContext, isLoading, error } = useDashboardGoalData();
+  const { sportData, yearContext, isLoading, error, retry } = useDashboardGoalData();
   const title = `${yearContext.year} Goals`;
   const meta = yearContext.shouldShowPacing
     ? `Day ${yearContext.daysElapsed} of ${getDaysInYear(yearContext.year)}`
@@ -32,7 +32,9 @@ export default function GoalProgressCard() {
   if (error) {
     return (
       <Panel className="h-full" bodyClassName="p-4" title={title} tone="danger">
-        <ErrorState title="Error loading goal progress">{error.message}</ErrorState>
+        <ErrorState title="Error loading goal progress" onRetry={retry}>
+          {error.message}
+        </ErrorState>
       </Panel>
     );
   }

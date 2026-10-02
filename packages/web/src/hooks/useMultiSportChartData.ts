@@ -61,6 +61,7 @@ export function useMultiSportChartData(timeRange: TimeRange, tuningParams?: Tuni
     data,
     isLoading: dataLoading,
     error,
+    retry,
   } = useDailySportData({
     year: currentYear,
     from,
@@ -104,6 +105,7 @@ export function useMultiSportChartData(timeRange: TimeRange, tuningParams?: Tuni
     distanceUnit: userSettings.distanceUnit,
     isLoading,
     error,
+    retry,
     activityPageSize,
     sparklineContainerHeight,
     hasAnyData,

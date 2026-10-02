@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "../hooks/useAuth";
 import MultiSportSparklineChart from "../components/dashboard/MultiSportSparklineChart";
-import RecentActivitiesListCard from "../components/dashboard/RecentActivitiesListCard";
+import RecentActivitiesList from "../components/dashboard/RecentActivitiesList";
 import TimeRangeSelector from "../components/dashboard/TimeRangeSelector";
 import WeeklySummaryCard from "../components/dashboard/WeeklySummaryCard";
 import GoalProgressCard from "../components/dashboard/GoalProgressCard";
@@ -11,7 +11,7 @@ import { CardErrorBoundary } from "../components/dashboard/CardErrorBoundary";
 import { PageLayout } from "../components/layout/PageLayout";
 import type { TuningParams } from "../utils/demoDataGenerator";
 import type { TimeRange } from "../utils/dataNormalization";
-import { Alert } from "../components/ui/alert";
+import { DemoBanner } from "../components/DemoBanner";
 import { Section } from "../components/theme/Section";
 import DashboardHero from "../components/dashboard/DashboardHero";
 
@@ -51,16 +51,7 @@ export default function Dashboard() {
 
   return (
     <PageLayout>
-      {/* Demo mode banner for unauthenticated users */}
-      {!user && (
-        <Alert variant="demo" className="rounded-none py-3" role="alert">
-          <div className="px-4 md:px-6">
-            <strong className="text-(color:--demo-label-color)">Demo Mode</strong>
-            <span className="mx-2">—</span>
-            Viewing generated sample data. <span className="text-sm">Sign-in is invite-only.</span>
-          </div>
-        </Alert>
-      )}
+      {!user && <DemoBanner />}
 
       <DashboardHero tuningParams={tuningParams} />
 
@@ -76,7 +67,7 @@ export default function Dashboard() {
               <MultiSportSparklineChart timeRange={timeRange} tuningParams={tuningParams} />
             </CardErrorBoundary>
             <CardErrorBoundary>
-              <RecentActivitiesListCard timeRange={timeRange} />
+              <RecentActivitiesList timeRange={timeRange} />
             </CardErrorBoundary>
           </div>
         </Section>

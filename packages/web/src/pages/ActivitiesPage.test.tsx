@@ -360,6 +360,7 @@ describe("ActivitiesPage", () => {
         distanceUnit: "miles",
         isLoading: false,
         error: null,
+        retry: vi.fn(),
       });
 
       await renderActivitiesPage("/activities?sports=cycling");
@@ -379,6 +380,7 @@ describe("ActivitiesPage", () => {
         distanceUnit: "miles",
         isLoading: true,
         error: null,
+        retry: vi.fn(),
       });
 
       await renderActivitiesPage("/activities?sports=cycling");
@@ -424,6 +426,7 @@ describe("ActivitiesPage", () => {
         distanceUnit: "miles",
         isLoading: false,
         error: null,
+        retry: vi.fn(),
       });
 
       await renderActivitiesPage("/activities?sports=cycling");

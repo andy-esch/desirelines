@@ -22,11 +22,11 @@ import { PageTitle } from "../../components/theme/PageTitle";
 import { Stat, StatRow } from "../../components/theme/Stat";
 import { Meter } from "../../components/theme/Meter";
 import { StatusSymbol, type GoalStatus } from "../../components/theme/StatusSymbol";
-import { Alert } from "../../components/ui/alert";
 import Loader from "../../components/Loader";
 import Skeleton from "../../components/Skeleton";
 import EmptyState from "../../components/EmptyState";
 import { ErrorState } from "../../components/ErrorState";
+import { DemoBanner } from "../../components/DemoBanner";
 import { LoadingValue } from "../../components/theme/LoadingValue";
 
 /**
@@ -408,9 +408,7 @@ function ThemePanel({ theme }: { theme: ThemeDefinition }) {
           </Card>
         </div>
         <Panel bodyClassName="p-3 text-sm">Panel with no title</Panel>
-        <Alert variant="demo" className="text-sm">
-          <strong>Demo Mode</strong> — Alert, demo variant
-        </Alert>
+        <DemoBanner />
         <p className="text-sm">
           Body text with a <a href="#gallery">link</a>,{" "}
           <span className="text-muted-text">muted</span> and{" "}

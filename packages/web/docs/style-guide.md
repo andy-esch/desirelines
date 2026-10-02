@@ -395,8 +395,8 @@ active-filter pill. Theme-aware via the decorative tokens; do not add elevation 
 **Sport chips:** `sportChipClass`, `sportChipStyle(color)` for the item's style and
 `<SportChipDot />`, from `src/components/sportChip.tsx`.
 
-**Messages:** `Alert` with a `danger`, `warning`, `success` or `info` variant; the demo-mode
-banner is its `demo` variant. Pass `role="alert"` or `role="status"` where the message should
+**Messages:** `Alert` with a `danger`, `warning`, `success` or `info` variant. The demo-mode
+banner is `DemoBanner`, on its `demo` variant: page chrome, so not a live region. Pass `role="alert"` or `role="status"` where the message should
 be announced. A message about something the user just did (a save that failed, a goal that
 doesn't validate) is an `InlineAlert`, which can be dismissed; a load that failed is an
 `ErrorState`.

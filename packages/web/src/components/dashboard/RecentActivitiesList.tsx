@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useActivities } from "../../hooks/useActivities";
 import { useAuth } from "../../hooks/useAuth";
@@ -21,6 +21,8 @@ import { Table } from "../ui/table";
 import { useSportConfig } from "../../hooks/useSportConfig";
 import { SportLabel } from "../theme/SportLabel";
 import { useThemeStructure } from "../theme/useThemeStructure";
+import { Panel } from "../theme/Panel";
+import { cn } from "@/lib/utils";
 import { SPORT_COLORS, DEFAULT_SPORT_COLOR, getSportDisplayName } from "../../utils/sportConfig";
 import type { ColorToken } from "../../themes/contract";
 
@@ -104,12 +106,19 @@ function getImpactStyle(
 
 interface RecentActivitiesListProps {
   timeRange: TimeRange;
-  pageSize: number;
+  /** Rows per page until the panel's height is measured. */
+  pageSize?: number;
+  className?: string;
 }
 
+/**
+ * The dashboard's recent activities, paged to fit the panel's height. The list draws its own
+ * panel, so a failed load can frame it in the danger tone.
+ */
 export default function RecentActivitiesList({
   timeRange,
-  pageSize: fallbackPageSize,
+  pageSize: fallbackPageSize = 5,
+  className,
 }: RecentActivitiesListProps) {
   const { formatActivityDate } = useThemeDateFormat();
   const { user } = useAuth();
@@ -214,8 +223,18 @@ export default function RecentActivitiesList({
     }
   };
 
+  const framed = (content: ReactNode, tone?: "danger") => (
+    <Panel
+      className={cn("h-full overflow-hidden", className)}
+      bodyClassName="flex min-h-0 flex-1 flex-col p-2"
+      tone={tone}
+    >
+      {content}
+    </Panel>
+  );
+
   if (isLoading && activities.length === 0) {
-    return (
+    return framed(
       <div ref={containerRef} className="flex items-center justify-center h-full">
         <Loader size="sm" />
       </div>
@@ -223,17 +242,18 @@ export default function RecentActivitiesList({
   }
 
   if (error) {
-    return (
+    return framed(
       <div ref={containerRef} className="flex h-full items-center p-2">
         <ErrorState title="Error loading activities" onRetry={retry}>
           {error.message}
         </ErrorState>
-      </div>
+      </div>,
+      "danger"
     );
   }
 
   if (activities.length === 0) {
-    return (
+    return framed(
       <div
         ref={containerRef}
         className="flex items-center justify-center h-full text-muted-text"
@@ -248,7 +268,7 @@ export default function RecentActivitiesList({
 
   const labelledPager = pagerStyle === "labelled";
 
-  return (
+  return framed(
     <div ref={containerRef} className={labelledPager ? "flex h-full flex-col" : "flex h-full"}>
       {/* Activities table — horizontally scrollable on narrow viewports */}
       <div className="grow" style={{ overflowX: "auto", minWidth: 0 }}>

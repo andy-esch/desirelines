@@ -215,6 +215,7 @@ export default function ActivityCalendarHeatmap({
     data,
     isLoading: dataLoading,
     error,
+    retry,
   } = useDailySportData({
     year: currentYear,
     from,
@@ -283,7 +284,9 @@ export default function ActivityCalendarHeatmap({
     return (
       <div className={className}>
         <Panel title="Activity Calendar" bodyClassName="p-4" tone="danger">
-          <ErrorState title="Error loading calendar data">{error.message}</ErrorState>
+          <ErrorState title="Error loading calendar data" onRetry={retry}>
+            {error.message}
+          </ErrorState>
         </Panel>
       </div>
     );
