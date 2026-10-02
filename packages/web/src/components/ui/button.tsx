@@ -1,11 +1,17 @@
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
+import { useThemeStructure } from "../theme/useThemeStructure";
 
 /**
  * Button — shadcn-style button with `cva` variants, themed via the `@theme`
  * shim (bg-primary / bg-secondary / bg-destructive / border-input / …). A plain
  * native `<button>` (no Base UI primitive needed); pass `ref` directly (React 19).
+ *
+ * Where the theme's `buttonOutlineEdge` is `gradient`, an outline button draws its edge as a
+ * ring in `--button-outline-edge` over its border. A `joined` button, one piece of a group
+ * sharing its borders (a stepper's − and +), keeps the plain border, as a ring round one
+ * piece would break the group's edge.
  */
 const buttonVariants = cva(
   cn(
@@ -46,10 +52,19 @@ const buttonVariants = cva(
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
   ref?: React.Ref<HTMLButtonElement>;
+  /** One piece of a group sharing its borders: it keeps a plain edge. */
+  joined?: boolean;
 }
 
-function Button({ className, variant, size, ...props }: ButtonProps) {
-  return <button className={cn(buttonVariants({ variant, size }), className)} {...props} />;
+function Button({ className, variant, size, joined = false, ...props }: ButtonProps) {
+  const { buttonOutlineEdge } = useThemeStructure();
+  const ringed = variant === "outline" && !joined && buttonOutlineEdge === "gradient";
+  return (
+    <button
+      className={cn(buttonVariants({ variant, size }), ringed && "button-outline-edge", className)}
+      {...props}
+    />
+  );
 }
 
 export { Button, buttonVariants };

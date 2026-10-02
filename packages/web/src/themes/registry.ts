@@ -44,8 +44,14 @@ export const STRUCTURE_OPTIONS = {
   heroDecoration: ["sunset", "grid", "gradient"],
   /** Where a panel's title goes: a label above it, or a bar inside it. */
   sectionLabelPlacement: ["above", "header-bar"],
+  /** A mark before a section title: none, or a gradient pill (`--label-mark`). */
+  sectionLabelMark: ["none", "pill"],
   /** How a row of big numbers is framed: one panel split into cells, or outline boxes. */
   statRowStyle: ["divided", "boxed"],
+  /** The dashboard hero's numbers: plain, or each in a card with a gradient edge. */
+  heroNumberFrame: ["plain", "card"],
+  /** An outline button's edge: its border, or a gradient ring over it (`--button-outline-edge`). */
+  buttonOutlineEdge: ["border", "gradient"],
   /** Range sliders draw a continuous track or a segmented meter. */
   sliderTrack: ["continuous", "segmented"],
   /** A cursor glyph at the left edge of the hovered table row. */
@@ -143,7 +149,10 @@ const MAPBOX_LIGHT = "mapbox://styles/mapbox/light-v11";
 const MIAMI_STRUCTURE: ThemeStructure = {
   heroDecoration: "sunset",
   sectionLabelPlacement: "above",
+  sectionLabelMark: "none",
   statRowStyle: "divided",
+  heroNumberFrame: "plain",
+  buttonOutlineEdge: "border",
   sliderTrack: "continuous",
   rowHoverCursor: false,
   pagerStyle: "labelled",
@@ -167,7 +176,10 @@ const MIAMI_FONTS: readonly ThemeFont[] = [
 const ARCADE_STRUCTURE: ThemeStructure = {
   heroDecoration: "grid",
   sectionLabelPlacement: "header-bar",
+  sectionLabelMark: "none",
   statRowStyle: "boxed",
+  heroNumberFrame: "plain",
+  buttonOutlineEdge: "border",
   sliderTrack: "segmented",
   rowHoverCursor: true,
   pagerStyle: "arrows",
@@ -193,10 +205,17 @@ const ARCADE_FONTS: readonly ThemeFont[] = [
 const STOCK_MAP: ThemeMap = { palette: null, labelFont: null };
 
 /**
- * Electric's structure is Miami's: its approved pages were drawn over Miami's, so only the
- * hero differs, a gradient wash in place of the sunset.
+ * Electric's structure is Miami's: its approved pages were drawn over Miami's. It differs in
+ * the hero, a gradient wash in place of the sunset with the numbers in gradient-edged cards,
+ * in the gradient pill before each section title, and in its outline buttons' gradient edge.
  */
-const ELECTRIC_STRUCTURE: ThemeStructure = { ...MIAMI_STRUCTURE, heroDecoration: "gradient" };
+const ELECTRIC_STRUCTURE: ThemeStructure = {
+  ...MIAMI_STRUCTURE,
+  heroDecoration: "gradient",
+  sectionLabelMark: "pill",
+  heroNumberFrame: "card",
+  buttonOutlineEdge: "gradient",
+};
 
 export const THEMES = [
   {

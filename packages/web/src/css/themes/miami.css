@@ -103,6 +103,8 @@
   --label-weight: 400;
   --label-color: #ff2ec4;
   --label-case: uppercase;
+  --label-mark: none;
+  --label-mark-glow: none;
   --data-label-case: none;
   --table-text-size: 0.78125rem;
   --stat-value-size: 1.75rem;
@@ -120,12 +122,14 @@
   --wordmark-slash-color: #ff2ec4;
   --wordmark-slash-size: 1em;
   --wordmark-slash-weight: 400;
+  --wordmark-slash-image: none;
   --wordmark-shadow: 0 0 14px rgba(255, 46, 196, 0.6), 1px 1px 0 #00e5ff;
 
   /* Header */
   --header-height: 52px;
   --header-border: 1px solid rgba(255, 46, 196, 0.35);
   --header-accent-line: none;
+  --header-accent-height: 2px;
   --header-shadow-scrolled: none;
   --nav-size: 0.75rem;
   --nav-tracking: 0.14em;
@@ -133,6 +137,7 @@
   --nav-active-bg: transparent;
   --nav-active-radius: 0px;
   --nav-active-underline: 2px solid #ff2ec4;
+  --nav-active-underline-image: none;
   --nav-active-shadow: none;
   --nav-color: #c9b8e0;
   --nav-active-color: #ff2ec4;
@@ -155,6 +160,9 @@
   --hero-title-shadow: 0 0 26px rgba(255, 46, 196, 0.75), 2px 2px 0 #00e5ff;
   --hero-number-size: 2.375rem;
   --hero-number-glow: 18px;
+  --hero-number-unit-color: initial;
+  --hero-card-edge: none;
+  --hero-card-shadow: none;
   --glass-blur: 0px;
   --glass-blur-sm: 0px;
 
@@ -200,6 +208,7 @@
   --button-tracking: 0.14em;
   --button-outline-border-color: rgba(255, 46, 196, 0.45);
   --button-outline-glow: 0 0 #0000;
+  --button-outline-edge: none;
   --stepper-gap: 0px;
   --stepper-button-text: var(--color-subtle-text);
   --slider-track-height: 4px;

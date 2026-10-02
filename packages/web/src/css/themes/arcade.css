@@ -108,6 +108,8 @@
   --label-weight: 400;
   --label-color: #ff00ff;
   --label-case: uppercase;
+  --label-mark: none;
+  --label-mark-glow: none;
   --data-label-case: uppercase;
   --table-text-size: 0.75rem;
   --stat-value-size: 1.5rem;
@@ -125,12 +127,14 @@
   --wordmark-slash-color: #ff00ff;
   --wordmark-slash-size: 1em;
   --wordmark-slash-weight: 400;
+  --wordmark-slash-image: none;
   --wordmark-shadow: 0 0 12px rgba(0, 255, 255, 0.85);
 
   /* Header */
   --header-height: 52px;
   --header-border: 1px solid rgba(255, 0, 255, 0.45);
   --header-accent-line: none;
+  --header-accent-height: 2px;
   --header-shadow-scrolled: none;
   --nav-size: 0.6875rem;
   --nav-tracking: 0.24em;
@@ -139,6 +143,7 @@
   --nav-active-radius: 0px;
   /* The active item is carried by its glow, not a rule under it. */
   --nav-active-underline: none;
+  --nav-active-underline-image: none;
   --nav-active-shadow: 0 0 10px rgba(0, 255, 255, 0.7);
   --nav-color: #7f9aa0;
   --nav-active-color: #00ffff;
@@ -161,6 +166,9 @@
   --hero-title-shadow: 0 0 16px rgba(0, 255, 255, 0.85);
   --hero-number-size: 1.625rem;
   --hero-number-glow: 12px;
+  --hero-number-unit-color: initial;
+  --hero-card-edge: none;
+  --hero-card-shadow: none;
   --glass-blur: 0px;
   --glass-blur-sm: 0px;
 
@@ -212,6 +220,7 @@
   --button-tracking: 0.18em;
   --button-outline-border-color: #00ffff;
   --button-outline-glow: 0 0 10px rgba(0, 255, 255, 0.15);
+  --button-outline-edge: none;
   --stepper-gap: 4px;
   --stepper-button-text: var(--color-accent-cyan);
   --slider-track-height: 8px;

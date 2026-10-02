@@ -112,8 +112,10 @@
   --label-size: 0.6875rem;
   --label-tracking: 0.26em;
   --label-weight: 600;
-  --label-color: #8a3dff;
+  --label-color: #1d0b3a;
   --label-case: uppercase;
+  --label-mark: linear-gradient(90deg, #ff00d4, #8a3dff 50%, #00e5ff);
+  --label-mark-glow: 0 0 10px rgba(255, 0, 212, 0.45);
   --data-label-case: none;
   --table-text-size: 0.78125rem;
   --stat-value-size: 1.75rem;
@@ -128,15 +130,18 @@
   --wordmark-case: lowercase;
   --wordmark-color: #1d0b3a;
   --wordmark-color-2: #1d0b3a;
-  --wordmark-slash-color: #d000b6;
+  /* Clear, so the slash shows --wordmark-slash-image through it. */
+  --wordmark-slash-color: transparent;
   --wordmark-slash-size: 1em;
   --wordmark-slash-weight: 400;
+  --wordmark-slash-image: linear-gradient(180deg, #ff00d4, #00e5ff);
   --wordmark-shadow: none;
 
   /* Header */
   --header-height: 52px;
   --header-border: 1px solid rgba(29, 11, 58, 0.1);
   --header-accent-line: linear-gradient(90deg, #ff00d4, #8a3dff 50%, #00e5ff);
+  --header-accent-height: 4px;
   --header-shadow-scrolled: 0 8px 24px -12px rgba(138, 61, 255, 0.45);
   --nav-size: 0.75rem;
   --nav-tracking: 0.14em;
@@ -144,6 +149,7 @@
   --nav-active-bg: transparent;
   --nav-active-radius: 0px;
   --nav-active-underline: 3px solid #d000b6;
+  --nav-active-underline-image: linear-gradient(90deg, #ff00d4, #8a3dff 50%, #00e5ff);
   --nav-active-shadow: none;
   --nav-color: #5b4a7a;
   --nav-active-color: #1d0b3a;
@@ -167,6 +173,9 @@
   --hero-title-shadow: none;
   --hero-number-size: 2.375rem;
   --hero-number-glow: 0px;
+  --hero-number-unit-color: #1d0b3a;
+  --hero-card-edge: linear-gradient(90deg, #ff00d4, #8a3dff 50%, #00e5ff);
+  --hero-card-shadow: 0 14px 32px -14px rgba(138, 61, 255, 0.6);
   --glass-blur: 0px;
   --glass-blur-sm: 0px;
 
@@ -211,9 +220,10 @@
   --button-radius: 9999px;
   --button-case: uppercase;
   --button-tracking: 0.12em;
-  /* The design's gradient border, as its deep violet: a border color can't be a gradient. */
+  /* The deep violet a stepper's joined − and + keep; --button-outline-edge rings the rest. */
   --button-outline-border-color: #8a3dff;
   --button-outline-glow: 0 0 #0000;
+  --button-outline-edge: linear-gradient(90deg, #ff00d4, #8a3dff 50%, #00e5ff);
   --stepper-gap: 0px;
   --stepper-button-text: var(--color-subtle-text);
   --slider-track-height: 4px;

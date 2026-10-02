@@ -73,21 +73,22 @@ describe("plane projection", () => {
   });
 });
 
+const color = (value: string): Rgba => {
+  const rgba = parseRgba(value);
+  if (!rgba) throw new Error(`can't measure ${value}`);
+  return rgba;
+};
+const electric = (name: string) => color(themeToken("electric", name));
+// The display gradient the title and the numbers' digits take, at each of its stops.
+const displayStops = [
+  ...themeToken("electric", "--display-text-gradient").matchAll(/#[0-9a-f]{6}/gi),
+].map(([hex]) => color(hex));
+
 describe("Electric gradient wash", () => {
-  const color = (value: string): Rgba => {
-    const rgba = parseRgba(value);
-    if (!rgba) throw new Error(`can't measure ${value}`);
-    return rgba;
-  };
-  const electric = (name: string) => color(themeToken("electric", name));
   // The wash over the ground, at each of its stops.
   const washes = GRADIENT_WASH_STOPS.map((stop) =>
     composite(color(stop), electric("--color-bg-body"))
   );
-  // The title's gradient, from the theme's --display-text-gradient.
-  const titleStops = [
-    ...themeToken("electric", "--display-text-gradient").matchAll(/#[0-9a-f]{6}/gi),
-  ].map(([hex]) => color(hex));
 
   it("keeps 4.5:1 for the hero ink across the wash", () => {
     for (const wash of washes) {
@@ -96,15 +97,33 @@ describe("Electric gradient wash", () => {
   });
 
   it("keeps 3:1 for the title's gradient and the big numbers, which are large text", () => {
-    expect(titleStops.length).toBeGreaterThanOrEqual(3);
+    expect(displayStops.length).toBeGreaterThanOrEqual(3);
     const large = [
-      ...titleStops,
+      ...displayStops,
       electric("--hero-title-color"),
       electric("--color-accent-cyan"),
       electric("--color-accent-magenta"),
     ];
     for (const wash of washes) {
       for (const ink of large) expect(contrastBetween(ink, wash)).toBeGreaterThanOrEqual(3);
+    }
+  });
+});
+
+describe("Electric hero cards", () => {
+  // Each number sits in a card of the panel ground, which hides the wash behind it.
+  const card = electric("--panel-bg");
+
+  it("keeps 3:1 for every stop of the digits' gradient on the card", () => {
+    for (const stop of displayStops) {
+      expect(contrastBetween(stop, card)).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it("keeps 4.5:1 for the unit and the labels, which are small text", () => {
+    // The `/4` after the goals count is large, but takes the same ink as the labels.
+    for (const ink of [electric("--hero-number-unit-color"), electric("--hero-ink")]) {
+      expect(contrastBetween(ink, card)).toBeGreaterThanOrEqual(4.5);
     }
   });
 });

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { NextHeadingLevel } from "./NextHeadingLevel";
+import { LabelMark } from "./SectionLabel";
 import { useHeadingLevel } from "./useHeadingLevel";
 
 export interface SectionProps {
@@ -25,9 +26,14 @@ export function Section({ title, meta, actions, className, children }: SectionPr
   return (
     <section className={cn("flex flex-col gap-3.5", className)}>
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <Heading className="m-0 flex flex-wrap items-baseline gap-x-3.5 gap-y-1 [font-family:inherit] font-normal text-(length:--label-size) leading-tight tracking-(--label-tracking) text-(color:--label-color) [text-transform:var(--label-case)]">
-          {title}
-          {meta != null && <span className="text-(color:--color-muted-text)">{meta}</span>}
+        <Heading className="m-0 flex flex-wrap items-baseline gap-x-3.5 gap-y-1 [font-family:inherit] font-(weight:--label-weight) text-(length:--label-size) leading-tight tracking-(--label-tracking) text-(color:--label-color) [text-transform:var(--label-case)]">
+          <span className="inline-flex items-center gap-2.5">
+            <LabelMark />
+            {title}
+          </span>
+          {meta != null && (
+            <span className="font-normal text-(color:--color-muted-text)">{meta}</span>
+          )}
         </Heading>
         {actions}
       </div>

@@ -190,11 +190,13 @@ const GoalControls: React.FC<GoalControlsProps> = ({
 
             {/* One joined group, or separate boxes where the theme sets a --stepper-gap. Joined, the
                 input overlaps its neighbours by a pixel so their borders merge; apart, it doesn't.
-                The − and + take the theme's --stepper-button-text, else the outline button's. */}
+                The − and + take the theme's --stepper-button-text, else the outline button's, and
+                keep a plain edge where a theme rings its outline buttons. */}
             <div className="flex items-stretch gap-(--stepper-gap)">
               <Button
                 variant="outline"
                 size="sm"
+                joined
                 className="rounded-e-none text-[color:var(--stepper-button-text,var(--color-foreground))]"
                 onClick={() => handleIncrement(goal.id, -incrementSize)}
                 disabled={goal.value <= 0 || locked}
@@ -237,6 +239,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
               <Button
                 variant="outline"
                 size="sm"
+                joined
                 className="rounded-s-none text-[color:var(--stepper-button-text,var(--color-foreground))]"
                 onClick={() => handleIncrement(goal.id, incrementSize)}
                 disabled={locked}

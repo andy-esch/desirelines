@@ -60,7 +60,9 @@ export default function Navigation({ className = "", vertical = false }: Navigat
     NAV_LINK,
     pad,
     NAV_ACTIVE,
-    !vertical && "[border-bottom:var(--nav-active-underline)]"
+    // A theme's underline image paints over the border; `none` leaves the border.
+    !vertical &&
+      "[border-bottom:var(--nav-active-underline)] [border-image-source:var(--nav-active-underline-image)] [border-image-slice:1]"
   );
   const inactiveLink = cn(NAV_LINK, pad, "text-(color:--nav-color)");
 

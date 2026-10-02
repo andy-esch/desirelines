@@ -33,6 +33,10 @@ export default function Logo({ fontSize, fontWeight, letterSpacing }: LogoProps)
           color: "var(--wordmark-slash-color)",
           fontSize: "var(--wordmark-slash-size)",
           fontWeight: "var(--wordmark-slash-weight)",
+          // A gradient slash: the image clipped to the glyph, under a clear color.
+          backgroundImage: "var(--wordmark-slash-image)",
+          backgroundClip: "text",
+          WebkitBackgroundClip: "text",
         }}
       >
         /
