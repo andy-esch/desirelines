@@ -10,6 +10,9 @@ import { MapDrawerSection } from "../routes/MapDrawerSection";
 import { LineChart, Line } from "recharts";
 import { Slider } from "../ui/slider";
 import { YAxisMarker } from "../charts/YAxisMarker";
+import { SectionLabel } from "./SectionLabel";
+import { Section } from "./Section";
+import { Button } from "../ui/button";
 
 /**
  * One test per structure field that had no reader, so a field going quiet again fails here
@@ -193,5 +196,72 @@ describe("chartMarkerShape", () => {
     expect(circle.circles).toBeGreaterThan(0);
     expect(square.circles).toBe(0);
     expect(square.rects).toBeGreaterThan(circle.rects);
+  });
+});
+
+describe("sectionLabelMark", () => {
+  const marks = (container: HTMLElement) =>
+    container.querySelectorAll('[aria-hidden="true"][class*="--label-mark"]').length;
+
+  it("puts a pill before a heading label and a section title, only when the theme asks", () => {
+    const tree = (
+      <>
+        <SectionLabel as="h2">Goals</SectionLabel>
+        <Section title="Recent activity">content</Section>
+      </>
+    );
+    const { container: pill } = withStructure({ sectionLabelMark: "pill" }, tree);
+    expect(marks(pill)).toBe(2);
+    // Hidden from assistive tech: the heading's name is its words alone.
+    expect(screen.getByRole("heading", { name: "Goals" })).toBeInTheDocument();
+
+    const { container: none } = withStructure({ sectionLabelMark: "none" }, tree);
+    expect(marks(none)).toBe(0);
+  });
+
+  it("leaves a span label, a panel's meta, unmarked", () => {
+    const { container } = withStructure(
+      { sectionLabelMark: "pill" },
+      <SectionLabel>Last 4 weeks</SectionLabel>
+    );
+    expect(marks(container)).toBe(0);
+  });
+});
+
+describe("buttonOutlineEdge", () => {
+  const ringed = (overrides: Partial<ThemeStructure>, node: ReactNode) => {
+    const { unmount } = withStructure(overrides, node);
+    const result = screen.getByRole("button").classList.contains("button-outline-edge");
+    unmount();
+    return result;
+  };
+
+  it("rings an outline button only where the theme draws a gradient edge", () => {
+    const outline = <Button variant="outline">Load more</Button>;
+    expect(ringed({ buttonOutlineEdge: "gradient" }, outline)).toBe(true);
+    expect(ringed({ buttonOutlineEdge: "border" }, outline)).toBe(false);
+  });
+
+  it("leaves a joined stepper button and other variants plain", () => {
+    const gradient = { buttonOutlineEdge: "gradient" } as const;
+    expect(
+      ringed(
+        gradient,
+        <Button variant="outline" joined>
+          +
+        </Button>
+      )
+    ).toBe(false);
+    expect(ringed(gradient, <Button variant="ghost">Reset</Button>)).toBe(false);
+  });
+
+  it("keeps `joined` off the DOM", () => {
+    withStructure(
+      {},
+      <Button variant="outline" joined>
+        −
+      </Button>
+    );
+    expect(screen.getByRole("button")).not.toHaveAttribute("joined");
   });
 });

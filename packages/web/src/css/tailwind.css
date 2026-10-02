@@ -327,6 +327,28 @@
   }
 }
 
+/* The outline button's edge in --button-outline-edge, an image a border color can't be: a
+   ring over the button's own 1px border, so its fill and hover stay its own. Button adds it
+   where the theme's buttonOutlineEdge structure is `gradient`. */
+@utility button-outline-edge {
+  position: relative;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    padding: 1px;
+    border-radius: inherit;
+    background: var(--button-outline-edge);
+    background-origin: border-box;
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+}
+
 /* Gradient display text: the theme's --display-text-gradient clipped to the glyphs. A
    theme without a gradient sets --display-text-fill to currentColor and keeps its text
    color. */
@@ -501,7 +523,7 @@
     bottom: 0;
     left: 0;
     right: 0;
-    height: 2px;
+    height: var(--header-accent-height);
     background: var(--header-accent-line);
   }
 } /* end @layer components: component base styles */

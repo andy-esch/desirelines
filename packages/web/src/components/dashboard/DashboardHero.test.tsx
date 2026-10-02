@@ -3,6 +3,8 @@ import { render, screen } from "@testing-library/react";
 import DashboardHero, { countGoalsOnPace } from "./DashboardHero";
 import { createYearContext } from "../../utils/yearContext";
 import type { SportGoalData } from "../../hooks/useDashboardGoalData";
+import { THEMES } from "../../themes/registry";
+import { ThemeStructureProvider } from "../theme/ThemeStructureProvider";
 
 vi.mock("../../hooks/useDashboardGoalData", () => ({ useDashboardGoalData: vi.fn() }));
 vi.mock("../../hooks/useWeeklySummary", () => ({
@@ -87,5 +89,34 @@ describe("DashboardHero goals on pace", () => {
     const value = renderHero([sport("cycling", false), sport("running", false)]);
     expect(value).toHaveTextContent("none");
     expect(value).not.toHaveTextContent("/");
+  });
+});
+
+describe("DashboardHero heroNumberFrame", () => {
+  // The frame each number's label and value share.
+  function frames(heroNumberFrame: "plain" | "card") {
+    vi.mocked(useDashboardGoalData).mockReturnValue({
+      sportData: [],
+      yearContext: createYearContext(new Date().getFullYear()),
+      distanceUnit: "miles",
+      isLoading: false,
+      error: null,
+      retry: vi.fn(),
+    });
+    const { unmount } = render(
+      <ThemeStructureProvider structure={{ ...THEMES[0].structure, heroNumberFrame }}>
+        <DashboardHero />
+      </ThemeStructureProvider>
+    );
+    const result = ["This week", "Activities · 12 mo", "Goals on pace"].map(
+      (label) => screen.getByText(label).parentElement!.className
+    );
+    unmount();
+    return result;
+  }
+
+  it("frames every number in a gradient-edged card only when the theme asks", () => {
+    for (const frame of frames("card")) expect(frame).toContain("--hero-card-edge");
+    for (const frame of frames("plain")) expect(frame).not.toContain("--hero-card-edge");
   });
 });

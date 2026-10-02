@@ -38,7 +38,7 @@ const PROPERTY_KINDS: ReadonlyArray<[RegExp, readonly SlotKind[]]> = [
     COLOR,
   ],
   [/^background$/, ["image", "color"]],
-  [/^background-image$/, ["image"]],
+  [/^(?:background-image|border-image(?:-source)?)$/, ["image"]],
   [/^(?:box-shadow|--tw-(?:ring-)?shadow)$/, ["shadow"]],
   [/^text-shadow$/, ["text-shadow"]],
   [/^(?:backdrop-)?filter$/, ["filter"]],
@@ -157,8 +157,10 @@ function readKinds(
     return PART;
   }
   const end = closeOf(value, start + 3);
+  // A background layer's box (`var(--x) border-box`) is part of the layer, not the value.
+  const box = /^(?:(?:padding|border|content)-box\s*)+/;
   const before = value.slice(0, start).trim();
-  const after = value.slice(end).trim();
+  const after = value.slice(end).trim().replace(box, "").trim();
   const alone = (before === "" || before.endsWith(",")) && (after === "" || after.startsWith(","));
   return alone ? whole : PART;
 }
