@@ -1,5 +1,6 @@
+import { cloneElement, type ReactElement } from "react";
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import WeeklyVolumeChart from "./WeeklyVolumeChart";
 import type { MapActivity } from "../../api/map";
@@ -9,9 +10,14 @@ vi.mock("recharts", async () => {
   const actual = await vi.importActual("recharts");
   return {
     ...actual,
-    ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
+    // Hand the chart the size the container would measure; without one Recharts draws nothing.
+    ResponsiveContainer: ({
+      children,
+    }: {
+      children: ReactElement<{ width?: number; height?: number }>;
+    }) => (
       <div data-testid="responsive-container" style={{ width: 320, height: 160 }}>
-        {children}
+        {cloneElement(children, { width: 320, height: 160 })}
       </div>
     ),
   };
@@ -31,6 +37,17 @@ function act(over: Partial<MapActivity> = {}): MapActivity {
   };
 }
 
+/** Hovers the middle of the chart and waits for its tooltip, which Recharts fills a beat later. */
+async function hoverChart(container: HTMLElement) {
+  fireEvent.mouseMove(container.querySelector(".recharts-wrapper")!, { clientX: 160, clientY: 80 });
+  let tooltip: HTMLElement | null = null;
+  await waitFor(() => {
+    tooltip = container.querySelector<HTMLElement>(".recharts-tooltip-wrapper");
+    expect(tooltip?.textContent).toBeTruthy();
+  });
+  return tooltip!;
+}
+
 describe("WeeklyVolumeChart", () => {
   it("renders the chart with a distance/time toggle", () => {
     render(<WeeklyVolumeChart activities={[act()]} distanceUnit="miles" />);
@@ -44,6 +61,18 @@ describe("WeeklyVolumeChart", () => {
     render(<WeeklyVolumeChart activities={[act()]} distanceUnit="miles" />);
     await user.click(screen.getByRole("button", { name: "Time" }));
     expect(screen.getByRole("button", { name: "Time" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("titles the hovered week and shows its volume in the tooltip", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<WeeklyVolumeChart activities={[act()]} distanceUnit="miles" />);
+    const distance = within(await hoverChart(container));
+    expect(distance.getByText("Week of May 4, 2026")).toBeInTheDocument();
+    expect(distance.getByText("Volume")).toBeInTheDocument();
+    expect(distance.getByText("6 mi")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Time" }));
+    expect(within(await hoverChart(container)).getByText("1 h")).toBeInTheDocument();
   });
 
   it("shows an empty hint when there are no activities", () => {
