@@ -71,7 +71,7 @@ describe("GoalManagementTable", () => {
     // The store says the sync failed; the table keeps the last good copy.
     expect(await screen.findByText(/couldn't be synced/)).toBeInTheDocument();
     expect(screen.getByText("Account target")).toBeInTheDocument();
-    expect(screen.queryByText(/Failed to load goals/)).toBeNull();
+    expect(screen.queryByText("Error loading goals")).toBeNull();
   });
 
   it("says the goals failed to load when none ever did", async () => {
@@ -85,6 +85,6 @@ describe("GoalManagementTable", () => {
     );
     render(<GoalManagementTable />, { wrapper: accountStore(services) });
 
-    expect(await screen.findByText(/Failed to load goals/)).toBeInTheDocument();
+    expect(await screen.findByText("Error loading goals")).toBeInTheDocument();
   });
 });

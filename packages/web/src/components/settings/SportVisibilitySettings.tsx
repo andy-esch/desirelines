@@ -5,10 +5,10 @@ import { getMetricDisplayLabel } from "../../config/metricConfig";
 import { CheckIcon, CloseIcon, EyeIcon, EyeSlashIcon } from "../icons";
 import Loader from "../Loader";
 import { InlineAlert } from "../InlineAlert";
+import { ErrorState } from "../ErrorState";
 import { logger } from "../../lib/logger";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
-import { Alert } from "../ui/alert";
 import { Table } from "../ui/table";
 import { SectionLabel } from "../theme/SectionLabel";
 import { SportLabel } from "../theme/SportLabel";
@@ -180,7 +180,12 @@ const AUTO_SAVE_DELAY = 500;
  * - Validates at least one sport must be selected
  */
 export function SportVisibilitySettings() {
-  const { sportConfig, isLoading: configLoading, error: configError } = useSportConfig();
+  const {
+    sportConfig,
+    isLoading: configLoading,
+    error: configError,
+    retry: retryConfig,
+  } = useSportConfig();
   const {
     visibleSports,
     setVisibleSports,
@@ -365,9 +370,9 @@ export function SportVisibilitySettings() {
   // Error state
   if (configError) {
     return (
-      <Alert variant="danger" role="alert">
-        Failed to load sport configuration: {configError.message}
-      </Alert>
+      <ErrorState title="Error loading sport configuration" onRetry={retryConfig}>
+        {configError.message}
+      </ErrorState>
     );
   }
 

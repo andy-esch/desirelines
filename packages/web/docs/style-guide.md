@@ -208,6 +208,7 @@ values.
 | Tables | `--th-size`, `--th-weight`, `--th-color`, `--th-tracking`, `--th-case`, `--th-rule`, `--row-rule`, `--row-padding`, `--row-hover-bg`, `--missing-value-color`, `--sport-mark-radius` | Table headers, row rules and hover, sport marks, and the color of a missing value wherever `MissingValue` shows one |
 | Goals and meters | `--track-height`, `-bg`, `-border`, `-fill-height`, `-fill-glow`, `-radius`; `--pace-tick-width`, `-height`; `--meter-segment-width`, `-segment-height`, `--meter-gap`, `--meter-radius`, `-done-glow`, `-current-glow`; `--color-meter-done`, `-current`, `-todo`; `--color-pace-tick`; `--cell-empty-border`, `--cell-radius` | Goal tracks (the fill glows in its own color by `--track-fill-glow`) and their pace tick, segmented meters (the segments done, the current one and those to come) and loaders, which light theirs in the done color, heatmap cells |
 | Loading | `--color-skeleton`, `-shimmer` | Skeleton placeholders: blocks in a faint tint of the body text, so they show on dark and white grounds alike, and a shimmer in the theme's accent sweeping across them. The contract holds a block to 1.3:1 on the panel and the page, and the shimmer to 1.3:1 on the block |
+| Errors | `--error-title-weight`, `-case`, `-tracking`, `-shadow`; `--error-frame-color`, `-shadow` | `ErrorState`'s title, in the danger color with the theme's weight, case, tracking and glow, and the frame of a panel that shows an error (`Panel tone="danger"`): its border and shadow, or through `initial` the panel's own |
 | Status | `--status-size`, `-tracking`, `-case`; `--color-status-good`, `-warn`, `-bad` | Goal status labels, and their colors for on track, slightly behind and behind |
 | Charts | `--chart-baseline`, `--chart-tick-size`, `--chart-actual-glow`, `--chart-average-dash`, `--chart-bar-radius`, `--chart-bar-gap`, `--chart-hover-column`, `--tooltip-radius` | Chart chrome beyond the color tokens: the x axis line, tick labels, the actual line's glow (a `filter`, `none` for crisp), the average line's dash, the top corners of a bar stack, the gap between stacked sports, the hovered column, and every chart tooltip's corner. Recharts can't take `var()` for the dash or the bar radius, so those two are read off the chart's element with `useThemeTokenValue` |
 | Map chrome | `--map-chrome-bg`, `-edge`, `-shadow`; `--popup-radius`, `--popup-border`, `--popup-shadow` | The routes-map drawers and their toggles (the edge is drawn on the map-facing side), and the route popup |
@@ -343,7 +344,7 @@ active theme's `structure`, unless a `ThemeStructureProvider` overrides it for a
 
 | Component | Reads | Notes |
 |---|---|---|
-| `Panel` | `--panel-*`, `sectionLabelPlacement` | Title in a label above the frame, or a header bar inside it; either way the title is a heading (see heading levels below). `meta` and `actions` (a panel's own controls) share the title row. `accent` picks one of three frame accents; `emphasis` marks the panel that should stand out. |
+| `Panel` | `--panel-*`, `sectionLabelPlacement` | Title in a label above the frame, or a header bar inside it; either way the title is a heading (see heading levels below). `meta` and `actions` (a panel's own controls) share the title row. `accent` picks one of three frame accents; `emphasis` marks the panel that should stand out; `tone="danger"` frames a panel showing an error from the Errors slots. |
 | `Section` | `--label-*`, `sectionLabelPlacement` | A heading, meta and actions over content that spans several panels. A single panel takes its title through `Panel`. |
 | `SectionLabel` | `--label-*` | Section and panel labels. `as` renders it as a heading that looks the same as the span. |
 | `SportLabel`, `SportMark` | `--sport-mark-radius`, `--data-label-case`, `sportMarkStyle` | A sport's name in a row: a glowing dot or swatch before it. `SportMark` is the mark alone (e.g. beside the sport page title). |
@@ -355,6 +356,7 @@ active theme's `structure`, unless a `ThemeStructureProvider` overrides it for a
 | `StatusSymbol` | `--status-*`, `--color-status-*`, `statusSymbolStyle` | A goal status as an SVG symbol plus text. The words always show. |
 | `MissingValue` | `--missing-value-color` | A value that isn't there, anywhere it would show: an em dash, and "none" to a screen reader. A theme that leaves the slot `initial` keeps the surrounding text's color. |
 | `LoadingValue` | — | A value still loading: an ellipsis in the surrounding text's color, and "loading" to a screen reader. |
+| `ErrorState` | `--error-title-*`, `--color-danger` | Something that failed to load: a title in the danger color, the detail under it, and the shared Retry button when `onRetry` is given (`actions` adds other ways out). Announced as an alert; the title is a heading at the outline's level, or `level={1}` where it stands in for a page. |
 
 The component slots and tokens: `--panel-accent-{1,2,3}-ink` (header-bar label color per
 accent), `--stat-label-size`, `--stat-label-tracking`, `--stat-label-case`, `--stat-sub-size`,
@@ -395,7 +397,9 @@ active-filter pill. Theme-aware via the decorative tokens; do not add elevation 
 
 **Messages:** `Alert` with a `danger`, `warning`, `success` or `info` variant; the demo-mode
 banner is its `demo` variant. Pass `role="alert"` or `role="status"` where the message should
-be announced.
+be announced. A message about something the user just did (a save that failed, a goal that
+doesn't validate) is an `InlineAlert`, which can be dismissed; a load that failed is an
+`ErrorState`.
 
 **Tables:** `Table` (cells take `--row-padding`; `hover` highlights rows with `--row-hover-bg`; header
 cells take `--th-size`, `--th-weight`, `--th-color`, `--th-tracking`, `--th-case` and `--th-rule`, body
@@ -412,6 +416,11 @@ readers hear. Skeleton screens (`Skeleton`, `PageLoader` and the page skeletons)
 the Loading slots and say "Loading…" to screen readers. `EmptyState` leads with "No signal" in the
 display face, over the specific line ("No Yoga sessions recorded for 2026"), and takes an `action`
 such as a Clear filters button. A value still loading is "…" (`LoadingValue`), never "--".
+Something that failed to load is an `ErrorState` titled "Error loading …" (the thing, as its
+loading label names it), with the error's message under it and Retry wherever a retry exists. In
+a panel, the panel takes `tone="danger"`, so Arcade frames it in its danger color. A dashboard
+card that fetches its own data sits in a `CardErrorBoundary`: if it throws while rendering, an
+error state takes its place, with Retry to render it again, and the rest of the page carries on.
 
 **shadcn/Base UI primitives** (`src/components/ui/`) take colors from the `@theme inline`
 alias block in `tailwind.css` (`bg-card`, `border-input`, `bg-primary`) and

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import userEvent from "@testing-library/user-event";
 import { render, screen, fireEvent } from "@testing-library/react";
 import RecentActivitiesList from "./RecentActivitiesList";
 import { THEMES } from "../../themes/registry";
@@ -205,5 +206,28 @@ describe("RecentActivitiesList pagination", () => {
 
     expect(screen.getByRole("button", { name: "Older activities" })).toHaveTextContent("Next");
     expect(screen.getByRole("button", { name: "Newer activities" })).toBeDisabled();
+  });
+});
+
+describe("RecentActivitiesList error", () => {
+  it("names the failure and retries the request", async () => {
+    const retry = vi.fn();
+    mockUseActivities.mockReturnValue({
+      activities: [],
+      isLoading: false,
+      error: new Error("Network request failed"),
+      hasMore: false,
+      isLoadingMore: false,
+      loadMore: vi.fn(),
+      retry,
+    });
+
+    render(<RecentActivitiesList timeRange="4weeks" pageSize={5} />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      /Error loading activities.*Network request failed/
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(retry).toHaveBeenCalledOnce();
   });
 });

@@ -8,6 +8,7 @@ import {
   type DistanceUnit,
 } from "../../utils/units";
 import { SkeletonRegion, SparklineSkeleton } from "../Skeleton";
+import { ErrorState } from "../ErrorState";
 import { useMultiSportChartData } from "../../hooks/useMultiSportChartData";
 import type { TuningParams } from "../../utils/demoDataGenerator";
 import type { TimeRange } from "../../utils/dataNormalization";
@@ -296,8 +297,8 @@ export default function MultiSportSparklineChart({
 
   if (error) {
     return (
-      <Panel className={className} bodyClassName="p-6 text-center">
-        <p className="text-danger mb-0">Failed to load chart data</p>
+      <Panel className={className} bodyClassName="p-4" tone="danger">
+        <ErrorState title="Error loading chart data">{error.message}</ErrorState>
       </Panel>
     );
   }

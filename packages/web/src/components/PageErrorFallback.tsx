@@ -1,107 +1,45 @@
 import { Link } from "@tanstack/react-router";
-import { Button, buttonVariants } from "./ui/button";
-import { Alert } from "./ui/alert";
-import { useHeadingLevel } from "./theme/useHeadingLevel";
+import { buttonVariants } from "./ui/button";
+import { ErrorState } from "./ErrorState";
+import { Panel } from "./theme/Panel";
 
-type ErrorFallbackVariant = "page" | "inline" | "full";
+type ErrorFallbackVariant = "page" | "full";
 
 interface PageErrorFallbackProps {
   error: unknown;
   onReset?: (() => void) | undefined;
   /** @default "page" */
   variant?: ErrorFallbackVariant | undefined;
-  /** Custom heading (defaults vary by variant) */
-  heading?: string | undefined;
 }
 
-const defaultHeadings: Record<ErrorFallbackVariant, string> = {
-  full: "Something went wrong",
-  page: "Something went wrong",
-  inline: "Failed to load chart data",
-};
-
 /**
- * Unified error fallback component with three variants:
+ * What shows in place of a page that threw: an `ErrorState` titled with the page's `h1`, in a
+ * danger-toned panel.
  *
- * - "full"   — Full-page layout for top-level error boundaries (index.tsx)
- * - "page"   — Container-width card for route-level errors (App.tsx)
- * - "inline" — Compact alert for component-level errors (charts, cards)
- *
- * The full and page variants stand in for a whole page, so their title is its `h1`; the
- * inline one sits in the outline at the level `useHeadingLevel` gives (under a chart's
- * title, one below it). Each heading keeps the body face, as the `h4` it replaced did.
+ * - "page" — route error components (`__root`, `$sport`, `demo/$sport`), with a link home
+ * - "full" — the app's top-level error boundary (index.tsx), outside the router
  */
-export function PageErrorFallback({
-  error,
-  onReset,
-  variant = "page",
-  heading,
-}: PageErrorFallbackProps) {
-  const title = heading ?? defaultHeadings[variant];
-  const InlineHeading = `h${useHeadingLevel()}` as const;
+export function PageErrorFallback({ error, onReset, variant = "page" }: PageErrorFallbackProps) {
   const errorMessage = error instanceof Error ? error.message : String(error);
-
-  // Full-page: monospace layout, no router available
-  if (variant === "full") {
-    return (
-      <div className="p-10 font-mono max-w-3xl mx-auto">
-        <h1 className="text-danger">{title}</h1>
-        <p>The application encountered an unexpected error.</p>
-        <pre className="bg-surface-raised text-body-text p-5 rounded overflow-auto">
-          {errorMessage}
-        </pre>
-        {onReset && (
-          <button onClick={onReset} className="mt-4 py-2 px-4 cursor-pointer">
-            Try Again
-          </button>
-        )}
-      </div>
-    );
-  }
-
-  // Inline: compact alert for component-level errors
-  if (variant === "inline") {
-    return (
-      <Alert variant="danger" role="alert">
-        <InlineHeading className="[font-family:inherit]">{title}</InlineHeading>
-        <p>{errorMessage}</p>
-        {onReset && (
-          <>
-            <hr />
-            <Button variant="outline-danger" onClick={onReset}>
-              Retry
-            </Button>
-          </>
-        )}
-      </Alert>
-    );
-  }
-
-  // Page (default): container-width card for route-level errors
   return (
-    <div className="container py-12" style={{ maxWidth: "600px" }}>
-      <Alert variant="danger" role="alert">
-        <h1 className="[font-family:inherit]">{title}</h1>
-        <p>This page encountered an unexpected error.</p>
-        <hr />
-        <p className="mb-6">
-          <strong>Error:</strong> {errorMessage}
-        </p>
-        <div className="flex gap-2">
-          {onReset && (
-            <Button
-              variant="outline-danger"
-              onClick={onReset}
-              aria-label="Try Again: Retry loading this page"
-            >
-              Try Again
-            </Button>
-          )}
-          <Link to="/" className={buttonVariants({ variant: "outline" })}>
-            Go to Dashboard
-          </Link>
-        </div>
-      </Alert>
+    <div className="mx-auto w-full max-w-xl px-4 py-12">
+      <Panel tone="danger">
+        <ErrorState
+          level={1}
+          title="Something went wrong"
+          onRetry={onReset}
+          actions={
+            // The full variant renders outside the router, so it has no link to follow.
+            variant === "page" && (
+              <Link to="/" className={buttonVariants({ variant: "outline", size: "sm" })}>
+                Go to Dashboard
+              </Link>
+            )
+          }
+        >
+          {errorMessage}
+        </ErrorState>
+      </Panel>
     </div>
   );
 }

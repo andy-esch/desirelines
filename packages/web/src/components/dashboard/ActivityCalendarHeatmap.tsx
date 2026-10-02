@@ -7,6 +7,7 @@ import { filterValidSports } from "../../utils/sportConfig";
 import { toLocalDateString } from "../../utils/dateUtils";
 import { getCalendarRange, type TimeRangeOption } from "../../utils/calendarRange";
 import Loader from "../Loader";
+import { ErrorState } from "../ErrorState";
 import StyledSelect from "../StyledSelect";
 import type { TuningParams } from "../../utils/demoDataGenerator";
 import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
@@ -280,8 +281,10 @@ export default function ActivityCalendarHeatmap({
 
   if (error) {
     return (
-      <div className={`${className} text-center p-6`}>
-        <p className="text-danger mb-0 text-sm">Failed to load calendar data</p>
+      <div className={className}>
+        <Panel title="Activity Calendar" bodyClassName="p-4" tone="danger">
+          <ErrorState title="Error loading calendar data">{error.message}</ErrorState>
+        </Panel>
       </div>
     );
   }

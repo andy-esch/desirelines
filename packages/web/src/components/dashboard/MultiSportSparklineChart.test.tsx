@@ -123,7 +123,7 @@ describe("MultiSportSparklineChart", () => {
 
       await renderWithRouter(<MultiSportSparklineChart timeRange="2weeks" />);
 
-      expect(screen.getByText("Failed to load chart data")).toBeInTheDocument();
+      expect(screen.getByRole("alert")).toHaveTextContent("Error loading chart data");
     });
   });
 

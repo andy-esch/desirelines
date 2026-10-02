@@ -5,6 +5,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { useDashboardGoalData } from "../../hooks/useDashboardGoalData";
 import type { SportGoalData } from "../../hooks/useDashboardGoalData";
 import Loader from "../Loader";
+import { ErrorState } from "../ErrorState";
 import { MapPinIcon } from "../ui/MapPinIcon";
 import type { TimeRange } from "../../utils/dataNormalization";
 import { convertDistance, formatDistance, formatImpactPct } from "../../utils/units";
@@ -185,7 +186,8 @@ export default function RecentActivitiesList({
   // Memoized: useActivities' demo path filters on the filter object's identity,
   // so an inline literal would re-filter (and re-render) every render signed out.
   const filter = useMemo(() => ({ from, to, sports: [], limit: 20 }), [from, to]);
-  const { activities, isLoading, error, hasMore, isLoadingMore, loadMore } = useActivities(filter);
+  const { activities, isLoading, error, hasMore, isLoadingMore, loadMore, retry } =
+    useActivities(filter);
 
   const totalPages = Math.ceil(activities.length / pageSize);
   // Clamp page if pageSize changed (e.g. container resized) and current page is now out of range.
@@ -222,12 +224,10 @@ export default function RecentActivitiesList({
 
   if (error) {
     return (
-      <div
-        ref={containerRef}
-        className="flex items-center justify-center h-full text-danger"
-        style={{ fontSize: "0.8rem" }}
-      >
-        Failed to load activities
+      <div ref={containerRef} className="flex h-full items-center p-2">
+        <ErrorState title="Error loading activities" onRetry={retry}>
+          {error.message}
+        </ErrorState>
       </div>
     );
   }

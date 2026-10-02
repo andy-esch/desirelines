@@ -3,7 +3,7 @@ import { useCurrentYear } from "../../hooks/useCurrentYear";
 import { useAllGoals } from "../../hooks/useGoals";
 import { DEMO_SPORT_LABELS, type DemoSport } from "../../constants/demoConfig";
 import Loader from "../Loader";
-import { InlineAlert } from "../InlineAlert";
+import { ErrorState } from "../ErrorState";
 import { Table } from "../ui/table";
 
 /** Flattened goal row for display */
@@ -77,7 +77,7 @@ export function GoalManagementTable() {
 
   // With a last good copy to show, the store has already said the sync failed.
   if (error && !goals) {
-    return <InlineAlert>Failed to load goals: {error.message}</InlineAlert>;
+    return <ErrorState title="Error loading goals">{error.message}</ErrorState>;
   }
 
   if (goalRows.length === 0) {

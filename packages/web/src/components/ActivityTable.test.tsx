@@ -294,8 +294,11 @@ describe("ActivityTable", () => {
       const error = new Error("Failed to load activities");
       render(<ActivityTable {...defaultProps} error={error} />);
 
-      expect(screen.getByText("Error loading activities:")).toBeInTheDocument();
-      expect(screen.getByText("Failed to load activities")).toBeInTheDocument();
+      const alert = screen.getByRole("alert");
+      expect(alert).toContainElement(
+        screen.getByRole("heading", { name: "Error loading activities" })
+      );
+      expect(alert).toHaveTextContent("Failed to load activities");
     });
 
     it("shows retry button on error", () => {

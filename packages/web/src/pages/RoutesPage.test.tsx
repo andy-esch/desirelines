@@ -464,7 +464,7 @@ describe("RoutesPage", () => {
 
     await renderWithRouter(<RoutesPage />);
 
-    expect(screen.getByText(/Failed to load map/)).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(/Error loading the map/);
   });
 
   it("degrades gracefully when the Mapbox token is missing", async () => {

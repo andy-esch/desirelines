@@ -317,6 +317,14 @@ export const THEME_CONTRACT = {
     "--color-skeleton": "color",
     "--color-skeleton-shimmer": "color",
   },
+  Errors: {
+    "--error-title-weight": "weight",
+    "--error-title-case": "case",
+    "--error-title-tracking": "tracking",
+    "--error-title-shadow": "text-shadow",
+    "--error-frame-color": { kind: "color", initial: true },
+    "--error-frame-shadow": { kind: "shadow", initial: true },
+  },
   Status: {
     "--color-status-good": "color",
     "--color-status-warn": "color",

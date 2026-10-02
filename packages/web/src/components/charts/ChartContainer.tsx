@@ -11,7 +11,7 @@ import type { ReactNode } from "react";
 import { ErrorBoundary } from "react-error-boundary";
 import type { MetricUnit } from "../../utils/units";
 import LoadingChart from "./LoadingChart";
-import ErrorChart from "./ErrorChart";
+import { ErrorState } from "../ErrorState";
 import EmptyState from "../EmptyState";
 import { Panel } from "../theme/Panel";
 
@@ -123,13 +123,16 @@ export function ChartContainer({
     <Panel
       title={panelTitle}
       actions={ready && !hideHeader ? headerControls : undefined}
+      tone={!isLoading && error ? "danger" : undefined}
       className={className}
       bodyClassName="p-2"
     >
       {isLoading ? (
         <LoadingChart />
       ) : error ? (
-        <ErrorChart error={error} onRetry={onRetry} />
+        <ErrorState title="Error loading chart data" onRetry={onRetry}>
+          {error.message}
+        </ErrorState>
       ) : isEmpty ? (
         <EmptyState
           sport={emptyStateConfig?.sport}
@@ -140,7 +143,18 @@ export function ChartContainer({
         />
       ) : (
         <ErrorBoundary
-          fallbackRender={({ error }) => <ErrorChart error={error as Error} onRetry={onRetry} />}
+          fallbackRender={({ error, resetErrorBoundary }) => (
+            // The chart threw while drawing: fetch its data again, then draw it again.
+            <ErrorState
+              title="Error displaying the chart"
+              onRetry={() => {
+                onRetry?.();
+                resetErrorBoundary();
+              }}
+            >
+              {error instanceof Error ? error.message : String(error)}
+            </ErrorState>
+          )}
         >
           {children}
         </ErrorBoundary>
