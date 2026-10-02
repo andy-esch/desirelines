@@ -7,7 +7,8 @@
  * `themeContract.test.ts` checks that each file sets exactly these slots, each with a value
  * of its kind, and that the style guide's slot table lists them; `themeContrast.test.ts`
  * checks the pairs below in every theme; `themeTokenUse.test.ts` checks that nothing reads a
- * token the contract, `tailwind.css` or a component doesn't define.
+ * token the contract, `tailwind.css` or a component doesn't define, and that each slot is read
+ * where its kind belongs (a `shadow` as a `box-shadow`, a `case` as a `text-transform`).
  *
  * Groups are the rows of the style guide's "Theme slots" table, plus `Colors` for the role
  * colors "The color system" describes. A color a single component family reads (a pressed
@@ -509,6 +510,18 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = [
   },
   { text: ["--color-chart-tooltip-muted"], on: ["--color-chart-tooltip-bg"], min: 4.5 },
   { text: ["--color-chart-tooltip-label"], on: ["--color-chart-tooltip-bg"], min: 4.5 },
+  // The compact tooltip writes its "vs goal" delta in the goal's line color.
+  {
+    text: [
+      "--color-goal-1",
+      "--color-goal-2",
+      "--color-goal-3",
+      "--color-goal-4",
+      "--color-goal-5",
+    ],
+    on: ["--color-chart-tooltip-bg"],
+    min: 4.5,
+  },
 ];
 
 /**

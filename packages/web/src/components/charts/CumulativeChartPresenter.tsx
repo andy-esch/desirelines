@@ -24,6 +24,7 @@ import {
   ResponsiveContainer,
   ReferenceDot,
   ReferenceArea,
+  type MouseHandlerDataParam,
 } from "recharts";
 import type {
   CumulativeChartDataPoint,
@@ -31,11 +32,19 @@ import type {
   GoalLineData,
   GoalAchievement,
 } from "../../types/chartData";
-import { CHART_COLORS, GOAL_COLORS, priorYearStroke } from "../../constants/chartColors";
+import { CHART_COLORS } from "../../constants/chartColors";
 import type { PriorYearLine } from "../../hooks/useCumulativeChartData";
 import { CHART_CONFIG, DANGER_ZONE_CONFIG } from "../../constants/chartConfig";
 import { calculateCumulativeYAxisMax } from "../../utils/chartScaling";
-import ChartLegend, { goalLegendLabel, type LegendItem } from "./ChartLegend";
+import ChartLegend from "./ChartLegend";
+import {
+  ACTUAL_LINE,
+  goalLine,
+  legendItem,
+  lineProps,
+  priorYearLine,
+  type ChartLine,
+} from "./chartLines";
 import ChartTooltip from "./ChartTooltip";
 import YAxisMarker from "./YAxisMarker";
 import { useThemeDateFormat } from "../theme/useThemeDateFormat";
@@ -71,13 +80,9 @@ export interface CumulativeChartPresenterProps {
   yAxisTicks: number[];
 
   // --- Display Information ---
-  /** Year being displayed (for the actual line's name in the tooltip) */
-  year: number;
   /** Unit label for display (e.g., "mi", "km", "sessions") */
   unitLabel: string;
-  /** Total distance for actual line name */
-  totalDistanceTraveled: number;
-  /** Estimated year-end total, for the average line's legend entry and name */
+  /** Estimated year-end total, for the average line's name */
   estimatedYearEnd: number;
   /** Whether to use "sessions" terminology */
   isSessionsMode: boolean;
@@ -96,9 +101,9 @@ export interface CumulativeChartPresenterProps {
   /** Right edge of drag selection (timestamp), undefined when not dragging */
   selectionRight?: number | undefined;
   /** Mouse down handler for drag-to-zoom */
-  onChartMouseDown?: ((e: { activeLabel?: string | number }) => void) | undefined;
+  onChartMouseDown?: ((state: MouseHandlerDataParam) => void) | undefined;
   /** Mouse move handler for drag-to-zoom */
-  onChartMouseMove?: ((e: { activeLabel?: string | number }) => void) | undefined;
+  onChartMouseMove?: ((state: MouseHandlerDataParam) => void) | undefined;
   /** Mouse up handler for drag-to-zoom */
   onChartMouseUp?: (() => void) | undefined;
 
@@ -115,9 +120,6 @@ export interface CumulativeChartPresenterProps {
       }
     | undefined;
 }
-
-/** Prior years' ghost lines sit under the year's at a finer width. */
-const PRIOR_YEAR_STROKE_WIDTH = 1.5;
 
 // ============================================================================
 // Sub-components
@@ -237,9 +239,7 @@ function AchievementLegend({ achievements }: { achievements: GoalAchievement[] }
  *   startDate={chartData.startDate}
  *   displayEndDate={chartData.displayEndDate}
  *   yAxisTicks={chartData.yAxisTicks}
- *   year={2024}
  *   unitLabel="mi"
- *   totalDistanceTraveled={1500}
  *   estimatedYearEnd={3000}
  *   isSessionsMode={false}
  *   showAchievements={true}
@@ -254,9 +254,7 @@ export function CumulativeChartPresenter({
   startDate,
   displayEndDate,
   yAxisTicks,
-  year,
   unitLabel,
-  totalDistanceTraveled,
   estimatedYearEnd,
   isSessionsMode,
   showAchievements = true,
@@ -275,45 +273,45 @@ export function CumulativeChartPresenter({
     CHART_CONFIG.averageDash.token,
     CHART_CONFIG.averageDash.fallback
   );
-  const goalSwatch = (index: number) => ({
-    stroke: GOAL_COLORS[index % GOAL_COLORS.length]!,
+  // Each line described once; the <Line>s and the legend are both drawn from these.
+  const goals = goalLines.map((gl, index) => goalLine(gl.goal, index));
+  const average: ChartLine = {
+    dataKey: "average",
+    name: `Average · est ${Math.round(estimatedYearEnd).toLocaleString()}`,
+    stroke: CHART_COLORS.AVERAGE_LINE,
     width: CHART_CONFIG.strokeWidth.goal,
-  });
-  const dangerLine = DANGER_ZONE_CONFIG.line;
-  const legendItems: LegendItem[] = [
-    {
-      label: "Actual",
-      swatch: { stroke: CHART_COLORS.ACTUAL_DATA_LINE, width: CHART_CONFIG.strokeWidth.actual },
-    },
-    ...goalLines.map((gl, index) => ({
-      label: goalLegendLabel(gl.goal),
-      swatch: goalSwatch(index),
-    })),
-    {
-      label: `Average · est ${Math.round(estimatedYearEnd).toLocaleString()}`,
-      swatch: {
-        stroke: CHART_COLORS.AVERAGE_LINE,
-        width: CHART_CONFIG.strokeWidth.goal,
-        dash: averageDash,
-      },
-    },
-    ...(dangerZone?.show
-      ? [
-          {
-            label: `Max at ${dangerZone.threshold.toLocaleString(undefined, { maximumFractionDigits: 1 })} ${unitLabel}/day`,
-            swatch: {
-              stroke: dangerLine.stroke,
-              width: dangerLine.strokeWidth,
-              dash: dangerLine.strokeDasharray,
-            },
-          },
-        ]
-      : []),
-    ...(priorYearLines ?? []).map((pl, index) => ({
-      label: String(pl.year),
-      swatch: { stroke: priorYearStroke(index), width: PRIOR_YEAR_STROKE_WIDTH },
-    })),
-  ];
+    dash: averageDash,
+  };
+  const maxPace: ChartLine | undefined = dangerZone?.show
+    ? {
+        dataKey: "dangerBoundary",
+        name: `Max at ${dangerZone.threshold.toLocaleString(undefined, { maximumFractionDigits: 1 })} ${unitLabel}/day`,
+        stroke: DANGER_ZONE_CONFIG.line.stroke,
+        width: DANGER_ZONE_CONFIG.line.strokeWidth,
+        dash: DANGER_ZONE_CONFIG.line.strokeDasharray,
+      }
+    : undefined;
+  const priorYears = (priorYearLines ?? []).map(priorYearLine);
+  const legendItems = [
+    ACTUAL_LINE,
+    ...goals,
+    average,
+    ...(maxPace ? [maxPace] : []),
+    ...priorYears,
+  ].map(legendItem);
+  // Recharts' handler props don't take `undefined`, so pass only the handlers given.
+  const zoomHandlers = {
+    ...(onChartMouseDown && { onMouseDown: onChartMouseDown }),
+    ...(onChartMouseMove && { onMouseMove: onChartMouseMove }),
+    ...(onChartMouseUp && { onMouseUp: onChartMouseUp }),
+  };
+  // The lines that draw in: the year's, the goals' and the average.
+  const drawIn = {
+    isAnimationActive,
+    animationDuration: CHART_CONFIG.animation.duration,
+    animationEasing: CHART_CONFIG.animation.easing,
+  };
+
   return (
     <div ref={chartRef} style={{ position: "relative", userSelect: "none" }}>
       <ChartLegend items={legendItems} />
@@ -322,9 +320,7 @@ export function CumulativeChartPresenter({
           data={mergedData}
           margin={CHART_CONFIG.margin}
           accessibilityLayer
-          onMouseDown={onChartMouseDown as never}
-          onMouseMove={onChartMouseMove as never}
-          onMouseUp={onChartMouseUp as never}
+          {...zoomHandlers}
         >
           {/* Horizontal gridlines at Y-axis tick values */}
           <CartesianGrid stroke={CHART_CONFIG.grid.stroke} vertical={CHART_CONFIG.grid.vertical} />
@@ -358,7 +354,16 @@ export function CumulativeChartPresenter({
           />
 
           {/* Tooltip */}
-          <Tooltip content={<ChartTooltip unit={unitLabel} decimals={1} compact />} />
+          <Tooltip
+            content={
+              <ChartTooltip
+                unit={unitLabel}
+                decimals={1}
+                compact
+                goalLabels={goalLines.map((gl) => gl.goal.label || "Goal")}
+              />
+            }
+          />
 
           {/* Y-axis markers showing current values */}
           <YAxisMarker
@@ -378,76 +383,43 @@ export function CumulativeChartPresenter({
           ))}
 
           {/* Prior year ghost lines (rendered first so they layer behind) */}
-          {priorYearLines?.map((pl, index) => (
+          {priorYears.map((line) => (
             <Line
-              key={pl.dataKey}
+              key={line.dataKey}
               type="monotone"
-              dataKey={pl.dataKey}
-              stroke={priorYearStroke(index)}
-              strokeWidth={PRIOR_YEAR_STROKE_WIDTH}
+              {...lineProps(line)}
               dot={false}
-              name={String(pl.year)}
               isAnimationActive={false}
             />
           ))}
 
           {/* Danger zone boundary — max achievable at sustainable pace */}
-          {dangerZone?.show && (
-            <Line
-              type="monotone"
-              dataKey="dangerBoundary"
-              stroke={dangerLine.stroke}
-              strokeWidth={dangerLine.strokeWidth}
-              strokeDasharray={dangerLine.strokeDasharray}
-              dot={false}
-              name={`Max Achievable (${dangerZone.threshold.toFixed(1)} ${unitLabel}/day)`}
-              isAnimationActive={false}
-            />
+          {maxPace && (
+            <Line type="monotone" {...lineProps(maxPace)} dot={false} isAnimationActive={false} />
           )}
 
           {/* Actual distance line */}
           <Line
             type="monotone"
-            dataKey="actual"
-            stroke={CHART_COLORS.ACTUAL_DATA_LINE}
-            strokeWidth={CHART_CONFIG.strokeWidth.actual}
+            {...lineProps(ACTUAL_LINE)}
             style={CHART_CONFIG.actualLineStyle}
             dot={false}
-            name={`${year} Data: ${totalDistanceTraveled.toFixed(1)} ${unitLabel}`}
-            isAnimationActive={isAnimationActive}
-            animationDuration={CHART_CONFIG.animation.duration}
-            animationEasing={CHART_CONFIG.animation.easing}
+            {...drawIn}
           />
 
           {/* Goal lines */}
-          {goalLines.map((gl, index) => (
+          {goals.map((line, index) => (
             <Line
-              key={gl.goal.id}
+              key={goalLines[index]!.goal.id}
               type="monotone"
-              dataKey={`goal${index}`}
-              stroke={goalSwatch(index).stroke}
-              strokeWidth={goalSwatch(index).width}
+              {...lineProps(line)}
               dot={false}
-              name={`${gl.goal.label || "Goal"}: ${gl.goal.value} ${unitLabel}`}
-              isAnimationActive={isAnimationActive}
-              animationDuration={CHART_CONFIG.animation.duration}
-              animationEasing={CHART_CONFIG.animation.easing}
+              {...drawIn}
             />
           ))}
 
           {/* Average/projected line */}
-          <Line
-            type="monotone"
-            dataKey="average"
-            stroke={CHART_COLORS.AVERAGE_LINE}
-            strokeWidth={CHART_CONFIG.strokeWidth.goal}
-            strokeDasharray={averageDash}
-            dot={false}
-            name={`Current Average (Est: ${estimatedYearEnd.toFixed(0)} ${unitLabel})`}
-            isAnimationActive={isAnimationActive}
-            animationDuration={CHART_CONFIG.animation.duration}
-            animationEasing={CHART_CONFIG.animation.easing}
-          />
+          <Line type="monotone" {...lineProps(average)} dot={false} {...drawIn} />
 
           {/* Achievement markers */}
           {showAchievements &&

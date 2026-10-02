@@ -30,7 +30,13 @@ import { DemoBanner } from "../../components/DemoBanner";
 import { LoadingValue } from "../../components/theme/LoadingValue";
 import ChartLegend, { type LegendItem } from "../../components/charts/ChartLegend";
 import ChartTooltipFrame from "../../components/charts/ChartTooltipFrame";
-import { CHART_COLORS, GOAL_COLORS, priorYearStroke } from "../../constants/chartColors";
+import { CHART_COLORS } from "../../constants/chartColors";
+import {
+  ACTUAL_LINE,
+  goalLine,
+  legendItem,
+  priorYearLine,
+} from "../../components/charts/chartLines";
 import { CHART_CONFIG, DANGER_ZONE_CONFIG } from "../../constants/chartConfig";
 
 /**
@@ -51,34 +57,27 @@ const SAMPLE_SPORTS = [
 
 /** Every kind of line the sport page's charts name, as their legend rows draw them. */
 const SAMPLE_LEGEND: LegendItem[] = [
-  {
-    label: "Actual",
-    swatch: { stroke: CHART_COLORS.ACTUAL_DATA_LINE, width: CHART_CONFIG.strokeWidth.actual },
-  },
-  ...["Conservative 3,500", "Target 4,000"].map((label, i) => ({
-    label,
-    swatch: { stroke: GOAL_COLORS[i]!, width: CHART_CONFIG.strokeWidth.goal },
-  })),
-  {
-    label: "Average · est 3,101",
-    swatch: {
+  ...[
+    ACTUAL_LINE,
+    goalLine({ label: "Conservative", value: 3500 }, 0),
+    goalLine({ label: "Target", value: 4000 }, 1),
+    {
+      dataKey: "average",
+      name: "Average · est 3,101",
       stroke: CHART_COLORS.AVERAGE_LINE,
       width: CHART_CONFIG.strokeWidth.goal,
       dash: CHART_CONFIG.averageDash.fallback,
     },
-  },
-  {
-    label: "Max at 20 mi/day",
-    swatch: {
+    {
+      dataKey: "dangerBoundary",
+      name: "Max at 20 mi/day",
       stroke: DANGER_ZONE_CONFIG.line.stroke,
       width: DANGER_ZONE_CONFIG.line.strokeWidth,
       dash: DANGER_ZONE_CONFIG.line.strokeDasharray,
     },
-  },
-  ...[2025, 2024].map((year, i) => ({
-    label: String(year),
-    swatch: { stroke: priorYearStroke(i), width: 1.5 },
-  })),
+    priorYearLine({ year: 2025, dataKey: "prior_2025" }, 0),
+    priorYearLine({ year: 2024, dataKey: "prior_2024" }, 1),
+  ].map(legendItem),
   { label: "Danger zone", swatch: "danger-zone" },
 ];
 

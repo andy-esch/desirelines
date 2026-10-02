@@ -1,8 +1,9 @@
 import { cloneElement, type ReactElement } from "react";
 import { describe, it, expect, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import DistanceHistogramChart from "./DistanceHistogramChart";
 import type { MapActivity } from "../../api/map";
+import { hoverChart } from "../../test/fixtures/chartTestHelpers";
 
 vi.mock("recharts", async () => {
   const actual = await vi.importActual("recharts");
@@ -35,16 +36,8 @@ function act(over: Partial<MapActivity> = {}): MapActivity {
   };
 }
 
-/** Hovers the middle of the chart and waits for its tooltip, which Recharts fills a beat later. */
-async function hoverChart(container: HTMLElement) {
-  fireEvent.mouseMove(container.querySelector(".recharts-wrapper")!, { clientX: 160, clientY: 80 });
-  let tooltip: HTMLElement | null = null;
-  await waitFor(() => {
-    tooltip = container.querySelector<HTMLElement>(".recharts-tooltip-wrapper");
-    expect(tooltip?.textContent).toBeTruthy();
-  });
-  return tooltip!;
-}
+/** Hovers the middle of the 320×160 chart and returns its tooltip. */
+const hover = (container: HTMLElement) => hoverChart(container, { x: 160, y: 80 });
 
 describe("DistanceHistogramChart", () => {
   it("renders the histogram for a non-empty set", () => {
@@ -87,7 +80,7 @@ describe("DistanceHistogramChart", () => {
         onSelectRange={vi.fn()}
       />
     );
-    const tooltip = within(await hoverChart(container));
+    const tooltip = within(await hover(container));
     expect(tooltip.getByText(/^\d+\+ mi$/)).toBeInTheDocument();
     expect(tooltip.getByText("Count")).toBeInTheDocument();
     expect(tooltip.getByText(/^\d+ activities$/)).toBeInTheDocument();

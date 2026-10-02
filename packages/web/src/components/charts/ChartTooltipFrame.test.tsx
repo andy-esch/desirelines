@@ -69,13 +69,15 @@ describe("ChartTooltipFrame", () => {
       "draws a %s as a bar in the accent, ruled off in it",
       (tone) => {
         frame("bar", { tone });
-        expect(rulesOf(screen.getByText("Aug 2026"))).toEqual(
+        const title = screen.getByText("Aug 2026");
+        expect(rulesOf(title)).toEqual(
           expect.arrayContaining([
             `color: ${ACCENT}`,
             `border-bottom: 1px solid ${ACCENT}`,
             "padding: 6px 10px",
           ])
         );
+        expect(title).toHaveClass("[text-transform:var(--label-case)]");
       }
     );
 
@@ -97,10 +99,9 @@ describe("ChartTooltipFrame", () => {
 
     it("labels it in the label color and case under a header bar", () => {
       frame("bar", { total: { label: "Total", value: "45h" } });
-      expect(screen.getByText("Total")).toHaveStyle({
-        color: "var(--color-chart-tooltip-label)",
-        textTransform: "var(--label-case)",
-      });
+      const label = screen.getByText("Total");
+      expect(label).toHaveStyle({ color: "var(--color-chart-tooltip-label)" });
+      expect(label).toHaveClass("[text-transform:var(--label-case)]");
       expect(screen.getByText("45h")).toHaveStyle({ color: ACCENT });
     });
 

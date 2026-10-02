@@ -2,8 +2,8 @@
  * PacingChartPresenter - Pure presentation component for daily pacing charts.
  *
  * This is a "dumb" component that receives all data pre-computed and simply renders.
- * It has no state and no business logic - making it easy to test and reason about. Its one
- * hook reads the theme structure, which decides how the danger zone is filled.
+ * It has no state and no business logic - making it easy to test and reason about. Its hooks
+ * read the theme's date format and give the danger zone's hatch an id of its own.
  *
  * The parent container (PacingMetricsChart) handles:
  * - Data fetching and transformation via usePacingChartData hook
@@ -29,9 +29,10 @@ import type {
   CurrentChartValues,
   PacingGoalData,
 } from "../../types/chartData";
-import { CHART_COLORS, GOAL_COLORS } from "../../constants/chartColors";
+import { CHART_COLORS } from "../../constants/chartColors";
 import { CHART_CONFIG, DANGER_ZONE_CONFIG } from "../../constants/chartConfig";
-import ChartLegend, { goalLegendLabel, type LegendItem } from "./ChartLegend";
+import ChartLegend, { type LegendItem } from "./ChartLegend";
+import { ACTUAL_LINE, goalLine, legendItem, lineProps } from "./chartLines";
 import ChartTooltip from "./ChartTooltip";
 import { DangerHatch, useDangerHatchId } from "./DangerHatch";
 import YAxisMarker from "./YAxisMarker";
@@ -75,8 +76,6 @@ export interface PacingChartPresenterProps {
   naturalYMax: number;
 
   // --- Display Information ---
-  /** Year being displayed (for the actual line's name in the tooltip) */
-  year: number;
   /** Unit label for display (e.g., "mi", "km") */
   unitLabel: string;
   /** Whether to use "sessions" terminology */
@@ -167,7 +166,6 @@ function DangerZoneOverlay({
  *   startDate={chartData.startDate}
  *   displayEndDate={chartData.displayEndDate}
  *   naturalYMax={chartData.naturalYMax}
- *   year={2024}
  *   unitLabel="mi"
  *   isSessionsMode={false}
  *   dangerZone={{
@@ -185,7 +183,6 @@ export function PacingChartPresenter({
   startDate,
   displayEndDate,
   naturalYMax,
-  year,
   unitLabel,
   isSessionsMode,
   isAnimationActive = true,
@@ -194,20 +191,17 @@ export function PacingChartPresenter({
   const { formatAxisDate } = useThemeDateFormat();
   const yAxisLabel = isSessionsMode ? "# Sessions / Day" : `${unitLabel} / Day`;
   const tooltipUnit = `${unitLabel}/day`;
+  // Each line described once; the <Line>s and the legend are both drawn from these.
+  const goals = pacingGoals.map((pg, index) => goalLine(pg.goal, index));
   const legendItems: LegendItem[] = [
-    {
-      label: "Actual",
-      swatch: { stroke: CHART_COLORS.ACTUAL_DATA_LINE, width: CHART_CONFIG.strokeWidth.actual },
-    },
-    ...pacingGoals.map((pg, index) => ({
-      label: goalLegendLabel(pg.goal),
-      swatch: {
-        stroke: GOAL_COLORS[index % GOAL_COLORS.length]!,
-        width: CHART_CONFIG.strokeWidth.goal,
-      },
-    })),
+    ...[ACTUAL_LINE, ...goals].map(legendItem),
     ...(dangerZone.show ? [{ label: "Danger zone", swatch: "danger-zone" as const }] : []),
   ];
+  const drawIn = {
+    isAnimationActive,
+    animationDuration: CHART_CONFIG.animation.duration,
+    animationEasing: CHART_CONFIG.animation.easing,
+  };
 
   return (
     <div>
@@ -278,30 +272,20 @@ export function PacingChartPresenter({
           {/* Actual pacing line */}
           <Line
             type="monotone"
-            dataKey="actual"
-            stroke={CHART_COLORS.ACTUAL_DATA_LINE}
-            strokeWidth={CHART_CONFIG.strokeWidth.actual}
+            {...lineProps(ACTUAL_LINE)}
             style={CHART_CONFIG.actualLineStyle}
             dot={false}
-            name={`${year} Pacing Data`}
-            isAnimationActive={isAnimationActive}
-            animationDuration={CHART_CONFIG.animation.duration}
-            animationEasing={CHART_CONFIG.animation.easing}
+            {...drawIn}
           />
 
           {/* Pacing goal lines */}
-          {pacingGoals.map((pg, index) => (
+          {goals.map((line, index) => (
             <Line
-              key={pg.goal.id}
+              key={pacingGoals[index]!.goal.id}
               type="monotone"
-              dataKey={`goal${index}`}
-              stroke={GOAL_COLORS[index % GOAL_COLORS.length]!}
-              strokeWidth={CHART_CONFIG.strokeWidth.goal}
+              {...lineProps(line)}
               dot={false}
-              name={`${pg.goal.label || "Goal"} Pacing: ${pg.goal.value} ${unitLabel}`}
-              isAnimationActive={isAnimationActive}
-              animationDuration={CHART_CONFIG.animation.duration}
-              animationEasing={CHART_CONFIG.animation.easing}
+              {...drawIn}
             />
           ))}
         </LineChart>

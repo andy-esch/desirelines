@@ -59,8 +59,8 @@ describe("ChartTooltip", () => {
       <ChartTooltip
         active={true}
         payload={[
-          { name: "2026 Data", value: 1500, dataKey: "actual" },
-          { name: "Target: 4000 mi", value: 1800, dataKey: "goal0" },
+          { name: "Actual", value: 1500, dataKey: "actual" },
+          { name: "Target 4,000", value: 1800, dataKey: "goal0" },
           {
             name: "2021",
             value: 1200,
@@ -76,11 +76,107 @@ describe("ChartTooltip", () => {
     expect(screen.getByText("2021")).toHaveStyle({ color: "var(--color-chart-tooltip-label)" });
   });
 
+  describe("telling the lines apart", () => {
+    /** The compact tooltip's line: the year's value and how far it is from the next goal. */
+    const delta = () => screen.getByText(/ vs /).textContent;
+
+    it("knows a goal by its data key, whatever the goal is called", () => {
+      render(
+        <ChartTooltip
+          active={true}
+          payload={[
+            { name: "Data 2026 1,800", value: 1800, dataKey: "goal0" },
+            { name: "Actual", value: 1500, dataKey: "actual" },
+            { name: "Average · est 3,101", value: 1600, dataKey: "average" },
+          ]}
+          label="2025-10-22"
+          compact
+          goalLabels={["Data 2026"]}
+        />
+      );
+
+      expect(screen.getByText("1500.0 mi")).toBeInTheDocument();
+      expect(delta()).toBe("−300.0 vs Data 2026");
+    });
+
+    it("measures against a goal called Average, not the average line", () => {
+      render(
+        <ChartTooltip
+          active={true}
+          payload={[
+            { name: "Actual", value: 1500, dataKey: "actual" },
+            { name: "Average pace 2,000", value: 2000, dataKey: "goal0" },
+            { name: "Average · est 3,101", value: 1600, dataKey: "average" },
+          ]}
+          label="2025-10-22"
+          compact
+          goalLabels={["Average pace"]}
+        />
+      );
+
+      expect(delta()).toBe("−500.0 vs Average pace");
+    });
+
+    it("never takes the max-pace line for a goal", () => {
+      render(
+        <ChartTooltip
+          active={true}
+          payload={[
+            { name: "Max at 20 mi/day", value: 1700, dataKey: "dangerBoundary" },
+            { name: "Actual", value: 1500, dataKey: "actual" },
+            { name: "Target 4,000", value: 1800, dataKey: "goal0" },
+          ]}
+          label="2025-10-22"
+          compact
+          goalLabels={["Target"]}
+        />
+      );
+
+      expect(delta()).toBe("−300.0 vs Target");
+    });
+
+    it("stays compact without goals, showing the year's value and no delta", () => {
+      render(
+        <ChartTooltip
+          active={true}
+          payload={[
+            { name: "Actual", value: 1500, dataKey: "actual" },
+            { name: "Average · est 3,101", value: 1600, dataKey: "average" },
+          ]}
+          label="2025-10-22"
+          compact
+        />
+      );
+
+      expect(screen.getByText("1500.0 mi")).toBeInTheDocument();
+      expect(screen.queryByText(/ vs /)).not.toBeInTheDocument();
+      expect(screen.queryByText("Average · est 3,101")).not.toBeInTheDocument();
+    });
+
+    it("measures against the last goal once the year has passed them all", () => {
+      render(
+        <ChartTooltip
+          active={true}
+          payload={[
+            { name: "Actual", value: 2500, dataKey: "actual" },
+            { name: "Base 1,000", value: 1000, dataKey: "goal0" },
+            { name: "Stretch 2,000", value: 2000, dataKey: "goal1" },
+          ]}
+          label="2025-10-22"
+          compact
+          goalLabels={["Base", "Stretch"]}
+        />
+      );
+
+      expect(delta()).toBe("+500.0 vs Stretch");
+    });
+  });
+
   it("shows a missing value for the actual line on a date it hasn't reached", () => {
     render(
       <ChartTooltip
         active={true}
-        payload={[{ name: "Goal Line", value: 2800, dataKey: "goal_1" }]}
+        payload={[{ name: "Target 4,000", value: 2800, dataKey: "goal0" }]}
         label="2025-10-22"
         compact
       />

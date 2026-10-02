@@ -12,6 +12,8 @@ import type {
   PacingGoalData,
   GoalAchievement,
 } from "../../types/chartData";
+import { expect } from "vitest";
+import { fireEvent, waitFor } from "@testing-library/react";
 import { GOAL_COLORS } from "../../constants/chartColors";
 
 // ============================================================================
@@ -30,9 +32,9 @@ export function createCumulativePresenterProps(
     startDate: Date;
     displayEndDate: Date;
     yAxisTicks: number[];
+    /** The year the fixture's dates fall in (2024 by default). */
     year: number;
     unitLabel: string;
-    totalDistanceTraveled: number;
     estimatedYearEnd: number;
     isSessionsMode: boolean;
     showAchievements: boolean;
@@ -70,9 +72,7 @@ export function createCumulativePresenterProps(
     startDate,
     displayEndDate,
     yAxisTicks: overrides?.yAxisTicks ?? [0, 1000, 2000, 3000, 4000, 5000],
-    year,
     unitLabel: overrides?.unitLabel ?? "mi",
-    totalDistanceTraveled: overrides?.totalDistanceTraveled ?? 310,
     estimatedYearEnd: overrides?.estimatedYearEnd ?? 3720,
     isSessionsMode: overrides?.isSessionsMode ?? false,
     showAchievements: overrides?.showAchievements ?? true,
@@ -90,6 +90,7 @@ export function createPacingPresenterProps(
     startDate: Date;
     displayEndDate: Date;
     naturalYMax: number;
+    /** The year the fixture's dates fall in (2024 by default). */
     year: number;
     unitLabel: string;
     isSessionsMode: boolean;
@@ -126,7 +127,6 @@ export function createPacingPresenterProps(
     startDate,
     displayEndDate,
     naturalYMax: overrides?.naturalYMax ?? 33,
-    year,
     unitLabel: overrides?.unitLabel ?? "mi",
     isSessionsMode: overrides?.isSessionsMode ?? false,
     dangerZone: overrides?.dangerZone ?? { show: true, threshold: 25, yMax: 33 },
@@ -212,3 +212,20 @@ export const strokeOf = ({ stroke, width, dash }: DrawnStroke): DrawnStroke => (
   width,
   dash,
 });
+
+/**
+ * Hovers the middle of a drawn chart and waits for its tooltip, which Recharts fills a beat
+ * after the pointer moves. Returns the tooltip's element.
+ */
+export async function hoverChart(container: HTMLElement, at = { x: 400, y: 200 }) {
+  fireEvent.mouseMove(container.querySelector(".recharts-wrapper")!, {
+    clientX: at.x,
+    clientY: at.y,
+  });
+  let tooltip: HTMLElement | null = null;
+  await waitFor(() => {
+    tooltip = container.querySelector<HTMLElement>(".recharts-tooltip-wrapper");
+    expect(tooltip?.textContent).toBeTruthy();
+  });
+  return tooltip!;
+}

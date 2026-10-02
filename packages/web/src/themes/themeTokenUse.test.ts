@@ -1,9 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { TAILWIND_CSS, THEME_FILES, stripComments } from "../test/themeCss";
+import { slotMentionsIn, slotReadsIn } from "../test/slotReads";
 import { THEME_SLOTS, slotSpec } from "./contract";
 
 /**
- * Every token the stylesheets define has a reader.
+ * Every token the stylesheets define has a reader, and every slot is read where its kind
+ * belongs.
  *
  * A token each theme defines costs a line in every theme file, and a new theme copies it, so
  * an unread one is dead weight that multiplies. The first audit found four that nothing
@@ -21,6 +23,58 @@ const UNREAD_FOR_NOW: Readonly<Record<string, string>> = {
   // without this token, the scale's largest step would take Tailwind's fixed default
   // instead of following the theme's `--radius` like the steps below it.
   "--radius-xl": "the top of the shadcn radius scale, kept whole",
+};
+
+/**
+ * Slot reads the kind check can't place, because a constant or a variable holds the value
+ * before it reaches a style. Listed by file, with what the value is for.
+ */
+const HELD_IN_SCRIPT: Readonly<Record<string, { slots: readonly string[]; reason: string }>> = {
+  "components/Skeleton.tsx": {
+    slots: ["--color-skeleton", "--color-skeleton-shimmer"],
+    reason: "react-loading-skeleton's base color and the shimmer gradient it sweeps",
+  },
+  "components/charts/ActivityVolumeChart.tsx": {
+    slots: ["--chart-bar-radius"],
+    reason: "read raw by useThemeTokenValue and parsed into Recharts' bar radius",
+  },
+  "components/charts/ChartTooltip.tsx": {
+    slots: ["--color-chart-neutral"],
+    reason: "the color an entry without one falls back to, before it colors a swatch",
+  },
+  "components/charts/ChartTooltipFrame.tsx": {
+    slots: ["--color-chart-tooltip-divider"],
+    reason: "the divider border the title and the total share",
+  },
+  "components/dashboard/ActivityCalendarHeatmap.tsx": {
+    slots: ["--color-intensity-0"],
+    reason: "the heatmap's color steps, picked per cell",
+  },
+  "components/dashboard/RecentActivitiesList.tsx": {
+    slots: ["--color-muted-text"],
+    reason: "a ColorToken resolved to RGB for the impact scale's interpolation",
+  },
+  "components/theme/HeroDecoration.tsx": {
+    slots: ["--color-bg-body"],
+    reason: "the sunset blinds' gradient stops, joined into a background image",
+  },
+  "constants/chartColors.ts": {
+    slots: [
+      "--color-chart-actual-line",
+      "--color-chart-average-line",
+      "--color-goal-1",
+      "--color-goal-2",
+      "--color-goal-3",
+      "--color-goal-4",
+      "--color-goal-5",
+    ],
+    reason: "the chart colors, handed to Recharts' stroke and fill",
+  },
+  "constants/chartConfig.ts": {
+    slots: ["--chart-average-dash", "--color-danger-zone"],
+    reason:
+      "the average's dash, read raw by useThemeTokenValue for Recharts; the danger hatch's stripe fill",
+  },
 };
 
 const sources = import.meta.glob<string>(
@@ -155,6 +209,84 @@ describe("theme tokens", () => {
       .filter(([, spec]) => spec.initial)
       .flatMap(([slot]) => (new RegExp(`\\((?:[\\w-]+:)?${slot}\\)`).test(readable) ? [slot] : []));
     expect(bare).toEqual([]);
+  });
+
+  describe("read as their kind", () => {
+    /** Each source but the theme files and the contract, which set and name the slots. */
+    const scanned = Object.entries(sources)
+      .filter(([path]) => !path.startsWith("../css/themes/") && path !== "./contract.ts")
+      .map(([path, text]) => [path.replace(/^\.\.\//, ""), withoutComments(path, text)] as const);
+    const reads = scanned.flatMap(([path, text]) => slotReadsIn(path, text));
+
+    it("scans the reads in every form", () => {
+      expect(reads.length).toBeGreaterThan(400);
+      const at = (slot: string) =>
+        reads.filter((read) => read.slot === slot).map((r) => r.position);
+      expect(at("--toggle-pressed-glow")).toEqual(["inset-shadow"]); // a utility
+      expect(at("--th-case")).toEqual(["text-transform"]); // a stylesheet
+      expect(at("--chart-actual-glow")).toEqual(["filter"]); // an inline style
+      expect(at("--color-map-chrome-accent")).toEqual(["--color-accent-cyan"]); // a custom property
+    });
+
+    it("are read where their kind belongs", () => {
+      const misread = reads.flatMap(({ file, slot, position, kinds }) => {
+        const kind = slotSpec(slot)!.kind;
+        return kinds.includes(kind) ? [] : [`${file}: ${slot}, a ${kind}, read as ${position}`];
+      });
+      expect(misread).toEqual([]);
+    });
+
+    it("are each placed, or held in script for a stated reason", () => {
+      const unplaced = scanned.flatMap(([path, text]) => {
+        const placed = new Map<string, number>();
+        for (const read of slotReadsIn(path, text)) {
+          placed.set(read.slot, (placed.get(read.slot) ?? 0) + 1);
+        }
+        return [...slotMentionsIn(path, text)]
+          .filter(([slot, count]) => count > (placed.get(slot) ?? 0))
+          .map(([slot]) => `${path} ${slot}`);
+      });
+      const held = Object.entries(HELD_IN_SCRIPT).flatMap(([path, { slots }]) =>
+        slots.map((slot) => `${path} ${slot}`)
+      );
+      expect(unplaced.sort()).toEqual(held.sort());
+    });
+
+    it("would catch a slot read where its kind doesn't fit", () => {
+      const misreads = (file: string, text: string) =>
+        slotReadsIn(file, text)
+          .filter(({ slot, kinds }) => !kinds.includes(slotSpec(slot)!.kind))
+          .map(({ slot, position }) => `${slot} as ${position}`);
+      // A text-shadow slot as a box-shadow, where it would draw nothing.
+      expect(misreads("a.tsx", `"[box-shadow:var(--page-title-shadow)]"`)).toEqual([
+        "--page-title-shadow as box-shadow",
+      ]);
+      expect(misreads("a.tsx", `style={{ boxShadow: "var(--page-title-shadow)" }}`)).toEqual([
+        "--page-title-shadow as box-shadow",
+      ]);
+      // A color slot in a length utility.
+      expect(misreads("a.tsx", `"text-(length:--color-accent-cyan)"`)).toEqual([
+        "--color-accent-cyan as font-size",
+      ]);
+      // An inset glow anywhere but the utility that adds its `inset`.
+      expect(misreads("a.tsx", `"[box-shadow:var(--toggle-pressed-glow)]"`)).toEqual([
+        "--toggle-pressed-glow as box-shadow",
+      ]);
+      expect(misreads("a.tsx", `"inset-shadow-(--toggle-pressed-glow)"`)).toEqual([]);
+      // A case slot as a border, in a stylesheet.
+      expect(misreads("a.css", `.x { border: var(--th-case); }`)).toEqual(["--th-case as border"]);
+      // Parts of a larger value: a length offset and a percentage mixed into a color.
+      expect(
+        misreads(
+          "a.tsx",
+          `"[text-shadow:0_0_var(--page-title-glow-size)_color-mix(in_srgb,currentColor_var(--page-title-glow-strength),transparent)]"`
+        )
+      ).toEqual([]);
+      // A shadow slot as a part of another value.
+      expect(misreads("a.tsx", `"[box-shadow:0_0_var(--panel-shadow)]"`)).toEqual([
+        "--panel-shadow as box-shadow",
+      ]);
+    });
   });
 
   it("would catch a token nothing reads", () => {

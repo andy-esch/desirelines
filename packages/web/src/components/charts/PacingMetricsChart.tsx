@@ -161,7 +161,6 @@ const PacingMetricsChart = (props: PacingMetricsChartProps) => {
         startDate={startDate}
         displayEndDate={displayEndDate}
         naturalYMax={naturalYMax}
-        year={year}
         unitLabel={unitLabel}
         isSessionsMode={isSessionsMode}
         isAnimationActive={isFirstRender && !reducedMotion}
