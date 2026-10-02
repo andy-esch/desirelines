@@ -94,6 +94,7 @@ export const THEME_CONTRACT = {
     "--color-chart-tooltip-muted": "color",
     "--color-chart-tooltip-label": "color",
     "--color-chart-tooltip-divider": "color",
+    "--color-chart-tooltip-accent": "color",
     "--color-goal-1": "color",
     "--color-goal-2": "color",
     "--color-goal-3": "color",
@@ -341,7 +342,10 @@ export const THEME_CONTRACT = {
     "--chart-bar-radius": "length",
     "--chart-bar-gap": "length",
     "--chart-hover-column": "color",
+    "--chart-legend-size": "length",
+    "--chart-legend-tracking": "tracking",
     "--tooltip-radius": "length",
+    "--tooltip-shadow": "shadow",
   },
   "Map chrome": {
     "--map-chrome-bg": "color",
@@ -498,7 +502,11 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = [
   { text: ["--color-status-bad"], on: ["--panel-bg"], min: 4.5 },
   { text: ["--color-chart-tick"], on: ["--panel-bg"], min: 4.5 },
   { text: ["--color-danger-zone-label"], on: ["--panel-bg"], min: 4.5 },
-  { text: ["--color-chart-tooltip-text"], on: ["--color-chart-tooltip-bg"], min: 4.5 },
+  {
+    text: ["--color-chart-tooltip-text", "--color-chart-tooltip-accent"],
+    on: ["--color-chart-tooltip-bg"],
+    min: 4.5,
+  },
   { text: ["--color-chart-tooltip-muted"], on: ["--color-chart-tooltip-bg"], min: 4.5 },
   { text: ["--color-chart-tooltip-label"], on: ["--color-chart-tooltip-bg"], min: 4.5 },
 ];

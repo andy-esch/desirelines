@@ -1,5 +1,6 @@
 import { useThemeDateFormat } from "../theme/useThemeDateFormat";
 import { MissingValue } from "../theme/MissingValue";
+import ChartTooltipFrame from "./ChartTooltipFrame";
 
 export interface ChartTooltipProps {
   /** Whether the tooltip is active (hovered) */
@@ -12,8 +13,8 @@ export interface ChartTooltipProps {
     color?: string;
     dataKey?: string;
   }[];
-  /** X-axis label (typically a date string) */
-  label?: string | number;
+  /** X-axis value: the point's date (a UTC-midnight Date or timestamp), or a date string */
+  label?: string | number | Date;
   /** Unit to display after values (e.g., "mi", "mi/day") */
   unit?: string;
   /** Number of decimal places for value formatting */
@@ -23,10 +24,10 @@ export interface ChartTooltipProps {
 }
 
 /**
- * Shared tooltip component for Recharts charts
+ * The cumulative and pacing charts' tooltip, in the shared ChartTooltipFrame.
  *
- * Displays formatted date and data values with consistent styling.
- * Supports customizable units and decimal precision.
+ * Displays the formatted date and data values, with customizable units and decimal
+ * precision.
  *
  * @example
  * // Distance chart (1 decimal, "mi" unit)
@@ -47,7 +48,13 @@ export const ChartTooltip = ({
   const { formatAxisDate } = useThemeDateFormat();
   if (!active || !payload || payload.length === 0) return null;
 
-  const formattedDate = typeof label === "number" ? formatAxisDate(label) : String(label ?? "");
+  // Recharts hands over the point's `date` as the data holds it, a Date in the chart hooks.
+  const formattedDate =
+    label instanceof Date
+      ? formatAxisDate(label.getTime())
+      : typeof label === "number"
+        ? formatAxisDate(label)
+        : String(label ?? "");
 
   // Find actual value and goal values from payload
   const actualEntry = payload.find((p) => p.dataKey === "actual" || p.name?.includes("Data"));
@@ -99,21 +106,7 @@ export const ChartTooltip = ({
     const goalColor = targetGoal.stroke || targetGoal.color || "var(--color-chart-neutral)";
 
     return (
-      <div
-        style={{
-          backgroundColor: "var(--color-chart-tooltip-bg)",
-          border: "1px solid var(--color-chart-tooltip-border)",
-          borderRadius: "var(--tooltip-radius)",
-          padding: "8px 12px",
-          boxShadow: "0 2px 8px var(--color-surface-shadow)",
-          fontSize: "12px",
-          fontFamily: "var(--font-chart)",
-          minWidth: "140px",
-        }}
-      >
-        <div style={{ color: "var(--color-chart-tooltip-muted)", marginBottom: "4px" }}>
-          {formattedDate}
-        </div>
+      <ChartTooltipFrame title={formattedDate} tone="caption" minWidth={140}>
         <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
           <span
             style={{
@@ -147,59 +140,34 @@ export const ChartTooltip = ({
               gap: "2px",
             }}
           >
-            {priorYearEntries.map((entry, index) => {
-              const color = entry.stroke || entry.color || "var(--color-chart-neutral)";
-              return (
-                <div
-                  key={index}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    gap: "8px",
-                    fontSize: "11px",
-                  }}
-                >
-                  <span style={{ color }}>{entry.name}</span>
-                  <span style={{ color: "var(--color-chart-tooltip-muted)" }}>
-                    {entry.value.toFixed(decimals)} {unit}
-                  </span>
-                </div>
-              );
-            })}
+            {/* The years take the label color, not their lines': a ghost line's stroke is
+                as little as 9% opaque, too faint to read as text. */}
+            {priorYearEntries.map((entry, index) => (
+              <div
+                key={index}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: "8px",
+                  fontSize: "11px",
+                }}
+              >
+                <span style={{ color: "var(--color-chart-tooltip-label)" }}>{entry.name}</span>
+                <span style={{ color: "var(--color-chart-tooltip-muted)" }}>
+                  {entry.value.toFixed(decimals)} {unit}
+                </span>
+              </div>
+            ))}
           </div>
         )}
-      </div>
+      </ChartTooltipFrame>
     );
   }
 
-  // Full mode (original behavior, slightly refined)
+  // Full mode: every line's value under the date
   return (
-    <div
-      style={{
-        backgroundColor: "var(--color-chart-tooltip-bg)",
-        border: "1px solid var(--color-chart-tooltip-border)",
-        borderRadius: "var(--tooltip-radius)",
-        padding: "10px 12px",
-        boxShadow: "0 2px 12px var(--color-surface-shadow)",
-        fontFamily: "var(--font-chart)",
-      }}
-    >
-      {/* Header with date */}
-      <div
-        style={{
-          fontSize: "12px",
-          fontWeight: "bold",
-          color: "var(--color-chart-tooltip-text)",
-          marginBottom: "8px",
-          paddingBottom: "6px",
-          borderBottom: "1px solid var(--color-chart-tooltip-divider)",
-        }}
-      >
-        {formattedDate}
-      </div>
-
-      {/* Data items */}
+    <ChartTooltipFrame title={formattedDate}>
       <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
         {payload.map(
           (
@@ -252,7 +220,7 @@ export const ChartTooltip = ({
           }
         )}
       </div>
-    </div>
+    </ChartTooltipFrame>
   );
 };
 

@@ -6,7 +6,8 @@
  *
  * Architecture:
  * - CHART_CONFIG: Shared settings used by all chart types
- * - DANGER_ZONE_CONFIG: Pacing chart specific (zone of unachievability)
+ * - DANGER_ZONE_CONFIG: The zone of unachievability: the pacing chart's hatched zone, and the
+ *   threshold line both charts draw
  */
 
 import { alpha } from "../utils/colorTokens";
@@ -69,18 +70,6 @@ export const CHART_CONFIG = {
     fallback: "5 5",
   },
 
-  /**
-   * Recharts' own tooltip box, for the small route charts that use it rather than
-   * ChartTooltip. Same surface and corner as every other chart tooltip.
-   */
-  tooltipContentStyle: {
-    background: "var(--color-chart-tooltip-bg)",
-    border: "1px solid var(--color-chart-tooltip-border)",
-    borderRadius: "var(--tooltip-radius)",
-    fontSize: 12,
-    color: "var(--color-chart-tooltip-text)",
-  },
-
   /** Y-axis marker styling (only fontSize used; radius/fontWeight use component defaults) */
   marker: {
     fontSize: {
@@ -116,15 +105,16 @@ export const CHART_CONFIG = {
 } as const;
 
 /**
- * Danger Zone Configuration (Pacing Chart)
+ * Danger Zone Configuration
  *
  * Visual styling for the "zone of unachievability" that appears
  * when required daily pace exceeds realistic limits.
  */
 export const DANGER_ZONE_CONFIG = {
-  /** Shaded area fill */
+  /** Hatched area: stripes of the danger color at this opacity (see DangerHatch) */
   area: {
-    fill: alpha("var(--color-danger-zone)", 8),
+    stripe: "var(--color-danger-zone)",
+    stripeOpacity: 0.3,
     stroke: alpha("var(--color-danger-zone)", 30),
     strokeDasharray: "3 3",
   },

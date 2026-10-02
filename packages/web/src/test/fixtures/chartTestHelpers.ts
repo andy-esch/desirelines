@@ -1,8 +1,8 @@
 /**
  * Chart Test Helpers
  *
- * Props for the chart presenters' tests, shaped as the chart hooks hand them over, and the
- * achievement markers the cumulative chart stars.
+ * Props for the chart presenters' tests, shaped as the chart hooks hand them over, the
+ * achievement markers the cumulative chart stars, and readers for what the charts draw.
  */
 import type {
   CumulativeChartDataPoint,
@@ -157,3 +157,58 @@ export function createAchievement(options: {
     goalIndex,
   };
 }
+
+// ============================================================================
+// What a drawn chart shows
+// ============================================================================
+
+/** Each line in drawing order: its stroke as drawn, and its path (empty with no points). */
+export function linesIn(container: HTMLElement) {
+  return [...container.querySelectorAll(".recharts-line")].map((line) => {
+    const path = line.querySelector("path.recharts-curve");
+    return {
+      stroke: path?.getAttribute("stroke") ?? null,
+      width: path?.getAttribute("stroke-width") ?? null,
+      dash: path?.getAttribute("stroke-dasharray") ?? null,
+      path: path?.getAttribute("d") ?? "",
+    };
+  });
+}
+
+/** The labels on the y axis that mark where each line sits today. */
+export function markersIn(container: HTMLElement) {
+  return [...container.querySelectorAll(".recharts-reference-line")]
+    .map((marker) => marker.textContent)
+    .filter(Boolean);
+}
+
+/**
+ * The legend row's entries: each label, and its swatch's line as drawn (for the danger zone,
+ * the dashed edge over its hatch, whose fill is `hatch`).
+ */
+export function legendIn(container: HTMLElement) {
+  const items = container.querySelectorAll('ul[aria-label="Legend"] > li');
+  return [...items].map((item) => {
+    const line = item.querySelector(":scope > svg > line");
+    return {
+      label: item.textContent,
+      stroke: line?.getAttribute("stroke") ?? null,
+      width: line?.getAttribute("stroke-width") ?? null,
+      dash: line?.getAttribute("stroke-dasharray") ?? null,
+      hatch: item.querySelector(":scope > svg > rect")?.getAttribute("fill") ?? null,
+    };
+  });
+}
+
+interface DrawnStroke {
+  stroke: string | null;
+  width: string | null;
+  dash: string | null;
+}
+
+/** A line's or a swatch's stroke, width and dash, to compare one with the other. */
+export const strokeOf = ({ stroke, width, dash }: DrawnStroke): DrawnStroke => ({
+  stroke,
+  width,
+  dash,
+});

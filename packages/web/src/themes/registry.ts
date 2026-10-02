@@ -64,6 +64,8 @@ export const STRUCTURE_OPTIONS = {
   loaderStyle: ["chaser", "block"],
   /** Axis marker dots on charts. */
   chartMarkerShape: ["circle", "square"],
+  /** A chart tooltip's title: inline over its rows, or a bar across the top with a rule. */
+  tooltipHeader: ["inline", "bar"],
   /** Routes-map drawer sections: flat with rules, or stacked outline panels. */
   mapDrawerSections: ["flat", "panels"],
   /** Dates: `Sep 12, 2026` or zero-padded `2026.09.12`. Integers are never padded. */
@@ -151,6 +153,7 @@ const MIAMI_STRUCTURE: ThemeStructure = {
   meterPartialCurrent: true,
   loaderStyle: "chaser",
   chartMarkerShape: "circle",
+  tooltipHeader: "inline",
   mapDrawerSections: "flat",
   dateFormat: "short",
 };
@@ -175,6 +178,7 @@ const ARCADE_STRUCTURE: ThemeStructure = {
   meterPartialCurrent: false,
   loaderStyle: "block",
   chartMarkerShape: "square",
+  tooltipHeader: "bar",
   mapDrawerSections: "panels",
   dateFormat: "dotted",
 };

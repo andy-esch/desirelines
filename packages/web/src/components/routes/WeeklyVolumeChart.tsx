@@ -6,7 +6,7 @@ import { convertDistance, getDistanceLabel, type DistanceUnit } from "../../util
 import { weeklyVolume } from "../../utils/mapInsights";
 import { chartLabelToString } from "../../utils/chartUtils";
 import { useThemeDateFormat } from "../theme/useThemeDateFormat";
-import { CHART_CONFIG } from "../../constants/chartConfig";
+import RouteChartTooltip from "./RouteChartTooltip";
 
 type WeeklyMetric = "distance" | "time";
 
@@ -85,10 +85,14 @@ export default function WeeklyVolumeChart({ activities, distanceUnit }: WeeklyVo
                 />
                 <Tooltip
                   cursor={{ fill: "var(--chart-hover-column)" }}
-                  contentStyle={CHART_CONFIG.tooltipContentStyle}
-                  formatter={(v) => [`${Math.round(Number(v))} ${unit}`, "Volume"]}
-                  labelFormatter={(d) =>
-                    `Week of ${formatActivityDate(chartLabelToString(d), { year: true })}`
+                  content={
+                    <RouteChartTooltip
+                      name="Volume"
+                      formatLabel={(d) =>
+                        `Week of ${formatActivityDate(chartLabelToString(d), { year: true })}`
+                      }
+                      formatValue={(v) => `${Math.round(v)} ${unit}`}
+                    />
                   }
                 />
                 <Bar

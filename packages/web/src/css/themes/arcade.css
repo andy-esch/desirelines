@@ -48,6 +48,7 @@
   --color-chart-tooltip-muted: #a3a5a6;
   --color-chart-tooltip-label: #7f9aa0;
   --color-chart-tooltip-divider: rgba(0, 255, 255, 0.3);
+  --color-chart-tooltip-accent: #00ffff;
   /* Chart data: goal lines keep the pre-retro neon (worst colorblind pair 7.7, deutan,
      legal because every goal line is also labelled), a dashed neutral average, prior
      years in muted, and the danger zone in the theme's orange. */
@@ -275,7 +276,10 @@
   --chart-bar-radius: 0px;
   --chart-bar-gap: 2px;
   --chart-hover-column: rgba(0, 255, 255, 0.06);
+  --chart-legend-size: 10.5px;
+  --chart-legend-tracking: 0.1em;
   --tooltip-radius: 0px;
+  --tooltip-shadow: inset 0 0 14px rgba(0, 255, 255, 0.12), 0 0 18px rgba(0, 255, 255, 0.2);
 
   /* Map chrome */
   --map-chrome-bg: #000000;

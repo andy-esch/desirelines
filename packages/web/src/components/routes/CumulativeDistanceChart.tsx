@@ -13,7 +13,7 @@ import { convertDistance, getDistanceLabel, type DistanceUnit } from "../../util
 import { cumulativeDistance } from "../../utils/mapInsights";
 import { chartLabelToString } from "../../utils/chartUtils";
 import { useThemeDateFormat } from "../theme/useThemeDateFormat";
-import { CHART_CONFIG } from "../../constants/chartConfig";
+import RouteChartTooltip from "./RouteChartTooltip";
 
 export interface CumulativeDistanceChartProps {
   activities: MapActivity[];
@@ -68,9 +68,13 @@ export default function CumulativeDistanceChart({
                 tickFormatter={(v: number) => String(Math.round(v))}
               />
               <Tooltip
-                contentStyle={CHART_CONFIG.tooltipContentStyle}
-                formatter={(v) => [`${Math.round(Number(v)).toLocaleString()} ${unit}`, "Total"]}
-                labelFormatter={(d) => formatActivityDate(chartLabelToString(d), { year: true })}
+                content={
+                  <RouteChartTooltip
+                    name="Total"
+                    formatLabel={(d) => formatActivityDate(chartLabelToString(d), { year: true })}
+                    formatValue={(v) => `${Math.round(v).toLocaleString()} ${unit}`}
+                  />
+                }
               />
               <Line
                 type="monotone"

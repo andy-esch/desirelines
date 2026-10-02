@@ -28,6 +28,10 @@ import EmptyState from "../../components/EmptyState";
 import { ErrorState } from "../../components/ErrorState";
 import { DemoBanner } from "../../components/DemoBanner";
 import { LoadingValue } from "../../components/theme/LoadingValue";
+import ChartLegend, { type LegendItem } from "../../components/charts/ChartLegend";
+import ChartTooltipFrame from "../../components/charts/ChartTooltipFrame";
+import { CHART_COLORS, GOAL_COLORS, priorYearStroke } from "../../constants/chartColors";
+import { CHART_CONFIG, DANGER_ZONE_CONFIG } from "../../constants/chartConfig";
 
 /**
  * Dev-only theme gallery: every theme in the list — hidden ones included — rendered side
@@ -44,6 +48,60 @@ const SAMPLE_SPORTS = [
   { value: "hiking", label: "Hiking" },
   { value: "watersports", label: "Watersports" },
 ];
+
+/** Every kind of line the sport page's charts name, as their legend rows draw them. */
+const SAMPLE_LEGEND: LegendItem[] = [
+  {
+    label: "Actual",
+    swatch: { stroke: CHART_COLORS.ACTUAL_DATA_LINE, width: CHART_CONFIG.strokeWidth.actual },
+  },
+  ...["Conservative 3,500", "Target 4,000"].map((label, i) => ({
+    label,
+    swatch: { stroke: GOAL_COLORS[i]!, width: CHART_CONFIG.strokeWidth.goal },
+  })),
+  {
+    label: "Average · est 3,101",
+    swatch: {
+      stroke: CHART_COLORS.AVERAGE_LINE,
+      width: CHART_CONFIG.strokeWidth.goal,
+      dash: CHART_CONFIG.averageDash.fallback,
+    },
+  },
+  {
+    label: "Max at 20 mi/day",
+    swatch: {
+      stroke: DANGER_ZONE_CONFIG.line.stroke,
+      width: DANGER_ZONE_CONFIG.line.strokeWidth,
+      dash: DANGER_ZONE_CONFIG.line.strokeDasharray,
+    },
+  },
+  ...[2025, 2024].map((year, i) => ({
+    label: String(year),
+    swatch: { stroke: priorYearStroke(i), width: 1.5 },
+  })),
+  { label: "Danger zone", swatch: "danger-zone" },
+];
+
+/** One row of a sample chart tooltip. */
+function TooltipRow({
+  color,
+  label,
+  value,
+}: {
+  color: string | undefined;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 text-[11px]">
+      <span aria-hidden="true" className="size-2 shrink-0" style={{ backgroundColor: color }} />
+      <span style={{ color: "var(--color-chart-tooltip-label)" }}>{label}</span>
+      <span className="ml-auto" style={{ color: "var(--color-chart-tooltip-text)" }}>
+        {value}
+      </span>
+    </div>
+  );
+}
 
 /** The contract's role colors, and its other slots by their style-guide group. */
 const ROLE_COLORS = Object.keys(THEME_CONTRACT.Colors);
@@ -393,6 +451,30 @@ function ThemePanel({ theme }: { theme: ThemeDefinition }) {
               </ErrorState>
             </Panel>
           </div>
+        </ThemeStructureProvider>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <h3 className="text-sm font-medium">Chart legend and tooltips</h3>
+        <ThemeStructureProvider structure={theme.structure}>
+          <Panel bodyClassName="flex flex-col gap-3 p-3">
+            <ChartLegend items={SAMPLE_LEGEND} />
+            <div className="flex flex-wrap items-start gap-3">
+              <ChartTooltipFrame
+                title="Aug 2026"
+                total={{ label: "Total", value: "45h" }}
+                minWidth={160}
+              >
+                <div className="flex flex-col gap-1">
+                  <TooltipRow color={SPORT_COLORS.running} label="Running" value="6h" />
+                  <TooltipRow color={SPORT_COLORS.cycling} label="Cycling" value="25h" />
+                </div>
+              </ChartTooltipFrame>
+              <ChartTooltipFrame title="Sep 12" tone="caption" minWidth={140}>
+                <TooltipRow color={SPORT_COLORS.cycling} label="Cycling" value="31.4 mi" />
+              </ChartTooltipFrame>
+            </div>
+          </Panel>
         </ThemeStructureProvider>
       </div>
 
