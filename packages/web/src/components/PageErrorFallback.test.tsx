@@ -2,7 +2,6 @@ import { describe, it, expect, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PageErrorFallback } from "./PageErrorFallback";
-import { NextHeadingLevel } from "./theme/NextHeadingLevel";
 import { renderWithRouter } from "../test/renderWithRouter";
 
 describe("PageErrorFallback", () => {
@@ -20,18 +19,6 @@ describe("PageErrorFallback", () => {
 
     expect(
       screen.getByRole("heading", { level: 1, name: "Something went wrong" })
-    ).toBeInTheDocument();
-  });
-
-  it("puts an inline error's title at the outline's current level", async () => {
-    await renderWithRouter(
-      <NextHeadingLevel>
-        <PageErrorFallback error={mockError} variant="inline" />
-      </NextHeadingLevel>
-    );
-
-    expect(
-      screen.getByRole("heading", { level: 3, name: "Error loading chart data" })
     ).toBeInTheDocument();
   });
 
@@ -62,12 +49,9 @@ describe("PageErrorFallback", () => {
     expect(screen.getByText(/Failed to fetch resource/)).toBeInTheDocument();
   });
 
-  it("displays non-Error object error message in inline variant", async () => {
-    await renderWithRouter(
-      <PageErrorFallback error={{ code: 500 }} variant="inline" onReset={vi.fn()} />
-    );
+  it("displays a non-Error object as its string", async () => {
+    await renderWithRouter(<PageErrorFallback error={{ code: 500 }} onReset={vi.fn()} />);
 
-    expect(screen.getByText("Error loading chart data")).toBeInTheDocument();
     expect(screen.getByText(/\[object Object\]/)).toBeInTheDocument();
   });
 

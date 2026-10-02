@@ -418,7 +418,9 @@ display face, over the specific line ("No Yoga sessions recorded for 2026"), and
 such as a Clear filters button. A value still loading is "…" (`LoadingValue`), never "--".
 Something that failed to load is an `ErrorState` titled "Error loading …" (the thing, as its
 loading label names it), with the error's message under it and Retry wherever a retry exists. In
-a panel, the panel takes `tone="danger"`, so Arcade frames it in its danger color.
+a panel, the panel takes `tone="danger"`, so Arcade frames it in its danger color. A dashboard
+card that fetches its own data sits in a `CardErrorBoundary`: if it throws while rendering, an
+error state takes its place, with Retry to render it again, and the rest of the page carries on.
 
 **shadcn/Base UI primitives** (`src/components/ui/`) take colors from the `@theme inline`
 alias block in `tailwind.css` (`bg-card`, `border-input`, `bg-primary`) and

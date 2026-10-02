@@ -7,7 +7,7 @@ import WeeklySummaryCard from "../components/dashboard/WeeklySummaryCard";
 import GoalProgressCard from "../components/dashboard/GoalProgressCard";
 import ActivityCalendarHeatmap from "../components/dashboard/ActivityCalendarHeatmap";
 import DashboardSkeleton from "../components/skeletons/DashboardSkeleton";
-import ChartErrorBoundary from "../components/charts/ChartErrorBoundary";
+import { CardErrorBoundary } from "../components/dashboard/CardErrorBoundary";
 import { PageLayout } from "../components/layout/PageLayout";
 import type { TuningParams } from "../utils/demoDataGenerator";
 import type { TimeRange } from "../utils/dataNormalization";
@@ -72,27 +72,27 @@ export default function Dashboard() {
           className="mb-8"
         >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <ChartErrorBoundary>
+            <CardErrorBoundary>
               <MultiSportSparklineChart timeRange={timeRange} tuningParams={tuningParams} />
-            </ChartErrorBoundary>
-            <ChartErrorBoundary>
+            </CardErrorBoundary>
+            <CardErrorBoundary>
               <RecentActivitiesListCard timeRange={timeRange} />
-            </ChartErrorBoundary>
+            </CardErrorBoundary>
           </div>
         </Section>
 
         {/* Weekly Summary + Goal Progress row */}
         <div className="grid grid-cols-1 @md:grid-cols-2 gap-6 mb-8">
           <WeeklySummaryCard />
-          <ChartErrorBoundary>
+          <CardErrorBoundary>
             <GoalProgressCard />
-          </ChartErrorBoundary>
+          </CardErrorBoundary>
         </div>
 
         {/* Activity Calendar Heatmap */}
-        <ChartErrorBoundary>
+        <CardErrorBoundary>
           <ActivityCalendarHeatmap className="mb-10" tuningParams={tuningParams} />
-        </ChartErrorBoundary>
+        </CardErrorBoundary>
 
         {/* Sign-in prompt for unauthenticated users */}
         {!user && (

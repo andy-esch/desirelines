@@ -39,7 +39,7 @@ export function ErrorState({
   const Title = `h${level ?? outlineLevel}` as const;
   return (
     <div role="alert" className={cn("flex flex-col items-start gap-3 text-sm", className)}>
-      <Title className="m-0 [font-family:inherit] text-sm text-danger font-(weight:--error-title-weight) tracking-(--error-title-tracking) [text-transform:var(--error-title-case)] [text-shadow:var(--error-title-shadow)]">
+      <Title className="m-0 [font-family:inherit] text-danger font-(weight:--error-title-weight) tracking-(--error-title-tracking) [text-transform:var(--error-title-case)] [text-shadow:var(--error-title-shadow)]">
         {title}
       </Title>
       {children != null && <div className="text-subtle-text break-words">{children}</div>}
@@ -56,5 +56,3 @@ export function ErrorState({
     </div>
   );
 }
-
-export default ErrorState;

@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, onTestFinished, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { ChartContainer } from "./ChartContainer";
@@ -38,6 +39,44 @@ describe.each(PLACEMENTS)("ChartContainer with $sectionLabelPlacement labels", (
     expect(screen.getByRole("heading", { name: "Cumulative Distance" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "YTD" })).not.toBeInTheDocument();
     expect(screen.queryByText("chart")).not.toBeInTheDocument();
+  });
+
+  it("frames a failed load in the danger tone, with Retry", async () => {
+    const onRetry = vi.fn();
+    const { container } = inStructure(
+      structure,
+      <ChartContainer {...base} error={new Error("timeout")} onRetry={onRetry}>
+        <p>chart</p>
+      </ChartContainer>
+    );
+    expect(container.querySelector("section")?.outerHTML).toContain("--error-frame-color");
+    expect(screen.getByRole("alert")).toHaveTextContent("timeout");
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
+
+  it("catches a chart that throws while drawing, and Retry fetches and draws again", async () => {
+    const onRetry = vi.fn();
+    let crash = true;
+    function Chart() {
+      if (crash) throw new Error("bad point");
+      return <p>chart</p>;
+    }
+    // React reports the caught error; keep it out of the test output.
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+    onTestFinished(() => quiet.mockRestore());
+    inStructure(
+      structure,
+      <ChartContainer {...base} onRetry={onRetry}>
+        <Chart />
+      </ChartContainer>
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(/Error displaying the chart.*bad point/);
+
+    crash = false;
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(onRetry).toHaveBeenCalledOnce();
+    expect(screen.getByText("chart")).toBeInTheDocument();
   });
 
   it("titles an error one level under the chart's heading", () => {
