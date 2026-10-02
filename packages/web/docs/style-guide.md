@@ -263,8 +263,11 @@ out or adds, a value of the wrong kind (a bare `0` where a length needs a unit, 
 color), `initial` in a slot that doesn't allow it, or a slot this guide's table doesn't list;
 each failure names the theme and the slot. `themeContrast.test.ts` measures the contract's
 text-on-surface pairs in every theme, and its non-text marks (the focus ring, input borders, a
-pressed toggle) at WCAG 1.4.11's 3:1; a boundary it leaves out is listed with the reason. `themeTokenUse.test.ts` fails on a token nothing reads
-or a read of a token nothing defines. `themeCss.test.ts` fails on a theme without a file, a
+pressed toggle) at WCAG 1.4.11's 3:1; a boundary it leaves out is listed with the reason. `themeTokenUse.test.ts` fails on a token nothing reads,
+a read of a token nothing defines, or a slot read where its kind doesn't belong (a text-shadow
+slot as a `box-shadow`, a color in a length utility, an inset glow anywhere but `inset-shadow-`);
+a read it can't place, because a constant holds the value before it reaches a style, is listed
+with what the value is for. `themeCss.test.ts` fails on a theme without a file, a
 file without a theme or an import, a file holding anything but its own block, or a
 `background` that doesn't match `--color-bg-body`; `sportConfig.test.ts` holds `SPORT_COLORS` to 3:1 against every
 dark theme's background and every base-map palette's land, park and water; `bootScript.test.ts` keeps the first-paint script in step with
@@ -358,7 +361,7 @@ active theme's `structure`, unless a `ThemeStructureProvider` overrides it for a
 | `MissingValue` | `--missing-value-color` | A value that isn't there, anywhere it would show: an em dash, and "none" to a screen reader. A theme that leaves the slot `initial` keeps the surrounding text's color. |
 | `LoadingValue` | — | A value still loading: an ellipsis in the surrounding text's color, and "loading" to a screen reader. |
 | `ErrorState` | `--error-title-*`, `--color-danger` | Something that failed to load: a title in the danger color, the detail under it, and the shared Retry button when `onRetry` is given (`actions` adds other ways out). Announced as an alert; the title is a heading at the outline's level, or `level={1}` where it stands in for a page. |
-| `ChartLegend` | `--chart-legend-*`, `--color-subtle-text` | The row above the cumulative and pacing charts that names their lines. Each swatch is drawn with its line's own stroke, width and dash (the danger zone's with its hatch), from the values the chart draws with, so the two can't drift. Prior years fade by a third a year from 45% (`priorYearStroke`). |
+| `ChartLegend` | `--chart-legend-*`, `--color-subtle-text` | The row above the cumulative and pacing charts that names their lines. Each chart describes a line once in `chartLines.ts` (its data key, name, stroke, width and dash) and draws both the `<Line>` and its swatch from that, so the two can't drift; the tooltip shows the same names and tells lines apart by their data keys. The danger zone's swatch takes the zone's hatch. Prior years fade by a third a year from 45% (`priorYearLine`). |
 | `ChartTooltipFrame` | `--color-chart-tooltip-*`, `--tooltip-radius`, `--tooltip-shadow`, `--font-chart`, `tooltipHeader` | The box every chart tooltip draws in: surface, border, corner, shadow and font, a title, and an optional total. Each tooltip brings only its rows, and picks its inline title's tone: a `heading` ruled off from the rows, or a muted `caption`. A theme with the `bar` header draws either as its bar. |
 
 The component slots and tokens: `--panel-accent-{1,2,3}-ink` (header-bar label color per

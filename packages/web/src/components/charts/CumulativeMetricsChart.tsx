@@ -20,6 +20,7 @@ import { getMetricDisplayLabel } from "../../config/metricConfig";
 import { useCumulativeChartData } from "../../hooks/useCumulativeChartData";
 import { useReducedMotion } from "../../hooks/useReducedMotion";
 import ChartContainer from "./ChartContainer";
+import type { MouseHandlerDataParam } from "recharts";
 import CumulativeChartPresenter from "./CumulativeChartPresenter";
 import { Button } from "../ui/button";
 import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
@@ -248,7 +249,6 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
 
   // Get chart data from hook
   const {
-    totalDistanceTraveled,
     estimatedYearEnd,
     startDate,
     goalLines,
@@ -270,7 +270,7 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
   });
 
   // Drag-to-zoom handlers
-  const handleChartMouseDown = useCallback((e: { activeLabel?: string | number }) => {
+  const handleChartMouseDown = useCallback((e: Pick<MouseHandlerDataParam, "activeLabel">) => {
     if (e.activeLabel != null) {
       const ts = Number(e.activeLabel);
       dragAnchor.current = ts;
@@ -279,7 +279,7 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
     }
   }, []);
 
-  const handleChartMouseMove = useCallback((e: { activeLabel?: string | number }) => {
+  const handleChartMouseMove = useCallback((e: Pick<MouseHandlerDataParam, "activeLabel">) => {
     if (dragAnchor.current != null && e.activeLabel != null) {
       setSelectionRight(Number(e.activeLabel));
     }
@@ -406,9 +406,7 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
         startDate={effectiveDomain.start}
         displayEndDate={effectiveDomain.end}
         yAxisTicks={yAxisTicks}
-        year={year}
         unitLabel={unitLabel}
-        totalDistanceTraveled={totalDistanceTraveled}
         estimatedYearEnd={estimatedYearEnd}
         isSessionsMode={isSessionsMode}
         showAchievements={showAchievements}

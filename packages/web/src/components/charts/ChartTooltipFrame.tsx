@@ -26,7 +26,6 @@ export interface ChartTooltipFrameProps {
 }
 
 const DIVIDER = "1px solid var(--color-chart-tooltip-divider)";
-const LABEL_CASE = "var(--label-case)" as CSSProperties["textTransform"];
 
 const INLINE_TITLE: Record<TooltipTitleTone, CSSProperties> = {
   heading: {
@@ -45,8 +44,10 @@ const BAR_TITLE: CSSProperties = {
   color: "var(--color-chart-tooltip-accent)",
   fontSize: 10,
   letterSpacing: "0.22em",
-  textTransform: LABEL_CASE,
 };
+
+/** The label case a header bar and its total take, as a class so the slot reads as a case. */
+const LABEL_CASE = "[text-transform:var(--label-case)]";
 
 export default function ChartTooltipFrame({
   title,
@@ -70,7 +71,9 @@ export default function ChartTooltipFrame({
         padding: bar ? undefined : "10px 12px",
       }}
     >
-      <div style={bar ? BAR_TITLE : INLINE_TITLE[tone]}>{title}</div>
+      <div style={bar ? BAR_TITLE : INLINE_TITLE[tone]} className={bar ? LABEL_CASE : undefined}>
+        {title}
+      </div>
       <div style={bar ? { padding: "8px 10px" } : undefined}>
         {children}
         {total && (
@@ -88,14 +91,8 @@ export default function ChartTooltipFrame({
             }}
           >
             <span
-              style={
-                bar
-                  ? {
-                      color: "var(--color-chart-tooltip-label)",
-                      textTransform: LABEL_CASE,
-                    }
-                  : undefined
-              }
+              style={bar ? { color: "var(--color-chart-tooltip-label)" } : undefined}
+              className={bar ? LABEL_CASE : undefined}
             >
               {total.label}
             </span>

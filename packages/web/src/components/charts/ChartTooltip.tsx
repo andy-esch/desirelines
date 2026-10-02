@@ -19,15 +19,33 @@ export interface ChartTooltipProps {
   unit?: string;
   /** Number of decimal places for value formatting */
   decimals?: number;
-  /** Compact mode - show only actual + nearest goal with delta */
+  /** Compact mode - show only actual, its delta to the nearest goal, and prior years */
   compact?: boolean;
+  /**
+   * Each goal's own label, by goal index, for the compact delta ("−12.0 vs Target"). The
+   * lines' names, which the rows show, carry the goal's total as well.
+   */
+  goalLabels?: readonly string[];
+}
+
+/** The goal index a data key names (`goal0`, `goal1`…), if it names a goal. */
+function goalIndexOf(dataKey: string | undefined): number | undefined {
+  const match = /^goal(\d+)$/.exec(dataKey ?? "");
+  return match ? Number(match[1]) : undefined;
+}
+
+/** The year a data key names (`prior_2025`), if it names a prior year. */
+function priorYearOf(dataKey: string | undefined): number | undefined {
+  const match = /^prior_(\d+)$/.exec(dataKey ?? "");
+  return match ? Number(match[1]) : undefined;
 }
 
 /**
  * The cumulative and pacing charts' tooltip, in the shared ChartTooltipFrame.
  *
  * Displays the formatted date and data values, with customizable units and decimal
- * precision.
+ * precision. Entries are told apart by their data keys (see chartLines.ts), never by their
+ * names, which are the legend's and can be anything a goal is called.
  *
  * @example
  * // Distance chart (1 decimal, "mi" unit)
@@ -44,6 +62,7 @@ export const ChartTooltip = ({
   unit = "mi",
   decimals = 1,
   compact = false,
+  goalLabels = [],
 }: ChartTooltipProps) => {
   const { formatAxisDate } = useThemeDateFormat();
   if (!active || !payload || payload.length === 0) return null;
@@ -56,54 +75,35 @@ export const ChartTooltip = ({
         ? formatAxisDate(label)
         : String(label ?? "");
 
-  // Find actual value and goal values from payload
-  const actualEntry = payload.find((p) => p.dataKey === "actual" || p.name?.includes("Data"));
+  const actualEntry = payload.find((p) => p.dataKey === "actual");
   const hasActualData = actualEntry !== undefined && typeof actualEntry.value === "number";
   const actualValue = hasActualData ? (actualEntry.value as number) : 0;
 
-  // Find prior year entries (only those with a numeric value at this date),
-  // sorted most recent year first (e.g. 2025, 2024, 2023…)
+  // Prior years with a value at this date, the most recent first (2025, 2024, 2023…)
   const priorYearEntries = payload
     .filter(
       (p): p is typeof p & { value: number } =>
-        p.dataKey?.startsWith("prior_") === true && typeof p.value === "number"
+        priorYearOf(p.dataKey) !== undefined && typeof p.value === "number"
     )
-    .sort((a, b) => {
-      const yearA = Number(a.dataKey?.replace("prior_", "") ?? 0);
-      const yearB = Number(b.dataKey?.replace("prior_", "") ?? 0);
-      return yearB - yearA;
-    });
+    .sort((a, b) => priorYearOf(b.dataKey)! - priorYearOf(a.dataKey)!);
 
-  // Find goal entries (exclude actual, average, and prior year lines)
-  const goalEntries = payload.filter(
-    (p) =>
-      !p.dataKey?.startsWith("prior_") &&
-      (p.dataKey?.startsWith("goal") ||
-        (p.name && !p.name.includes("Data") && !p.name.includes("Average")))
-  );
-
-  // Find the next unachieved goal (smallest goal value > actual) or closest goal
-  let targetGoal = goalEntries.find((g) => {
-    const goalVal = typeof g.value === "number" ? g.value : 0;
-    return goalVal > actualValue;
-  });
-  // If all goals achieved, show the highest one
-  if (!targetGoal && goalEntries.length > 0) {
-    targetGoal = goalEntries[goalEntries.length - 1];
-  }
+  // The next goal not yet reached, or the last goal once all are; in goal order
+  const goalEntries = payload.filter((p) => goalIndexOf(p.dataKey) !== undefined);
+  const targetGoal =
+    goalEntries.find((g) => typeof g.value === "number" && g.value > actualValue) ??
+    goalEntries.at(-1);
 
   const targetValue = typeof targetGoal?.value === "number" ? targetGoal.value : 0;
   const delta = actualValue - targetValue;
   const deltaAbs = Math.abs(delta);
   const isAhead = delta > 0;
+  const targetIndex = goalIndexOf(targetGoal?.dataKey);
+  const goalLabel = (targetIndex !== undefined && goalLabels[targetIndex]) || "Goal";
 
-  // Extract goal label (remove the ": X miles" part)
-  const goalLabel = targetGoal?.name?.split(":")[0] || "Goal";
-
-  if (compact && targetGoal) {
-    // Compact mode: actual + delta vs nearest goal, plus prior year values
-    // Use goal's color for the delta to create visual connection
-    const goalColor = targetGoal.stroke || targetGoal.color || "var(--color-chart-neutral)";
+  if (compact) {
+    // Compact mode: actual + delta vs nearest goal, when there is one, plus prior year values.
+    // The delta takes the goal's color, to tie it to the goal's line.
+    const goalColor = targetGoal?.stroke || targetGoal?.color || "var(--color-chart-neutral)";
 
     return (
       <ChartTooltipFrame title={formattedDate} tone="caption" minWidth={140}>
@@ -117,7 +117,7 @@ export const ChartTooltip = ({
           >
             {hasActualData ? `${actualValue.toFixed(decimals)} ${unit}` : <MissingValue />}
           </span>
-          {hasActualData && (
+          {hasActualData && targetGoal && (
             <span
               style={{
                 color: goalColor,
@@ -169,56 +169,47 @@ export const ChartTooltip = ({
   return (
     <ChartTooltipFrame title={formattedDate}>
       <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-        {payload.map(
-          (
-            entry: {
-              readonly stroke?: string;
-              readonly color?: string;
-              readonly value?: number | string;
-              readonly name?: string;
-              readonly dataKey?: string;
-            },
-            index: number
-          ) => {
-            const color = entry.stroke || entry.color || "var(--color-chart-neutral)";
-            const value =
-              typeof entry.value === "number" ? entry.value.toFixed(decimals) : (entry.value ?? "");
-            // Shorten the label
-            const shortName = entry.name?.split(":")[0] || entry.dataKey || "";
+        {payload.map((entry, index) => {
+          const color = entry.stroke || entry.color || "var(--color-chart-neutral)";
+          const value =
+            typeof entry.value === "number" ? entry.value.toFixed(decimals) : (entry.value ?? "");
 
-            return (
+          return (
+            <div
+              key={index}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                fontSize: "11px",
+              }}
+            >
               <div
-                key={index}
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  fontSize: "11px",
+                  width: "8px",
+                  height: "8px",
+                  borderRadius: "min(var(--radius), 2px)",
+                  backgroundColor: color,
+                  flexShrink: 0,
+                }}
+              />
+              <span style={{ color: "var(--color-chart-tooltip-label)" }}>
+                {entry.name ?? entry.dataKey}
+              </span>
+              <span
+                style={{
+                  color: "var(--color-chart-tooltip-text)",
+                  fontWeight: "500",
+                  // Clear of a goal's name, which ends in its total ("Target 4,000").
+                  marginLeft: "auto",
+                  paddingLeft: "16px",
                 }}
               >
-                <div
-                  style={{
-                    width: "8px",
-                    height: "8px",
-                    borderRadius: "min(var(--radius), 2px)",
-                    backgroundColor: color,
-                    flexShrink: 0,
-                  }}
-                />
-                <span style={{ color: "var(--color-chart-tooltip-label)" }}>{shortName}</span>
-                <span
-                  style={{
-                    color: "var(--color-chart-tooltip-text)",
-                    fontWeight: "500",
-                    marginLeft: "auto",
-                  }}
-                >
-                  {value}
-                </span>
-              </div>
-            );
-          }
-        )}
+                {value}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </ChartTooltipFrame>
   );

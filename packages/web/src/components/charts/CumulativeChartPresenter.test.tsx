@@ -8,6 +8,7 @@ import {
 import {
   createAchievement,
   createCumulativePresenterProps,
+  hoverChart,
   legendIn,
   linesIn,
   markersIn,
@@ -188,6 +189,13 @@ describe("CumulativeChartPresenter", () => {
       const { container } = draw();
       expect(legendIn(container).map(strokeOf)).toEqual(linesIn(container).map(strokeOf));
       expect(legendIn(container).at(-1)?.dash).toBe("5 5");
+    });
+
+    it("measures the tooltip's year against the next goal, by the goal's own label", async () => {
+      const { container } = draw();
+      // The pointer snaps to Jan 31: 310 mi, past Base (255) and short of Stretch (425).
+      const tooltip = await hoverChart(container, { x: 120, y: 200 });
+      expect(tooltip.textContent).toMatch(/310\.0 mi−115\.0 vs Stretch$/);
     });
 
     it("names the most a sustainable pace could reach, dashed as its line is", () => {

@@ -23,13 +23,16 @@ interface ActivityCalendarHeatmapProps {
 /** Sport filter mode for the heatmap */
 type SportFilterMode = "all" | "visible";
 
-/** Color scale for activity intensity (NEON purple/magenta theme) */
+/**
+ * A day's color by how many activities it holds: the theme's empty step, then four busier
+ * steps fixed across themes (`FIXED_COLORS` in themes/contract.ts).
+ */
 const INTENSITY_COLORS = [
-  "var(--color-intensity-0)", // 0 activities - muted gray
-  "var(--color-intensity-1)", // 1 activity - soft purple
-  "var(--color-intensity-2)", // 2-3 activities - medium purple
-  "var(--color-intensity-3)", // 4-5 activities - bright purple
-  "var(--color-intensity-4)", // 6+ activities - neon magenta
+  "var(--color-intensity-0)", // none
+  "var(--color-intensity-1)", // 1
+  "var(--color-intensity-2)", // 2-3
+  "var(--color-intensity-3)", // 4-5
+  "var(--color-intensity-4)", // 6+
 ] as const;
 
 /**

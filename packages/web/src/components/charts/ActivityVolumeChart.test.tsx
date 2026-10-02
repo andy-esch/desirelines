@@ -1,8 +1,9 @@
 import { cloneElement, type ReactElement } from "react";
-import { fireEvent, render, waitFor, within } from "@testing-library/react";
+import { render, within } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import ActivityVolumeChart, { topOfStack } from "./ActivityVolumeChart";
 import type { ChartData } from "../../utils/activityBuckets";
+import { hoverChart } from "../../test/fixtures/chartTestHelpers";
 
 // Hand the chart the size the container would measure; without one Recharts draws nothing.
 vi.mock("recharts", async () => {
@@ -59,20 +60,12 @@ describe("the volume tooltip", () => {
         allowDecimals
       />
     );
-    fireEvent.mouseMove(container.querySelector(".recharts-wrapper")!, {
-      clientX: 160,
-      clientY: 100,
-    });
-    let tooltip: HTMLElement | null = null;
-    await waitFor(() => {
-      tooltip = container.querySelector<HTMLElement>(".recharts-tooltip-wrapper");
-      expect(tooltip?.textContent).toBeTruthy();
-    });
+    const tooltip = await hoverChart(container, { x: 160, y: 100 });
 
-    const rows = within(tooltip!);
+    const rows = within(tooltip);
     expect(rows.getByText("Aug '26")).toBeInTheDocument();
     // A sport with no time that month gets no row.
-    expect(tooltip!.textContent).toBe("Aug '26Running6hCycling25hTotal31h");
+    expect(tooltip.textContent).toBe("Aug '26Running6hCycling25hTotal31h");
     expect(rows.queryByText("Yoga")).not.toBeInTheDocument();
   });
 });

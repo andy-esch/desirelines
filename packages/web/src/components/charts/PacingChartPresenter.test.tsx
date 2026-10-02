@@ -4,6 +4,7 @@ import { describe, it, expect, vi } from "vitest";
 import { PacingChartPresenter } from "./PacingChartPresenter";
 import {
   createPacingPresenterProps,
+  hoverChart,
   legendIn,
   linesIn,
   markersIn,
@@ -236,6 +237,19 @@ describe("PacingChartPresenter", () => {
       const stripe = container.querySelector(`ul pattern[id="${swatchHatchId}"] rect`);
       expect(stripe).toHaveAttribute("fill", "var(--color-danger-zone)");
       expect(stripe).toHaveAttribute("fill-opacity", "0.3");
+    });
+
+    it("names the tooltip's rows as the legend names the lines", async () => {
+      const { container } = draw();
+      const tooltip = await hoverChart(container);
+      const rows = [...tooltip.querySelectorAll(":scope div > div > span:first-of-type")].map(
+        (span) => span.textContent
+      );
+      expect(rows).toEqual(
+        legendIn(container)
+          .slice(0, 3)
+          .map((item) => item.label)
+      );
     });
 
     it("leaves the danger zone out when the chart doesn't draw it", () => {

@@ -1,7 +1,8 @@
 /**
- * ChartLegend - The row above a line chart that names its lines. Each swatch is drawn the way
- * its line is (the same stroke, width and dash), or with the danger zone's hatch, so the row
- * can't drift from the chart. The text takes the theme's legend size and tracking.
+ * ChartLegend - The row above a line chart that names its lines. A line's entry comes from the
+ * same description the chart draws the line from (`legendItem` in chartLines.ts), so its
+ * swatch has the line's stroke, width and dash; the danger zone's has the zone's hatch. The
+ * text takes the theme's legend size and tracking.
  */
 import { DANGER_ZONE_CONFIG } from "../../constants/chartConfig";
 import { DangerHatch, useDangerHatchId } from "./DangerHatch";
@@ -13,11 +14,6 @@ export type LegendSwatch =
 export interface LegendItem {
   label: string;
   swatch: LegendSwatch;
-}
-
-/** A goal's legend label: its name and the total it aims for, "Target 4,000". */
-export function goalLegendLabel(goal: { label: string; value: number }): string {
-  return `${goal.label || "Goal"} ${Math.round(goal.value).toLocaleString()}`;
 }
 
 const SWATCH_WIDTH = 18;
