@@ -26,6 +26,7 @@ import { Alert } from "../../components/ui/alert";
 import Loader from "../../components/Loader";
 import Skeleton from "../../components/Skeleton";
 import EmptyState from "../../components/EmptyState";
+import { ErrorState } from "../../components/ErrorState";
 import { LoadingValue } from "../../components/theme/LoadingValue";
 
 /**
@@ -367,7 +368,7 @@ function ThemePanel({ theme }: { theme: ThemeDefinition }) {
       </div>
 
       <div className="flex flex-col gap-3">
-        <h3 className="text-sm font-medium">Loading and empty</h3>
+        <h3 className="text-sm font-medium">Loading, empty and error</h3>
         <ThemeStructureProvider structure={theme.structure}>
           <div className="grid gap-3 sm:grid-cols-2">
             <Panel title="Loading" bodyClassName="flex flex-col gap-3 p-3">
@@ -385,6 +386,11 @@ function ThemePanel({ theme }: { theme: ThemeDefinition }) {
                   </Button>
                 }
               />
+            </Panel>
+            <Panel title="Error" bodyClassName="p-4" tone="danger" className="sm:col-span-2">
+              <ErrorState title="Error loading activities" onRetry={() => {}}>
+                Network request failed.
+              </ErrorState>
             </Panel>
           </div>
         </ThemeStructureProvider>

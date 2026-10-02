@@ -51,7 +51,7 @@ describe.each(PLACEMENTS)("ChartContainer with $sectionLabelPlacement labels", (
       screen.getByRole("heading", { level: 2, name: "Cumulative Distance" })
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { level: 3, name: "Failed to load chart data" })
+      screen.getByRole("heading", { level: 3, name: "Error loading chart data" })
     ).toBeInTheDocument();
   });
 });

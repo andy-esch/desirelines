@@ -302,6 +302,12 @@
   --color-pace-tick: #1d0b3a;
   --color-skeleton: rgba(29, 11, 58, 0.14);
   --color-skeleton-shimmer: rgba(138, 61, 255, 0.25);
+  --error-title-weight: 600;
+  --error-title-case: none;
+  --error-title-tracking: normal;
+  --error-title-shadow: none;
+  --error-frame-color: initial;
+  --error-frame-shadow: initial;
   --color-status-good: #2d5bff;
   --color-status-warn: #3d2a5c;
   --color-status-bad: #c2410c;

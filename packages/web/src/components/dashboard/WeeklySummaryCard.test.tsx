@@ -136,6 +136,6 @@ describe("WeeklySummaryCard", () => {
 
     returnSummary([], { error: new Error("boom") });
     renderCard();
-    expect(screen.getByText("Unable to load weekly summary")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Error loading weekly summary");
   });
 });

@@ -8,7 +8,7 @@
  *
  * Not interchangeable with `ChartContainer`. That component is for the opposite
  * arrangement — a parent that *holds* `isLoading` / `error` / `isEmpty` and
- * passes them down, getting the spinner, error, empty, and header treatments in
+ * passes them down, getting the loader, error, empty, and header treatments in
  * return. Handing it a self-fetching child would mean inventing state it does
  * not have.
  */

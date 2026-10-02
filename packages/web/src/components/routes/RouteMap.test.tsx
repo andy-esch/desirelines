@@ -727,14 +727,14 @@ describe("RouteMap load + error UX", () => {
       act(() => {
         vi.advanceTimersByTime(15_000);
       });
-      const retry = screen.getByRole("button", { name: /try again/i });
+      const retry = screen.getByRole("button", { name: "Retry" });
       expect(retry).toBeInTheDocument();
       expect(screen.queryByText("Loading map…")).not.toBeInTheDocument();
 
       // Retry recreates the map and shows the spinner again.
       act(() => retry.click());
       expect(screen.getByText("Loading map…")).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: /try again/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }
@@ -750,7 +750,7 @@ describe("RouteMap load + error UX", () => {
     });
 
     // The 401 path recovers tiles; it must not flip the whole map to the error state.
-    expect(screen.queryByRole("button", { name: /try again/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
   });
 
   it("surfaces the error immediately on a Mapbox-side auth failure (no 15s wait)", () => {
@@ -762,7 +762,7 @@ describe("RouteMap load + error UX", () => {
     act(() => h.captured.onError!({ error: { status: 403, url: MAPBOX_URL } }));
 
     expect(refreshAuthToken).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
     expect(screen.queryByText("Loading map…")).not.toBeInTheDocument();
   });
 
@@ -771,7 +771,7 @@ describe("RouteMap load + error UX", () => {
     act(() => h.captured.onLoad!()); // ready
     act(() => h.captured.onError!({ error: { status: 401, url: MAPBOX_URL } }));
 
-    expect(screen.queryByRole("button", { name: /try again/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
   });
 
   it("ignores a non-style external 401/403 on a glyph (sub-resource degrades gracefully)", () => {
@@ -783,7 +783,7 @@ describe("RouteMap load + error UX", () => {
       })
     );
 
-    expect(screen.queryByRole("button", { name: /try again/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
     expect(screen.getByText("Loading map…")).toBeInTheDocument(); // still loading, not errored
   });
 
@@ -800,7 +800,7 @@ describe("RouteMap load + error UX", () => {
       })
     );
 
-    expect(screen.queryByRole("button", { name: /try again/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
     expect(screen.getByText("Loading map…")).toBeInTheDocument(); // still loading, not errored
   });
 
@@ -815,7 +815,7 @@ describe("RouteMap load + error UX", () => {
       expect(h.captured.resizeCalls).toBe(0);
 
       // Retry → fresh map → it loads → resize re-applies (the iOS canvas-size fix).
-      act(() => screen.getByRole("button", { name: /try again/i }).click());
+      act(() => screen.getByRole("button", { name: "Retry" }).click());
       act(() => h.captured.onLoad!());
       expect(h.captured.resizeCalls).toBe(1);
     } finally {
@@ -831,19 +831,19 @@ describe("RouteMap load + error UX", () => {
       act(() => {
         vi.advanceTimersByTime(15_000);
       });
-      expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
       // Retry #1 → fail → still retryable.
-      act(() => screen.getByRole("button", { name: /try again/i }).click());
+      act(() => screen.getByRole("button", { name: "Retry" }).click());
       act(() => {
         vi.advanceTimersByTime(15_000);
       });
-      expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
       // Retry #2 → fail → terminal: no button, a "try again later" message instead.
-      act(() => screen.getByRole("button", { name: /try again/i }).click());
+      act(() => screen.getByRole("button", { name: "Retry" }).click());
       act(() => {
         vi.advanceTimersByTime(15_000);
       });
-      expect(screen.queryByRole("button", { name: /try again/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
       expect(screen.getByText(/try again later/i)).toBeInTheDocument();
     } finally {
       vi.useRealTimers();

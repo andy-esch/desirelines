@@ -5,6 +5,7 @@ import { PACE_THRESHOLDS } from "../../utils/goalCalculations";
 import { formatMetricDisplayValue } from "../../utils/units";
 import { getDaysInYear, getYearElapsedShare, type YearContext } from "../../utils/yearContext";
 import Skeleton, { SkeletonRegion } from "../Skeleton";
+import { ErrorState } from "../ErrorState";
 import { Panel } from "../theme/Panel";
 import { Meter } from "../theme/Meter";
 import { MissingValue } from "../theme/MissingValue";
@@ -30,10 +31,8 @@ export default function GoalProgressCard() {
 
   if (error) {
     return (
-      <Panel className="h-full" bodyClassName="p-2" title={title}>
-        <div className="text-center text-muted-text py-6">
-          <small>Unable to load goal progress</small>
-        </div>
+      <Panel className="h-full" bodyClassName="p-4" title={title} tone="danger">
+        <ErrorState title="Error loading goal progress">{error.message}</ErrorState>
       </Panel>
     );
   }

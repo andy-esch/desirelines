@@ -189,7 +189,7 @@ describe("GoalProgressCard", () => {
 
     returnGoalData([], { error: new Error("boom") });
     await renderCard();
-    expect(screen.getByText("Unable to load goal progress")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Error loading goal progress");
   });
 
   describe("a sport without a goal", () => {

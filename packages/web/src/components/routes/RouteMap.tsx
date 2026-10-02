@@ -16,7 +16,6 @@ import { logger } from "../../lib/logger";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import type { FitRequest } from "../../hooks/useCameraController";
 import { ExternalLinkIcon } from "../ui/ExternalLinkIcon";
-import { Button } from "../ui/button";
 import MapLoadingState from "./MapLoadingState";
 import {
   convertDistance,
@@ -25,6 +24,8 @@ import {
   type DistanceUnit,
 } from "../../utils/units";
 import { useThemeDateFormat } from "../theme/useThemeDateFormat";
+import { Panel } from "../theme/Panel";
+import { ErrorState } from "../ErrorState";
 import { resolveThemeColor } from "../../utils/colorTokens";
 import type { ThemeMap } from "../../themes/registry";
 import { applyBaseMap } from "./mapRecolor";
@@ -867,29 +868,19 @@ export default function RouteMap({
           recovery escalates here only on a not-yet-ready map (after the refresh cap);
           on an already-rendered map it shows the dismissible notice above instead. */}
       {status === "error" && (
-        <div
-          ref={errorRef}
-          className="absolute inset-0 grid place-items-center bg-bg-body/90 px-6"
-          role="alert"
-        >
-          <div className="flex max-w-sm flex-col items-center gap-3 text-center">
+        <div ref={errorRef} className="absolute inset-0 grid place-items-center bg-bg-body/90 px-6">
+          <Panel tone="danger" className="w-full max-w-sm">
             {retries < MAX_RETRIES ? (
-              <>
-                <p className="text-sm text-muted-text">
-                  The map couldn’t be displayed. This can happen if your browser can’t render maps,
-                  or the connection stalled.
-                </p>
-                <Button variant="outline" size="sm" onClick={retry}>
-                  Try again
-                </Button>
-              </>
+              <ErrorState title="Error displaying the map" onRetry={retry}>
+                This can happen if your browser can’t render maps, or the connection stalled.
+              </ErrorState>
             ) : (
-              <p className="text-sm text-muted-text">
-                The map still couldn’t be displayed. Your browser may not support maps, or the
-                connection is unavailable — please try again later.
-              </p>
+              <ErrorState title="Error displaying the map">
+                Your browser may not support maps, or the connection is unavailable. Please try
+                again later.
+              </ErrorState>
             )}
-          </div>
+          </Panel>
         </div>
       )}
     </div>

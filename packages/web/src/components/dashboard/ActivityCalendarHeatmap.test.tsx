@@ -120,7 +120,7 @@ describe("ActivityCalendarHeatmap", () => {
 
       render(<ActivityCalendarHeatmap />);
 
-      expect(screen.getByText("Failed to load calendar data")).toBeInTheDocument();
+      expect(screen.getByRole("alert")).toHaveTextContent("Error loading calendar data");
     });
   });
 

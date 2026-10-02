@@ -10,7 +10,7 @@ describe("ErrorChart", () => {
   it("displays error message from Error object", () => {
     render(<ErrorChart error={mockError} onRetry={mockRetry} />);
 
-    expect(screen.getByText("Failed to load chart data")).toBeInTheDocument();
+    expect(screen.getByText("Error loading chart data")).toBeInTheDocument();
     expect(screen.getByText("Network request failed")).toBeInTheDocument();
   });
 
@@ -18,8 +18,10 @@ describe("ErrorChart", () => {
     render(<ErrorChart error={mockError} onRetry={mockRetry} />);
 
     const alert = screen.getByRole("alert");
-    expect(alert).toBeInTheDocument();
-    expect(alert).toHaveClass("text-danger");
+    expect(alert).toContainElement(
+      screen.getByRole("heading", { name: "Error loading chart data" })
+    );
+    expect(screen.getByRole("heading")).toHaveClass("text-danger");
   });
 
   it("shows retry button when onRetry provided", () => {

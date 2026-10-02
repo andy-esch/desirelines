@@ -18,9 +18,9 @@ import { ExternalLinkIcon } from "./ui/ExternalLinkIcon";
 import { MapPinIcon } from "./ui/MapPinIcon";
 import { Button } from "./ui/button";
 import { Panel } from "./theme/Panel";
-import { Alert } from "./ui/alert";
 import { MissingValue } from "./theme/MissingValue";
 import EmptyState from "./EmptyState";
+import { ErrorState } from "./ErrorState";
 import { Table } from "./ui/table";
 import { SportLabel } from "./theme/SportLabel";
 
@@ -119,12 +119,11 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
   const showImpact = goalTarget != null && goalTarget > 0;
   if (error) {
     return (
-      <Alert variant="danger" role="alert">
-        <strong>Error loading activities:</strong> {error.message}
-        <Button variant="outline-danger" size="sm" className="ms-6" onClick={onRetry}>
-          Retry
-        </Button>
-      </Alert>
+      <Panel tone="danger">
+        <ErrorState title="Error loading activities" onRetry={onRetry}>
+          {error.message}
+        </ErrorState>
+      </Panel>
     );
   }
 

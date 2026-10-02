@@ -37,6 +37,8 @@ import { useIsMobile } from "../hooks/useIsMobile";
 import { useRefreshMapData } from "../hooks/useRefreshMapData";
 import MapLoadingState from "../components/routes/MapLoadingState";
 import Loader from "../components/Loader";
+import { ErrorState } from "../components/ErrorState";
+import { Panel } from "../components/theme/Panel";
 import type { SportOption } from "../components/routes/MapFilterControls";
 import type { SelectedRoute } from "../components/routes/RouteMap";
 import { useCameraController } from "../hooks/useCameraController";
@@ -426,9 +428,9 @@ export default function RoutesPage() {
     return (
       <PageLayout>
         <StatusMessage>
-          <p className="text-danger" role="alert">
-            Failed to load map. Please try again later.
-          </p>
+          <Panel tone="danger" className="mx-4 w-full max-w-md">
+            <ErrorState title="Error loading the map">Please try again later.</ErrorState>
+          </Panel>
         </StatusMessage>
       </PageLayout>
     );

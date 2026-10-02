@@ -1,6 +1,7 @@
 import { useWeeklySummary } from "../../hooks/useWeeklySummary";
 import { formatMetricDisplayValue, formatHoursMinutes } from "../../utils/units";
 import Skeleton, { SkeletonRegion } from "../Skeleton";
+import { ErrorState } from "../ErrorState";
 import { StatusSymbol, type GoalStatus } from "../theme/StatusSymbol";
 import { Panel } from "../theme/Panel";
 import { MissingValue } from "../theme/MissingValue";
@@ -19,10 +20,8 @@ export default function WeeklySummaryCard() {
 
   if (error) {
     return (
-      <Panel className="h-full" bodyClassName="p-2" title="This Week">
-        <div className="text-center text-muted-text py-6">
-          <small>Unable to load weekly summary</small>
-        </div>
+      <Panel className="h-full" bodyClassName="p-4" title="This Week" tone="danger">
+        <ErrorState title="Error loading weekly summary">{error.message}</ErrorState>
       </Panel>
     );
   }

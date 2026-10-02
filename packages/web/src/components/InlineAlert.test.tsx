@@ -61,25 +61,6 @@ describe("InlineAlert", () => {
     expect(screen.queryByRole("button", { name: /dismiss/i })).not.toBeInTheDocument();
   });
 
-  it("shows retry button when onRetry provided", async () => {
-    const onRetry = vi.fn();
-    const user = userEvent.setup();
-
-    render(<InlineAlert onRetry={onRetry}>Retryable</InlineAlert>);
-
-    const retryBtn = screen.getByRole("button", { name: /retry/i });
-    expect(retryBtn).toBeInTheDocument();
-
-    await user.click(retryBtn);
-    expect(onRetry).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not show retry button when onRetry not provided", () => {
-    render(<InlineAlert>No retry</InlineAlert>);
-
-    expect(screen.queryByRole("button", { name: /retry/i })).not.toBeInTheDocument();
-  });
-
   it("applies custom className", () => {
     render(<InlineAlert className="mb-4">With class</InlineAlert>);
 

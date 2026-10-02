@@ -123,6 +123,7 @@ export function ChartContainer({
     <Panel
       title={panelTitle}
       actions={ready && !hideHeader ? headerControls : undefined}
+      tone={!isLoading && error ? "danger" : undefined}
       className={className}
       bodyClassName="p-2"
     >

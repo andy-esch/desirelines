@@ -17,6 +17,13 @@ export const PANEL_ACCENT_BORDER: Record<PanelAccent, string> = {
 export const PANEL_TOP_STRIP =
   "[background-image:var(--panel-top-strip)] bg-top bg-no-repeat [background-size:100%_4px]";
 
+/** A panel showing an error: the theme's error frame, or through `initial` the accent's. */
+const ERROR_FRAME_BORDER: Record<PanelAccent, string> = {
+  1: "[border-color:var(--error-frame-color,var(--panel-accent-1))]",
+  2: "[border-color:var(--error-frame-color,var(--panel-accent-2))]",
+  3: "[border-color:var(--error-frame-color,var(--panel-accent-3))]",
+};
+
 const ACCENT_INK: Record<PanelAccent, string> = {
   1: "text-(color:--panel-accent-1-ink)",
   2: "text-(color:--panel-accent-2-ink)",
@@ -34,6 +41,8 @@ export interface PanelProps {
   accent?: PanelAccent | undefined;
   /** The one panel in a group that should stand out. */
   emphasis?: boolean | undefined;
+  /** `danger` for a panel showing an error: the theme's `--error-frame-*` slots frame it. */
+  tone?: "danger" | undefined;
   className?: string | undefined;
   bodyClassName?: string | undefined;
   children: ReactNode;
@@ -51,6 +60,7 @@ export function Panel({
   actions,
   accent = 1,
   emphasis = false,
+  tone,
   className,
   bodyClassName,
   children,
@@ -61,6 +71,8 @@ export function Panel({
   // row's spacing counts on; an empty heading would say nothing.
   const labelElement = title != null ? heading : "span";
   const hasHeader = title != null || meta != null || actions != null;
+  const danger = tone === "danger";
+  const border = danger ? ERROR_FRAME_BORDER[accent] : PANEL_ACCENT_BORDER[accent];
   const actionsNode = actions != null && (
     <div className="flex min-w-0 flex-wrap items-center gap-2">{actions}</div>
   );
@@ -68,9 +80,14 @@ export function Panel({
   const frame = cn(
     "flex flex-col min-w-0 bg-(--panel-bg) border-solid border-(length:--panel-border-width) rounded-(--panel-radius)",
     PANEL_TOP_STRIP,
-    PANEL_ACCENT_BORDER[accent],
-    emphasis ? "[box-shadow:var(--panel-shadow-emphasis)]" : "[box-shadow:var(--panel-shadow)]",
-    "transition-colors hover:border-(color:--color-panel-border-hover)"
+    border,
+    danger
+      ? "[box-shadow:var(--error-frame-shadow,var(--panel-shadow))]"
+      : emphasis
+        ? "[box-shadow:var(--panel-shadow-emphasis)]"
+        : "[box-shadow:var(--panel-shadow)]",
+    // An error's frame holds still; it isn't something to point at.
+    !danger && "transition-colors hover:border-(color:--color-panel-border-hover)"
   );
   const body = (
     <div className={cn("min-w-0 p-(--panel-body-padding)", bodyClassName)}>
@@ -117,7 +134,7 @@ export function Panel({
       <div
         className={cn(
           "flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3.5 py-2.5 border-b border-solid border-(length:--panel-border-width)",
-          PANEL_ACCENT_BORDER[accent]
+          border
         )}
       >
         <SectionLabel as={labelElement} className={ACCENT_INK[accent]}>
