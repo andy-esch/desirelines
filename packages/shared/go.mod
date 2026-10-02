@@ -3,7 +3,7 @@ module github.com/andy-esch/desirelines/packages/shared
 go 1.26.6
 
 require (
-	cloud.google.com/go/firestore v1.25.0
+	cloud.google.com/go/firestore v1.26.0
 	github.com/go-chi/chi/v5 v5.3.2
 	go.opentelemetry.io/contrib/detectors/gcp v1.46.0
 	go.opentelemetry.io/otel v1.46.0
@@ -53,6 +53,6 @@ require (
 	google.golang.org/genproto v0.0.0-20260715232425-e75dac1f907d // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260819154853-08b0e4226688 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260819154853-08b0e4226688 // indirect
-	google.golang.org/grpc v1.83.2
+	google.golang.org/grpc v1.84.0
 	google.golang.org/protobuf v1.36.12 // indirect
 )
