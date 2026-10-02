@@ -2,7 +2,8 @@
  * CumulativeChartPresenter - Pure presentation component for cumulative distance charts.
  *
  * This is a "dumb" component that receives all data pre-computed and simply renders.
- * It has no hooks, no state, and no business logic - making it easy to test and reason about.
+ * It has no state and no business logic - making it easy to test and reason about. Its hooks
+ * read the theme: the date format and the average line's dash.
  *
  * The parent container (CumulativeMetricsChart) handles:
  * - Data fetching and transformation via useCumulativeChartData hook
@@ -30,17 +31,11 @@ import type {
   GoalLineData,
   GoalAchievement,
 } from "../../types/chartData";
-import {
-  CHART_COLORS,
-  GOAL_COLORS,
-  PRIOR_YEAR_COLOR,
-  PRIOR_YEAR_OPACITY_START,
-  PRIOR_YEAR_OPACITY_STEP,
-} from "../../constants/chartColors";
+import { CHART_COLORS, GOAL_COLORS, priorYearStroke } from "../../constants/chartColors";
 import type { PriorYearLine } from "../../hooks/useCumulativeChartData";
-import { alpha } from "../../utils/colorTokens";
 import { CHART_CONFIG, DANGER_ZONE_CONFIG } from "../../constants/chartConfig";
 import { calculateCumulativeYAxisMax } from "../../utils/chartScaling";
+import ChartLegend, { goalLegendLabel, type LegendItem } from "./ChartLegend";
 import ChartTooltip from "./ChartTooltip";
 import YAxisMarker from "./YAxisMarker";
 import { useThemeDateFormat } from "../theme/useThemeDateFormat";
@@ -76,13 +71,13 @@ export interface CumulativeChartPresenterProps {
   yAxisTicks: number[];
 
   // --- Display Information ---
-  /** Year being displayed (for line names in legend) */
+  /** Year being displayed (for the actual line's name in the tooltip) */
   year: number;
   /** Unit label for display (e.g., "mi", "km", "sessions") */
   unitLabel: string;
   /** Total distance for actual line name */
   totalDistanceTraveled: number;
-  /** Estimated year-end total for average line name */
+  /** Estimated year-end total, for the average line's legend entry and name */
   estimatedYearEnd: number;
   /** Whether to use "sessions" terminology */
   isSessionsMode: boolean;
@@ -120,6 +115,9 @@ export interface CumulativeChartPresenterProps {
       }
     | undefined;
 }
+
+/** Prior years' ghost lines sit under the year's at a finer width. */
+const PRIOR_YEAR_STROKE_WIDTH = 1.5;
 
 // ============================================================================
 // Sub-components
@@ -277,8 +275,48 @@ export function CumulativeChartPresenter({
     CHART_CONFIG.averageDash.token,
     CHART_CONFIG.averageDash.fallback
   );
+  const goalSwatch = (index: number) => ({
+    stroke: GOAL_COLORS[index % GOAL_COLORS.length]!,
+    width: CHART_CONFIG.strokeWidth.goal,
+  });
+  const dangerLine = DANGER_ZONE_CONFIG.line;
+  const legendItems: LegendItem[] = [
+    {
+      label: "Actual",
+      swatch: { stroke: CHART_COLORS.ACTUAL_DATA_LINE, width: CHART_CONFIG.strokeWidth.actual },
+    },
+    ...goalLines.map((gl, index) => ({
+      label: goalLegendLabel(gl.goal),
+      swatch: goalSwatch(index),
+    })),
+    {
+      label: `Average · est ${Math.round(estimatedYearEnd).toLocaleString()}`,
+      swatch: {
+        stroke: CHART_COLORS.AVERAGE_LINE,
+        width: CHART_CONFIG.strokeWidth.goal,
+        dash: averageDash,
+      },
+    },
+    ...(dangerZone?.show
+      ? [
+          {
+            label: `Max at ${dangerZone.threshold.toLocaleString(undefined, { maximumFractionDigits: 1 })} ${unitLabel}/day`,
+            swatch: {
+              stroke: dangerLine.stroke,
+              width: dangerLine.strokeWidth,
+              dash: dangerLine.strokeDasharray,
+            },
+          },
+        ]
+      : []),
+    ...(priorYearLines ?? []).map((pl, index) => ({
+      label: String(pl.year),
+      swatch: { stroke: priorYearStroke(index), width: PRIOR_YEAR_STROKE_WIDTH },
+    })),
+  ];
   return (
     <div ref={chartRef} style={{ position: "relative", userSelect: "none" }}>
+      <ChartLegend items={legendItems} />
       <ResponsiveContainer width="100%" height={CHART_CONFIG.height}>
         <LineChart
           data={mergedData}
@@ -345,14 +383,8 @@ export function CumulativeChartPresenter({
               key={pl.dataKey}
               type="monotone"
               dataKey={pl.dataKey}
-              stroke={alpha(
-                PRIOR_YEAR_COLOR,
-                Math.max(
-                  0,
-                  Math.round((PRIOR_YEAR_OPACITY_START - index * PRIOR_YEAR_OPACITY_STEP) * 100)
-                )
-              )}
-              strokeWidth={1.5}
+              stroke={priorYearStroke(index)}
+              strokeWidth={PRIOR_YEAR_STROKE_WIDTH}
               dot={false}
               name={String(pl.year)}
               isAnimationActive={false}
@@ -364,9 +396,9 @@ export function CumulativeChartPresenter({
             <Line
               type="monotone"
               dataKey="dangerBoundary"
-              stroke={DANGER_ZONE_CONFIG.line.stroke}
-              strokeWidth={DANGER_ZONE_CONFIG.line.strokeWidth}
-              strokeDasharray={DANGER_ZONE_CONFIG.line.strokeDasharray}
+              stroke={dangerLine.stroke}
+              strokeWidth={dangerLine.strokeWidth}
+              strokeDasharray={dangerLine.strokeDasharray}
               dot={false}
               name={`Max Achievable (${dangerZone.threshold.toFixed(1)} ${unitLabel}/day)`}
               isAnimationActive={false}
@@ -393,8 +425,8 @@ export function CumulativeChartPresenter({
               key={gl.goal.id}
               type="monotone"
               dataKey={`goal${index}`}
-              stroke={GOAL_COLORS[index % GOAL_COLORS.length]!}
-              strokeWidth={CHART_CONFIG.strokeWidth.goal}
+              stroke={goalSwatch(index).stroke}
+              strokeWidth={goalSwatch(index).width}
               dot={false}
               name={`${gl.goal.label || "Goal"}: ${gl.goal.value} ${unitLabel}`}
               isAnimationActive={isAnimationActive}

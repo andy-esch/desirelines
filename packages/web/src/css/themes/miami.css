@@ -46,6 +46,7 @@
   --color-chart-tooltip-muted: #c9b8e0;
   --color-chart-tooltip-label: #8b7bb5;
   --color-chart-tooltip-divider: rgba(255, 46, 196, 0.2);
+  --color-chart-tooltip-accent: var(--color-chart-tooltip-text);
   /* Chart data: goal lines cool to warm (worst colorblind pair 11.8, deutan), a dashed
      neutral average, prior years in muted, and the danger zone in the theme's orange. */
   --color-goal-1: #00e5ff;
@@ -259,7 +260,10 @@
   --chart-bar-radius: 3px;
   --chart-bar-gap: 2px;
   --chart-hover-column: rgba(242, 234, 255, 0.05);
+  --chart-legend-size: 11px;
+  --chart-legend-tracking: 0.06em;
   --tooltip-radius: 6px;
+  --tooltip-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
 
   /* Map chrome */
   --map-chrome-bg: #1b0d36;

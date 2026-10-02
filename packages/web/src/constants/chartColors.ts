@@ -5,6 +5,8 @@
  * The goal colors also mark goals outside the charts (goal controls, the goal table).
  */
 
+import { alpha } from "../utils/colorTokens";
+
 export const CHART_COLORS = {
   /** Actual data line; each theme sets its color, and its glow is `--chart-actual-glow` */
   ACTUAL_DATA_LINE: "var(--color-chart-actual-line)",
@@ -26,7 +28,13 @@ export const GOAL_COLORS = [
   "var(--color-goal-5)", // stretch
 ] as const;
 
-/** Prior year ghost line styling: the neutral, at a fading opacity per year back */
-export const PRIOR_YEAR_COLOR = "var(--color-chart-neutral)";
-export const PRIOR_YEAR_OPACITY_START = 0.45;
-export const PRIOR_YEAR_OPACITY_STEP = 0.07;
+/**
+ * A prior year's ghost line: the neutral at 45% for last year, keeping two thirds of that for
+ * each year further back (30%, 20%, 13%, 9%). The design fades the two years it shows to 45%
+ * and 30%; the ratio carries on so the oldest of the five years shown stays visible.
+ *
+ * @param yearsBack - 0 for last year, 1 for the year before, and so on
+ */
+export function priorYearStroke(yearsBack: number): string {
+  return alpha("var(--color-chart-neutral)", Math.round(45 * (2 / 3) ** yearsBack));
+}

@@ -69,7 +69,7 @@ Each theme also sets the status colors (`--color-success`, `--color-danger` with
 prior years, `--color-danger-zone` with its `-label` ink, the chart chrome (`--color-chart-grid`,
 `-axis`, `-tick`, `-actual-line`, and `-line-casing` under each sport-colored line, transparent
 where the ground doesn't need it) and the tooltips (`--color-chart-tooltip-bg`, `-border`, `-text`,
-`-muted`, `-label`, `-divider`). `themeCss.test.ts` keeps each
+`-muted`, `-label`, `-divider`, and `-accent` for a header bar and the total's value). `themeCss.test.ts` keeps each
 theme's five goal colors apart from each other. Besides the primitives, a few colors stay fixed across
 themes (`FIXED_COLORS` in `src/themes/contract.ts` lists them all):
 `--color-scrim` / `--color-on-scrim`, the darkening layer for modal backdrops and menu shadows
@@ -210,7 +210,7 @@ values.
 | Loading | `--color-skeleton`, `-shimmer` | Skeleton placeholders: blocks in a faint tint of the body text, so they show on dark and white grounds alike, and a shimmer in the theme's accent sweeping across them. The contract holds a block to 1.3:1 on the panel and the page, and the shimmer to 1.3:1 on the block |
 | Errors | `--error-title-weight`, `-case`, `-tracking`, `-shadow`; `--error-frame-color`, `-shadow` | `ErrorState`'s title, in the danger color with the theme's weight, case, tracking and glow, and the frame of a panel that shows an error (`Panel tone="danger"`): its border and shadow, or through `initial` the panel's own |
 | Status | `--status-size`, `-tracking`, `-case`; `--color-status-good`, `-warn`, `-bad` | Goal status labels, and their colors for on track, slightly behind and behind |
-| Charts | `--chart-baseline`, `--chart-tick-size`, `--chart-actual-glow`, `--chart-average-dash`, `--chart-bar-radius`, `--chart-bar-gap`, `--chart-hover-column`, `--tooltip-radius` | Chart chrome beyond the color tokens: the x axis line, tick labels, the actual line's glow (a `filter`, `none` for crisp), the average line's dash, the top corners of a bar stack, the gap between stacked sports, the hovered column, and every chart tooltip's corner. Recharts can't take `var()` for the dash or the bar radius, so those two are read off the chart's element with `useThemeTokenValue` |
+| Charts | `--chart-baseline`, `--chart-tick-size`, `--chart-actual-glow`, `--chart-average-dash`, `--chart-bar-radius`, `--chart-bar-gap`, `--chart-hover-column`, `--chart-legend-size`, `-tracking`, `--tooltip-radius`, `--tooltip-shadow` | Chart chrome beyond the color tokens: the x axis line, tick labels, the actual line's glow (a `filter`, `none` for crisp), the average line's dash, the top corners of a bar stack, the gap between stacked sports, the hovered column, the line charts' legend text, and every chart tooltip's corner and shadow. Recharts can't take `var()` for the dash or the bar radius, so those two are read off the chart's element with `useThemeTokenValue` |
 | Map chrome | `--map-chrome-bg`, `-edge`, `-shadow`; `--popup-radius`, `--popup-border`, `--popup-shadow` | The routes-map drawers and their toggles (the edge is drawn on the map-facing side), and the route popup |
 
 Structure fields (`structure` on the list entry):
@@ -229,6 +229,7 @@ Structure fields (`structure` on the list entry):
 | `meterPartialCurrent` | `true` / `false` | Year meters fill the current segment to today |
 | `loaderStyle` | `chaser`, `block` | The loading indicator: a chaser of lit segments, or blocks with a cursor after the label |
 | `chartMarkerShape` | `circle`, `square` | Axis marker dots |
+| `tooltipHeader` | `inline`, `bar` | A chart tooltip's title: inline over its rows, or a bar across the top ruled off in the tooltip accent, with a total row to match |
 | `mapDrawerSections` | `flat`, `panels` | Routes-map drawer section framing |
 | `dateFormat` | `short`, `dotted` | `Sep 12, 2026` or `2026.09.12`; integers are never zero-padded |
 
@@ -357,6 +358,8 @@ active theme's `structure`, unless a `ThemeStructureProvider` overrides it for a
 | `MissingValue` | `--missing-value-color` | A value that isn't there, anywhere it would show: an em dash, and "none" to a screen reader. A theme that leaves the slot `initial` keeps the surrounding text's color. |
 | `LoadingValue` | — | A value still loading: an ellipsis in the surrounding text's color, and "loading" to a screen reader. |
 | `ErrorState` | `--error-title-*`, `--color-danger` | Something that failed to load: a title in the danger color, the detail under it, and the shared Retry button when `onRetry` is given (`actions` adds other ways out). Announced as an alert; the title is a heading at the outline's level, or `level={1}` where it stands in for a page. |
+| `ChartLegend` | `--chart-legend-*`, `--color-subtle-text` | The row above the cumulative and pacing charts that names their lines. Each swatch is drawn with its line's own stroke, width and dash (the danger zone's with its hatch), from the values the chart draws with, so the two can't drift. Prior years fade by a third a year from 45% (`priorYearStroke`). |
+| `ChartTooltipFrame` | `--color-chart-tooltip-*`, `--tooltip-radius`, `--tooltip-shadow`, `--font-chart`, `tooltipHeader` | The box every chart tooltip draws in: surface, border, corner, shadow and font, a title, and an optional total. Each tooltip brings only its rows, and picks its inline title's tone: a `heading` ruled off from the rows, or a muted `caption`. A theme with the `bar` header draws either as its bar. |
 
 The component slots and tokens: `--panel-accent-{1,2,3}-ink` (header-bar label color per
 accent), `--stat-label-size`, `--stat-label-tracking`, `--stat-label-case`, `--stat-sub-size`,

@@ -13,7 +13,6 @@
  * - Pure rendering of the chart visualization
  * - Danger zone display (zone of unachievability)
  */
-import { useId } from "react";
 import {
   LineChart,
   Line,
@@ -32,7 +31,9 @@ import type {
 } from "../../types/chartData";
 import { CHART_COLORS, GOAL_COLORS } from "../../constants/chartColors";
 import { CHART_CONFIG, DANGER_ZONE_CONFIG } from "../../constants/chartConfig";
+import ChartLegend, { goalLegendLabel, type LegendItem } from "./ChartLegend";
 import ChartTooltip from "./ChartTooltip";
+import { DangerHatch, useDangerHatchId } from "./DangerHatch";
 import YAxisMarker from "./YAxisMarker";
 import { useThemeDateFormat } from "../theme/useThemeDateFormat";
 
@@ -74,7 +75,7 @@ export interface PacingChartPresenterProps {
   naturalYMax: number;
 
   // --- Display Information ---
-  /** Year being displayed (for line names in legend) */
+  /** Year being displayed (for the actual line's name in the tooltip) */
   year: number;
   /** Unit label for display (e.g., "mi", "km") */
   unitLabel: string;
@@ -109,23 +110,12 @@ function DangerZoneOverlay({
   unitLabel: string;
 }) {
   const { area, line, label } = DANGER_ZONE_CONFIG;
-  // Unique per chart: two pacing charts on a page would otherwise share one pattern id,
-  // and the second would paint with the first chart's stripes.
-  const hatchId = `danger-hatch-${useId().replace(/:/g, "")}`;
+  const hatchId = useDangerHatchId();
 
   return (
     <>
       <defs>
-        {/* 2px stripes every 8px at 45 degrees, the weight the retro designs call for. */}
-        <pattern
-          id={hatchId}
-          width={8}
-          height={8}
-          patternUnits="userSpaceOnUse"
-          patternTransform="rotate(45)"
-        >
-          <rect width={2} height={8} fill={area.fill} fillOpacity={0.3} />
-        </pattern>
+        <DangerHatch id={hatchId} />
       </defs>
 
       {/* Shaded danger zone area */}
@@ -204,102 +194,119 @@ export function PacingChartPresenter({
   const { formatAxisDate } = useThemeDateFormat();
   const yAxisLabel = isSessionsMode ? "# Sessions / Day" : `${unitLabel} / Day`;
   const tooltipUnit = `${unitLabel}/day`;
+  const legendItems: LegendItem[] = [
+    {
+      label: "Actual",
+      swatch: { stroke: CHART_COLORS.ACTUAL_DATA_LINE, width: CHART_CONFIG.strokeWidth.actual },
+    },
+    ...pacingGoals.map((pg, index) => ({
+      label: goalLegendLabel(pg.goal),
+      swatch: {
+        stroke: GOAL_COLORS[index % GOAL_COLORS.length]!,
+        width: CHART_CONFIG.strokeWidth.goal,
+      },
+    })),
+    ...(dangerZone.show ? [{ label: "Danger zone", swatch: "danger-zone" as const }] : []),
+  ];
 
   return (
-    <ResponsiveContainer width="100%" height={CHART_CONFIG.height}>
-      <LineChart data={mergedData} margin={CHART_CONFIG.margin} accessibilityLayer>
-        {/* Horizontal gridlines at Y-axis tick values */}
-        <CartesianGrid stroke={CHART_CONFIG.grid.stroke} vertical={CHART_CONFIG.grid.vertical} />
+    <div>
+      <ChartLegend items={legendItems} />
+      <ResponsiveContainer width="100%" height={CHART_CONFIG.height}>
+        <LineChart data={mergedData} margin={CHART_CONFIG.margin} accessibilityLayer>
+          {/* Horizontal gridlines at Y-axis tick values */}
+          <CartesianGrid stroke={CHART_CONFIG.grid.stroke} vertical={CHART_CONFIG.grid.vertical} />
 
-        {/* X-Axis: Time */}
-        <XAxis
-          dataKey="date"
-          type="number"
-          domain={[startDate.getTime(), displayEndDate.getTime()]}
-          scale="time"
-          tickFormatter={formatAxisDate}
-          stroke={CHART_CONFIG.baseline.stroke}
-          tick={CHART_CONFIG.tick}
-          interval="preserveStartEnd"
-        />
-
-        {/* Y-Axis: Pace (distance/day or sessions/day) */}
-        <YAxis
-          label={{
-            value: yAxisLabel,
-            angle: -90,
-            position: "insideLeft",
-            fill: CHART_CONFIG.tick.fill,
-            style: { fontFamily: CHART_CONFIG.tick.fontFamily, fontSize: 12 },
-          }}
-          domain={[0, naturalYMax]}
-          allowDataOverflow={true}
-          stroke={CHART_CONFIG.axis.stroke}
-          tick={CHART_CONFIG.tick}
-          tickFormatter={(value: number) => value.toFixed(1)}
-        />
-
-        {/* Tooltip */}
-        <Tooltip content={<ChartTooltip unit={tooltipUnit} decimals={2} />} />
-
-        {/* Danger zone overlay (rendered behind lines) */}
-        {dangerZone.show && (
-          <DangerZoneOverlay
-            threshold={dangerZone.threshold}
-            yMax={dangerZone.yMax}
-            unitLabel={unitLabel}
+          {/* X-Axis: Time */}
+          <XAxis
+            dataKey="date"
+            type="number"
+            domain={[startDate.getTime(), displayEndDate.getTime()]}
+            scale="time"
+            tickFormatter={formatAxisDate}
+            stroke={CHART_CONFIG.baseline.stroke}
+            tick={CHART_CONFIG.tick}
+            interval="preserveStartEnd"
           />
-        )}
 
-        {/* Y-axis markers showing current values */}
-        <YAxisMarker
-          value={currentValues.actual}
-          label="Actual"
-          color={CHART_COLORS.ACTUAL_DATA_LINE}
-          fontSize={CHART_CONFIG.marker.fontSize.actual}
-          fontWeight="bold"
-        />
-        {currentValues.goals.map((goal, index) => (
+          {/* Y-Axis: Pace (distance/day or sessions/day) */}
+          <YAxis
+            label={{
+              value: yAxisLabel,
+              angle: -90,
+              position: "insideLeft",
+              fill: CHART_CONFIG.tick.fill,
+              style: { fontFamily: CHART_CONFIG.tick.fontFamily, fontSize: 12 },
+            }}
+            domain={[0, naturalYMax]}
+            allowDataOverflow={true}
+            stroke={CHART_CONFIG.axis.stroke}
+            tick={CHART_CONFIG.tick}
+            tickFormatter={(value: number) => value.toFixed(1)}
+          />
+
+          {/* Tooltip */}
+          <Tooltip content={<ChartTooltip unit={tooltipUnit} decimals={2} />} />
+
+          {/* Danger zone overlay (rendered behind lines) */}
+          {dangerZone.show && (
+            <DangerZoneOverlay
+              threshold={dangerZone.threshold}
+              yMax={dangerZone.yMax}
+              unitLabel={unitLabel}
+            />
+          )}
+
+          {/* Y-axis markers showing current values */}
           <YAxisMarker
-            key={index}
-            value={goal.value}
-            label={goal.label || "Goal"}
-            color={goal.color}
-            position="right"
+            value={currentValues.actual}
+            label="Actual"
+            color={CHART_COLORS.ACTUAL_DATA_LINE}
+            fontSize={CHART_CONFIG.marker.fontSize.actual}
+            fontWeight="bold"
           />
-        ))}
+          {currentValues.goals.map((goal, index) => (
+            <YAxisMarker
+              key={index}
+              value={goal.value}
+              label={goal.label || "Goal"}
+              color={goal.color}
+              position="right"
+            />
+          ))}
 
-        {/* Actual pacing line */}
-        <Line
-          type="monotone"
-          dataKey="actual"
-          stroke={CHART_COLORS.ACTUAL_DATA_LINE}
-          strokeWidth={CHART_CONFIG.strokeWidth.actual}
-          style={CHART_CONFIG.actualLineStyle}
-          dot={false}
-          name={`${year} Pacing Data`}
-          isAnimationActive={isAnimationActive}
-          animationDuration={CHART_CONFIG.animation.duration}
-          animationEasing={CHART_CONFIG.animation.easing}
-        />
-
-        {/* Pacing goal lines */}
-        {pacingGoals.map((pg, index) => (
+          {/* Actual pacing line */}
           <Line
-            key={pg.goal.id}
             type="monotone"
-            dataKey={`goal${index}`}
-            stroke={GOAL_COLORS[index % GOAL_COLORS.length]!}
-            strokeWidth={CHART_CONFIG.strokeWidth.goal}
+            dataKey="actual"
+            stroke={CHART_COLORS.ACTUAL_DATA_LINE}
+            strokeWidth={CHART_CONFIG.strokeWidth.actual}
+            style={CHART_CONFIG.actualLineStyle}
             dot={false}
-            name={`${pg.goal.label || "Goal"} Pacing: ${pg.goal.value} ${unitLabel}`}
+            name={`${year} Pacing Data`}
             isAnimationActive={isAnimationActive}
             animationDuration={CHART_CONFIG.animation.duration}
             animationEasing={CHART_CONFIG.animation.easing}
           />
-        ))}
-      </LineChart>
-    </ResponsiveContainer>
+
+          {/* Pacing goal lines */}
+          {pacingGoals.map((pg, index) => (
+            <Line
+              key={pg.goal.id}
+              type="monotone"
+              dataKey={`goal${index}`}
+              stroke={GOAL_COLORS[index % GOAL_COLORS.length]!}
+              strokeWidth={CHART_CONFIG.strokeWidth.goal}
+              dot={false}
+              name={`${pg.goal.label || "Goal"} Pacing: ${pg.goal.value} ${unitLabel}`}
+              isAnimationActive={isAnimationActive}
+              animationDuration={CHART_CONFIG.animation.duration}
+              animationEasing={CHART_CONFIG.animation.easing}
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 

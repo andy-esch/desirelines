@@ -45,6 +45,37 @@ describe("ChartTooltip", () => {
     expect(screen.getByText("2800.0")).toBeInTheDocument();
   });
 
+  it("titles a point with its date, as the chart's hooks hand it over", () => {
+    render(
+      <ChartTooltip active={true} payload={mockPayload} label={new Date(Date.UTC(2026, 5, 22))} />
+    );
+
+    expect(screen.getByText("Jun 22")).toBeInTheDocument();
+    expect(screen.queryByText(/GMT/)).not.toBeInTheDocument();
+  });
+
+  it("names prior years in the label color, not their faded lines'", () => {
+    render(
+      <ChartTooltip
+        active={true}
+        payload={[
+          { name: "2026 Data", value: 1500, dataKey: "actual" },
+          { name: "Target: 4000 mi", value: 1800, dataKey: "goal0" },
+          {
+            name: "2021",
+            value: 1200,
+            dataKey: "prior_2021",
+            stroke: "color-mix(in srgb, var(--color-chart-neutral) 9%, transparent)",
+          },
+        ]}
+        label={Date.UTC(2026, 5, 22)}
+        compact
+      />
+    );
+
+    expect(screen.getByText("2021")).toHaveStyle({ color: "var(--color-chart-tooltip-label)" });
+  });
+
   it("shows a missing value for the actual line on a date it hasn't reached", () => {
     render(
       <ChartTooltip

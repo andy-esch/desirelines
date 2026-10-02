@@ -4,7 +4,7 @@ import type { MapActivity } from "../../api/map";
 import { convertDistance, getDistanceLabel, type DistanceUnit } from "../../utils/units";
 import { distanceHistogram } from "../../utils/mapInsights";
 import { chartLabelToString } from "../../utils/chartUtils";
-import { CHART_CONFIG } from "../../constants/chartConfig";
+import RouteChartTooltip from "./RouteChartTooltip";
 
 export interface DistanceHistogramChartProps {
   activities: MapActivity[];
@@ -65,9 +65,13 @@ export default function DistanceHistogramChart({
                 />
                 <Tooltip
                   cursor={{ fill: "var(--chart-hover-column)" }}
-                  contentStyle={CHART_CONFIG.tooltipContentStyle}
-                  formatter={(v) => [`${Number(v)} activities`, "Count"]}
-                  labelFormatter={(l) => `${chartLabelToString(l)}+ ${unit}`}
+                  content={
+                    <RouteChartTooltip
+                      name="Count"
+                      formatLabel={(l) => `${chartLabelToString(l)}+ ${unit}`}
+                      formatValue={(v) => `${v} activities`}
+                    />
+                  }
                 />
                 <Bar
                   dataKey="count"

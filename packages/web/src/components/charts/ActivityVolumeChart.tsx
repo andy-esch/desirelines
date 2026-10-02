@@ -26,6 +26,7 @@ import {
 import type { SportConfig } from "../../api/activities";
 import type { ChartData, ChartRow } from "../../utils/activityBuckets";
 import { CHART_CONFIG } from "../../constants/chartConfig";
+import ChartTooltipFrame from "./ChartTooltipFrame";
 import { SPORT_COLORS, DEFAULT_SPORT_COLOR, getSportDisplayName } from "../../utils/sportConfig";
 
 function sportColor(sport: string): string {
@@ -181,8 +182,8 @@ interface TooltipPayloadEntry {
 }
 
 /**
- * Custom tooltip: month header, per-sport rows, total. Uses the shared
- * `--color-chart-tooltip-*` tokens (same as ChartTooltip), so its text and surface
+ * Custom tooltip: month header, per-sport rows, total, in the shared ChartTooltipFrame. The
+ * rows use the shared `--color-chart-tooltip-*` tokens, so their text and the surface
  * follow the theme together; plain body text on a fixed surface is what once read as
  * black-on-dark in a light theme.
  */
@@ -218,29 +219,11 @@ function VolumeTooltip({
   const total = rows.reduce((n, r) => n + r.value, 0);
 
   return (
-    <div
-      style={{
-        backgroundColor: "var(--color-chart-tooltip-bg)",
-        border: "1px solid var(--color-chart-tooltip-border)",
-        borderRadius: "var(--tooltip-radius)",
-        padding: "10px 12px",
-        boxShadow: "0 2px 12px var(--color-surface-shadow)",
-        fontFamily: "var(--font-chart)",
-        fontSize: "12px",
-        minWidth: "160px",
-      }}
+    <ChartTooltipFrame
+      title={formatMonth(label, true)}
+      total={{ label: "Total", value: formatValue(total) }}
+      minWidth={160}
     >
-      <div
-        style={{
-          fontWeight: 700,
-          color: "var(--color-chart-tooltip-text)",
-          marginBottom: "8px",
-          paddingBottom: "6px",
-          borderBottom: "1px solid var(--color-chart-tooltip-divider)",
-        }}
-      >
-        {formatMonth(label, true)}
-      </div>
       <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
         {rows.map((r) => (
           <div
@@ -279,21 +262,6 @@ function VolumeTooltip({
           </div>
         ))}
       </div>
-      <div
-        style={{
-          marginTop: "6px",
-          paddingTop: "6px",
-          borderTop: "1px solid var(--color-chart-tooltip-divider)",
-          display: "flex",
-          justifyContent: "space-between",
-          gap: "8px",
-          fontWeight: 600,
-          color: "var(--color-chart-tooltip-text)",
-        }}
-      >
-        <span>Total</span>
-        <span className="tabular-nums">{formatValue(total)}</span>
-      </div>
-    </div>
+    </ChartTooltipFrame>
   );
 }

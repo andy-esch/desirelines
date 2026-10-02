@@ -15,6 +15,7 @@ import type { TimeRange } from "../../utils/dataNormalization";
 import { MissingValue } from "../theme/MissingValue";
 import { Panel } from "../theme/Panel";
 import { useThemeDateFormat } from "../theme/useThemeDateFormat";
+import ChartTooltipFrame from "../charts/ChartTooltipFrame";
 import { cn } from "@/lib/utils";
 
 interface MultiSportSparklineChartProps {
@@ -130,9 +131,8 @@ function formatMetricValue(
 }
 
 /**
- * Custom tooltip for unified sparkline chart.
+ * Custom tooltip for unified sparkline chart, in the shared ChartTooltipFrame.
  * Shows date and actual metric values with colored indicators.
- * Semi-transparent background to avoid occluding chart lines.
  */
 function UnifiedSparklineTooltip({
   active,
@@ -155,24 +155,7 @@ function UnifiedSparklineTooltip({
   const dataEntry = payload[0]?.payload ?? {};
 
   return (
-    <div
-      className="p-2"
-      style={{
-        background: "var(--color-chart-tooltip-bg)",
-        border: "1px solid var(--color-chart-tooltip-border)",
-        borderRadius: "var(--tooltip-radius)",
-        // --color-surface-shadow rather than Tailwind's shadow-sm: the token is
-        // theme-aware (0.4 alpha in dark, 0.15 in light), which a fixed utility
-        // class is not, and the rest of this tooltip is already tokenized.
-        boxShadow: "0 1px 3px var(--color-surface-shadow)",
-        fontSize: "0.75rem",
-        minWidth: 110,
-        backdropFilter: "blur(4px)",
-      }}
-    >
-      <div className="mb-1" style={{ color: "var(--color-chart-tooltip-muted)", fontWeight: 500 }}>
-        {formattedDate}
-      </div>
+    <ChartTooltipFrame title={formattedDate} tone="caption" minWidth={110}>
       {sportMeta.map((meta) => {
         const rawValue = (dataEntry[`${meta.sport}_raw`] as number) ?? 0;
         const hasActivity = rawValue > 0;
@@ -215,7 +198,7 @@ function UnifiedSparklineTooltip({
           </div>
         );
       })}
-    </div>
+    </ChartTooltipFrame>
   );
 }
 

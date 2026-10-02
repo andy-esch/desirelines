@@ -53,6 +53,7 @@
   --color-chart-tooltip-muted: #3d2a5c;
   --color-chart-tooltip-label: #5b4a7a;
   --color-chart-tooltip-divider: rgba(29, 11, 58, 0.1);
+  --color-chart-tooltip-accent: var(--color-chart-tooltip-text);
   /* Chart data: goal lines run the text-safe gradient, blue to magenta, then green and
      orange; each clears 3:1 on white as a line. */
   --color-goal-1: #1f4fe0;
@@ -61,7 +62,7 @@
   --color-goal-4: #00875a;
   --color-goal-5: #c2410c;
   --color-chart-average-line: #5b4a7a;
-  --color-chart-neutral: #8b7bb5;
+  --color-chart-neutral: #5b4a7a;
   --color-danger-zone: #e04e00;
   --color-danger-zone-label: #c2410c;
 
@@ -275,7 +276,10 @@
   --chart-bar-radius: 3px;
   --chart-bar-gap: 2px;
   --chart-hover-column: rgba(138, 61, 255, 0.06);
+  --chart-legend-size: 11px;
+  --chart-legend-tracking: 0.06em;
   --tooltip-radius: 10px;
+  --tooltip-shadow: 0 2px 12px rgba(29, 11, 58, 0.15);
 
   /* Map chrome */
   --map-chrome-bg: #ffffff;

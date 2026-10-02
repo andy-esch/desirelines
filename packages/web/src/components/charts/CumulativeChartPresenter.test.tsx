@@ -8,7 +8,12 @@ import {
 import {
   createAchievement,
   createCumulativePresenterProps,
+  legendIn,
+  linesIn,
+  markersIn,
+  strokeOf,
 } from "../../test/fixtures/chartTestHelpers";
+import { priorYearStroke } from "../../constants/chartColors";
 
 // jsdom has no layout for ResponsiveContainer to measure, so hand the chart a fixed size the
 // way the real container would; without one Recharts draws nothing.
@@ -34,19 +39,6 @@ type PropOverrides = Parameters<typeof createCumulativePresenterProps>[0];
 function draw(overrides?: PropOverrides, extra?: Partial<CumulativeChartPresenterProps>) {
   const props = createCumulativePresenterProps(overrides);
   return render(<CumulativeChartPresenter {...props} isAnimationActive={false} {...extra} />);
-}
-
-/** Each line in drawing order: its stroke, and its path (empty when it has no points). */
-function linesIn(container: HTMLElement) {
-  return [...container.querySelectorAll(".recharts-line")].map((line) => {
-    const path = line.querySelector("path.recharts-curve");
-    return { stroke: path?.getAttribute("stroke"), path: path?.getAttribute("d") ?? "" };
-  });
-}
-
-/** The labels on the y axis that mark where each line sits today. */
-function markersIn(container: HTMLElement) {
-  return [...container.querySelectorAll(".recharts-reference-line")].map((m) => m.textContent);
 }
 
 /** The y axis's title, the chart's one text label (the markers draw their own). */
@@ -178,6 +170,78 @@ describe("CumulativeChartPresenter", () => {
       );
       expect(boundary).toHaveAttribute("stroke-dasharray", "5 5");
       expect(boundary?.getAttribute("d")).toMatch(/^M/);
+    });
+  });
+
+  describe("legend", () => {
+    it("names the year, each goal and the average with its year-end estimate", () => {
+      const { container } = draw();
+      expect(legendIn(container).map((item) => item.label)).toEqual([
+        "Actual",
+        "Base 3,000",
+        "Stretch 5,000",
+        "Average · est 3,720",
+      ]);
+    });
+
+    it("draws each swatch with its line's own stroke, width and dash", () => {
+      const { container } = draw();
+      expect(legendIn(container).map(strokeOf)).toEqual(linesIn(container).map(strokeOf));
+      expect(legendIn(container).at(-1)?.dash).toBe("5 5");
+    });
+
+    it("names the most a sustainable pace could reach, dashed as its line is", () => {
+      const props = createCumulativePresenterProps();
+      const { container } = draw(
+        {
+          mergedData: props.mergedData.map((point, i) => ({
+            ...point,
+            dangerBoundary: 400 + 100 * i,
+          })),
+        },
+        { dangerZone: { show: true, threshold: 25 } }
+      );
+      const max = legendIn(container).find((item) => item.label === "Max at 25 mi/day");
+      const [boundary] = linesIn(container).filter(
+        (line) => line.stroke === "var(--color-danger-zone)"
+      );
+      expect(max && strokeOf(max)).toEqual(boundary && strokeOf(boundary));
+    });
+
+    it("fades last year to 45% and the year before to 30%, in the legend as on the chart", () => {
+      const props = createCumulativePresenterProps();
+      const { container } = draw(
+        {
+          mergedData: props.mergedData.map((point, i) => ({
+            ...point,
+            prior_2023: 20 + 90 * i,
+            prior_2022: 15 + 80 * i,
+          })),
+        },
+        {
+          priorYearLines: [
+            { year: 2023, dataKey: "prior_2023" },
+            { year: 2022, dataKey: "prior_2022" },
+          ],
+        }
+      );
+      const faded = ["45%", "30%"].map(
+        (pct) => `color-mix(in srgb, var(--color-chart-neutral) ${pct}, transparent)`
+      );
+      expect(
+        linesIn(container)
+          .slice(0, 2)
+          .map((line) => line.stroke)
+      ).toEqual(faded);
+      const years = legendIn(container).slice(-2);
+      expect(years.map((item) => item.label)).toEqual(["2023", "2022"]);
+      expect(years.map(strokeOf)).toEqual(linesIn(container).slice(0, 2).map(strokeOf));
+    });
+
+    it("keeps fading by a third a year, so the oldest of five years still shows", () => {
+      expect(
+        [0, 1, 2, 3, 4].map((yearsBack) => /(\d+)%/.exec(priorYearStroke(yearsBack))?.[1])
+      ).toEqual(["45", "30", "20", "13", "9"]);
     });
   });
 
