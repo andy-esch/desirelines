@@ -35,6 +35,11 @@ export function useDashboardGoalData(): {
   distanceUnit: DistanceUnit;
   isLoading: boolean;
   error: Error | null;
+  /**
+   * Fetches this year's totals again after they failed. Undefined when the goals are what
+   * failed: their listener stops on an error, and only a reload starts it again.
+   */
+  retry: (() => void) | undefined;
 } {
   const { user, loading: authLoading } = useAuth();
   const { doc: userConfig, loading: goalsLoading, error: goalsError } = useConfigDocument();
@@ -112,6 +117,7 @@ export function useDashboardGoalData(): {
   // last good copy stands after a listener error, but with none there's nothing to show.
   const queryError =
     metricsQuery.error ?? (user && userConfig === undefined ? goalsError : null) ?? null;
+  const retry = metricsQuery.error ? () => void metricsQuery.refetch() : undefined;
 
   return {
     sportData,
@@ -119,5 +125,6 @@ export function useDashboardGoalData(): {
     distanceUnit: userSettings.distanceUnit,
     isLoading,
     error: queryError,
+    retry,
   };
 }

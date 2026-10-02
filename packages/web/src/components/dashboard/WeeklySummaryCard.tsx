@@ -16,12 +16,14 @@ import { MissingValue } from "../theme/MissingValue";
  * - Shows "No activity yet this week" if all zeros
  */
 export default function WeeklySummaryCard() {
-  const { sportTotals, weekLabel, isLoading, error } = useWeeklySummary();
+  const { sportTotals, weekLabel, isLoading, error, retry } = useWeeklySummary();
 
   if (error) {
     return (
       <Panel className="h-full" bodyClassName="p-4" title="This Week" tone="danger">
-        <ErrorState title="Error loading weekly summary">{error.message}</ErrorState>
+        <ErrorState title="Error loading weekly summary" onRetry={retry}>
+          {error.message}
+        </ErrorState>
       </Panel>
     );
   }

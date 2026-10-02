@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { Button } from "./ui/button";
+import { InlineAlert } from "./InlineAlert";
 
 /**
  * Authentication button component
@@ -50,9 +51,9 @@ export default function AuthButton() {
           {actionLoading ? "Signing out…" : "Sign Out"}
         </Button>
         {error && (
-          <div className="text-danger text-sm mt-1" role="alert">
+          <InlineAlert size="sm" className="mt-1">
             {error.message}
-          </div>
+          </InlineAlert>
         )}
       </div>
     );
@@ -65,9 +66,9 @@ export default function AuthButton() {
         {actionLoading ? "Connecting…" : "Connect with Strava"}
       </Button>
       {error && (
-        <div className="text-danger text-sm mt-1" role="alert">
+        <InlineAlert size="sm" className="mt-1">
           {error.message}
-        </div>
+        </InlineAlert>
       )}
     </div>
   );

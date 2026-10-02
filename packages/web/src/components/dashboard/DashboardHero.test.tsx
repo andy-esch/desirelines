@@ -73,6 +73,7 @@ describe("DashboardHero goals on pace", () => {
       distanceUnit: "miles",
       isLoading: false,
       error: null,
+      retry: vi.fn(),
     });
     render(<DashboardHero />);
     return screen.getByText("Goals on pace").nextElementSibling as HTMLElement;

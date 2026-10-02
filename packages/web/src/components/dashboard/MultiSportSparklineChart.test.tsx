@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import userEvent from "@testing-library/user-event";
 import { screen } from "@testing-library/react";
 import MultiSportSparklineChart from "./MultiSportSparklineChart";
 import {
@@ -125,6 +126,17 @@ describe("MultiSportSparklineChart", () => {
 
       expect(screen.getByRole("alert")).toHaveTextContent("Error loading chart data");
     });
+
+    it("fetches the days again on Retry", async () => {
+      const retry = vi.fn();
+      mockUseDailySportData.mockReturnValue(
+        mockDailySportDataReturn({ data: emptyDailySportData, error: new Error("timeout"), retry })
+      );
+      await renderWithRouter(<MultiSportSparklineChart timeRange="2weeks" />);
+
+      await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+      expect(retry).toHaveBeenCalledOnce();
+    });
   });
 
   describe("with data", () => {
@@ -153,6 +165,7 @@ describe("MultiSportSparklineChart", () => {
         },
         isLoading: false,
         error: null,
+        retry: vi.fn(),
       });
     });
 
@@ -203,6 +216,7 @@ describe("MultiSportSparklineChart", () => {
         },
         isLoading: false,
         error: null,
+        retry: vi.fn(),
       });
     });
 

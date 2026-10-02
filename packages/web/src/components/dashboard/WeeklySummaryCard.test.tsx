@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import userEvent from "@testing-library/user-event";
 import { render, screen, within } from "@testing-library/react";
 import WeeklySummaryCard from "./WeeklySummaryCard";
 import { ThemeStructureProvider } from "../theme/ThemeStructureProvider";
@@ -31,13 +32,18 @@ function total(
 
 function returnSummary(
   sportTotals: WeeklySportTotal[],
-  { isLoading = false, error = null as Error | null } = {}
+  {
+    isLoading = false,
+    error = null as Error | null,
+    retry = undefined as (() => void) | undefined,
+  } = {}
 ) {
   mockWeeklySummary.mockReturnValue({
     sportTotals,
     weekLabel: "Sep 21 – Sep 27",
     isLoading,
     error,
+    retry,
   });
 }
 
@@ -137,5 +143,19 @@ describe("WeeklySummaryCard", () => {
     returnSummary([], { error: new Error("boom") });
     renderCard();
     expect(screen.getByRole("alert")).toHaveTextContent("Error loading weekly summary");
+  });
+
+  it("retries a failed load when the summary can be fetched again, and only then", async () => {
+    const retry = vi.fn();
+    returnSummary([], { error: new Error("timeout"), retry });
+    const { unmount } = renderCard();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(retry).toHaveBeenCalledOnce();
+    unmount();
+
+    returnSummary([], { error: new Error("permission-denied") });
+    renderCard();
+    expect(screen.getByRole("alert")).toHaveTextContent("permission-denied");
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
   });
 });

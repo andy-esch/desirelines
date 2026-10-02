@@ -9,11 +9,6 @@ import {
   type TuningParams,
 } from "../utils/demoDataGenerator";
 
-/**
- * @deprecated Use string sport keys instead. Kept for backwards compatibility.
- */
-export type Sport = "cycling" | "running" | "yoga";
-
 /** Daily data for a single sport - map of date to activity */
 export type DailySportData = Record<string, DailyActivity>;
 
@@ -27,6 +22,8 @@ export interface DailySportDataResult {
   isLoading: boolean;
   /** Error if fetch failed */
   error: Error | null;
+  /** Fetches the days again after a failure. */
+  retry: () => void;
 }
 
 export interface UseDailySportDataOptions {
@@ -36,14 +33,20 @@ export interface UseDailySportDataOptions {
   from: string;
   /** End date (YYYY-MM-DD) for date-range queries */
   to: string;
-  /**
-   * Sports to fetch data for.
-   * If not provided, defaults to ["cycling", "running", "yoga"] for backwards compatibility.
-   */
-  sports?: string[] | undefined;
+  /** Sports to fetch data for; keep the array stable across renders (memoize it). */
+  sports: string[];
   /** Tuning overrides for distribution parameters (demo mode only) */
   tuningParams?: TuningParams | undefined;
 }
+
+/**
+ * Generated demo days per request (sports, range and tuning), kept for the page's lifetime.
+ * Cards that ask the same question, such as the dashboard hero's week total and the This
+ * Week card, then show the same generated activities instead of two random draws.
+ */
+const demoDataCache = new Map<string, MultiSportData>();
+/** Enough for every range a demo session realistically opens; the oldest entry goes first. */
+const DEMO_CACHE_LIMIT = 24;
 
 /**
  * Hook for fetching daily activity data for multiple sports from the /source endpoint.
@@ -67,26 +70,12 @@ export interface UseDailySportDataOptions {
  * const hikingData = data.hiking;
  * ```
  */
-/** Default sports for backwards compatibility */
-const DEFAULT_SPORTS = ["cycling", "running", "yoga"];
-
-/**
- * Generated demo days per request (sports, range and tuning), kept for the page's lifetime.
- * Cards that ask the same question, such as the dashboard hero's week total and the This
- * Week card, then show the same generated activities instead of two random draws.
- */
-const demoDataCache = new Map<string, MultiSportData>();
-/** Enough for every range a demo session realistically opens; the oldest entry goes first. */
-const DEMO_CACHE_LIMIT = 24;
-
 export function useDailySportData(options: UseDailySportDataOptions): DailySportDataResult {
   const { user, loading: authLoading } = useAuth();
   const tz = useTimezone();
 
-  const { year, from, to, tuningParams } = options;
-  // Note: Callers must ensure `options.sports` is referentially stable (memoized) to prevent
-  // unnecessary re-renders or query churn. We avoid internal memoization hacks here.
-  const sports = options.sports ?? DEFAULT_SPORTS;
+  // Callers keep `sports` referentially stable (memoized) to avoid query churn.
+  const { year, from, to, sports, tuningParams } = options;
 
   // Generate demo data only for unauthenticated users (skip when signed in)
   const demoData = useMemo(() => {
@@ -150,5 +139,6 @@ export function useDailySportData(options: UseDailySportDataOptions): DailySport
     data,
     isLoading: authLoading || (!!user && query.isLoading),
     error: query.error || null,
+    retry: () => void query.refetch(),
   };
 }

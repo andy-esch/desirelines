@@ -88,6 +88,7 @@ describe("RecentActivitiesList Impact column", () => {
       distanceUnit: "kilometers",
       isLoading,
       error: null,
+      retry: vi.fn(),
     });
     mockUseActivities.mockReturnValue({
       activities: [activity(5)],
@@ -222,11 +223,13 @@ describe("RecentActivitiesList error", () => {
       retry,
     });
 
-    render(<RecentActivitiesList timeRange="4weeks" pageSize={5} />);
+    const { container } = render(<RecentActivitiesList timeRange="4weeks" pageSize={5} />);
 
     expect(screen.getByRole("alert")).toHaveTextContent(
       /Error loading activities.*Network request failed/
     );
+    // The list draws its own panel, so the error takes the danger frame.
+    expect(container.querySelector("section")?.className).toContain("--error-frame-color");
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(retry).toHaveBeenCalledOnce();
   });

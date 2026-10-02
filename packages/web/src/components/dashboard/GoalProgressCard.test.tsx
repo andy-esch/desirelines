@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import userEvent from "@testing-library/user-event";
 import { screen, within } from "@testing-library/react";
 import GoalProgressCard, { getStatusForDashboard } from "./GoalProgressCard";
 import { renderWithRouter } from "../../test/renderWithRouter";
@@ -52,7 +53,12 @@ function cycling(currentValue: number, overrides: Partial<SportGoalData> = {}): 
 
 function returnGoalData(
   sportData: SportGoalData[],
-  { yearContext = YEAR, isLoading = false, error = null as Error | null } = {}
+  {
+    yearContext = YEAR,
+    isLoading = false,
+    error = null as Error | null,
+    retry = undefined as (() => void) | undefined,
+  } = {}
 ) {
   mockGoalData.mockReturnValue({
     sportData,
@@ -60,6 +66,7 @@ function returnGoalData(
     distanceUnit: "miles",
     isLoading,
     error,
+    retry,
   });
 }
 
@@ -190,6 +197,19 @@ describe("GoalProgressCard", () => {
     returnGoalData([], { error: new Error("boom") });
     await renderCard();
     expect(screen.getByRole("alert")).toHaveTextContent("Error loading goal progress");
+  });
+
+  it("retries a failed load when the totals can be fetched again, and only then", async () => {
+    const retry = vi.fn();
+    returnGoalData([], { error: new Error("timeout"), retry });
+    const { unmount } = await renderCard();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(retry).toHaveBeenCalledOnce();
+    unmount();
+
+    returnGoalData([], { error: new Error("permission-denied") });
+    await renderCard();
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
   });
 
   describe("a sport without a goal", () => {

@@ -169,7 +169,8 @@ describe("DemoSportPage", () => {
       await renderWithRouter(<DemoSportPage sport="running" year="2025" />, { wrapper: DemoStore });
 
       expect(screen.getByText("Demo Mode")).toBeInTheDocument();
-      expect(screen.getByRole("alert")).toBeInTheDocument();
+      // Static page chrome, so not announced as an alert.
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     });
   });
 

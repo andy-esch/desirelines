@@ -138,6 +138,7 @@ describe("useMultiSportChartData", () => {
         data: {},
         isLoading: true,
         error: null,
+        retry: vi.fn(),
       });
 
       const { result } = renderHook(() => useMultiSportChartData("2weeks"));
@@ -372,6 +373,7 @@ describe("useMultiSportChartData", () => {
         data: { cycling: {}, running: {}, yoga: {} },
         isLoading: false,
         error: null,
+        retry: vi.fn(),
       });
 
       const { result } = renderHook(() => useMultiSportChartData("2weeks"));
@@ -414,6 +416,7 @@ describe("useMultiSportChartData", () => {
         data: { cycling: {}, running: {}, yoga: {} },
         isLoading: false,
         error: null,
+        retry: vi.fn(),
       });
 
       const { result } = renderHook(() => useMultiSportChartData("2weeks"));

@@ -122,6 +122,17 @@ describe("ActivityCalendarHeatmap", () => {
 
       expect(screen.getByRole("alert")).toHaveTextContent("Error loading calendar data");
     });
+
+    it("fetches the days again on Retry", async () => {
+      const retry = vi.fn();
+      mockUseDailySportData.mockReturnValue(
+        mockDailySportDataReturn({ data: emptyDailySportData, error: new Error("timeout"), retry })
+      );
+      render(<ActivityCalendarHeatmap />);
+
+      await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+      expect(retry).toHaveBeenCalledOnce();
+    });
   });
 
   describe("with data", () => {
@@ -157,6 +168,7 @@ describe("ActivityCalendarHeatmap", () => {
         },
         isLoading: false,
         error: null,
+        retry: vi.fn(),
       });
     });
 
@@ -268,6 +280,7 @@ describe("ActivityCalendarHeatmap", () => {
         },
         isLoading: false,
         error: null,
+        retry: vi.fn(),
       });
     });
 
@@ -462,6 +475,7 @@ describe("ActivityCalendarHeatmap", () => {
           data: mockData,
           isLoading: false,
           error: null,
+          retry: vi.fn(),
         });
 
         // Should render without throwing
@@ -554,6 +568,7 @@ describe("ActivityCalendarHeatmap", () => {
           },
           isLoading: false,
           error: null,
+          retry: vi.fn(),
         });
 
         render(<ActivityCalendarHeatmap />);
@@ -585,6 +600,7 @@ describe("ActivityCalendarHeatmap", () => {
           },
           isLoading: false,
           error: null,
+          retry: vi.fn(),
         });
 
         render(<ActivityCalendarHeatmap />);
@@ -620,6 +636,7 @@ describe("ActivityCalendarHeatmap", () => {
           },
           isLoading: false,
           error: null,
+          retry: vi.fn(),
         });
 
         render(<ActivityCalendarHeatmap />);
@@ -652,6 +669,7 @@ describe("ActivityCalendarHeatmap", () => {
           },
           isLoading: false,
           error: null,
+          retry: vi.fn(),
         });
 
         // Should render without crashing
@@ -691,6 +709,7 @@ describe("ActivityCalendarHeatmap", () => {
           },
           isLoading: false,
           error: null,
+          retry: vi.fn(),
         });
 
         render(<ActivityCalendarHeatmap />);
