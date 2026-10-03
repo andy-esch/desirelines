@@ -207,7 +207,7 @@ export function slotReadsIn(file: string, text: string): SlotRead[] {
       const before = text.slice(Math.max(0, open - 120), open);
       // Less a ternary's first branch (`on ? "var(--a)" : `), for the key the ternary sets.
       const lead = before.replace(/["'`][^"'`]*["'`]\s*:\s*$/, "");
-      const helper = /\b(?:alpha|tint|resolveThemeColor)\(\s*$/.test(before);
+      const helper = /\b(?:alpha|tint|resolveThemeColor|resolveMapColor)\(\s*$/.test(before);
       // A custom property a style object declares, or a style key or SVG attribute.
       const key =
         /["'](--[\w-]+)["']\s*:\s*$/.exec(before)?.[1] ??
@@ -221,7 +221,9 @@ export function slotReadsIn(file: string, text: string): SlotRead[] {
       }
     }
     // Token names handed to a color helper.
-    for (const match of text.matchAll(/\b(tint|resolveThemeColor)\(\s*["'`](--[\w-]+)["'`]/g)) {
+    for (const match of text.matchAll(
+      /\b(tint|resolveThemeColor|resolveMapColor)\(\s*["'`](--[\w-]+)["'`]/g
+    )) {
       if (slotSpec(match[2]!))
         reads.push({ file, slot: match[2]!, position: match[1]!, kinds: COLOR });
     }
