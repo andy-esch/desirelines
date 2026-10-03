@@ -1478,9 +1478,9 @@ resource "google_monitoring_dashboard" "desirelines_observability" {
           }
         },
 
-        # Webhook callback-capability cutover - Row 98, Full Width
-        # `legacy` should fall to zero before capability-only mode. Rejected
-        # traffic is observed here before an alert threshold is calibrated.
+        # Webhook callback-capability outcomes - Row 98, Full Width
+        # `accepted` and `rejected` per minute. Rejected traffic is observed
+        # here before an alert threshold is calibrated.
         {
           yPos   = 98
           width  = 12

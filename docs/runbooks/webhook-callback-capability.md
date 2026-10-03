@@ -67,8 +67,8 @@ the real callback:
    Cloud Run `run.googleapis.com/requests` logs, Cloud
    Trace span names and attributes, and HTTP metric labels for the exact canary.
 4. The application must expose only `/webhook/[redacted]` and the metric route
-   template. The capability outcome metric may contain only `accepted`,
-   `rejected`, or `legacy`. A rejected probe may leave one redacted application
+   template. The capability outcome metric may contain only `accepted` or
+   `rejected`. A rejected probe may leave one redacted application
    log with bounded method and client IP, but never its target or user-agent.
 5. Inspect any additional user-defined sinks in the project; the project-level
    exclusion protects the default sink but must not be assumed to govern an
@@ -176,10 +176,11 @@ Strava delivers nothing from step 1 until step 5.
    (`dispatcher_webhook_callback_capability_secret_version`). Never overwrite or
    disable the old version before the new revision is healthy.
 3. Apply, and verify the new revision is Ready and serving.
-4. Repeat the telemetry checks with the new value: Activation gate steps 2–5,
-   by hand. `scripts/ops/webhook-activation-gate.sh` still checks for the
-   removed route mode and stops at its preconditions until it is updated for
-   the capability-only service.
+4. Repeat the telemetry checks with the new value: run
+   `scripts/ops/webhook-activation-gate.sh <env>`, which covers Activation gate
+   steps 2–5 against the new revision's pinned capability. Set
+   `ACCEPT_PLATFORM_TRACE_RISK=1` only for the platform parent span described
+   under the known exception.
 5. Recreate the subscription against the capability route with the
    management script, and update `INFISICAL_STRAVA_WEBHOOK_SUBSCRIPTION_ID` with
    the newly assigned ID.
