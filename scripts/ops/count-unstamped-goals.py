@@ -155,7 +155,7 @@ def report(result: Tally, where: str) -> str:
     ]
     if result.unstamped_with_goals:
         lines.append(
-            "Unstamped sections holding goals (display units, not yet migrated):"
+            "Unstamped sections holding goals (the app reads them as canonical; check their values):"
         )
         lines += [
             f"  {path}  {year}  {sport}  ({count} goal{'s' if count != 1 else ''})"
