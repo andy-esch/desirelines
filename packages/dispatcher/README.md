@@ -116,9 +116,9 @@ PORT=8080        # Default: 8080 (Cloud Run sets this)
 ```
 
 The activity-row publish is the only path by which activity rows reach BigQuery.
-It is best-effort: a failed or skipped publish never fails the webhook, and it
-corrects itself on the activity's next update, but not on a delete (see
-`publishActivityRow` in `adapters/http/handler.go`).
+It is best-effort: a failed or skipped publish never fails the webhook. A dropped
+create or update is made good by the activity's next event, if one comes; a
+dropped delete never is (see `publishActivityRow` in `adapters/http/handler.go`).
 
 ### Secrets
 
