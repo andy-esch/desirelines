@@ -26,7 +26,7 @@ import {
 import { useThemeDateFormat } from "../theme/useThemeDateFormat";
 import { Panel } from "../theme/Panel";
 import { ErrorState } from "../ErrorState";
-import { resolveThemeColor } from "../../utils/colorTokens";
+import { resolveMapColor } from "../../utils/colorTokens";
 import type { ThemeMap } from "../../themes/registry";
 import { applyBaseMap } from "./mapRecolor";
 import { useTheme } from "../../contexts/ThemeContext";
@@ -458,19 +458,20 @@ export default function RouteMap({
     [colorExpression]
   );
 
-  // Mapbox paint can't take var(), so the dot outline token is resolved to a value. It is
-  // a point-in-time read, so it re-resolves when the theme changes. That dependency is one
+  // Mapbox paint can't take var(), so the dot outline token is resolved to a value, in a
+  // form Mapbox parses (resolveMapColor). It is a point-in-time read, so it re-resolves
+  // when the theme changes. That dependency is one
   // the linter can't see, because the theme only changes the DOM the read consults.
   const { theme } = useTheme();
   const pointOutlineColor = useMemo(
-    () => resolveThemeColor("--color-map-point-outline", "#0b0f1a"),
+    () => resolveMapColor("--color-map-point-outline", "#0b0f1a"),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [theme.id]
   );
   // The route casing, resolved the same way.
   const casingPaint = useMemo<NonNullable<LineLayerSpecification["paint"]>>(
     () => ({
-      "line-color": resolveThemeColor("--color-map-route-casing", "rgba(0, 0, 0, 0)"),
+      "line-color": resolveMapColor("--color-map-route-casing", "rgba(0, 0, 0, 0)"),
       "line-width": CASING_WIDTH,
       "line-opacity": LINE_OPACITY,
     }),

@@ -62,6 +62,32 @@ export function resolveThemeColor(token: ColorToken, fallback: string): string {
   return value || fallback;
 }
 
+/**
+ * A color in a form Mapbox GL paint accepts. Mapbox parses `#rgb`, `#rrggbb`, `rgb()`,
+ * `rgba()` and named colors, but not hex with alpha (`#rgba`, `#rrggbbaa`). The production
+ * CSS minifier writes a translucent `rgba()` token exactly that way (`rgba(0, 0, 0, 0)`
+ * ships as `#0000`), and a custom property reads back as written. So hex with alpha
+ * becomes `rgba()`; anything else passes through.
+ */
+export function toMapboxColor(color: string): string {
+  const value = color.trim();
+  const hex = value.match(/^#([0-9a-f]{4}|[0-9a-f]{8})$/i)?.[1];
+  if (!hex) return value;
+  const full = hex.length === 4 ? [...hex].map((c) => c + c).join("") : hex;
+  const [r, g, b, a] = [0, 2, 4, 6].map((i) => parseInt(full.slice(i, i + 2), 16)) as [
+    number,
+    number,
+    number,
+    number,
+  ];
+  return `rgba(${r}, ${g}, ${b}, ${Number((a / 255).toFixed(3))})`;
+}
+
+/** A theme color token, resolved for a Mapbox paint property (see `toMapboxColor`). */
+export function resolveMapColor(token: ColorToken, fallback: string): string {
+  return toMapboxColor(resolveThemeColor(token, fallback));
+}
+
 /** Parsed sRGB channels. */
 export interface Rgb {
   r: number;

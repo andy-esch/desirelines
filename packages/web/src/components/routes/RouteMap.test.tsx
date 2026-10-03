@@ -300,6 +300,17 @@ describe("RouteMap layer setup", () => {
       expect(order.indexOf("routes-lines-casing")).toBeLessThan(order.indexOf("routes-lines"));
     });
 
+    it("hands Mapbox rgba() where the minified stylesheet wrote hex with alpha", () => {
+      // The production CSS minifier writes rgba(29, 11, 58, 0.42) as #1d0b3a6b, the
+      // custom property reads back that way, and Mapbox rejects hex with alpha.
+      document.documentElement.style.setProperty("--color-map-route-casing", "#1d0b3a6b");
+      renderMap();
+
+      expect((casingLayer()!.paint as Record<string, unknown>)["line-color"]).toBe(
+        "rgba(29, 11, 58, 0.42)"
+      );
+    });
+
     it("is transparent where the theme sets none", () => {
       renderMap();
 
