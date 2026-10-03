@@ -159,20 +159,6 @@ export function getTodayLocalMidnight(): Date {
 }
 
 /**
- * Get today's date as a YYYY-MM-DD string in local timezone.
- *
- * @returns Today's date in YYYY-MM-DD format
- *
- * @example
- * ```ts
- * getTodayString(); // "2026-01-12" (if today is Jan 12, 2026)
- * ```
- */
-export function getTodayString(): string {
-  return toLocalDateString(new Date());
-}
-
-/**
  * Add days to a date and return a new Date object.
  *
  * @param date - Starting date
@@ -190,28 +176,6 @@ export function addDays(date: Date, days: number): Date {
   const result = new Date(date);
   result.setDate(result.getDate() + days);
   return result;
-}
-
-/**
- * Check if two dates represent the same calendar day in local timezone.
- *
- * @param date1 - First date
- * @param date2 - Second date
- * @returns true if both dates are the same calendar day
- *
- * @example
- * ```ts
- * const morning = new Date(2026, 0, 15, 8, 0);
- * const evening = new Date(2026, 0, 15, 20, 0);
- * isSameDay(morning, evening); // true
- * ```
- */
-export function isSameDay(date1: Date, date2: Date): boolean {
-  return (
-    date1.getFullYear() === date2.getFullYear() &&
-    date1.getMonth() === date2.getMonth() &&
-    date1.getDate() === date2.getDate()
-  );
 }
 
 /**
@@ -310,27 +274,9 @@ export function formatDisplayDate(
 }
 
 /**
- * Format a timestamp for chart X-axis tick labels.
- *
- * Uses UTC timezone because chart data timestamps are stored in UTC.
- * This ensures consistent display regardless of user's local timezone.
- *
- * @param timestamp - Unix timestamp in milliseconds
- * @returns Formatted date string (e.g., "Jan 15")
- *
- * @example
- * ```ts
- * formatChartAxisDate(1705276800000); // "Jan 15"
- * ```
- */
-export function formatChartAxisDate(timestamp: number): string {
-  return chartAxisDateFormatter("short")(timestamp);
-}
-
-/**
  * The axis formatter for a given date style.
  *
- * A factory rather than a second parameter on {@link formatChartAxisDate}: the result is
+ * A factory rather than a formatter taking the style as a second parameter: the result is
  * handed straight to a chart's `tickFormatter`, which calls it as `(value, index)`. A
  * style parameter in that position would receive the tick index instead, and every label
  * after the first would silently take the wrong spelling.

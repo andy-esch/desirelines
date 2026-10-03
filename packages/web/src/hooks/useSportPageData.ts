@@ -2,7 +2,7 @@
  * useSportPageData - Encapsulates all data logic for the authenticated sport page.
  *
  * Handles: data fetching, unit conversion, metric selection, goal management,
- * goal migration, momentum tracking, sidebar data, and year context.
+ * momentum tracking, sidebar data, and year context.
  *
  * Extracted from SportPage.tsx to keep the page component thin (~20 lines).
  *
@@ -13,7 +13,7 @@
  *   - defaultGoalsForYear (useMemo): contains new Date().toISOString() calls that
  *     produce fresh values each render, making the object perpetually unstable.
  *     With nothing saved it is the goals the page shows, so an unstable one would
- *     re-run everything keyed on the goals (the migration and metric checks) on
+ *     re-run everything keyed on the goals (the metric check) on
  *     every render. The compiler's preserve-manual-memoization rule is suppressed
  *     here since the compiler cannot auto-memoize impure Date() calls.
  */
@@ -36,10 +36,8 @@ import {
   type GoalUnitContext,
   type Goals,
 } from "../utils/goalCalculations";
-import { useAuth } from "./useAuth";
 import { useGoals } from "./useGoals";
 import { useUnitSettings } from "./usePreferences";
-import { useGoalMigration } from "./useGoalMigration";
 import { useTrainingMomentum } from "./useTrainingMomentum";
 import { useGoalStats } from "./useGoalStats";
 import { useSportData } from "./useSportData";
@@ -156,7 +154,6 @@ export function convertMetricsToChartData(
 }
 
 export function useSportPageData(sport: string, year: number): SportPageData {
-  const { user } = useAuth();
   const [metricSelection, setMetricSelection] = useState<{
     sport: string;
     metric: string;
@@ -281,15 +278,10 @@ export function useSportPageData(sport: string, year: number): SportPageData {
     clearSaveError: clearGoalsSaveError,
   } = useGoals(year, sport, defaultGoalsForYear);
 
-  // One-time migration: convert legacy display-unit goal values to canonical
-  // storage units (miles → meters for distance sports, hours → minutes for
-  // time sports). No-op for sports without a canonical unit (e.g. sessions).
   // What's saved isn't known when the goals couldn't be loaded: `goalsData` is then the
   // default standing in, which must be neither shown as goals nor saved.
   const goalsUnavailable = goalsError !== null && !goalsSaved;
   const knownGoals = goalsUnavailable ? null : goalsData;
-
-  useGoalMigration(knownGoals, user?.uid ?? "", year, sport, hasDistance, isTime, updateGoals);
 
   // Warn once per distinct goal when its stored `metric` disagrees with the
   // sport's primary metric (catches stale data, e.g. a goal copied across
@@ -328,11 +320,10 @@ export function useSportPageData(sport: string, year: number): SportPageData {
   // write-side schema guard in UserConfigService) instead of silently
   // persisting partial records.
   const handleGoalsChange = async (newGoals: Goals) => {
-    // Untouched goals keep their stored values (see toStoredGoals).
-    const savedCanonical =
-      knownGoals?.storageVersion === GOAL_STORAGE_VERSION ? knownGoals.goals : [];
+    // Untouched goals keep their stored values (see toStoredGoals). Every account section
+    // is canonical: the last legacy ones were stamped before the migration was retired.
     const updatedGoalsForYear: GoalsForYear = {
-      goals: toStoredGoals(newGoals, savedCanonical, goalCtx),
+      goals: toStoredGoals(newGoals, knownGoals?.goals ?? [], goalCtx),
       storageVersion: GOAL_STORAGE_VERSION,
     };
     await updateGoals(updatedGoalsForYear);

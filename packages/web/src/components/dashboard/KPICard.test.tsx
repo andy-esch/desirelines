@@ -19,28 +19,6 @@ describe("KPICard", () => {
     expect(screen.getByText("85")).toBeInTheDocument();
   });
 
-  it("renders optional indicator", () => {
-    render(
-      <KPICard
-        title="Current Distance"
-        value="2450 mi"
-        subtitle="8.3 mi/day avg"
-        indicator={<span data-testid="indicator">↑</span>}
-      />
-    );
-
-    expect(screen.getByTestId("indicator")).toBeInTheDocument();
-    expect(screen.getByText("↑")).toBeInTheDocument();
-  });
-
-  it("renders without indicator when not provided", () => {
-    render(<KPICard title="Test" value="100" subtitle="subtitle" />);
-
-    // Should not crash and should render basic content
-    expect(screen.getByText("Test")).toBeInTheDocument();
-    expect(screen.getByText("100")).toBeInTheDocument();
-  });
-
   it("renders with JSX subtitle", () => {
     render(
       <KPICard

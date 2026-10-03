@@ -14,6 +14,10 @@ web-format:
 web-typecheck:
     cd packages/web && npm run typecheck
 
+# Fail on unused files, exports, types and dependencies in the web project (knip.json)
+web-knip:
+    cd packages/web && npm run knip
+
 # Start the Vite development server for the web project
 web-dev:
     cd packages/web && npm run dev

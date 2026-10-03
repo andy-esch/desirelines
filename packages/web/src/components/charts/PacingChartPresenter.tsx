@@ -176,7 +176,7 @@ function DangerZoneOverlay({
  * />
  * ```
  */
-export function PacingChartPresenter({
+function PacingChartPresenter({
   mergedData,
   pacingGoals,
   currentValues,

@@ -15,7 +15,9 @@ import { getTodayUtcAnchored } from "./dateUtils";
  *
  * An "actual activity" is defined as a day where distance increased
  * from the previous day. Days with identical distance values are
- * considered "extended" (no activity) and are ignored.
+ * considered "extended" (no activity) and are ignored. The data is a
+ * year-to-date running total, so it falls only when it's corrected; a
+ * fall isn't an activity either.
  *
  * @param distanceData - Array of distance entries
  * @returns Date of last activity, or null if no activities found
@@ -33,16 +35,16 @@ import { getTodayUtcAnchored } from "./dateUtils";
 export function findLastActivityDate(distanceData: DistanceEntry[]): Date | null {
   if (distanceData.length === 0) return null;
 
-  // Scan backwards to find last day with actual activity (distance changed)
+  // Scan backwards to find last day with actual activity (distance increased)
   for (let i = distanceData.length - 1; i >= 1; i--) {
     const curr = distanceData[i];
     const prev = distanceData[i - 1];
-    if (curr && prev && curr.y !== prev.y) {
+    if (curr && prev && curr.y > prev.y) {
       return new Date(curr.x);
     }
   }
 
-  // No activity found (all distances identical, or only one entry)
+  // No activity found (no distance ever rose, or only one entry)
   return null;
 }
 
@@ -51,7 +53,7 @@ export function findLastActivityDate(distanceData: DistanceEntry[]): Date | null
  *
  * Data is stale if:
  * - No distance data exists, OR
- * - No actual activities found (all distances identical), OR
+ * - No actual activities found (distance never rose), OR
  * - Last activity was more than STALE_ACTIVITY_DAYS ago
  *
  * @param distanceData - Array of distance entries

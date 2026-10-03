@@ -11,9 +11,12 @@ import {
   getMetricValue,
   toDailyArray,
   getTimeRangeCutoff,
+  getDateRangeFromTimeRange,
+  selectCurrentDataPoint,
   normalizeToRange,
   chartLabelToString,
 } from "./chartUtils";
+import type { ChartDataPoint } from "../types/chartData";
 import type { ReactNode } from "react";
 import type { SportConfig } from "../api/activities";
 
@@ -474,6 +477,44 @@ describe("chartUtils", () => {
       expect(chartLabelToString({ foo: "bar" } as unknown as ReactNode)).toBe("");
       expect(chartLabelToString(null)).toBe("");
       expect(chartLabelToString(undefined)).toBe("");
+    });
+  });
+
+  describe("getDateRangeFromTimeRange", () => {
+    it("runs from the range's cutoff to today, as local dates", () => {
+      const now = new Date("2026-01-15T12:00:00");
+      expect(getDateRangeFromTimeRange("2weeks", now)).toEqual({
+        from: "2026-01-01",
+        to: "2026-01-15",
+      });
+      expect(getDateRangeFromTimeRange("4weeks", now)).toEqual({
+        from: "2025-12-18",
+        to: "2026-01-15",
+      });
+    });
+  });
+
+  describe("selectCurrentDataPoint", () => {
+    const row = (day: number, actual?: number): ChartDataPoint => ({
+      date: new Date(2026, 0, day),
+      actual,
+    });
+    const rows = [row(1), row(2, 5), row(3, 9), row(4)];
+
+    it("takes the row on the latest data day when the year has data", () => {
+      expect(selectCurrentDataPoint(rows, new Date(2026, 0, 3), true)).toBe(rows[2]);
+    });
+
+    it("falls back to the first row with progress when no row is on that day", () => {
+      expect(selectCurrentDataPoint(rows, new Date(2026, 1, 1), true)).toBe(rows[1]);
+    });
+
+    it("takes the last row when the year has no data", () => {
+      expect(selectCurrentDataPoint(rows, new Date(2026, 0, 3), false)).toBe(rows[3]);
+    });
+
+    it("has nothing to take from no rows", () => {
+      expect(selectCurrentDataPoint([], new Date(2026, 0, 3), false)).toBeUndefined();
     });
   });
 });

@@ -97,7 +97,7 @@ function InfoBadge({ text }: { text: string }) {
  * </ChartContainer>
  * ```
  */
-export function ChartContainer({
+function ChartContainer({
   title,
   isLoading,
   error,

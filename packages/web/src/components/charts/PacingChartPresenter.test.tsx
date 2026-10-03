@@ -1,7 +1,7 @@
 import { cloneElement, type ReactElement } from "react";
 import { render } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
-import { PacingChartPresenter } from "./PacingChartPresenter";
+import PacingChartPresenter from "./PacingChartPresenter";
 import {
   createPacingPresenterProps,
   hoverChart,

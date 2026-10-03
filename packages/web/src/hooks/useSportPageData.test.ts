@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { useSportPageData } from "./useSportPageData";
-import { useAuth } from "./useAuth";
 import { useSportData } from "./useSportData";
 import { useGoals } from "./useGoals";
 import { useUnitSettings } from "./usePreferences";
@@ -12,13 +11,11 @@ import { usePriorYearMetrics } from "./usePriorYearMetrics";
 import { logger } from "../lib/logger";
 
 // Mock all dependency hooks
-vi.mock("./useAuth");
 vi.mock("./useSportData");
 vi.mock("./useGoals");
 vi.mock("./usePreferences");
 vi.mock("./useSidebarSportData");
 vi.mock("./usePriorYearMetrics");
-vi.mock("./useGoalMigration", () => ({ useGoalMigration: vi.fn() }));
 vi.mock("./useTrainingMomentum", () => ({
   useTrainingMomentum: () => ({ momentumLevel: "steady", trainingMomentum: 0.5 }),
 }));
@@ -79,7 +76,6 @@ describe("useSportPageData", () => {
     vi.clearAllMocks();
 
     // Default mock implementations
-    vi.mocked(useAuth).mockReturnValue({ user: { uid: "test-user" } } as any);
     vi.mocked(useSportData).mockReturnValue({
       metrics: [{ date: "2026-01-01", distance: 16093.4, time: 60, elevation: 100, activities: 1 }],
       sportConfig: mockSportConfig as any,

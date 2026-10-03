@@ -6,8 +6,7 @@ import { useUnitSettings } from "../hooks/usePreferences";
 import type { TimeRange } from "../utils/dataNormalization";
 import type { TuningParams } from "../utils/demoDataGenerator";
 import { filterValidSports } from "../utils/sportConfig";
-import { getTimeRangeCutoff } from "../utils/chartUtils";
-import { toLocalDateString } from "../utils/dateUtils";
+import { getDateRangeFromTimeRange } from "../utils/chartUtils";
 import {
   processSportSparkline,
   mergeSparklineData,
@@ -19,14 +18,6 @@ const SPARKLINE_XAXIS_HEIGHT = 12;
 const SPARKLINE_PADDING = 16;
 const MIN_SPORTS_FOR_HEIGHT = 3;
 const MAX_SPORTS_DISPLAY = 8;
-
-function getDateRangeFromTimeRange(timeRange: TimeRange): { from: string; to: string } {
-  const now = new Date();
-  const to = toLocalDateString(now);
-  const cutoff = getTimeRangeCutoff(now, timeRange);
-  const from = toLocalDateString(cutoff);
-  return { from, to };
-}
 
 function getActivityPageSize(sportCount: number): number {
   const effectiveCount = Math.max(sportCount, MIN_SPORTS_FOR_HEIGHT);

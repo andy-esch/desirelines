@@ -1,8 +1,7 @@
 import { cloneElement, type ReactElement } from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
-import {
-  CumulativeChartPresenter,
+import CumulativeChartPresenter, {
   type CumulativeChartPresenterProps,
 } from "./CumulativeChartPresenter";
 import {

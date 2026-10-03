@@ -5,9 +5,7 @@ import {
   parseLocalDateStrict,
   getTodayUtcAnchored,
   getTodayLocalMidnight,
-  getTodayString,
   addDays,
-  isSameDay,
   formatDisplayDate,
   formatActivityDate,
   generateDateRange,
@@ -160,23 +158,10 @@ describe("getTodayLocalMidnight", () => {
     // The reason this variant exists. In a UTC-negative timezone (the suite is pinned
     // to one — see vite.config.ts), the UTC-anchored variant would fail this, since
     // toLocalDateString reads its UTC-midnight instant back as the previous local day.
-    expect(toLocalDateString(getTodayLocalMidnight())).toBe(getTodayString());
-    expect(toLocalDateString(addDays(getTodayLocalMidnight(), -1))).not.toBe(getTodayString());
-  });
-});
-
-describe("getTodayString", () => {
-  it("returns today's date in YYYY-MM-DD format", () => {
-    const result = getTodayString();
-    const now = new Date();
-
-    // Should match today's date
-    expect(result).toBe(toLocalDateString(now));
-  });
-
-  it("matches YYYY-MM-DD pattern", () => {
-    const result = getTodayString();
-    expect(result).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(toLocalDateString(getTodayLocalMidnight())).toBe(toLocalDateString(new Date()));
+    expect(toLocalDateString(addDays(getTodayLocalMidnight(), -1))).not.toBe(
+      toLocalDateString(new Date())
+    );
   });
 });
 
@@ -221,38 +206,6 @@ describe("addDays", () => {
     const date = new Date(2026, 0, 15);
     const result = addDays(date, 0);
     expect(toLocalDateString(result)).toBe(toLocalDateString(date));
-  });
-});
-
-describe("isSameDay", () => {
-  it("returns true for same calendar day", () => {
-    const morning = new Date(2026, 0, 15, 8, 0);
-    const evening = new Date(2026, 0, 15, 20, 0);
-    expect(isSameDay(morning, evening)).toBe(true);
-  });
-
-  it("returns false for different days", () => {
-    const day1 = new Date(2026, 0, 15);
-    const day2 = new Date(2026, 0, 16);
-    expect(isSameDay(day1, day2)).toBe(false);
-  });
-
-  it("returns false for same day different month", () => {
-    const jan15 = new Date(2026, 0, 15);
-    const feb15 = new Date(2026, 1, 15);
-    expect(isSameDay(jan15, feb15)).toBe(false);
-  });
-
-  it("returns false for same day different year", () => {
-    const y2025 = new Date(2025, 0, 15);
-    const y2026 = new Date(2026, 0, 15);
-    expect(isSameDay(y2025, y2026)).toBe(false);
-  });
-
-  it("handles midnight edge case", () => {
-    const endOfDay = new Date(2026, 0, 15, 23, 59, 59);
-    const startOfNext = new Date(2026, 0, 16, 0, 0, 0);
-    expect(isSameDay(endOfDay, startOfNext)).toBe(false);
   });
 });
 

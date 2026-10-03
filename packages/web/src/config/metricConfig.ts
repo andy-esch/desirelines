@@ -144,7 +144,7 @@ const BASE_METRIC_CONFIGS: Record<BaseMetricKey, MetricConfig> = {
  * its base metric config key. Unknown strings fall back to distance.
  */
 function primaryMetricToBaseKey(primaryMetric: string): BaseMetricKey {
-  const metricType = METRIC_STRING_TO_TYPE[primaryMetric] ?? MetricType.METRIC_TYPE_UNSPECIFIED;
+  const metricType = metricStringToType(primaryMetric);
   return METRIC_TYPE_TO_CONFIG_KEY[metricType];
 }
 
@@ -311,6 +311,11 @@ const METRIC_STRING_TO_TYPE: Record<string, MetricType> = {
   activities: MetricType.METRIC_TYPE_ACTIVITIES,
 };
 
+/** An API metric ID's enum: `UNSPECIFIED` for an ID the map doesn't know. */
+function metricStringToType(metricId: string): MetricType {
+  return METRIC_STRING_TO_TYPE[metricId] ?? MetricType.METRIC_TYPE_UNSPECIFIED;
+}
+
 /**
  * Get metric configuration by metric ID (string or enum).
  *
@@ -340,10 +345,7 @@ export function getMetricConfigByMetricId(
   userSettings?: UserSettings
 ): MetricConfig {
   // Convert string to MetricType if needed
-  const metricType =
-    typeof metricId === "string"
-      ? (METRIC_STRING_TO_TYPE[metricId] ?? MetricType.METRIC_TYPE_UNSPECIFIED)
-      : metricId;
+  const metricType = typeof metricId === "string" ? metricStringToType(metricId) : metricId;
 
   // Get the base config key from the metric type
   const configKey = METRIC_TYPE_TO_CONFIG_KEY[metricType];
@@ -426,7 +428,7 @@ export function getMetricFieldName(
  * @returns Display label (e.g., "Distance", "Time", "Elevation", "Sessions")
  */
 export function getMetricDisplayLabel(metricId: string): string {
-  const metricType = METRIC_STRING_TO_TYPE[metricId] ?? MetricType.METRIC_TYPE_UNSPECIFIED;
+  const metricType = metricStringToType(metricId);
   const configKey = METRIC_TYPE_TO_CONFIG_KEY[metricType];
   // Unknown metric IDs fall through to the raw ID rather than the "distance"
   // fallback used elsewhere — preserves the existing behavior of this fn.

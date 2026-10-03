@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { ChartTooltip } from "./ChartTooltip";
+import ChartTooltip from "./ChartTooltip";
 
 describe("ChartTooltip", () => {
   const mockPayload = [

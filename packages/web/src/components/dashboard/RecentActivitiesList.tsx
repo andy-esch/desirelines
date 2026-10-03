@@ -11,10 +11,9 @@ import type { TimeRange } from "../../utils/dataNormalization";
 import { convertDistance, formatDistance, formatImpactPct } from "../../utils/units";
 import { MissingValue } from "../theme/MissingValue";
 
-import { getTimeRangeCutoff as getCutoff } from "../../utils/chartUtils";
+import { getDateRangeFromTimeRange } from "../../utils/chartUtils";
 import { parseRgb, resolveThemeColor, type Rgb } from "../../utils/colorTokens";
 import { useTheme } from "../../contexts/ThemeContext";
-import { toLocalDateString as toLocal } from "../../utils/dateUtils";
 import { useThemeDateFormat } from "../theme/useThemeDateFormat";
 import { Button } from "../ui/button";
 import { Table } from "../ui/table";
@@ -34,14 +33,6 @@ const ROW_HEIGHT = 28;
 const MIN_ROWS = 3;
 /** Height of the labelled pager row in px, which sits under the table rather than beside it */
 const PAGER_HEIGHT = 28;
-
-function getDateRangeFromTimeRange(timeRange: TimeRange): { from: string; to: string } {
-  const now = new Date();
-  const to = toLocal(now);
-  const cutoff = getCutoff(now, timeRange);
-  const from = toLocal(cutoff);
-  return { from, to };
-}
 
 /**
  * Format duration.

@@ -41,7 +41,6 @@ import {
 
 // Import generated types from Protobuf definitions
 import type {
-  Activity,
   ActivitySummary,
   ListActivitiesResponse as ActivityListResponse,
   ListActivitiesRequest as ActivityListFilter,
@@ -60,7 +59,7 @@ import type {
 } from "../types/generated/sports_metrics";
 
 // Re-export generated types for consumers
-export type { Activity, ActivitySummary, ActivityListResponse, ActivityListFilter };
+export type { ActivitySummary, ActivityListResponse, ActivityListFilter };
 export type { ActivityAggregateFilter, ActivityBucket };
 export type { MetricsEntry, YearMetadata, DailyActivity };
 

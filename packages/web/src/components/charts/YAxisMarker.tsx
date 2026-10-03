@@ -98,7 +98,7 @@ function MarkerLabel({
  * />
  * ```
  */
-export function YAxisMarker({
+function YAxisMarker({
   value,
   label,
   color,

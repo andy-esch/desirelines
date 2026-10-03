@@ -110,7 +110,7 @@ vi.mock("../utils/goalCalculations", async (importOriginal) => {
     ...actual,
     estimateYearEndDistance: () => 1000,
     // Identity converters keep test fixtures readable; the actual conversion is
-    // exercised in goalCalculations / migration unit tests.
+    // exercised in goalCalculations' unit tests.
     goalToStorage: (value: number) => value,
     goalToDisplay: vi.fn((value: number) => value),
   };

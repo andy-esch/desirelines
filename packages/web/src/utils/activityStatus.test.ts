@@ -70,16 +70,28 @@ describe("findLastActivityDate", () => {
     expect(result).toEqual(new Date("2025-01-03"));
   });
 
-  it("handles distance decreases (negative activity)", () => {
+  it("doesn't count a corrected total that falls as an activity", () => {
     const data: DistanceEntry[] = [
-      { x: "2025-01-01", y: 100 },
-      { x: "2025-01-02", y: 90 }, // Distance decreased
+      { x: "2025-01-01", y: 0 },
+      { x: "2025-01-02", y: 100 }, // Last activity
+      { x: "2025-01-03", y: 90 }, // Corrected down
+      { x: "2025-01-04", y: 90 },
     ];
 
     const result = findLastActivityDate(data);
 
-    // Distance changed = activity detected
     expect(result).toEqual(new Date("2025-01-02"));
+  });
+
+  it("returns null when the total only ever falls", () => {
+    const data: DistanceEntry[] = [
+      { x: "2025-01-01", y: 100 },
+      { x: "2025-01-02", y: 90 },
+    ];
+
+    const result = findLastActivityDate(data);
+
+    expect(result).toBeNull();
   });
 
   it("handles fractional distance changes", () => {

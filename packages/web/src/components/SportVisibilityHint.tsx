@@ -10,7 +10,7 @@ interface SportVisibilityHintProps {
  * Passive hint to help users discover the sport visibility settings.
  * Shown below sport dropdowns to guide users who can't find a sport.
  */
-export function SportVisibilityHint({ className = "", style }: SportVisibilityHintProps) {
+function SportVisibilityHint({ className = "", style }: SportVisibilityHintProps) {
   return (
     <div className={`text-muted-text ${className}`} style={{ fontSize: "0.7rem", ...style }}>
       Don't see your sport?{" "}

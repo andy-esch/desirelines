@@ -55,7 +55,7 @@ function priorYearOf(dataKey: string | undefined): number | undefined {
  * // Pacing chart (2 decimals, "mi/day" unit)
  * <Tooltip content={<ChartTooltip unit="mi/day" decimals={2} />} />
  */
-export const ChartTooltip = ({
+const ChartTooltip = ({
   active,
   payload,
   label,

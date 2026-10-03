@@ -7,6 +7,7 @@ import { calculatePacingYAxisMax, shouldShowDangerZone } from "../utils/chartSca
 import { useDangerThresholds } from "./useDangerThresholds";
 
 import { getTodayUtcAnchored } from "../utils/dateUtils";
+import { selectCurrentDataPoint } from "../utils/chartUtils";
 
 interface UsePacingChartDataProps {
   year: number;
@@ -85,14 +86,7 @@ export function usePacingChartData({
   );
 
   // 5. Calculate current values for Y-axis markers
-  const latestActualData = mergedData.find(
-    (d) => d.actual !== undefined && typeof d.actual === "number" && d.actual > 0
-  );
-  const latestDataIndex =
-    distanceData.length > 0
-      ? mergedData.findIndex((d) => d.date.getTime() === latestDate.getTime())
-      : mergedData.length - 1;
-  const currentActualData = latestDataIndex >= 0 ? mergedData[latestDataIndex] : latestActualData;
+  const currentActualData = selectCurrentDataPoint(mergedData, latestDate, distanceData.length > 0);
 
   const currentValues: CurrentChartValues = {
     actual: currentActualData?.actual || 0,

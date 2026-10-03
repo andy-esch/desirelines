@@ -11,9 +11,6 @@ import type {
   GoalsForYear as ProtoGoalsForYear,
   AnnotationsForYear,
   Preferences,
-  Metadata,
-  Goal,
-  Annotation,
 } from "../types/generated/user_config";
 
 /**
@@ -99,7 +96,9 @@ const GoalsForYearSchema = z
     // `storageVersion` marks the unit convention of `goal.value`:
     //   undefined / 1 → legacy display units (miles, hours)
     //   2             → canonical units (meters, minutes)
-    // Migration logic upgrades legacy payloads and stamps version 2 going forward.
+    // Every save stamps 2. No account section was left unstamped when the goal-unit
+    // migration was retired, so the sport page reads account goals as canonical; a
+    // demo browser can still hold legacy goals, which the demo page converts.
     storageVersion: z.number().int().optional(),
   })
   .passthrough();
@@ -505,12 +504,4 @@ export class UserConfigService {
 
 // Re-export protobuf types for convenience.
 // GoalsForYear is declared above (extends ProtoGoalsForYear with storageVersion).
-export type {
-  UserConfig,
-  SportGoalsForYear,
-  AnnotationsForYear,
-  Preferences,
-  Metadata,
-  Goal,
-  Annotation,
-};
+export type { UserConfig, SportGoalsForYear, AnnotationsForYear, Preferences };
