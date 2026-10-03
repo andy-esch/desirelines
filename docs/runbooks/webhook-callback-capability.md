@@ -10,8 +10,8 @@ capability is half of a URL Strava has stored, so changing the deployed value
 without recreating the subscription points Strava at a callback that no longer
 validates — every delivery becomes a `rejected` 404. Rotation is always
 capability change *plus* subscription recreation, in that order, and always
-costs a delivery gap. Sequence rotations against a route mode that still serves
-a working callback.
+costs a delivery gap. There is only one route, so the gap runs from deleting
+the old subscription until the new one exists; keep those steps close together.
 
 The capability URL is only ever resolved from Cloud Run, never typed. The
 project's own web domain is a separate static host: a request sent there returns
@@ -166,20 +166,30 @@ possible, replace it before another cutover attempt.
 
 ## Emergency rotation
 
-1. Move to `dual` and verify the revision before changing the pinned capability.
-2. Delete the compromised subscription so Strava stops sending the old URL.
-3. Generate and sync a new environment-specific capability, record its numeric
-   version, and change the GitOps pin. Never overwrite or disable the old version
-   before the new revision is healthy.
-4. Redeploy `dual`, repeat the telemetry activation gate with the new value, and
-   recreate the subscription using the management script.
-5. Update the new subscription ID, verify an owned event, and return to
-   `capability` mode.
-6. Search for and remove any retained copy of the compromised URL under the
+The dispatcher serves only the capability route, and it reads the pinned
+capability once at boot, so a new value takes effect only with a new revision.
+Strava delivers nothing from step 1 until step 5.
+
+1. Delete the compromised subscription so Strava stops sending the old URL.
+2. Generate and sync a new environment-specific capability, record its numeric
+   Secret Manager version, and change the GitOps pin
+   (`dispatcher_webhook_callback_capability_secret_version`). Never overwrite or
+   disable the old version before the new revision is healthy.
+3. Apply, and verify the new revision is Ready and serving.
+4. Repeat the telemetry checks with the new value: Activation gate steps 2–5,
+   by hand. `scripts/ops/webhook-activation-gate.sh` still checks for the
+   removed route mode and stops at its preconditions until it is updated for
+   the capability-only service.
+5. Recreate the subscription against the capability route with the
+   management script, and update `INFISICAL_STRAVA_WEBHOOK_SUBSCRIPTION_ID` with
+   the newly assigned ID.
+6. Verify an owned event arrives as `accepted` on the callback outcome metric
+   and completes the normal pipeline.
+7. Search for and remove any retained copy of the compromised URL under the
    project's incident-data policy.
 
-The task is not complete while either environment remains in `legacy` or `dual`,
-or while migration-only route code remains in the final application.
+Rotation is complete when an owned event arrives as `accepted` through the new
+subscription and no retained copy of the old URL remains.
 
 ## Observability tradeoff
 
