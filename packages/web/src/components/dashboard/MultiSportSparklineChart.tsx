@@ -101,8 +101,9 @@ interface UnifiedSparklineTooltipProps {
 /**
  * Format a raw metric value for display in tooltip.
  * Distance sports show converted value with unit (e.g., "5.2 mi").
- * Time sports show minutes (e.g., "45 min").
- * Session-based sports show just the count. A day without the sport has no value: null.
+ * Time sports show a duration (e.g., "45 min").
+ * Session-based sports show the count (e.g., "2 sessions"). A day without the sport has no
+ * value: null.
  */
 function formatMetricValue(
   rawValue: number,
@@ -126,8 +127,9 @@ function formatMetricValue(
     return formatHoursMinutes(hours);
   }
 
-  // Session-based: show as integer
-  return Math.round(rawValue).toString();
+  // Session-based: a whole count
+  const sessions = Math.round(rawValue);
+  return `${sessions} session${sessions === 1 ? "" : "s"}`;
 }
 
 /**

@@ -68,6 +68,26 @@ describe("chartUtils", () => {
       expect(getMetricValue(activity, "running", mockSportConfig)).toBe(5000);
     });
 
+    it("returns the session count for a sessions-based sport", () => {
+      const config: SportConfig = {
+        ...mockSportConfig,
+        sportCategories: {
+          climbing: {
+            displayName: "Climbing",
+            stravaTypes: ["RockClimbing"],
+            excludedTypes: [],
+            primaryMetric: "activities",
+            metrics: ["activities", "time_minutes"],
+            hasDistance: false,
+            hasElevation: false,
+          },
+        },
+      };
+      const activity = { distanceMeters: 0, timeMinutes: 90, activities: 2, activityIds: [1, 2] };
+
+      expect(getMetricValue(activity, "climbing", config)).toBe(2);
+    });
+
     it("returns time for time-based sports", () => {
       const activity = {
         distanceMeters: 0,
