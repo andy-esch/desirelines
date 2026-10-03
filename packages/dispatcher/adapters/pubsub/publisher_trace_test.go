@@ -233,7 +233,7 @@ func TestPublish_SpanCarriesStableMessagingAttributes(t *testing.T) {
 		if span.Name() == "pubsub.publish" {
 			attrs = map[attribute.Key]string{}
 			for _, kv := range span.Attributes() {
-				attrs[kv.Key] = kv.Value.Emit()
+				attrs[kv.Key] = kv.Value.String()
 			}
 		}
 	}

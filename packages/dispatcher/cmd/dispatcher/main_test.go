@@ -122,6 +122,11 @@ func unsetTestEnv(t *testing.T, key string) {
 // opened rather than dereference them.
 func TestDependenciesClose_SkipsClientsThatNeverOpened(t *testing.T) {
 	deps := &Dependencies{logger: slog.New(slog.DiscardHandler)}
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("Close panicked on a partly built Dependencies: %v", r)
+		}
+	}()
 
 	deps.Close()
 }
