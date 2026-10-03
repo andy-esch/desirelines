@@ -22,8 +22,10 @@ import (
 	pubsubpb "cloud.google.com/go/pubsub/v2/apiv1/pubsubpb"
 	"cloud.google.com/go/pubsub/v2/pstest"
 	otelglobal "go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -201,5 +203,54 @@ func TestPublish_NoCallerSpan_InjectsInternalSpanContext(t *testing.T) {
 	parts := strings.Split(traceparent, "-")
 	if len(parts) != 4 || parts[0] != "00" {
 		t.Errorf("traceparent %q is malformed; want `00-<32hex>-<16hex>-<flags>`", traceparent)
+	}
+}
+
+// TestPublish_SpanCarriesStableMessagingAttributes pins the publish span's
+// messaging attributes to the stable semantic conventions: the operation is
+// `messaging.operation.type = send`, which replaced the old
+// `messaging.operation = publish`.
+func TestPublish_SpanCarriesStableMessagingAttributes(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	t.Cleanup(func() {
+		if err := provider.Shutdown(context.Background()); err != nil {
+			t.Logf("tracer provider Shutdown: %v", err)
+		}
+	})
+
+	p, _ := newTestPublisher(t)
+	p.tracer = provider.Tracer("test")
+
+	if err := p.Publish(context.Background(), &generated.EnrichedEvent{
+		Event: &generated.WebhookEvent{ObjectId: 1, OwnerId: 2},
+	}, "corr-id-test"); err != nil {
+		t.Fatalf("Publish: %v", err)
+	}
+
+	var attrs map[attribute.Key]string
+	for _, span := range recorder.Ended() {
+		if span.Name() == "pubsub.publish" {
+			attrs = map[attribute.Key]string{}
+			for _, kv := range span.Attributes() {
+				attrs[kv.Key] = kv.Value.Emit()
+			}
+		}
+	}
+	if attrs == nil {
+		t.Fatal("no pubsub.publish span was recorded")
+	}
+	want := map[attribute.Key]string{
+		"messaging.system":           "gcp_pubsub",
+		"messaging.destination.name": "test-topic",
+		"messaging.operation.type":   "send",
+	}
+	for key, value := range want {
+		if attrs[key] != value {
+			t.Errorf("%s = %q, want %q", key, attrs[key], value)
+		}
+	}
+	if _, ok := attrs["messaging.operation"]; ok {
+		t.Error("span still carries the deprecated messaging.operation key")
 	}
 }
