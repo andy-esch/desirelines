@@ -292,7 +292,9 @@ resource "google_service_account_iam_member" "infisical_cloud_impersonation" {
 # automatically by Eventarc triggers (not managed here).
 
 # Dispatcher publishes activity events to PubSub for downstream processing
-# Flow: Strava webhook → Dispatcher → PubSub → BQ Inserter / Postgres Writer
+# Flow: Strava webhook → Dispatcher → activity_events → Postgres Writer.
+# Activity rows reach BigQuery separately, through the activity_rows topic and
+# its CDC subscription; that topic's publisher grant is in bigquery_subscription.tf.
 resource "google_pubsub_topic_iam_member" "dispatcher_publisher" {
   topic  = google_pubsub_topic.activity_events.name
   role   = "roles/pubsub.publisher"
@@ -305,8 +307,6 @@ resource "google_pubsub_topic_iam_member" "dispatcher_deauth_publisher" {
   role   = "roles/pubsub.publisher"
   member = "serviceAccount:${google_service_account.dispatcher.email}"
 }
-
-# IAM permissions for BQ inserter (BigQuery Data Editor only - PubSub permissions handled by Eventarc)
 
 # Developer OWNER access for BigQuery console (optional)
 # Allows developer to run ad-hoc queries, inspect tables, and manage data
