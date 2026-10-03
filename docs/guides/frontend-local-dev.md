@@ -104,6 +104,9 @@ npm run typecheck
 # Linting
 npm run lint
 
+# Unused files, exports and dependencies (knip; CI fails on any)
+npm run knip
+
 # Run tests
 npm test
 
