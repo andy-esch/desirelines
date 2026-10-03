@@ -248,8 +248,8 @@ describe("GoalControls", () => {
       render(<GoalControls {...defaultProps} />);
 
       const steppers = [
-        ...screen.getAllByRole("button", { name: "−" }),
-        ...screen.getAllByRole("button", { name: "+" }),
+        ...screen.getAllByRole("button", { name: /^Decrease / }),
+        ...screen.getAllByRole("button", { name: /^Increase / }),
       ];
       expect(steppers).toHaveLength(4);
       for (const button of steppers) {
@@ -495,6 +495,39 @@ describe("GoalControls", () => {
     });
   });
 
+  describe("accessible names", () => {
+    it("names each control for its goal, so two goals' controls differ", () => {
+      render(<GoalControls {...defaultProps} />);
+
+      for (const goal of ["Base", "Target"]) {
+        expect(screen.getByRole("textbox", { name: `${goal} label` })).toHaveValue(goal);
+        expect(screen.getByRole("textbox", { name: `${goal} value` })).toBeInTheDocument();
+        expect(
+          screen.getByRole("button", { name: `Decrease ${goal} by 100 miles` })
+        ).toBeInTheDocument();
+        expect(
+          screen.getByRole("button", { name: `Increase ${goal} by 100 miles` })
+        ).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: `Remove ${goal}` })).toBeInTheDocument();
+      }
+    });
+
+    it("names an unlabeled goal by its place in the list", () => {
+      render(
+        <GoalControls
+          {...defaultProps}
+          goals={testGoals([
+            { id: "1", value: 1000, label: "Base" },
+            { id: "2", value: 2000, label: "" },
+          ])}
+        />
+      );
+
+      expect(screen.getByRole("textbox", { name: "Goal 2 value" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Remove Goal 2" })).toBeInTheDocument();
+    });
+  });
+
   describe("theme structure", () => {
     const renderIn = (overrides: Partial<ThemeStructure>) =>
       render(
@@ -502,7 +535,7 @@ describe("GoalControls", () => {
           <GoalControls {...defaultProps} />
         </ThemeStructureProvider>
       );
-    const firstMinus = () => screen.getAllByRole("button", { name: "−" })[0]!;
+    const firstMinus = () => screen.getAllByRole("button", { name: /^Decrease / })[0]!;
 
     it("draws a stepper as outline buttons around its value, gapped by the theme", () => {
       renderIn({ stepperStyle: "buttons" });
@@ -522,7 +555,7 @@ describe("GoalControls", () => {
 
     it("steps the goal the same way in the box", () => {
       renderIn({ stepperStyle: "box" });
-      fireEvent.click(screen.getAllByRole("button", { name: "+" })[0]!);
+      fireEvent.click(screen.getAllByRole("button", { name: /^Increase / })[0]!);
       expect(defaultProps.onGoalsChange).toHaveBeenCalledTimes(1);
     });
 
