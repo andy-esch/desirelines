@@ -52,6 +52,10 @@ export const STRUCTURE_OPTIONS = {
   heroNumberFrame: ["plain", "card"],
   /** An outline button's edge: its border, or a gradient ring over it (`--button-outline-edge`). */
   buttonOutlineEdge: ["border", "gradient"],
+  /** A number stepper: outline buttons either side of its field, or one control box split by dividers. */
+  stepperStyle: ["buttons", "box"],
+  /** Adding and resetting goals: a row of buttons, or a row of text links. */
+  goalActionsStyle: ["buttons", "links"],
   /** Range sliders draw a continuous track or a segmented meter. */
   sliderTrack: ["continuous", "segmented"],
   /** A cursor glyph at the left edge of the hovered table row. */
@@ -153,6 +157,8 @@ const MIAMI_STRUCTURE: ThemeStructure = {
   statRowStyle: "divided",
   heroNumberFrame: "plain",
   buttonOutlineEdge: "border",
+  stepperStyle: "buttons",
+  goalActionsStyle: "buttons",
   sliderTrack: "continuous",
   rowHoverCursor: false,
   pagerStyle: "labelled",
@@ -180,6 +186,8 @@ const ARCADE_STRUCTURE: ThemeStructure = {
   statRowStyle: "boxed",
   heroNumberFrame: "plain",
   buttonOutlineEdge: "border",
+  stepperStyle: "buttons",
+  goalActionsStyle: "buttons",
   sliderTrack: "segmented",
   rowHoverCursor: true,
   pagerStyle: "arrows",
@@ -207,7 +215,8 @@ const STOCK_MAP: ThemeMap = { palette: null, labelFont: null };
 /**
  * Electric's structure is Miami's: its approved pages were drawn over Miami's. It differs in
  * the hero, a gradient wash in place of the sunset with the numbers in gradient-edged cards,
- * in the gradient pill before each section title, and in its outline buttons' gradient edge.
+ * in the gradient pill before each section title, in its outline buttons' gradient edge, and
+ * in the goal controls: each stepper one control box, adding and resetting text links.
  */
 const ELECTRIC_STRUCTURE: ThemeStructure = {
   ...MIAMI_STRUCTURE,
@@ -215,6 +224,8 @@ const ELECTRIC_STRUCTURE: ThemeStructure = {
   sectionLabelMark: "pill",
   heroNumberFrame: "card",
   buttonOutlineEdge: "gradient",
+  stepperStyle: "box",
+  goalActionsStyle: "links",
 };
 
 export const THEMES = [

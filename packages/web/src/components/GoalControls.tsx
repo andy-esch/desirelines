@@ -10,6 +10,8 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Alert } from "./ui/alert";
 import { logApiError } from "../api/errors";
+import { cn } from "@/lib/utils";
+import { useThemeStructure } from "./theme/useThemeStructure";
 
 interface GoalControlsProps {
   goals: Goals;
@@ -88,6 +90,15 @@ const GoalControls: React.FC<GoalControlsProps> = ({
     primaryMetric,
     sportConfig,
   });
+
+  const { stepperStyle, goalActionsStyle } = useThemeStructure();
+  const boxed = stepperStyle === "box";
+  const links = goalActionsStyle === "links";
+  // The value between the − and +: joined to them by overlapping borders, or borderless
+  // inside the stepper's box.
+  const stepperField = boxed
+    ? "h-auto min-w-0 rounded-none border-0 bg-transparent text-center text-xs shadow-none"
+    : "mx-[min(0px,calc(var(--stepper-gap)_-_1px))] h-8 min-w-0 rounded-none text-center text-xs";
 
   const validation = validateGoals(goals);
   // No change while a save is in flight, or while what's saved isn't known.
@@ -188,16 +199,30 @@ const GoalControls: React.FC<GoalControlsProps> = ({
               )}
             </div>
 
-            {/* One joined group, or separate boxes where the theme sets a --stepper-gap. Joined, the
-                input overlaps its neighbours by a pixel so their borders merge; apart, it doesn't.
-                The − and + take the theme's --stepper-button-text, else the outline button's, and
-                keep a plain edge where a theme rings its outline buttons. */}
-            <div className="flex items-stretch gap-(--stepper-gap)">
+            {/* Per the theme's stepperStyle: outline buttons either side of the value, or one
+                box in the control border with the − and + divided off inside it. As buttons,
+                they form one joined group, or separate boxes where the theme sets a
+                --stepper-gap; joined, the input overlaps its neighbours by a pixel so their
+                borders merge. The − and + take the theme's --stepper-button-text, else the
+                outline button's, and keep a plain edge where a theme rings its outline buttons.
+                The box doesn't clip its contents, so a focus ring inside it stays whole. */}
+            <div
+              className={
+                boxed
+                  ? "flex h-8 items-stretch rounded-(--control-radius) border border-input bg-card shadow-sm"
+                  : "flex items-stretch gap-(--stepper-gap)"
+              }
+            >
               <Button
-                variant="outline"
+                variant={boxed ? "ghost" : "outline"}
                 size="sm"
                 joined
-                className="rounded-e-none text-[color:var(--stepper-button-text,var(--color-foreground))]"
+                className={cn(
+                  boxed
+                    ? "h-auto rounded-e-none rounded-s-[calc(var(--control-radius)-1px)] border-e border-divider"
+                    : "rounded-e-none",
+                  "text-[color:var(--stepper-button-text,var(--color-foreground))]"
+                )}
                 onClick={() => handleIncrement(goal.id, -incrementSize)}
                 disabled={goal.value <= 0 || locked}
               >
@@ -206,7 +231,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
               {editingId === goal.id ? (
                 <Input
                   type="number"
-                  className="mx-[min(0px,calc(var(--stepper-gap)_-_1px))] h-8 min-w-0 rounded-none text-center text-xs"
+                  className={stepperField}
                   value={editValue}
                   onChange={(e) => {
                     setEditValue(e.target.value);
@@ -228,7 +253,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
               ) : (
                 <Input
                   type="text"
-                  className="mx-[min(0px,calc(var(--stepper-gap)_-_1px))] h-8 min-w-0 rounded-none text-center text-xs"
+                  className={stepperField}
                   value={`${goal.value.toLocaleString()} ${unit}`}
                   onFocus={() => handleStartEdit(goal.id, goal.value)}
                   readOnly
@@ -237,10 +262,15 @@ const GoalControls: React.FC<GoalControlsProps> = ({
                 />
               )}
               <Button
-                variant="outline"
+                variant={boxed ? "ghost" : "outline"}
                 size="sm"
                 joined
-                className="rounded-s-none text-[color:var(--stepper-button-text,var(--color-foreground))]"
+                className={cn(
+                  boxed
+                    ? "h-auto rounded-s-none rounded-e-[calc(var(--control-radius)-1px)] border-s border-divider"
+                    : "rounded-s-none",
+                  "text-[color:var(--stepper-button-text,var(--color-foreground))]"
+                )}
                 onClick={() => handleIncrement(goal.id, incrementSize)}
                 disabled={locked}
               >
@@ -261,19 +291,21 @@ const GoalControls: React.FC<GoalControlsProps> = ({
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
+      {/* Per the theme's goalActionsStyle: a row of buttons, or text links at either end. */}
+      <div className={links ? "flex items-center justify-between px-1" : "grid grid-cols-2 gap-2"}>
         <Button
-          variant="outline"
+          variant={links ? "link" : "outline"}
           size="sm"
+          className={links ? "h-auto p-0" : undefined}
           onClick={handleAddGoal}
           disabled={goals.length >= 5 || locked}
         >
           + Add Goal
         </Button>
         <Button
-          variant="ghost"
+          variant={links ? "link" : "ghost"}
           size="sm"
-          className="gap-1"
+          className={cn("gap-1", links && "h-auto p-0 text-muted-text")}
           onClick={() => {
             // Use the sport's own roundingFactor + defaultGoalValue so reset
             // produces sport-appropriate buckets (running: 10/1000, yoga: 10/100,
