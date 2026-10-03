@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 from google.api_core.exceptions import BadRequest
+from google.cloud.bigquery import ScalarQueryParameter
 import pytest
 
 from stravapipe.adapters.gcp._clients import BigQueryClientWrapper
@@ -164,3 +165,42 @@ class TestBigQueryClientWrapper:
         rows = wrapper.execute_dml_query("DELETE FROM x.y.z WHERE id = @id")
 
         assert rows == 7
+
+    @patch("stravapipe.adapters.gcp._clients.BigQueryClient")
+    def test_rows_affected_is_zero_when_bigquery_reports_none(self, mock_client_class):
+        """A statement that affects no rows reports None, which both methods count as 0."""
+        mock_client_instance = MagicMock()
+        mock_client_class.return_value = mock_client_instance
+
+        mock_job = MagicMock()
+        mock_job.job_id = "test-job-none"
+        mock_job.result.return_value = None
+        mock_job.num_dml_affected_rows = None
+        mock_job.ended = None
+        mock_job.started = None
+        mock_client_instance.query.return_value = mock_job
+
+        wrapper = BigQueryClientWrapper(project_id="test-project")
+
+        assert wrapper.execute_dml_query("DELETE FROM x.y.z WHERE id = @id") == 0
+        assert wrapper.execute_merge_query("MERGE INTO x.y.z")["rows_affected"] == 0
+
+    @patch("stravapipe.adapters.gcp._clients.BigQueryClient")
+    def test_queries_carry_their_parameters(self, mock_client_class):
+        """Both methods pass their parameters to the job, or none when given none."""
+        mock_client_instance = MagicMock()
+        mock_client_class.return_value = mock_client_instance
+        mock_job = MagicMock()
+        mock_job.num_dml_affected_rows = 1
+        mock_client_instance.query.return_value = mock_job
+        params = [ScalarQueryParameter("id", "INT64", 1)]
+
+        wrapper = BigQueryClientWrapper(project_id="test-project")
+        wrapper.execute_dml_query("DELETE FROM x.y.z WHERE id = @id", params)
+        wrapper.execute_merge_query("MERGE INTO x.y.z")
+
+        dml_call, merge_call = mock_client_instance.query.call_args_list
+        assert dml_call.args == ("DELETE FROM x.y.z WHERE id = @id",)
+        assert dml_call.kwargs["job_config"].query_parameters == params
+        assert merge_call.args == ("MERGE INTO x.y.z",)
+        assert merge_call.kwargs["job_config"].query_parameters == []
