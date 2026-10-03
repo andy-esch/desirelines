@@ -623,11 +623,31 @@ func (qb *queryBuilder) append(s string) {
 	qb.query += s
 }
 
+// addActivityFilters appends the user, date and sport conditions the activities list and
+// its aggregate share, so the two can't drift on the inclusive `to` boundary or the sport
+// column. It takes the fields rather than either filter type, so it serves both.
+func addActivityFilters(qb *queryBuilder, userID string, from, to *string, sportTypes []string) {
+	// Filter by user ID (required for query isolation)
+	qb.AddCondition(" AND user_id = $%d", userID)
+
+	if from != nil {
+		qb.AddCondition(" AND start_date_local >= $%d::date", *from)
+	}
+
+	if to != nil {
+		// Add 1 day to make 'to' inclusive (end of day)
+		qb.AddCondition(" AND start_date_local < ($%d::date + interval '1 day')", *to)
+	}
+
+	// Filter on the 'sport' column, which holds Strava sport_type values
+	if len(sportTypes) > 0 {
+		qb.AddCondition(" AND sport = ANY($%d)", sportTypes)
+	}
+}
+
 // ListActivities returns activities matching the filter criteria with cursor-based pagination.
 // Results are ordered by (start_date_local DESC, id DESC) for stable ordering.
 // Uses keyset pagination for O(1) performance regardless of offset.
-//
-//nolint:gocyclo // Complexity is from query-builder branching on optional filter fields; not worth restructuring just to drop one over the threshold.
 func (r *ActivityRepository) ListActivities(ctx context.Context, filter repository.ActivityListFilter) (resp *activitiesv1.ListActivitiesResponse, retErr error) {
 	ctx, spanDone := otel.StartSpan(ctx, r.tracer, "repository.activities.list",
 		attribute.String("db.system", dbSystem),
@@ -660,23 +680,7 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 		WHERE 1=1
 	`)
 
-	// Filter by user ID (required for query isolation)
-	qb.AddCondition(" AND user_id = $%d", filter.UserID)
-
-	// Add date range filters
-	if filter.From != nil {
-		qb.AddCondition(" AND start_date_local >= $%d::date", *filter.From)
-	}
-
-	if filter.To != nil {
-		// Add 1 day to make 'to' inclusive (end of day)
-		qb.AddCondition(" AND start_date_local < ($%d::date + interval '1 day')", *filter.To)
-	}
-
-	// Add sport filter (filter on 'sport' column which contains Strava sport_type values)
-	if len(filter.SportTypes) > 0 {
-		qb.AddCondition(" AND sport = ANY($%d)", filter.SportTypes)
-	}
+	addActivityFilters(qb, filter.UserID, filter.From, filter.To, filter.SportTypes)
 
 	// Add cursor constraint for pagination
 	if filter.Cursor != nil {
@@ -1169,22 +1173,7 @@ func (r *ActivityRepository) AggregateActivities(ctx context.Context, filter rep
 		WHERE 1=1
 	`)
 
-	// Filter by user ID (required for query isolation)
-	qb.AddCondition(" AND user_id = $%d", filter.UserID)
-
-	if filter.From != nil {
-		qb.AddCondition(" AND start_date_local >= $%d::date", *filter.From)
-	}
-
-	if filter.To != nil {
-		// Add 1 day to make 'to' inclusive (end of day)
-		qb.AddCondition(" AND start_date_local < ($%d::date + interval '1 day')", *filter.To)
-	}
-
-	// Filter on 'sport' column which contains Strava sport_type values
-	if len(filter.SportTypes) > 0 {
-		qb.AddCondition(" AND sport = ANY($%d)", filter.SportTypes)
-	}
+	addActivityFilters(qb, filter.UserID, filter.From, filter.To, filter.SportTypes)
 
 	qb.append(" GROUP BY 1, 2, 3 ORDER BY 1, 2, 3")
 

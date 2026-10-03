@@ -140,3 +140,39 @@ func TestQueryBuilder_Append(t *testing.T) {
 		t.Errorf("expected argNum 2, got %d", qb.argNum)
 	}
 }
+
+func TestAddActivityFilters_AllFilters(t *testing.T) {
+	from, to := "2026-01-01", "2026-06-30"
+	sports := []string{"Ride", "Run"}
+	qb := newQueryBuilder("SELECT 1 WHERE 1=1")
+
+	addActivityFilters(qb, "user-1", &from, &to, sports)
+
+	want := "SELECT 1 WHERE 1=1" +
+		" AND user_id = $1" +
+		" AND start_date_local >= $2::date" +
+		" AND start_date_local < ($3::date + interval '1 day')" +
+		" AND sport = ANY($4)"
+	if qb.query != want {
+		t.Errorf("query = %q, want %q", qb.query, want)
+	}
+	if len(qb.args) != 4 || qb.args[0] != "user-1" || qb.args[1] != from || qb.args[2] != to {
+		t.Errorf("unexpected args: %v", qb.args)
+	}
+	if got, ok := qb.args[3].([]string); !ok || len(got) != 2 || got[0] != "Ride" || got[1] != "Run" {
+		t.Errorf("sport arg = %v, want %v", qb.args[3], sports)
+	}
+}
+
+func TestAddActivityFilters_UserOnly(t *testing.T) {
+	qb := newQueryBuilder("SELECT 1 WHERE 1=1")
+
+	addActivityFilters(qb, "user-1", nil, nil, nil)
+
+	if want := "SELECT 1 WHERE 1=1 AND user_id = $1"; qb.query != want {
+		t.Errorf("query = %q, want %q", qb.query, want)
+	}
+	if len(qb.args) != 1 || qb.args[0] != "user-1" {
+		t.Errorf("unexpected args: %v", qb.args)
+	}
+}
