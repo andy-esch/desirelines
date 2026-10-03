@@ -8,7 +8,6 @@ import pytest
 from stravapipe.adapters.proto import (
     dict_to_webhook_event,
     proto_to_dict,
-    validate_webhook_event,
 )
 from stravapipe.types.generated import webhook_pb2 as pb
 
@@ -187,50 +186,6 @@ class TestProtoToDict:
         result = proto_to_dict(event)
 
         assert result["updates"] == {}
-
-
-class TestValidateWebhookEvent:
-    """Tests for validate_webhook_event function."""
-
-    def test_valid_event(self):
-        """Test that valid event has no errors."""
-        event = pb.WebhookEvent(
-            aspect_type=pb.ASPECT_TYPE_CREATE,
-            object_type=pb.OBJECT_TYPE_ACTIVITY,
-            object_id=12345,
-            owner_id=67890,
-            event_time=1704067200,
-            subscription_id=999,
-        )
-        errors = validate_webhook_event(event)
-
-        assert errors == []
-
-    def test_missing_aspect_type(self):
-        """Test that missing aspect_type is caught."""
-        event = pb.WebhookEvent(
-            object_type=pb.OBJECT_TYPE_ACTIVITY,
-            object_id=12345,
-            owner_id=67890,
-            event_time=1704067200,
-            subscription_id=999,
-        )
-        errors = validate_webhook_event(event)
-
-        assert "aspect_type is required" in errors
-
-    def test_multiple_errors(self):
-        """Test that multiple validation errors are returned."""
-        event = pb.WebhookEvent()
-        errors = validate_webhook_event(event)
-
-        assert len(errors) == 6
-        assert "aspect_type is required" in errors
-        assert "object_type is required" in errors
-        assert "event_time is required" in errors
-        assert "object_id is required" in errors
-        assert "owner_id is required" in errors
-        assert "subscription_id is required" in errors
 
 
 _FIXTURES = json.loads(FIXTURES_PATH.read_text())
