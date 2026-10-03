@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import GoalControls from "./GoalControls";
 import type { Goals } from "../utils/goalCalculations";
 import type { SportConfig } from "../api/activities";
@@ -183,12 +184,66 @@ describe("GoalControls", () => {
       const errorAlert = screen.getByRole("alert");
       expect(errorAlert).toBeInTheDocument();
 
-      // Should still be in edit mode (input should be a number input)
-      expect(editInput).toHaveAttribute("type", "number");
+      // Still editing: the field keeps the entry rather than going back to the saved value
+      expect(editInput).toHaveValue("-100");
     });
   });
 
   describe("Goal Editing", () => {
+    // These focus the field for real, so the blur that Enter and Escape cause runs too.
+    const valueField = () => screen.getByRole("textbox", { name: "Base value" });
+
+    it("edits the value in place, in the field that was tapped, with a digit keyboard", async () => {
+      render(<GoalControls {...defaultProps} />);
+      const field = valueField();
+      expect(field).toHaveValue("1,000 miles");
+      expect(field).toHaveAttribute("inputmode", "numeric");
+      expect(field).toHaveAttribute("enterkeyhint", "done");
+      expect(field).not.toHaveAttribute("readonly");
+
+      await userEvent.click(field);
+
+      // The same element, focused and showing the bare number: no second field takes over.
+      expect(field).toHaveFocus();
+      expect(field).toHaveValue("1000");
+    });
+
+    it("saves once on Enter and leaves the field, closing the keyboard", async () => {
+      render(<GoalControls {...defaultProps} />);
+      const field = valueField();
+
+      await userEvent.click(field);
+      await userEvent.clear(field);
+      await userEvent.type(field, "1300{Enter}");
+
+      expect(defaultProps.onGoalsChange).toHaveBeenCalledTimes(1);
+      const saved = vi.mocked(defaultProps.onGoalsChange).mock.calls[0]![0] as Goals;
+      expect(saved.find((g) => g.id === "1")?.value).toBe(1300);
+      expect(field).not.toHaveFocus();
+    });
+
+    it("drops the entry on Escape, and leaving the field afterwards saves nothing", async () => {
+      render(<GoalControls {...defaultProps} />);
+      const field = valueField();
+
+      await userEvent.click(field);
+      await userEvent.clear(field);
+      await userEvent.type(field, "1400{Escape}");
+      await userEvent.tab();
+
+      expect(defaultProps.onGoalsChange).not.toHaveBeenCalled();
+      expect(field).toHaveValue("1,000 miles");
+    });
+
+    it("saves nothing when the field is left unchanged", async () => {
+      render(<GoalControls {...defaultProps} />);
+
+      await userEvent.click(valueField());
+      await userEvent.tab();
+
+      expect(defaultProps.onGoalsChange).not.toHaveBeenCalled();
+    });
+
     it("draws the stepper's − and + in the theme's stepper text, else the outline button's", () => {
       render(<GoalControls {...defaultProps} />);
 

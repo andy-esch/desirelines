@@ -116,19 +116,28 @@ export function useGoalManager({
     setEditValidationError(null);
   };
 
-  const handleSaveEdit = (id: string) => {
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditValidationError(null);
+  };
+
+  /**
+   * Saves the value being edited and closes the edit. Returns false when the value fails
+   * validation: the edit stays open with the error. An empty or non-numeric entry, or the
+   * goal's own value, closes the edit without a save.
+   */
+  const handleSaveEdit = (id: string): boolean => {
     const value = parseInt(editValue);
-    if (isNaN(value)) {
-      setEditingId(null);
-      setEditValidationError(null);
-      return;
+    if (isNaN(value) || latestGoals.current.find((g) => g.id === id)?.value === value) {
+      handleCancelEdit();
+      return true;
     }
 
     // Validate the goal value (allows any positive integer)
     const validationError = validateGoalValue(value);
     if (validationError) {
       setEditValidationError(validationError);
-      return;
+      return false;
     }
 
     // Don't round manual text entry - allow any positive integer
@@ -137,8 +146,8 @@ export function useGoalManager({
       g.id === id ? { ...g, value, updatedAt: now } : g
     );
     void saveGoals(updated);
-    setEditingId(null);
-    setEditValidationError(null);
+    handleCancelEdit();
+    return true;
   };
 
   const handleGoalLabelChange = (id: string, label: string) => {
@@ -222,7 +231,6 @@ export function useGoalManager({
 
   return {
     editingId,
-    setEditingId, // Exposed for Escape key handling
     editValue,
     setEditValue,
     editingLabel,
@@ -231,6 +239,7 @@ export function useGoalManager({
     setEditValidationError, // Exposed for Escape key handling
     handleStartEdit,
     handleSaveEdit,
+    handleCancelEdit,
     handleLabelEdit,
     handleLabelSave,
     handleIncrement,
