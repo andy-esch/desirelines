@@ -828,9 +828,11 @@ export default function RouteMap({
         )}
       </Map>
       {/* Density-tier caption: the dots aggregate every activity and don't reflect
-          the active filters (the cross-filter applies to the lines once zoomed in). */}
+          the active filters (the cross-filter applies to the lines once zoomed in).
+          Like every pill over the map, it is solid, so its small text keeps its contrast
+          whatever the map shows behind it. */}
       {dotsView && (
-        <div className="pointer-events-none absolute bottom-20 left-1/2 -translate-x-1/2 rounded-full bg-surface-raised/80 px-3 py-1 text-center text-[0.7rem] text-muted-text sm:bottom-2">
+        <div className="pointer-events-none absolute bottom-20 left-1/2 -translate-x-1/2 rounded-full bg-surface-raised px-3 py-1 text-center text-[0.7rem] text-muted-text sm:bottom-2">
           Zoomed-out density — dots show all activities; zoom in to filter
         </div>
       )}
@@ -843,7 +845,7 @@ export default function RouteMap({
           role="status"
           // Sits above the density caption's slot (bottom-20 / sm:bottom-2) so the
           // two don't overlap when zoomed out and tiles fail at the same time.
-          className="absolute bottom-28 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-surface-raised/85 px-3 py-1 text-[0.7rem] text-muted-text sm:bottom-9"
+          className="absolute bottom-28 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-surface-raised px-3 py-1 text-[0.7rem] text-muted-text sm:bottom-9"
         >
           <span>Routes couldn’t be loaded.</span>
           <button

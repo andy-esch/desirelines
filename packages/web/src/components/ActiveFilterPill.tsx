@@ -68,7 +68,7 @@ export default function ActiveFilterPill({ filters, onClear }: ActiveFilterPillP
     // No `shadow-lg`: Tailwind's utilities layer beats the `.pill-neon` component rule,
     // so it silently replaced the neon glow with a generic drop shadow — this pill had
     // no glow at all. The glow carries the elevation, as on the map pill this mirrors.
-    <div className="pill-neon fixed left-1/2 top-14 z-40 flex -translate-x-1/2 items-center gap-2.5 rounded-full border bg-surface-raised/85 px-3.5 py-1.5 text-xs text-muted-text">
+    <div className="pill-neon fixed left-1/2 top-14 z-40 flex -translate-x-1/2 items-center gap-2.5 rounded-full border bg-surface-raised px-3.5 py-1.5 text-xs text-muted-text">
       <span aria-hidden="true" className="pill-neon-dot h-1.5 w-1.5 shrink-0 rounded-full" />
       <span>
         <span className="text-subtle-text">Filtered:</span> {filters.join(" · ")}

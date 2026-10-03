@@ -583,7 +583,7 @@ export default function RoutesPage() {
           {/* Deep-link focus banner: the map is pinned to one activity. Offers the
               way back to the full map (also clears the ?activity= param). */}
           {focusId != null && (
-            <div className="pill-neon absolute left-1/2 top-2 z-10 flex -translate-x-1/2 items-center gap-2.5 rounded-full border bg-surface-raised/85 px-3.5 py-1.5 text-xs text-muted-text">
+            <div className="pill-neon absolute left-1/2 top-2 z-10 flex -translate-x-1/2 items-center gap-2.5 rounded-full border bg-surface-raised px-3.5 py-1.5 text-xs text-muted-text">
               <span
                 aria-hidden="true"
                 className="pill-neon-dot h-1.5 w-1.5 shrink-0 rounded-full"
@@ -608,7 +608,7 @@ export default function RoutesPage() {
           {/* No geo-bearing activities → map falls back to a world view; hint why it's empty. */}
           {!defaultViewport && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <p className="text-muted-text text-sm bg-bg-body/70 rounded px-3 py-1" role="status">
+              <p className="text-muted-text text-sm bg-bg-body rounded px-3 py-1" role="status">
                 No routes yet. Go record some activities!
               </p>
             </div>
@@ -625,7 +625,7 @@ export default function RoutesPage() {
             activities.length > 0 &&
             routeFilters.totals.count === 0 && (
               <div className="absolute inset-0 flex items-center justify-center px-4">
-                <div className="pointer-events-auto max-w-xs rounded-lg border border-border/70 bg-card/90 px-4 py-3 text-center shadow-lg">
+                <div className="pointer-events-auto max-w-xs rounded-lg border border-border/70 bg-card px-4 py-3 text-center shadow-lg">
                   <p className="text-sm font-medium text-body-text">
                     No activities match your filters
                   </p>
