@@ -14,7 +14,7 @@ import type { Goal } from "../utils/goalCalculations";
 import type { MetricUnit } from "../utils/units";
 import type { YearContext } from "../utils/yearContext";
 import type { DistanceEntry } from "../types/activity";
-import { usePublicSportConfig } from "../hooks/usePublicSportConfig";
+import { useSportConfig } from "../hooks/useSportConfig";
 import { getSportDisplayName } from "../utils/sportConfig";
 import { DEMO_ROUTE_PREFIX } from "../constants/demoConfig";
 import { PageTitle } from "./theme/PageTitle";
@@ -141,9 +141,9 @@ export default function SportPageContent({
   const [showAchievements, setShowAchievements] = useState(true);
 
   // Honor the configured displayName (e.g. "E-Bike", "Water Sports") rather
-  // than a raw capitalization of the sport key. Shares the React Query cache
-  // slot with useSportConfig, so this is free for the authenticated path too.
-  const { sportConfig } = usePublicSportConfig();
+  // than a raw capitalization of the sport key. Every caller shares one cached
+  // fetch, so this costs nothing extra.
+  const { sportConfig } = useSportConfig();
   const sportDisplayName = getSportDisplayName(sport, sportConfig);
 
   const isCurrentYear = yearContext.isCurrentYear;

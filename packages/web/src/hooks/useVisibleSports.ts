@@ -1,7 +1,7 @@
 import { useMemo, useCallback } from "react";
 import { usePreferences } from "./usePreferences";
 import { useAuth } from "./useAuth";
-import { usePublicSportConfig } from "./usePublicSportConfig";
+import { useSportConfig } from "./useSportConfig";
 import { DEFAULT_PREFERENCES } from "../constants/settings";
 import { logger } from "../lib/logger";
 
@@ -53,7 +53,7 @@ export function useVisibleSports(knownSports?: string[]) {
   } = usePreferences();
   // Used to filter both stored prefs and defaults against the live registry
   // when the caller doesn't pass an explicit `knownSports` list.
-  const { sportConfig } = usePublicSportConfig();
+  const { sportConfig } = useSportConfig();
 
   /**
    * Get visible sports from preferences, with defaults and filtering.

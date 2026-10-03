@@ -1,5 +1,5 @@
 import { AVAILABLE_YEARS } from "../../constants/sidebar";
-import { usePublicSportConfig } from "../../hooks/usePublicSportConfig";
+import { useSportConfig } from "../../hooks/useSportConfig";
 import { getSportDisplayName } from "../../utils/sportConfig";
 import SportVisibilityHint from "../SportVisibilityHint";
 import StyledSelect from "../StyledSelect";
@@ -37,7 +37,7 @@ export default function FilterControls({
       ? [sport, ...availableSports]
       : availableSports;
 
-  const { sportConfig } = usePublicSportConfig();
+  const { sportConfig } = useSportConfig();
   const sportOptions = sportsToShow.map((sportId) => {
     const count = sportCounts?.[sportId];
     const name = getSportDisplayName(sportId, sportConfig);

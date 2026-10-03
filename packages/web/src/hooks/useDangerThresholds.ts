@@ -16,11 +16,11 @@ import {
   type ElevationUnit,
 } from "../utils/units";
 import { DEFAULT_DANGER_PROXIMITY } from "../utils/chartScaling";
-import { usePublicSportConfig } from "./usePublicSportConfig";
+import { useSportConfig } from "./useSportConfig";
 import { useUnitSettings } from "./usePreferences";
 
 export function useDangerThresholds() {
-  const { sportConfig } = usePublicSportConfig();
+  const { sportConfig } = useSportConfig();
   const { distanceUnit, elevationUnit } = useUnitSettings();
 
   const getThreshold = (sport: string): number => {

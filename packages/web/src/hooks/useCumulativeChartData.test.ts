@@ -14,8 +14,8 @@ vi.mock("./useAuth", () => ({
 vi.mock("../contexts/ServiceContext", () => ({
   useServices: () => ({}),
 }));
-vi.mock("./usePublicSportConfig", () => ({
-  usePublicSportConfig: () => ({
+vi.mock("./useSportConfig", () => ({
+  useSportConfig: () => ({
     sportConfig: {
       version: "1.0",
       sportCategories: {

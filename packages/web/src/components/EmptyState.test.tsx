@@ -3,10 +3,10 @@ import { screen } from "@testing-library/react";
 import EmptyState from "./EmptyState";
 import { renderWithRouter } from "../test/renderWithRouter";
 
-// usePublicSportConfig pulls from React Query; stub it so the component can
+// useSportConfig pulls from React Query; stub it so the component can
 // resolve display names without a QueryClientProvider in component tests.
-vi.mock("../hooks/usePublicSportConfig", () => ({
-  usePublicSportConfig: () => ({
+vi.mock("../hooks/useSportConfig", () => ({
+  useSportConfig: () => ({
     sportConfig: {
       version: "1.0",
       sportCategories: {

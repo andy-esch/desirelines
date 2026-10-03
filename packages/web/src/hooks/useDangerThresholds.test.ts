@@ -13,8 +13,8 @@ vi.mock("./usePreferences", async () => {
   return { useUnitSettings: () => getUserSettings(preferencesRef.current as Preferences | null) };
 });
 
-vi.mock("./usePublicSportConfig", () => ({
-  usePublicSportConfig: () => ({
+vi.mock("./useSportConfig", () => ({
+  useSportConfig: () => ({
     sportConfig: sportConfigRef.current,
     isLoading: false,
     error: null,
