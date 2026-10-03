@@ -151,7 +151,8 @@ Per-user OAuth tokens for Strava API access. Stored in Firestore.
 
 ### Activity Routes
 
-Decoded GPS route geometry (PostGIS `LINESTRING`), served to the slippy map as
+Decoded GPS route geometry (PostGIS `MULTILINESTRING`, so a stopped-and-restarted
+activity can be stored as separate legs), served to the slippy map as
 Mapbox Vector Tiles (`GET /activities/map/tiles/{z}/{x}/{y}`). Tile bytes come
 straight from `ST_AsMVT`, so no Go route type sits in between; the per-activity
 attributes the map cross-filters on travel separately as the map dataset
@@ -159,7 +160,7 @@ attributes the map cross-filters on travel separately as the map dataset
 
 | Stage | Package | Type | File |
 |-------|---------|------|------|
-| Database table | PostgreSQL | `desirelines.activity_routes` | `schemas/database/migrations/V0003__add_activity_routes.sql` |
+| Database table | PostgreSQL | `desirelines.activity_routes` | `schemas/database/migrations/V0003__add_activity_routes.sql`, `V0009__activity_routes_multilinestring.sql` |
 | Tile query | apigateway | `repository.ActivityRepository.GetMapTile` (MVT bytes) | `packages/apigateway/repository/activities.go` |
 | Map dataset row | apigateway | `activitiesv1.MapActivity` | `packages/apigateway/types/generated/activitiesv1/activities.pb.go` |
 | Frontend | web | `MapActivity` | `packages/web/src/types/generated/activities.ts` |

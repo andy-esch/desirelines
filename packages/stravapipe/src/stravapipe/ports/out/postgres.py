@@ -234,7 +234,9 @@ class ActivityRepository(ABC):
 
         Args:
             activity_id: Strava activity ID (must exist in activities table)
-            geojson: GeoJSON LineString string for ST_GeomFromGeoJSON()
+            geojson: GeoJSON LineString or MultiLineString string for
+                ST_GeomFromGeoJSON(). The column is MultiLineString, so a
+                LineString is stored as a 1-part MultiLineString.
 
         Returns:
             True if inserted, False if already existed (conflict)
@@ -245,7 +247,7 @@ class ActivityRepository(ABC):
     def tag_activity_regions(self, activity_id: int) -> int:
         """Tag an activity with every region its route intersects (many-to-many).
 
-        Writes ``activity_regions`` rows for each region the route linestring
+        Writes ``activity_regions`` rows for each region any part of the route
         intersects, falling back to the builtin ``earth`` region when the route
         matches no specific boundary. Idempotent and atomic (clears and rewrites
         inside a savepoint, preserving existing tags on a transient failure).

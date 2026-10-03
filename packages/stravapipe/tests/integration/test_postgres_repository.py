@@ -853,8 +853,8 @@ class TestBackfillWatermarkUpsert:
 class TestActivityRouteRepository:
     """Integration tests for activity route geometry storage."""
 
-    def test_insert_route_happy_path(self, uow, db_session):
-        """insert_route stores geometry and is queryable with PostGIS."""
+    def test_insert_route_stores_a_linestring_as_one_part(self, uow, db_session):
+        """A LineString from the polyline decoder lands as a 1-part MultiLineString."""
         activity = make_activity(activity_id=300001)
         geojson = '{"type":"LineString","coordinates":[[-120.2,38.5],[-120.95,40.7],[-126.453,43.252]]}'
 
@@ -865,17 +865,44 @@ class TestActivityRouteRepository:
 
         assert result is True
 
-        # Verify geometry stored correctly via ST_AsGeoJSON
         row = db_session.execute(
             text(
                 "SELECT ST_AsGeoJSON(route)::json->>'type' as geom_type, "
+                "ST_NumGeometries(route) as parts, "
                 "ST_NPoints(route) as npoints "
                 "FROM desirelines.activity_routes WHERE activity_id = :id"
             ),
             {"id": 300001},
         ).fetchone()
-        assert row.geom_type == "LineString"
+        assert row.geom_type == "MultiLineString"
+        assert row.parts == 1
         assert row.npoints == 3
+
+    def test_insert_route_stores_each_leg_of_a_multilinestring(self, uow, db_session):
+        """A route split at a pause keeps its legs as separate parts."""
+        activity = make_activity(activity_id=300004)
+        geojson = (
+            '{"type":"MultiLineString","coordinates":['
+            "[[-120.2,38.5],[-120.95,40.7]],"
+            "[[-126.453,43.252],[-126.5,43.3],[-126.6,43.4]]]}"
+        )
+
+        with uow:
+            uow.activities.insert(activity, None)
+            result = uow.activities.insert_route(300004, geojson)
+            uow.commit()
+
+        assert result is True
+        row = db_session.execute(
+            text(
+                "SELECT ST_NumGeometries(route) as parts, "
+                "ST_NPoints(ST_GeometryN(route, 2)) as second_leg_points "
+                "FROM desirelines.activity_routes WHERE activity_id = :id"
+            ),
+            {"id": 300004},
+        ).fetchone()
+        assert row.parts == 2
+        assert row.second_leg_points == 3
 
     def test_insert_route_duplicate_returns_false(self, uow):
         """insert_route returns False for duplicate (ON CONFLICT DO NOTHING)."""
@@ -1000,6 +1027,25 @@ class TestActivityRegionTagging:
             uow.activities.insert_route(
                 activity.id,
                 '{"type":"LineString","coordinates":[[-30.5,-0.5],[-30,0],[-29.5,0.5]]}',
+            )
+            count = uow.activities.tag_activity_regions(activity.id)
+            uow.commit()
+
+        assert count == 1
+        assert _tagged_region_ids(db_session, activity.id) == [region_id]
+
+    def test_tags_a_region_crossed_by_only_one_leg(self, uow, db_session):
+        """Any part of a split route counts, not just the first leg."""
+        activity = make_activity(activity_id=210030)
+        region_id = _insert_test_region(db_session, code="r1", wkt=_TEST_REGION_WKT)
+
+        with uow:
+            uow.activities.insert(activity, None)
+            uow.activities.insert_route(
+                activity.id,
+                '{"type":"MultiLineString","coordinates":['
+                "[[-45,0],[-44,0]],"
+                "[[-30.5,-0.5],[-30,0]]]}",
             )
             count = uow.activities.tag_activity_regions(activity.id)
             uow.commit()

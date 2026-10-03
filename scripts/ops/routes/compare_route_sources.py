@@ -440,7 +440,7 @@ def report_gaps(
         )
 
     if not gaps:
-        print("  no gaps found: this activity would stay a single LineString.")
+        print("  no gaps found: this activity would stay in one piece.")
         return
 
     print(f"\n  {len(gaps)} gap(s) -> {part_count} part(s):")

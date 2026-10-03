@@ -3,7 +3,6 @@
 package postgres_test
 
 import (
-	"bytes"
 	"context"
 	"math"
 	"os"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"google.golang.org/protobuf/encoding/protowire"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/adapters/postgres"
 )
@@ -27,12 +27,15 @@ func tileXY(lng, lat float64, z int) (x, y int) {
 	return x, y
 }
 
-// A 2x2 degree test region box around (-30, 0), and a small route inside its
-// northern/western quadrant — far from any real geography, so these tests are
-// deterministic regardless of what's in the regions table.
+// A 2x2 degree test region box around (-30, 0), and small routes inside its
+// northern half, far from any real geography so these tests are deterministic
+// regardless of what's in the regions table. testSplitRouteWKT is
+// one activity stored as two legs (a pause between them); both legs fall in the
+// same z8 tile so one tile shows how the activity renders.
 const (
-	testRegionWKT = "POLYGON((-31 -1, -29 -1, -29 1, -31 1, -31 -1))"
-	testRouteWKT  = "LINESTRING(-30.5 0.3, -30 0.5, -29.5 0.7)"
+	testRegionWKT     = "POLYGON((-31 -1, -29 -1, -29 1, -31 1, -31 -1))"
+	testRouteWKT      = "MULTILINESTRING((-30.5 0.3, -30 0.5, -29.5 0.7))"
+	testSplitRouteWKT = "MULTILINESTRING((-30.3 0.3, -30.2 0.35), (-29.9 0.5, -29.8 0.55))"
 )
 
 func insertTestRegion(t *testing.T, tx pgx.Tx, code, kind string) int64 {
@@ -53,6 +56,12 @@ func insertTestRegion(t *testing.T, tx pgx.Tx, code, kind string) int64 {
 // is the "non-geographic / excluded from map" case).
 func insertRoutedActivity(t *testing.T, tx pgx.Tx, id int64, userID string) {
 	t.Helper()
+	insertActivityWithRoute(t, tx, id, userID, testRouteWKT)
+}
+
+// insertActivityWithRoute is insertRoutedActivity with a caller-chosen route.
+func insertActivityWithRoute(t *testing.T, tx pgx.Tx, id int64, userID, routeWKT string) {
+	t.Helper()
 	ctx := context.Background()
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO desirelines.activities (
@@ -65,7 +74,7 @@ func insertRoutedActivity(t *testing.T, tx pgx.Tx, id int64, userID string) {
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO desirelines.activity_routes (activity_id, route)
-		VALUES ($1, ST_GeomFromText($2, 4326))`, id, testRouteWKT,
+		VALUES ($1, ST_GeomFromText($2, 4326))`, id, routeWKT,
 	); err != nil {
 		t.Fatalf("insert route for %d: %v", id, err)
 	}
@@ -83,6 +92,59 @@ func insertRoutelessActivity(t *testing.T, tx pgx.Tx, id int64, userID string) {
 		id, userID, time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC),
 	); err != nil {
 		t.Fatalf("insert routeless activity %d: %v", id, err)
+	}
+}
+
+// countMVTFeatures returns how many features the named layer of an MVT tile
+// holds. It walks the protobuf wire format (Tile.layers = 3, Layer.name = 1,
+// Layer.features = 2) so the tests need no MVT decoder.
+func countMVTFeatures(t *testing.T, tile []byte, layer string) int {
+	t.Helper()
+	count := 0
+	eachBytesField(t, tile, func(num protowire.Number, layerMsg []byte) {
+		if num != 3 {
+			return
+		}
+		name, features := "", 0
+		eachBytesField(t, layerMsg, func(num protowire.Number, payload []byte) {
+			switch num {
+			case 1:
+				name = string(payload)
+			case 2:
+				features++
+			}
+		})
+		if name == layer {
+			count += features
+		}
+	})
+	return count
+}
+
+// eachBytesField calls fn with the payload of every length-delimited top-level
+// field in msg, skipping fields of any other wire type.
+func eachBytesField(t *testing.T, msg []byte, fn func(num protowire.Number, payload []byte)) {
+	t.Helper()
+	for len(msg) > 0 {
+		num, typ, n := protowire.ConsumeTag(msg)
+		if n < 0 {
+			t.Fatalf("malformed MVT tag: %v", protowire.ParseError(n))
+		}
+		msg = msg[n:]
+		if typ == protowire.BytesType {
+			payload, m := protowire.ConsumeBytes(msg)
+			if m < 0 {
+				t.Fatalf("malformed MVT field %d: %v", num, protowire.ParseError(m))
+			}
+			fn(num, payload)
+			msg = msg[m:]
+			continue
+		}
+		m := protowire.ConsumeFieldValue(num, typ, msg)
+		if m < 0 {
+			t.Fatalf("malformed MVT field %d: %v", num, protowire.ParseError(m))
+		}
+		msg = msg[m:]
 	}
 }
 
@@ -189,9 +251,6 @@ func TestIntegration_MapEndpoints(t *testing.T) {
 			insertRoutedActivity(t, tx, 5001, "test-user")
 			tagActivityRegion(t, tx, 5001, regionID)
 
-			// The MVT layer name is encoded verbatim in the tile protobuf, so a
-			// substring check distinguishes the two LOD tiers ("routes" is NOT a
-			// substring of "route_points", so the checks don't cross-match).
 			midLng, midLat := -30.0, 0.5 // the test route's middle vertex
 
 			// Low zoom (< lineMinZoom=8) → grid-binned density points layer.
@@ -200,10 +259,10 @@ func TestIntegration_MapEndpoints(t *testing.T) {
 			if err != nil {
 				t.Fatalf("GetMapTile low-zoom: %v", err)
 			}
-			if !bytes.Contains(low, []byte("route_points")) {
+			if countMVTFeatures(t, low, "route_points") == 0 {
 				t.Errorf("low-zoom tile should carry the 'route_points' layer; got %d bytes", len(low))
 			}
-			if bytes.Contains(low, []byte("routes")) {
+			if countMVTFeatures(t, low, "routes") != 0 {
 				t.Error("low-zoom tile should NOT carry the 'routes' line layer")
 			}
 
@@ -213,10 +272,10 @@ func TestIntegration_MapEndpoints(t *testing.T) {
 			if err != nil {
 				t.Fatalf("GetMapTile high-zoom: %v", err)
 			}
-			if !bytes.Contains(high, []byte("routes")) {
+			if countMVTFeatures(t, high, "routes") == 0 {
 				t.Errorf("high-zoom tile should carry the 'routes' line layer; got %d bytes", len(high))
 			}
-			if bytes.Contains(high, []byte("route_points")) {
+			if countMVTFeatures(t, high, "route_points") != 0 {
 				t.Error("high-zoom tile should NOT carry the 'route_points' layer")
 			}
 		})
@@ -234,6 +293,35 @@ func TestIntegration_MapEndpoints(t *testing.T) {
 			}
 			if len(tile) != 0 {
 				t.Errorf("untagged activity must be excluded; got %d bytes", len(tile))
+			}
+		})
+	})
+
+	t.Run("Tile_SplitRoute_IsOneFeaturePerActivity", func(t *testing.T) {
+		withTestTxRaw(t, pool, func(tx pgx.Tx, repo *postgres.ActivityRepository) {
+			regionID := insertTestRegion(t, tx, "r1", "county")
+			insertActivityWithRoute(t, tx, 5004, "test-user", testSplitRouteWKT)
+			tagActivityRegion(t, tx, 5004, regionID)
+
+			// Both legs fall in one z8 tile and stay a single feature, so map hover
+			// and click resolve the whole activity rather than one leg.
+			hx, hy := tileXY(-30.0, 0.4, 8)
+			high, err := repo.GetMapTile(ctx, "test-user", 8, hx, hy)
+			if err != nil {
+				t.Fatalf("GetMapTile high-zoom: %v", err)
+			}
+			if got := countMVTFeatures(t, high, "routes"); got != 1 {
+				t.Errorf("routes layer has %d features for one split activity, want 1", got)
+			}
+
+			// Low zoom: one centroid dot for the activity, not one per leg.
+			lx, ly := tileXY(-30.0, 0.4, 2)
+			low, err := repo.GetMapTile(ctx, "test-user", 2, lx, ly)
+			if err != nil {
+				t.Fatalf("GetMapTile low-zoom: %v", err)
+			}
+			if got := countMVTFeatures(t, low, "route_points"); got != 1 {
+				t.Errorf("route_points layer has %d features for one split activity, want 1", got)
 			}
 		})
 	})
@@ -298,13 +386,40 @@ func TestIntegration_MapDataset(t *testing.T) {
 			if len(ids) != 2 || ids[0] != min64(r1, r2) || ids[1] != max64(r1, r2) {
 				t.Errorf("regionIds = %v, want sorted [%d %d]", ids, min64(r1, r2), max64(r1, r2))
 			}
-			// bbox covers the test route LINESTRING(-30.5 0.3 .. -29.5 0.7).
+			// bbox covers testRouteWKT (-30.5 0.3 .. -29.5 0.7).
 			bb := a.GetBbox()
 			if len(bb) != 4 {
 				t.Fatalf("bbox = %v, want 4 elements", bb)
 			}
 			if bb[0] > -30.49 || bb[1] > 0.31 || bb[2] < -29.51 || bb[3] < 0.69 {
 				t.Errorf("bbox %v doesn't cover the test route", bb)
+			}
+		})
+	})
+
+	t.Run("BBoxSpansEveryLeg", func(t *testing.T) {
+		withTestTxRaw(t, pool, func(tx pgx.Tx, repo *postgres.ActivityRepository) {
+			region := insertTestRegion(t, tx, "r1", "county")
+			insertActivityWithRoute(t, tx, 5004, "test-user", testSplitRouteWKT)
+			tagActivityRegion(t, tx, 5004, region)
+
+			got, err := repo.GetMapDataset(ctx, "test-user")
+			if err != nil {
+				t.Fatalf("GetMapDataset: %v", err)
+			}
+			if len(got) != 1 {
+				t.Fatalf("want 1 activity, got %d", len(got))
+			}
+			// The first leg holds the minimum corner and the second the maximum.
+			want := []float64{-30.3, 0.3, -29.8, 0.55}
+			bb := got[0].GetBbox()
+			if len(bb) != len(want) {
+				t.Fatalf("bbox = %v, want %v", bb, want)
+			}
+			for i := range want {
+				if math.Abs(bb[i]-want[i]) > 1e-9 {
+					t.Fatalf("bbox = %v, want %v", bb, want)
+				}
 			}
 		})
 	})

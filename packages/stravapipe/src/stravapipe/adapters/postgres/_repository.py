@@ -418,7 +418,9 @@ class SqlAlchemyActivityRepository(ActivityRepository):
 
         Args:
             activity_id: Strava activity ID (must exist in activities table)
-            geojson: GeoJSON LineString string for ST_GeomFromGeoJSON()
+            geojson: GeoJSON LineString or MultiLineString string for
+                ST_GeomFromGeoJSON(). The column is MultiLineString, so a
+                LineString is stored as a 1-part MultiLineString.
 
         Returns:
             True if inserted, False if already existed (conflict)
@@ -440,7 +442,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         """Tag an activity with every region its route intersects (many-to-many).
 
         Writes ``desirelines.activity_regions`` rows for each region whose boundary
-        the route linestring intersects (``ST_Intersects``), across all boundary
+        any part of the route intersects (``ST_Intersects``), across all boundary
         layers — a long route legitimately crosses several counties and >=1 CBSA.
         The builtin ``earth`` fallback (``region_kind = 'global'``) is excluded
         from the intersect and assigned only when the route matches no specific

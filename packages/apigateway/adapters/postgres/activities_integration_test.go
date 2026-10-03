@@ -805,7 +805,7 @@ func TestIntegration_AggregateActivities(t *testing.T) {
 			if f.hasRouteGeometry {
 				if _, err := tx.Exec(ctx, `
 					INSERT INTO desirelines.activity_routes (activity_id, route)
-					VALUES ($1, ST_GeomFromText('LINESTRING(-71.06 42.35, -71.05 42.36)', 4326))
+					VALUES ($1, ST_GeomFromText('MULTILINESTRING((-71.06 42.35, -71.05 42.36))', 4326))
 				`, f.id); err != nil {
 					t.Fatalf("failed to insert route for fixture %d: %v", f.id, err)
 				}
