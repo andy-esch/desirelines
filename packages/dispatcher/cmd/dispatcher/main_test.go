@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -114,4 +115,18 @@ func unsetTestEnv(t *testing.T, key string) {
 			t.Errorf("clear %s: %v", key, err)
 		}
 	})
+}
+
+// initDependencies closes whatever it opened when a later step fails, through
+// Close on a partly built Dependencies. Close must skip the clients that never
+// opened rather than dereference them.
+func TestDependenciesClose_SkipsClientsThatNeverOpened(t *testing.T) {
+	deps := &Dependencies{logger: slog.New(slog.DiscardHandler)}
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("Close panicked on a partly built Dependencies: %v", r)
+		}
+	}()
+
+	deps.Close()
 }

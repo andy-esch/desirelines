@@ -39,6 +39,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -600,6 +601,36 @@ func (h *Handler) HandleListActivities(w http.ResponseWriter, r *http.Request) {
 	h.respondProtobuf(w, r, result)
 }
 
+// parseDateAndSportFilters parses the filters the activities list and its
+// summary share: the optional 'from' and 'to' dates (YYYY-MM-DD) and 'sports',
+// comma-separated categories resolved to the union of their Strava sport
+// types. An absent or empty value means no filter. Returns a zero-value
+// APIError (Status=0) on success.
+func (h *Handler) parseDateAndSportFilters(query url.Values) (from, to *string, sportTypes []string, apiErr apierrors.APIError) {
+	if fromStr := query.Get("from"); fromStr != "" {
+		if !validate.Date(fromStr) {
+			return nil, nil, nil, apierrors.NewAPIError(http.StatusBadRequest, "Invalid 'from' date format (expected YYYY-MM-DD)")
+		}
+		from = &fromStr
+	}
+
+	if toStr := query.Get("to"); toStr != "" {
+		if !validate.Date(toStr) {
+			return nil, nil, nil, apierrors.NewAPIError(http.StatusBadRequest, "Invalid 'to' date format (expected YYYY-MM-DD)")
+		}
+		to = &toStr
+	}
+
+	if sportsStr := query.Get("sports"); sportsStr != "" {
+		sportTypes, apiErr = h.resolveSportsList(sportsStr)
+		if !apiErr.IsZero() {
+			return nil, nil, nil, apiErr
+		}
+	}
+
+	return from, to, sportTypes, apierrors.APIError{}
+}
+
 // parseListActivitiesFilter parses and validates query parameters for ListActivities.
 // Returns a zero-value APIError (Status=0) on success.
 func (h *Handler) parseListActivitiesFilter(r *http.Request) (*repository.ActivityListFilter, apierrors.APIError) {
@@ -608,30 +639,10 @@ func (h *Handler) parseListActivitiesFilter(r *http.Request) (*repository.Activi
 		Limit: repository.DefaultListLimit,
 	}
 
-	// Parse 'from' date
-	if fromStr := query.Get("from"); fromStr != "" {
-		if !validate.Date(fromStr) {
-			return nil, apierrors.NewAPIError(http.StatusBadRequest, "Invalid 'from' date format (expected YYYY-MM-DD)")
-		}
-		filter.From = &fromStr
-	}
-
-	// Parse 'to' date
-	if toStr := query.Get("to"); toStr != "" {
-		if !validate.Date(toStr) {
-			return nil, apierrors.NewAPIError(http.StatusBadRequest, "Invalid 'to' date format (expected YYYY-MM-DD)")
-		}
-		filter.To = &toStr
-	}
-
-	// Parse 'sports' (optional) - comma-separated sport categories, resolved to
-	// the union of their Strava sport types. Absent or empty means all sports.
-	if sportsStr := query.Get("sports"); sportsStr != "" {
-		sportTypes, apiErr := h.resolveSportsList(sportsStr)
-		if !apiErr.IsZero() {
-			return nil, apiErr
-		}
-		filter.SportTypes = sportTypes
+	var apiErr apierrors.APIError
+	filter.From, filter.To, filter.SportTypes, apiErr = h.parseDateAndSportFilters(query)
+	if !apiErr.IsZero() {
+		return nil, apiErr
 	}
 
 	// Parse 'limit'

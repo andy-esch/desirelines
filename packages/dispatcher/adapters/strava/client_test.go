@@ -166,6 +166,7 @@ func newTestClient(server *httptest.Server, tokenStore ports.TokenStore) *Client
 		histogram:    noopHist,
 		tracer:       noopProviders.Tracer,
 		breaker:      newStravaBreaker(logger, testBreakerTimeout, nil),
+		now:          time.Now,
 	}
 }
 
@@ -1992,6 +1993,64 @@ func TestVerifyGrant_LiveAccessTokenIsActiveWithoutRotation(t *testing.T) {
 	}
 	if len(tokenStore.WrittenTokens) != 0 {
 		t.Errorf("unexpected token write: %+v", tokenStore.WrittenTokens)
+	}
+}
+
+// The live-token check reads the client's clock: a stored access token counts
+// as live until the second it expires, and from then on VerifyGrant refreshes
+// instead of asking /athlete.
+func TestVerifyGrant_ExpiryBoundaryReadsTheClientClock(t *testing.T) {
+	expiresAt := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name     string
+		now      time.Time
+		wantPath string
+	}{
+		{"a second before expiry checks the athlete", expiresAt.Add(-time.Second), "/api/v3/athlete"},
+		{"at expiry refreshes", expiresAt, testTokenPath},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var mu sync.Mutex
+			var paths []string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				mu.Lock()
+				paths = append(paths, r.URL.Path)
+				mu.Unlock()
+				var body map[string]any
+				switch r.URL.Path {
+				case "/api/v3/athlete":
+					body = map[string]any{"id": testOwnerID}
+				case testTokenPath:
+					body = map[string]any{
+						"access_token": "rotated-access", "refresh_token": "rotated-refresh", "expires_at": futureExpiry(),
+					}
+				default:
+					t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
+				if err := json.NewEncoder(w).Encode(body); err != nil {
+					t.Errorf("encode response: %v", err)
+				}
+			}))
+			defer server.Close()
+
+			tokenStore := &portstest.MockTokenStore{Tokens: map[int64]*stravatoken.Data{
+				testOwnerID: {AccessToken: "live-access", RefreshToken: "live-refresh", ExpiresAt: expiresAt.Unix()},
+			}}
+			client := newTestClient(server, tokenStore)
+			client.now = func() time.Time { return tc.now }
+
+			status, err := client.VerifyGrant(context.Background(), testOwnerID)
+			if err != nil || status != ports.GrantActive {
+				t.Fatalf("VerifyGrant() = (%s, %v), want (active, nil)", status, err)
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			if len(paths) == 0 || paths[0] != tc.wantPath {
+				t.Errorf("first request = %v, want %s", paths, tc.wantPath)
+			}
+		})
 	}
 }
 

@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/propagation"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -205,9 +206,9 @@ func (p *Publisher) publishBytes(ctx context.Context, data []byte, correlationID
 
 	ctx, spanDone := otel.StartSpan(ctx, p.tracer, "pubsub.publish",
 		attribute.String("correlation_id", correlationID),
-		attribute.String("messaging.system", "gcp_pubsub"),
-		attribute.String("messaging.destination.name", p.topic),
-		attribute.String("messaging.operation", "publish"),
+		semconv.MessagingSystemGCPPubSub,
+		semconv.MessagingDestinationName(p.topic),
+		semconv.MessagingOperationTypeSend,
 	)
 	defer func() { spanDone(err) }()
 

@@ -194,23 +194,31 @@ type Dependencies struct {
 	logger          *slog.Logger
 }
 
-// Close releases all dependency resources.
+// Close releases all dependency resources. A client that was never opened is
+// nil and skipped, so Close also cleans up after a partly failed
+// initDependencies.
 func (d *Dependencies) Close() {
 	closeCtx, cancel := context.WithTimeout(context.Background(), closeTimeout)
 	defer cancel()
-	if err := d.publisher.Close(closeCtx); err != nil {
-		d.logger.Error("Failed to close publisher", "error", err)
+	if d.publisher != nil {
+		if err := d.publisher.Close(closeCtx); err != nil {
+			d.logger.Error("Failed to close publisher", "error", err)
+		}
 	}
-	if err := d.deauthPublisher.Close(closeCtx); err != nil {
-		d.logger.Error("Failed to close deauth publisher", "error", err)
+	if d.deauthPublisher != nil {
+		if err := d.deauthPublisher.Close(closeCtx); err != nil {
+			d.logger.Error("Failed to close deauth publisher", "error", err)
+		}
 	}
 	if d.rowPublisher != nil {
 		if err := d.rowPublisher.Close(closeCtx); err != nil {
 			d.logger.Error("Failed to close activity-row publisher", "error", err)
 		}
 	}
-	if err := d.firestoreClient.Close(); err != nil {
-		d.logger.Error("Failed to close Firestore client", "error", err)
+	if d.firestoreClient != nil {
+		if err := d.firestoreClient.Close(); err != nil {
+			d.logger.Error("Failed to close Firestore client", "error", err)
+		}
 	}
 }
 
@@ -244,9 +252,19 @@ func newCounter(meter metric.Meter, log *slog.Logger, name, desc string) metric.
 
 // initDependencies creates and wires all application dependencies.
 // This is the composition root following hexagonal architecture.
-func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, tracer trace.Tracer) (*Dependencies, error) {
+func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, tracer trace.Tracer) (_ *Dependencies, err error) {
 	startupCtx, cancel := context.WithTimeout(context.Background(), startupTimeout)
 	defer cancel()
+
+	// Each client is recorded here as it opens. If a later step fails, the ones
+	// already open are closed on the way out; on success the caller owns them
+	// through Dependencies.Close.
+	deps := &Dependencies{logger: log}
+	defer func() {
+		if err != nil {
+			deps.Close()
+		}
+	}()
 
 	// 1. Create OTel instruments first so they can be injected into adapters.
 	// Errors are non-fatal; instruments will be no-op on failure.
@@ -270,11 +288,13 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 	if err != nil {
 		return nil, fmt.Errorf("pubsub publisher: %w", err)
 	}
+	deps.publisher = publisher
 
 	deauthPublisher, err := pubsub.NewPublisher(startupCtx, cfg.GCPProjectID, cfg.GCPPubSubDeauthTopicID, log, pubsubHist, tracer)
 	if err != nil {
 		return nil, fmt.Errorf("pubsub deauth publisher: %w", err)
 	}
+	deps.deauthPublisher = deauthPublisher
 
 	// The activity-row publisher exists only while the feature is enabled;
 	// otherwise no client is created and the handler never sees a publisher.
@@ -288,6 +308,7 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 		if err != nil {
 			return nil, fmt.Errorf("pubsub activity-row publisher: %w", err)
 		}
+		deps.rowPublisher = rowPublisher
 		rowPublisherPort = rowPublisher
 	}
 	log.Info("Activity-row publish configured",
@@ -299,6 +320,7 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 	if err != nil {
 		return nil, fmt.Errorf("firestore client: %w", err)
 	}
+	deps.firestoreClient = firestoreClient
 	log.Info("Firestore client initialized", "database", cfg.FirestoreDatabase)
 
 	// Both lookups below sit on the SYNCHRONOUS webhook path, strictly serial
@@ -393,14 +415,8 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 		Tracer:                    tracer,
 	})
 
-	return &Dependencies{
-		publisher:       publisher,
-		deauthPublisher: deauthPublisher,
-		rowPublisher:    rowPublisher,
-		firestoreClient: firestoreClient,
-		handler:         handler,
-		logger:          log,
-	}, nil
+	deps.handler = handler
+	return deps, nil
 }
 
 func loadWebhookCallbackCapability() (string, error) {

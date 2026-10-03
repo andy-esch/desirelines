@@ -13,6 +13,9 @@ import (
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/andy-esch/desirelines/packages/shared/ratelimit"
 	"github.com/go-chi/chi/v5"
+	"go.opentelemetry.io/otel/attribute"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
 
 // mockAuthMiddleware implements AuthMiddleware for testing
@@ -744,5 +747,108 @@ func TestPreflightBypassesGlobalRateLimiter(t *testing.T) {
 		if w.Code == http.StatusTooManyRequests {
 			t.Fatalf("preflight %d was rate limited (status 429); preflights must resolve in CORS before the limiter", i)
 		}
+	}
+}
+
+// recoveredRequests returns the status codes RecoverOutermost recorded in its
+// histogram, one per recorded request.
+func recoveredRequests(t *testing.T, reader *sdkmetric.ManualReader) []string {
+	t.Helper()
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("collect metrics: %v", err)
+	}
+	var statuses []string
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			h, ok := m.Data.(metricdata.Histogram[float64])
+			if !ok {
+				continue
+			}
+			for _, dp := range h.DataPoints {
+				status, _ := dp.Attributes.Value(attribute.Key("http.status_code"))
+				for range dp.Count {
+					statuses = append(statuses, status.AsString())
+				}
+			}
+		}
+	}
+	return statuses
+}
+
+func TestRecoverOutermost_PanicBecomesAJSON500AndIsRecorded(t *testing.T) {
+	reader := sdkmetric.NewManualReader()
+	hist, err := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).
+		Meter("test").Float64Histogram("desirelines.io/http/request.duration")
+	if err != nil {
+		t.Fatalf("histogram: %v", err)
+	}
+	handler := RecoverOutermost(slog.New(slog.DiscardHandler), hist)(
+		//nolint:forbidigo // the panic is what this test feeds the guard
+		http.HandlerFunc(func(http.ResponseWriter, *http.Request) { panic("boom") }),
+	)
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/activities", nil))
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rec.Code)
+	}
+	var body map[string]any
+	if jsonErr := json.Unmarshal(rec.Body.Bytes(), &body); jsonErr != nil {
+		t.Fatalf("body is not JSON: %q", rec.Body.String())
+	}
+	if body["error"] != "Internal server error" {
+		t.Errorf("error = %v, want %q", body["error"], "Internal server error")
+	}
+	if got := recoveredRequests(t, reader); len(got) != 1 || got[0] != "500" {
+		t.Errorf("recorded statuses = %v, want [500]", got)
+	}
+}
+
+func TestRecoverOutermost_LeavesAWrittenResponseAlone(t *testing.T) {
+	handler := RecoverOutermost(slog.New(slog.DiscardHandler), nil)(
+		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusAccepted)
+			panic("after the response started") //nolint:forbidigo // the panic is what this test feeds the guard
+		}),
+	)
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+
+	if rec.Code != http.StatusAccepted {
+		t.Errorf("status = %d, want the 202 already written", rec.Code)
+	}
+}
+
+func TestRecoverOutermost_PassesOnTheAbortSignal(t *testing.T) {
+	handler := RecoverOutermost(slog.New(slog.DiscardHandler), nil)(
+		//nolint:forbidigo // the panic is what this test feeds the guard
+		http.HandlerFunc(func(http.ResponseWriter, *http.Request) { panic(http.ErrAbortHandler) }),
+	)
+
+	defer func() {
+		if rec := recover(); rec != http.ErrAbortHandler { //nolint:errorlint // the sentinel itself is the panic value
+			t.Errorf("recovered %v, want http.ErrAbortHandler passed on", rec)
+		}
+	}()
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+	t.Error("ServeHTTP returned; want the abort panic passed on")
+}
+
+// A panic in middleware above chi's Recoverer, here CORS with no handler
+// configured, still ends in the standard JSON 500 instead of reaching net/http.
+func TestNewRouter_PanicInOuterMiddlewareIsAJSON500(t *testing.T) {
+	router := newTestRouter(nil, &mockAuthMiddleware{}, slog.New(slog.DiscardHandler))
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, corsRequest(http.MethodGet, "/health"))
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("Content-Type = %q, want application/json", ct)
 	}
 }

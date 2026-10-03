@@ -135,6 +135,9 @@ func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, 
 	// preflights no longer consume rate-limit tokens. Intended — a preflight does
 	// no downstream work, and a rate-limited preflight fails opaquely and takes the
 	// real request down with it. Same behavior the tile/auth limiters already have.
+	// Outermost: a panic in any middleware above chi's Recoverer (innermost,
+	// below) still ends in a structured 500 and a histogram entry.
+	r.Use(RecoverOutermost(logger, cfg.HTTPHistogram))
 	r.Use(chiMiddleware.RequestID)
 	r.Use(gcplog.BridgeRequestID)
 	r.Use(gcplog.CloudRunRealIP)

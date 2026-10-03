@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"sort"
 
-	"github.com/andy-esch/desirelines/packages/apigateway/pkg/validate"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
 	activitiesv1 "github.com/andy-esch/desirelines/packages/apigateway/types/generated/activitiesv1"
 	"github.com/andy-esch/desirelines/packages/shared/apierrors"
@@ -52,29 +51,12 @@ func (h *Handler) HandleActivitySummary(w http.ResponseWriter, r *http.Request) 
 // parseAggregateFilter parses and validates query parameters for the activity
 // summary. Returns a zero-value APIError (Status=0) on success.
 func (h *Handler) parseAggregateFilter(r *http.Request) (*repository.ActivityAggregateFilter, apierrors.APIError) {
-	query := r.URL.Query()
 	filter := repository.ActivityAggregateFilter{}
 
-	if fromStr := query.Get("from"); fromStr != "" {
-		if !validate.Date(fromStr) {
-			return nil, apierrors.NewAPIError(http.StatusBadRequest, "Invalid 'from' date format (expected YYYY-MM-DD)")
-		}
-		filter.From = &fromStr
-	}
-
-	if toStr := query.Get("to"); toStr != "" {
-		if !validate.Date(toStr) {
-			return nil, apierrors.NewAPIError(http.StatusBadRequest, "Invalid 'to' date format (expected YYYY-MM-DD)")
-		}
-		filter.To = &toStr
-	}
-
-	if sportsStr := query.Get("sports"); sportsStr != "" {
-		sportTypes, apiErr := h.resolveSportsList(sportsStr)
-		if !apiErr.IsZero() {
-			return nil, apiErr
-		}
-		filter.SportTypes = sportTypes
+	var apiErr apierrors.APIError
+	filter.From, filter.To, filter.SportTypes, apiErr = h.parseDateAndSportFilters(r.URL.Query())
+	if !apiErr.IsZero() {
+		return nil, apiErr
 	}
 
 	return &filter, apierrors.APIError{}
