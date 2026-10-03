@@ -2,7 +2,7 @@
  * useSportPageData - Encapsulates all data logic for the authenticated sport page.
  *
  * Handles: data fetching, unit conversion, metric selection, goal management,
- * goal migration, momentum tracking, sidebar data, and year context.
+ * momentum tracking, sidebar data, and year context.
  *
  * Extracted from SportPage.tsx to keep the page component thin (~20 lines).
  *
@@ -13,7 +13,7 @@
  *   - defaultGoalsForYear (useMemo): contains new Date().toISOString() calls that
  *     produce fresh values each render, making the object perpetually unstable.
  *     With nothing saved it is the goals the page shows, so an unstable one would
- *     re-run everything keyed on the goals (the migration and metric checks) on
+ *     re-run everything keyed on the goals (the metric check) on
  *     every render. The compiler's preserve-manual-memoization rule is suppressed
  *     here since the compiler cannot auto-memoize impure Date() calls.
  */

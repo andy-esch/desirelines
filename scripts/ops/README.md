@@ -26,8 +26,9 @@ The webhook and DLQ scripts are invoked via just: `just webhook <action> <env>` 
 
 `count-unstamped-goals.py` runs directly, with your gcloud login:
 `python3 scripts/ops/count-unstamped-goals.py --env prod`. It exits 1 and lists each
-section still in display units, or exits 0 when there are none, which is when the web
-app's goal-unit migration can be deleted.
+section still in display units, or exits 0 when there are none. The web app's goal-unit
+migration was retired once the count reached zero, and the app now reads every account
+section as canonical, so a non-zero count means something wrote an unstamped section.
 
 ## Related
 
