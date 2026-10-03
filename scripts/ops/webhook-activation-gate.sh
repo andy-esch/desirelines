@@ -12,7 +12,7 @@
 #     environment (owner-readable) rather than the command line (world-readable)
 #   - every search reports a COUNT; a matching line is never displayed
 #
-# Usage: ./activation-gate.sh <dev|prod>
+# Usage: ./webhook-activation-gate.sh <dev|prod>
 #
 set -euo pipefail
 
@@ -62,14 +62,6 @@ step "0. Preconditions"
 
 SERVICE_JSON=$(gcloud run services describe "$SERVICE" --region="$REGION" \
   --project="$GCP_PROJECT_ID" --format=json)
-
-MODE=$(jq -er '.spec.template.spec.containers[0].env[]
-               | select(.name == "WEBHOOK_ROUTE_MODE") | .value' <<<"$SERVICE_JSON")
-if [ "$MODE" = "dual" ] || [ "$MODE" = "capability" ]; then
-  ok "route mode is '$MODE'"
-else
-  die "route mode is '$MODE' — apply the dual-mode config before running the gate"
-fi
 
 READY=$(jq -er '.status.conditions[] | select(.type=="Ready") | .status' <<<"$SERVICE_JSON")
 if [ "$READY" = "True" ]; then ok "latest revision is Ready"; else die "revision is not Ready"; fi
@@ -189,18 +181,12 @@ while read -r status target; do
   esac
 done <<<"$VARIANT_RESULTS"
 
-# The plain route means different things in each mode, so assert the one that
-# applies. This is what lets the same script serve both the dual pass and the
-# capability pass.
-if [ "$MODE" = "dual" ]; then
-  probe "plain /webhook still verifies (existing callback undisturbed)" 200 \
-    "/webhook?hub.mode=subscribe&hub.challenge=${MARK}&hub.verify_token=${VERIFY_TOKEN}"
-else
-  probe "plain GET /webhook is retired" 404 \
-    "/webhook?hub.mode=subscribe&hub.challenge=${MARK}&hub.verify_token=${VERIFY_TOKEN}"
-  probe "plain POST /webhook is retired" 404 "/webhook" \
-    '{\"aspect_type\":\"create\",\"object_type\":\"activity\",\"object_id\":1,\"owner_id\":1,\"event_time\":1,\"subscription_id\":999999999}'
-fi
+# The dispatcher serves only the capability route, so the plain one must not
+# answer, even with a valid verify token.
+probe "plain GET /webhook is retired" 404 \
+  "/webhook?hub.mode=subscribe&hub.challenge=${MARK}&hub.verify_token=${VERIFY_TOKEN}"
+probe "plain POST /webhook is retired" 404 "/webhook" \
+  '{\"aspect_type\":\"create\",\"object_type\":\"activity\",\"object_id\":1,\"owner_id\":1,\"event_time\":1,\"subscription_id\":999999999}'
 
 echo "  waiting 90s for log and trace propagation..."
 sleep 90
@@ -299,7 +285,7 @@ def series(metric):
     except Exception:
         return []
 
-ALLOWED = {"accepted", "rejected", "legacy"}
+ALLOWED = {"accepted", "rejected"}
 results = {s["metric"]["labels"].get("result") for s in series("webhook/callback_capability")} - {None}
 if not results:
     print(f"  {RED} callback_capability has no data — probes never reached the counter")
