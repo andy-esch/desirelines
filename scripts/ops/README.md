@@ -9,6 +9,7 @@ Operational scripts for setup, deployment, data management, and webhook administ
 | [`setup/`](setup/README.md) | Environment bootstrapping (local dev, cloud projects) |
 | [`deploy/`](deploy/README.md) | Deployment scripts (web frontend, secrets, Docker images) |
 | [`regions/`](regions/README.md) | Region boundary reference-data loader (Census) |
+| [`routes/`](routes/README.md) | Temporary read-only route-geometry diagnostics |
 
 ## Scripts
 
