@@ -1,5 +1,6 @@
 import type { ExpressionSpecification } from "mapbox-gl";
 import type { MapActivity } from "../api/map";
+import { toLocalDateString } from "./dateUtils";
 
 /**
  * Cross-filter state for the routes map. One state object drives all three
@@ -27,10 +28,7 @@ export function toLocalDate(isoLocal: string): string {
 
 /** Today's local date as YYYY-MM-DD. */
 export function todayLocal(now: Date = new Date()): string {
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  return toLocalDateString(now);
 }
 
 /**

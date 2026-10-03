@@ -28,6 +28,7 @@ import {
 import { getMetricConfig, generateYAxisTicks } from "../config/metricConfig";
 import { GOAL_COLORS } from "../constants/chartColors";
 import { getTodayUtcAnchored } from "../utils/dateUtils";
+import { selectCurrentDataPoint } from "../utils/chartUtils";
 import { useDangerThresholds } from "./useDangerThresholds";
 
 const MS_PER_DAY = 86400000;
@@ -236,14 +237,7 @@ export function useCumulativeChartData({
   ]);
 
   // 7. Calculate current summary values
-  const latestActualData = mergedData.find(
-    (d) => d.actual !== undefined && typeof d.actual === "number" && d.actual > 0
-  );
-  const latestDataIndex =
-    distanceData.length > 0
-      ? mergedData.findIndex((d) => d.date.getTime() === latestDate.getTime())
-      : mergedData.length - 1;
-  const currentActualData = latestDataIndex >= 0 ? mergedData[latestDataIndex] : latestActualData;
+  const currentActualData = selectCurrentDataPoint(mergedData, latestDate, distanceData.length > 0);
 
   const currentValues: CurrentChartValues = {
     actual: totalDistanceTraveled,

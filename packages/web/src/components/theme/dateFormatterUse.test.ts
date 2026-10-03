@@ -21,7 +21,7 @@ const sources: Record<string, string> = import.meta.glob(
 const EXEMPT = /useThemeDateFormat\.ts$/;
 
 const FORMATTER_IMPORT =
-  /import\s*\{[^}]*\b(formatDisplayDate|formatChartAxisDate|chartAxisDateFormatter|formatActivityDate|formatMonthLabel)\b[^}]*\}\s*from\s*["'][^"']*dateUtils["']/;
+  /import\s*\{[^}]*\b(formatDisplayDate|chartAxisDateFormatter|formatActivityDate|formatMonthLabel)\b[^}]*\}\s*from\s*["'][^"']*dateUtils["']/;
 
 describe("date formatters", () => {
   it("are reached through the theme hook, not imported directly", () => {

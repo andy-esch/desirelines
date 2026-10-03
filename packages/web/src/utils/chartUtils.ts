@@ -1,18 +1,17 @@
 /**
  * Chart Utility Functions
  *
- * Pure functions for data transformation used by chart components.
- * Extracted for testability and reuse.
- *
- * @see MultiSportComparisonChart - Primary consumer of these utilities
+ * Pure functions for data transformation used by chart components and the hooks that
+ * feed them. Extracted for testability and reuse.
  */
 
 import type { ReactNode } from "react";
 import type { TimeRange } from "./dataNormalization";
 import type { DailyActivity, SportConfig } from "../api/activities";
 import type { DailySportData } from "../hooks/useDailySportData";
+import type { ChartDataPoint } from "../types/chartData";
 import { isDistanceSport } from "./sportConfig";
-import { generateDateRange } from "./dateUtils";
+import { generateDateRange, toLocalDateString } from "./dateUtils";
 
 /**
  * Coerce a Recharts tooltip label to a display string.
@@ -162,6 +161,37 @@ export function getTimeRangeCutoff(now: Date, timeRange: TimeRange): Date {
   }
 
   return cutoff;
+}
+
+/**
+ * The local-date window (`YYYY-MM-DD`, inclusive) a dashboard time range covers, ending
+ * today: what the sparkline and the recent activities list each fetch.
+ */
+export function getDateRangeFromTimeRange(
+  timeRange: TimeRange,
+  now: Date = new Date()
+): { from: string; to: string } {
+  return {
+    from: toLocalDateString(getTimeRangeCutoff(now, timeRange)),
+    to: toLocalDateString(now),
+  };
+}
+
+/**
+ * The merged row a chart's current-value markers read: the row on the latest data day when
+ * the year has data, else the last row. When no row falls on that day, the first row with
+ * progress stands in.
+ */
+export function selectCurrentDataPoint<T extends ChartDataPoint>(
+  mergedData: T[],
+  latestDate: Date,
+  hasData: boolean
+): T | undefined {
+  const index = hasData
+    ? mergedData.findIndex((d) => d.date.getTime() === latestDate.getTime())
+    : mergedData.length - 1;
+  if (index >= 0) return mergedData[index];
+  return mergedData.find((d) => (d.actual ?? 0) > 0);
 }
 
 /**
