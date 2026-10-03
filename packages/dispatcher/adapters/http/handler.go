@@ -612,11 +612,7 @@ func (h *Handler) handleVerification(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", contentTypeJSON)
-	w.WriteHeader(http.StatusOK)
-	if encodeErr := json.NewEncoder(w).Encode(map[string]string{hubChallenge: challenge}); encodeErr != nil {
-		h.logger.Error("Failed to encode response", "error", encodeErr)
-	}
+	h.writeJSON(w, map[string]string{hubChallenge: challenge})
 }
 
 // handleEvent processes incoming Strava webhook POST events.
@@ -1404,21 +1400,24 @@ type webhookResponse struct {
 // The published-vs-acknowledged distinction lives in the response body's
 // `action` field, which is where a caller that cares can still read it.
 func (h *Handler) writeSuccess(w http.ResponseWriter) {
-	w.Header().Set("Content-Type", contentTypeJSON)
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(webhookResponse{Success: true, Action: webhookPublished}); err != nil {
-		h.logger.Error("Failed to encode success response", "error", err)
-	}
+	h.writeJSON(w, webhookResponse{Success: true, Action: webhookPublished})
 }
 
 // writeAcknowledged returns 200 OK per Strava's webhook spec requirement.
 // Used for events that are received but need no further processing
 // (e.g., non-deauth athlete events) and for successfully handled deauth events.
 func (h *Handler) writeAcknowledged(w http.ResponseWriter) {
+	h.writeJSON(w, webhookResponse{Success: true, Action: webhookAcknowledged})
+}
+
+// writeJSON writes body as a JSON 200 response. Every success response goes
+// through it: the subscription challenge, and the published and acknowledged
+// webhook replies.
+func (h *Handler) writeJSON(w http.ResponseWriter, body any) {
 	w.Header().Set("Content-Type", contentTypeJSON)
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(webhookResponse{Success: true, Action: webhookAcknowledged}); err != nil {
-		h.logger.Error("Failed to encode acknowledged response", "error", err)
+	if err := json.NewEncoder(w).Encode(body); err != nil {
+		h.logger.Error("Failed to encode response", "error", err)
 	}
 }
 
