@@ -446,6 +446,8 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = [
   { text: ["--color-muted-text"], on: ["--color-surface-raised"], min: 4.5 },
   { text: ["--color-muted-text"], on: ["--panel-bg"], min: 4.5 },
   { text: ["--color-subtle-text"], on: ["--color-bg-body"], min: 4.5 },
+  // The "Filtered:" label on the Charts page's filter pill.
+  { text: ["--color-subtle-text"], on: ["--color-surface-raised"], min: 4.5 },
   { text: ["--page-title-color"], on: ["--color-bg-body"], min: 3 },
   { text: ["--kicker-color"], on: ["--color-bg-body"], min: 4.5 },
   { text: ["--label-color"], on: ["--color-bg-body"], min: 4.5 },
@@ -456,6 +458,8 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = [
   // Accent and danger text: links and interactive labels, their hover, and error copy.
   { text: ["--color-accent-cyan"], on: ["--color-bg-body"], min: 4.5 },
   { text: ["--color-accent-cyan"], on: ["--panel-bg"], min: 4.5 },
+  // A pill's action over the routes map: "Retry", "Show all".
+  { text: ["--color-accent-cyan"], on: ["--color-surface-raised"], min: 4.5 },
   { text: ["--color-accent-magenta"], on: ["--color-bg-body"], min: 4.5 },
   // The empty-state headline, display text in both accents inside a panel.
   { text: ["--color-accent-magenta"], on: ["--panel-bg"], min: 3 },

@@ -9,10 +9,13 @@ import Loader from "../Loader";
  * drag `mapbox-gl` into the main bundle. `Loader` carries the `role="status"`
  * live region and the label, so the wrapper omits both to avoid a duplicate
  * screen-reader announcement.
+ *
+ * The overlay is the solid page ground: Mapbox can paint tiles before `load`, and the
+ * label's small muted text must not sit over them.
  */
 export default function MapLoadingState() {
   return (
-    <div className="pointer-events-none absolute inset-0 grid place-items-center bg-bg-body/60">
+    <div className="pointer-events-none absolute inset-0 grid place-items-center bg-bg-body">
       <Loader label="Loading map…" />
     </div>
   );
