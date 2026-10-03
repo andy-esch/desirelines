@@ -9,7 +9,6 @@
 --
 -- Jumps are measured within each part of a route, so once a paused route is
 -- stored as separate legs the space between them no longer counts as a jump.
--- This works for LineString and MultiLineString columns alike.
 --
 -- Q3 and Q4 group by the date each route row was written. A backfill run writes
 -- its whole population on one date, so a cohort is a proxy for how routes were
