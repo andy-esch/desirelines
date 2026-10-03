@@ -172,6 +172,9 @@ type Client struct {
 	histogram    metric.Float64Histogram
 	tracer       trace.Tracer
 	breaker      *gobreaker.CircuitBreaker[[]byte]
+	// now is the clock token-expiry checks read: time.Now outside tests, so a
+	// test can pin the expiry boundary.
+	now func() time.Time
 	// refreshGroup collapses concurrent token refreshes for the same athlete
 	// onto a single outbound /oauth/token call. See refreshAndPersist.
 	refreshGroup singleflight.Group
@@ -205,6 +208,7 @@ func NewClient(
 		histogram:    histogram,
 		tracer:       tracer,
 		breaker:      newStravaBreaker(logger, breakerOpenTimeout, breakerStateCounter),
+		now:          time.Now,
 	}
 }
 
@@ -402,7 +406,7 @@ func (c *Client) verifyGrantWithTokens(ctx context.Context, ownerID int64, token
 	// Avoid rotating a healthy token for every forged webhook. If the access
 	// token is nominally live, /athlete is a cheap, read-only proof that it still
 	// belongs to this owner. A 401 falls through to the stronger refresh check.
-	if tokens.AccessToken != "" && time.Now().Unix() < tokens.ExpiresAt {
+	if tokens.AccessToken != "" && c.now().Unix() < tokens.ExpiresAt {
 		// Timed like every other outbound Strava op. Without this the deauth
 		// path was absent from strava.api.duration entirely, so the histogram
 		// under-counted real Strava traffic and a slow /athlete was invisible.
@@ -501,7 +505,7 @@ func (c *Client) fetchActivityWithTokens(ctx context.Context, ownerID, activityI
 	// or it is at/under the expiry skew window, so we never send a
 	// request we already know will 401. The reactive 401 path below
 	// remains a backstop for tokens revoked before nominal expiry.
-	if reason := proactiveRefreshReason(tokens, time.Now()); reason != "" {
+	if reason := proactiveRefreshReason(tokens, c.now()); reason != "" {
 		refreshedTokens, refreshErr := c.refreshAndPersist(ctx, ownerID, tokens, reason)
 		if refreshErr != nil {
 			// Only wrap as ErrStravaAuth when the underlying cause is a
