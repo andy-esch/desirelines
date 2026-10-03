@@ -244,14 +244,6 @@ func (c *SportConfig) ListSports() []string {
 	return sports
 }
 
-// GetCategory returns the SportCategory config for a category name.
-// For example, GetCategory("cycling") returns the cycling config with its Strava types, metrics, etc.
-// Returns false if the category doesn't exist.
-func (c *SportConfig) GetCategory(category string) (SportCategory, bool) {
-	cat, ok := c.data.SportCategories[category]
-	return cat, ok
-}
-
 // GetStravaTypes returns the Strava sport_type values that map to a category.
 // For example, "cycling" returns ["Ride", "VirtualRide"].
 // Returns nil if the category doesn't exist.

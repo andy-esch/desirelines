@@ -23,14 +23,12 @@
 //
 //	sports := sportConfig.ListSports() // ["cycling", "running", "swimming", ...]
 //
-// Get category details including metrics and Strava type mappings:
+// Map between categories and Strava sport types:
 //
-//	category, ok := sportConfig.GetCategory("cycling")
-//	if ok {
-//	    fmt.Println(category.DisplayName)  // "Cycling"
-//	    fmt.Println(category.StravaTypes)  // ["Ride", "VirtualRide"]
-//	    fmt.Println(category.PrimaryMetric) // "distance"
-//	}
+//	types := sportConfig.GetStravaTypes("cycling")          // ["Ride", "VirtualRide", ...]
+//	category := sportConfig.GetCategoryForStravaType("Ride") // "cycling"
+//
+// An unmapped sport type maps to [UnknownSportCategory] ("other").
 //
 // # Configuration Schema
 //

@@ -17,31 +17,6 @@ import (
 // skating, climbing, wheelchair, other
 const expectedSportCount = 17
 
-func TestGetCategory(t *testing.T) {
-	config, err := LoadSportConfig("sport_types.json")
-	if err != nil {
-		t.Fatalf("Failed to load config: %v", err)
-	}
-
-	cycling, ok := config.GetCategory("cycling")
-	if !ok || cycling.PrimaryMetric != "distance_meters" {
-		t.Error("Expected cycling with distance_meters primary")
-	}
-
-	if !cycling.HasDistance {
-		t.Error("Expected cycling to have distance")
-	}
-
-	yoga, ok := config.GetCategory("yoga")
-	if !ok || yoga.PrimaryMetric != "time_minutes" {
-		t.Error("Expected yoga with time_minutes primary")
-	}
-
-	if yoga.HasDistance {
-		t.Error("Expected yoga to not have distance")
-	}
-}
-
 func TestListSports(t *testing.T) {
 	config, err := LoadSportConfig("sport_types.json")
 	if err != nil {
@@ -75,7 +50,7 @@ func TestExcludedTypesLoaded(t *testing.T) {
 	}
 
 	// Cycling should have EBikeRide and EMountainBikeRide excluded
-	cycling, ok := config.GetCategory("cycling")
+	cycling, ok := config.data.SportCategories["cycling"]
 	if !ok {
 		t.Fatal("Expected cycling category to exist")
 	}
@@ -98,7 +73,7 @@ func TestExcludedTypesLoaded(t *testing.T) {
 	}
 
 	// Running should have no excluded types
-	running, ok := config.GetCategory("running")
+	running, ok := config.data.SportCategories["running"]
 	if !ok {
 		t.Fatal("Expected running category to exist")
 	}
