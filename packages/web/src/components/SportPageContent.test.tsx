@@ -40,10 +40,10 @@ vi.mock("./GoalSummaryTable", () => ({
   default: () => <div data-testid="goal-summary-table" />,
 }));
 
-// usePublicSportConfig is called for the H1 displayName lookup; stub it so
+// useSportConfig is called for the H1 displayName lookup; stub it so
 // we don't need a QueryClientProvider in component-level tests.
-vi.mock("../hooks/usePublicSportConfig", () => ({
-  usePublicSportConfig: () => ({
+vi.mock("../hooks/useSportConfig", () => ({
+  useSportConfig: () => ({
     sportConfig: {
       version: "1.0",
       sportCategories: {

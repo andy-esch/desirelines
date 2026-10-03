@@ -4,7 +4,6 @@ import { fetchYearMetadata } from "../api/activities";
 import { useAuth } from "./useAuth";
 import { useVisibleSports } from "./useVisibleSports";
 import { useSportConfig } from "./useSportConfig";
-import { usePublicSportConfig } from "./usePublicSportConfig";
 import { getDemoActivityCounts } from "../utils/demoDataGenerator";
 import type { SportMetricsInfo } from "../utils/sportConfig";
 
@@ -71,7 +70,7 @@ export function useSidebarSportData(currentYear: number): SidebarSportData {
  * Uses cached activity counts to avoid expensive regeneration.
  */
 export function useDemoSidebarSportData(currentYear: number): SidebarSportData {
-  const { sportConfig, isLoading: configLoading, error: configError } = usePublicSportConfig();
+  const { sportConfig, isLoading: configLoading, error: configError } = useSportConfig();
   const { visibleSports } = useVisibleSports();
 
   // Build sport info map for the generator (memoized)

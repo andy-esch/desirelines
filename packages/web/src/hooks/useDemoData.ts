@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import type { MetricsEntry, SportConfig } from "../api/activities";
 import type { SportMetricsInfo } from "../utils/sportConfig";
-import { usePublicSportConfig } from "./usePublicSportConfig";
+import { useSportConfig } from "./useSportConfig";
 import {
   generateDemoMetrics,
   generateDemoGoals,
@@ -33,7 +33,7 @@ export function useDemoData(
   sport: string,
   tuningParams?: TuningParams
 ): DemoDataResult {
-  const { sportConfig, isLoading: configLoading, error: configError } = usePublicSportConfig();
+  const { sportConfig, isLoading: configLoading, error: configError } = useSportConfig();
 
   // Memoize allSports to avoid creating new array reference on every render
   const allSports = useMemo(

@@ -20,8 +20,8 @@ vi.mock("../contexts/ServiceContext", () => ({
 // useDangerThresholds now reads dangerPace from the public sport config.
 // Re-create the legacy cycling/running/yoga ceilings here so existing assertions
 // (20 mi/day, 10 mi/day, 2 hr/day) continue to hold.
-vi.mock("./usePublicSportConfig", () => ({
-  usePublicSportConfig: () => ({
+vi.mock("./useSportConfig", () => ({
+  useSportConfig: () => ({
     sportConfig: {
       version: "1.0",
       sportCategories: {

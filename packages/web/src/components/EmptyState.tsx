@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import type { MetricUnit } from "../utils/units";
 import { DEMO_ROUTE_PREFIX } from "../constants/demoConfig";
-import { usePublicSportConfig } from "../hooks/usePublicSportConfig";
+import { useSportConfig } from "../hooks/useSportConfig";
 import { getSportDisplayName } from "../utils/sportConfig";
 
 interface EmptyStateProps {
@@ -28,7 +28,7 @@ function SportYearMessage({
   year: number;
   unit?: MetricUnit | undefined;
 }) {
-  const { sportConfig } = usePublicSportConfig();
+  const { sportConfig } = useSportConfig();
   const name = getSportDisplayName(sport, sportConfig);
   return `No ${name} ${unit === "sessions" ? "sessions" : "activities"} recorded for ${year}`;
 }

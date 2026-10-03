@@ -246,6 +246,44 @@ describe("MultiSportSparklineChart", () => {
       expect(valueFor("Running")).toHaveTextContent("5.00 km");
     });
 
+    it("counts a sessions sport's sessions, not its minutes", async () => {
+      mockUseSportConfig.mockReturnValue(
+        mockSportConfigReturn({
+          sportConfig: {
+            ...mockMinimalSportConfig,
+            sportCategories: {
+              ...mockMinimalSportConfig.sportCategories,
+              climbing: {
+                displayName: "Climbing",
+                stravaTypes: ["RockClimbing"],
+                excludedTypes: [],
+                primaryMetric: "activities",
+                metrics: ["activities", "time_minutes"],
+                hasDistance: false,
+                hasElevation: false,
+              },
+            },
+          },
+        })
+      );
+      mockUseVisibleSports.mockReturnValue(
+        mockVisibleSportsReturn({ visibleSports: ["cycling", "climbing"] })
+      );
+      mockUseDailySportData.mockReturnValue({
+        data: {
+          cycling: { [today]: { distanceMeters: 20000, activities: 1, activityIds: [1] } },
+          climbing: { [today]: { timeMinutes: 90, activities: 2, activityIds: [4, 5] } },
+        },
+        isLoading: false,
+        error: null,
+        retry: vi.fn(),
+      });
+      hover.date = today;
+      await renderWithRouter(<MultiSportSparklineChart timeRange="2weeks" />);
+
+      expect(valueFor("Climbing")).toHaveTextContent("2 sessions");
+    });
+
     it("marks a quiet day's value as missing for every sport", async () => {
       hover.date = yesterday;
       await renderWithRouter(<MultiSportSparklineChart timeRange="2weeks" />);

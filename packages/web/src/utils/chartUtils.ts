@@ -10,7 +10,7 @@ import type { TimeRange } from "./dataNormalization";
 import type { DailyActivity, SportConfig } from "../api/activities";
 import type { DailySportData } from "../hooks/useDailySportData";
 import type { ChartDataPoint } from "../types/chartData";
-import { isDistanceSport } from "./sportConfig";
+import { getPrimaryMetric } from "./sportConfig";
 import { generateDateRange, toLocalDateString } from "./dateUtils";
 
 /**
@@ -29,12 +29,14 @@ export function chartLabelToString(label: ReactNode): string {
 
 /**
  * Get the primary metric value for a sport from daily activity data.
- * Returns distance for distance-based sports, time for time-based sports.
+ * Returns distance for distance-based sports, the session count for sessions-based
+ * sports, and time for the rest.
  *
  * @param activity - Daily activity data containing metrics
  * @param sport - Sport key (e.g., "cycling", "yoga")
  * @param sportConfig - Sport configuration from API
- * @returns Primary metric value (meters for distance sports, minutes for time sports)
+ * @returns Primary metric value (meters for distance sports, sessions for sessions sports,
+ *   minutes for time sports)
  *
  * @example
  * ```ts
@@ -50,9 +52,9 @@ export function getMetricValue(
   sport: string,
   sportConfig: SportConfig | null
 ): number {
-  if (isDistanceSport(sport, sportConfig)) {
-    return activity.distanceMeters ?? 0;
-  }
+  const metric = getPrimaryMetric(sport, sportConfig);
+  if (metric === "distance_meters") return activity.distanceMeters ?? 0;
+  if (metric === "activities") return activity.activities ?? 0;
   return activity.timeMinutes ?? 0;
 }
 
