@@ -38,6 +38,23 @@ class TestStravaActivity:
         assert activity.id == 8726373550
 
 
+class TestStandardActivity:
+    def test_validates_a_strava_activity(self, activity_json_1):
+        """A Strava activity validates into the fields the writer stores."""
+        activity = StandardActivity.model_validate(activity_json_1)
+
+        assert activity.id == 12345678987654321
+        assert activity.type == "Ride"
+
+    def test_computes_user_id_sport_and_year(self, activity_json_1):
+        """user_id, sport and year are derived from the activity's own fields."""
+        activity = StandardActivity.model_validate(activity_json_1)
+
+        assert activity.user_id == str(activity.athlete.id)
+        assert activity.sport == activity.sport_type
+        assert isinstance(activity.year, int)
+
+
 @pytest.mark.parametrize(
     ("type_", "sport_type", "trainer", "manual", "expected"),
     [

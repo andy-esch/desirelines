@@ -27,7 +27,6 @@ from stravapipe.adapters.strava._repositories import (
 from stravapipe.config import StravaApiConfig
 from stravapipe.domain import (
     DetailedStravaActivity,
-    StandardActivity,
     StravaTokenSet,
     SummaryStravaActivity,
 )
@@ -588,41 +587,6 @@ class TestStravaApiClientListActivities:
 
             with pytest.raises(StravaTokenError):
                 client.list_activities(before=1700000000, after=1690000000, page=1)
-
-
-# =============================================================================
-# StravaActivitiesRepo - read_standard_activity_by_id tests
-# =============================================================================
-
-
-class TestStravaActivitiesRepoStandard:
-    def test_read_standard_activity_by_id(
-        self, activities_repo, activity_json, api_config
-    ):
-        """read_standard_activity_by_id returns a StandardActivity."""
-        activity_id = 12345678987654321
-        with Mocker() as m:
-            endpoint = f"{api_config.api_base_url}/activities/{activity_id}"
-            m.get(endpoint, json=activity_json)
-            result = activities_repo.read_standard_activity_by_id(activity_id)
-
-        assert isinstance(result, StandardActivity)
-        assert result.id == activity_id
-        assert result.type == "Ride"
-
-    def test_read_standard_activity_has_computed_fields(
-        self, activities_repo, activity_json, api_config
-    ):
-        """StandardActivity should have computed user_id, sport, and year."""
-        activity_id = 12345678987654321
-        with Mocker() as m:
-            endpoint = f"{api_config.api_base_url}/activities/{activity_id}"
-            m.get(endpoint, json=activity_json)
-            result = activities_repo.read_standard_activity_by_id(activity_id)
-
-        assert result.user_id == str(result.athlete.id)
-        assert result.sport == result.sport_type
-        assert isinstance(result.year, int)
 
 
 # =============================================================================

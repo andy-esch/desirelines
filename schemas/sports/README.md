@@ -76,10 +76,10 @@ This file is synced to three packages via `just sync-schemas`. Each consumer dep
 | `stravaTypes` | Builds reverse lookup map for categorization | Matches incoming activities via `matches()` | — |
 | `excludedTypes` | Loaded | Used in `matches()` filtering | — |
 | `displayName` | Loaded | Loaded | Sport labels in UI |
-| `primaryMetric` | Returned via `GetCategory()` | Loaded | Metric selection |
+| `primaryMetric` | Loaded, passed through | Loaded | Metric selection |
 | `metrics` | Loaded | Loaded | Chart configuration |
-| `hasDistance` | Returned via `GetCategory()` | Loaded | — |
-| `hasElevation` | Returned via `GetCategory()` | Loaded | — |
+| `hasDistance` | Loaded, passed through | Loaded | — |
+| `hasElevation` | Loaded, passed through | Loaded | — |
 | `dangerPace` | Loaded, passed through | Loaded, ignored | Danger-zone rendering in charts |
 | `goalDefaults` | Loaded, passed through | Loaded, ignored | Per-sport goal tuning in `getMetricConfig` |
 

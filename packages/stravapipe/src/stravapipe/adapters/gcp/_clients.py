@@ -5,6 +5,7 @@ from typing import Any, TypedDict
 from google.api_core.exceptions import BadRequest
 from google.cloud.bigquery import (
     ArrayQueryParameter,
+    QueryJob,
     QueryJobConfig,
     ScalarQueryParameter,
 )
@@ -19,6 +20,15 @@ from stravapipe.exceptions import BigQueryError, StreamingBufferDMLError
 _STREAMING_BUFFER_ERROR_FRAGMENT = "would affect rows in the streaming buffer"
 
 logger = logging.getLogger(__name__)
+
+
+def _affected_rows(job: QueryJob) -> int:
+    """Rows a finished DML job affected.
+
+    `num_dml_affected_rows` is present-and-None for statements that affect no rows;
+    `or 0` collapses that to 0, as for a job without the attribute.
+    """
+    return getattr(job, "num_dml_affected_rows", 0) or 0
 
 
 class MergeResult(TypedDict):
@@ -39,6 +49,15 @@ class BigQueryClientWrapper:
         """Fetch dataset metadata. Used as a lightweight readiness probe."""
         return self._client.get_dataset(dataset_id)
 
+    def _start_query(
+        self,
+        query: str,
+        query_parameters: Sequence[ScalarQueryParameter | ArrayQueryParameter] | None,
+    ) -> QueryJob:
+        """Start a query job carrying its parameters, or none."""
+        job_config = QueryJobConfig(query_parameters=query_parameters or [])
+        return self._client.query(query, job_config=job_config)
+
     def execute_merge_query(
         self,
         query: str,
@@ -54,8 +73,7 @@ class BigQueryClientWrapper:
         Returns:
             dict: Job statistics including rows affected, execution time, etc.
         """
-        job_config = QueryJobConfig(query_parameters=query_parameters or [])
-        job = self._client.query(query, job_config=job_config)
+        job = self._start_query(query, query_parameters)
 
         try:
             _ = job.result()  # Wait for completion
@@ -69,9 +87,7 @@ class BigQueryClientWrapper:
 
             # Extract statistics
             stats: MergeResult = {
-                # `num_dml_affected_rows` is present-and-None for non-row-affecting
-                # statements; `or 0` collapses that to 0, matching the missing-attr case.
-                "rows_affected": getattr(job, "num_dml_affected_rows", 0) or 0,
+                "rows_affected": _affected_rows(job),
                 "execution_time_ms": execution_time_ms,
                 "job_id": str(job.job_id),
                 "query_preview": query[:200],
@@ -107,14 +123,11 @@ class BigQueryClientWrapper:
         Returns:
             Number of rows affected
         """
-        job_config = QueryJobConfig(query_parameters=query_parameters or [])
-        job = self._client.query(query, job_config=job_config)
+        job = self._start_query(query, query_parameters)
 
         try:
             _ = job.result()
-            # `num_dml_affected_rows` is present-and-None for non-row-affecting
-            # statements; `or 0` avoids int(None) TypeError outside the try block.
-            rows_affected = getattr(job, "num_dml_affected_rows", 0) or 0
+            rows_affected = _affected_rows(job)
         except Exception as e:
             if isinstance(e, BadRequest) and _STREAMING_BUFFER_ERROR_FRAGMENT in str(e):
                 # Expected condition: rows are still in BigQuery's streaming

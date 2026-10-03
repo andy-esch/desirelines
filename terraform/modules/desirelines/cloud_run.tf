@@ -450,11 +450,6 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
       }
 
       env {
-        name  = "ENVIRONMENT"
-        value = var.environment
-      }
-
-      env {
         name  = "LOG_LEVEL"
         value = var.app_config.log_level
       }

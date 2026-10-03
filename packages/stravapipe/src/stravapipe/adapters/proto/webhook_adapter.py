@@ -100,33 +100,6 @@ def _updates_to_dict(updates: pb.ActivityUpdates) -> dict[str, str]:
     return result
 
 
-def validate_webhook_event(event: pb.WebhookEvent) -> list[str]:
-    """Validate a WebhookEvent and return list of errors.
-
-    Args:
-        event: WebhookEvent protobuf message.
-
-    Returns:
-        List of validation error messages. Empty if valid.
-    """
-    errors = []
-
-    if event.aspect_type == pb.ASPECT_TYPE_UNSPECIFIED:
-        errors.append("aspect_type is required")
-    if event.object_type == pb.OBJECT_TYPE_UNSPECIFIED:
-        errors.append("object_type is required")
-    if event.event_time == 0:
-        errors.append("event_time is required")
-    if event.object_id == 0:
-        errors.append("object_id is required")
-    if event.owner_id == 0:
-        errors.append("owner_id is required")
-    if event.subscription_id == 0:
-        errors.append("subscription_id is required")
-
-    return errors
-
-
 # Single source of truth for each enum↔string mapping: define the forward
 # (string → proto) map and derive the reverse, so the "these are inverses"
 # invariant is structural rather than two hand-mirrored dicts.

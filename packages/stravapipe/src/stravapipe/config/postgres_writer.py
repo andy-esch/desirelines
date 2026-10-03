@@ -25,7 +25,6 @@ class PostgresWriterConfig(PostgresServiceConfig):
     readiness_timeout) come from PostgresServiceConfig.
     """
 
-    environment: str = "dev"
     enable_cloud_logging: bool = False
 
 

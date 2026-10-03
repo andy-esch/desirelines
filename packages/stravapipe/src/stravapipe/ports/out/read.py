@@ -6,7 +6,6 @@ from collections.abc import Sequence
 
 from stravapipe.domain import (
     DetailedStravaActivity,
-    StandardActivity,
     StravaTokenSet,
     SummaryStravaActivity,
 )
@@ -36,11 +35,3 @@ class ReadDetailedActivities(ABC):
         Returns DetailedStravaActivity (from detail endpoint) or
         SummaryStravaActivity (from list endpoint).
         """
-
-
-class ReadStandardActivities(ABC):
-    """Read standard Strava activities (for PostgreSQL writer)"""
-
-    @abstractmethod
-    def read_standard_activity_by_id(self, activity_id: int) -> StandardActivity:
-        """Read a standard Strava Activity by ID (only PostgreSQL-relevant fields)"""

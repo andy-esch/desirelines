@@ -7,7 +7,7 @@ settings and the same loading rule (read the connection string through
 environment). Both had their own copy; adding a third service meant a third.
 
 Only the genuinely common parts live here. Service-specific fields — the
-writer's `environment` / `enable_cloud_logging`, the deletion service's
+writer's `enable_cloud_logging`, the deletion service's
 `gcp_bigquery_dataset` / `firestore_database` — stay on their own subclass,
 because they are contract differences rather than duplication.
 """
