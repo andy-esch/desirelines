@@ -4,10 +4,10 @@
 Goals are stored in canonical units (meters for distance, minutes for time),
 and each section, one sport's goals for one year, carries
 ``storageVersion: 2``. Sections saved before that hold display units (miles,
-hours) and no stamp; the web app's goal-unit migration
-(``packages/web/src/utils/migration.ts``) converts one when its sport page
-opens. If no stored section still needs it, the migration can be deleted
-(planning task 6ge5ths9ge4b).
+hours) and no stamp. The web app's goal-unit migration converted those, and was
+retired once this count reached zero (2026-10-03, planning task 6ge5ths9ge4b): the
+app now reads every account section as canonical. The count stays as a check
+that nothing has written an unstamped section since.
 
 Read-only: one collection-group query over every ``users/{uid}/config/*``
 document in the ``desirelines-user-configs`` database. Nothing is written.
