@@ -127,6 +127,25 @@ export interface SportConfig {
 
 // MULTI-SPORT API FUNCTIONS
 
+/** The date window and timezone a metrics query can carry. */
+interface MetricsRangeParams {
+  from?: string | undefined;
+  to?: string | undefined;
+  tz?: string | undefined;
+}
+
+/**
+ * Adds the date window and timezone the metrics endpoints share: `from` and `to` only as a
+ * pair, and `tz` when given.
+ */
+function appendRangeParams(params: URLSearchParams, { from, to, tz }: MetricsRangeParams): void {
+  if (from && to) {
+    params.set("from", from);
+    params.set("to", to);
+  }
+  if (tz) params.set("tz", tz);
+}
+
 /** Options for fetching sport metrics */
 export interface FetchSportMetricsOptions {
   year: number;
@@ -141,13 +160,7 @@ export const fetchSportMetrics = async (
   options: FetchSportMetricsOptions
 ): Promise<SportMetrics> => {
   const params = new URLSearchParams({ sport: options.sport });
-  if (options.from && options.to) {
-    params.set("from", options.from);
-    params.set("to", options.to);
-  }
-  if (options.tz) {
-    params.set("tz", options.tz);
-  }
+  appendRangeParams(params, options);
   const url = `activities/${options.year}/metrics?${params.toString()}`;
 
   try {
@@ -229,13 +242,7 @@ export interface FetchMultiSportOptions {
 function buildMultiSportParams(options: FetchMultiSportOptions): URLSearchParams {
   const params = new URLSearchParams();
   if (options.sports.length) params.set("sports", options.sports.join(","));
-  if (options.from && options.to) {
-    params.set("from", options.from);
-    params.set("to", options.to);
-  }
-  if (options.tz) {
-    params.set("tz", options.tz);
-  }
+  appendRangeParams(params, options);
   return params;
 }
 
@@ -306,6 +313,24 @@ export const fetchMultiSportMetrics = async (
 };
 
 /**
+ * Adds the filter the activities list and its summary share, so the two can't drift on
+ * what a date or sport filter means: inclusive local dates, each on its own, and
+ * comma-joined sport categories (none means all sports).
+ */
+function appendActivityFilterParams(
+  params: URLSearchParams,
+  filter: {
+    from?: string | undefined;
+    to?: string | undefined;
+    sports?: readonly string[] | undefined;
+  }
+): void {
+  if (filter.from) params.set("from", filter.from);
+  if (filter.to) params.set("to", filter.to);
+  if (filter.sports?.length) params.set("sports", filter.sports.join(","));
+}
+
+/**
  * Fetch paginated list of activities
  */
 export const fetchActivities = async (
@@ -313,9 +338,7 @@ export const fetchActivities = async (
   signal?: AbortSignal
 ): Promise<ActivityListResponse> => {
   const params = new URLSearchParams();
-  if (filter.from) params.set("from", filter.from);
-  if (filter.to) params.set("to", filter.to);
-  if (filter.sports?.length) params.set("sports", filter.sports.join(","));
+  appendActivityFilterParams(params, filter);
   if (filter.limit) params.set("limit", filter.limit.toString());
   if (filter.cursor) params.set("cursor", filter.cursor);
 
@@ -351,9 +374,7 @@ export const fetchActivitySummary = async (
   signal?: AbortSignal
 ): Promise<ActivityBucket[]> => {
   const params = new URLSearchParams();
-  if (filter.from) params.set("from", filter.from);
-  if (filter.to) params.set("to", filter.to);
-  if (filter.sports?.length) params.set("sports", filter.sports.join(","));
+  appendActivityFilterParams(params, filter);
 
   const url = `activities/summary?${params.toString()}`;
 

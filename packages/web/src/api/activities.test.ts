@@ -4,6 +4,7 @@ import {
   fetchActivitySummary,
   fetchMultiSportDailySummary,
   fetchMultiSportMetrics,
+  fetchSportMetrics,
 } from "./activities";
 
 // Stub the axios client so the tests see exactly the URL fetchActivities builds.
@@ -103,5 +104,45 @@ describe("multi-sport fetchers with an empty sports selection", () => {
 
     const params = new URLSearchParams(requestedUrl().split("?")[1]);
     expect(params.get("sports")).toBe("cycling");
+  });
+});
+
+describe("metrics fetchers' date window and timezone", () => {
+  beforeEach(() => {
+    get.mockReset();
+    get.mockResolvedValue({ data: {} });
+  });
+
+  /** The query the fetcher sent; the response's shape doesn't matter here. */
+  const sentParams = async (fetch: () => Promise<unknown>) => {
+    await fetch().catch(() => undefined);
+    return new URLSearchParams(requestedUrl().split("?")[1]);
+  };
+
+  const single = (range: { from?: string; to?: string; tz?: string }) => () =>
+    fetchSportMetrics({ year: 2026, sport: "cycling", ...range });
+  const multi = (range: { from?: string; to?: string; tz?: string }) => () =>
+    fetchMultiSportMetrics({ year: 2026, sports: ["cycling"], ...range });
+
+  it.each([
+    ["fetchSportMetrics", single],
+    ["fetchMultiSportMetrics", multi],
+  ])("%s sends from, to and tz when all are given", async (_name, fetcher) => {
+    const params = await sentParams(
+      fetcher({ from: "2026-01-01", to: "2026-06-30", tz: "America/New_York" })
+    );
+    expect(params.get("from")).toBe("2026-01-01");
+    expect(params.get("to")).toBe("2026-06-30");
+    expect(params.get("tz")).toBe("America/New_York");
+  });
+
+  it.each([
+    ["fetchSportMetrics", single],
+    ["fetchMultiSportMetrics", multi],
+  ])("%s sends a date only as a from/to pair, and no tz unless given", async (_name, fetcher) => {
+    const params = await sentParams(fetcher({ from: "2026-01-01" }));
+    expect(params.has("from")).toBe(false);
+    expect(params.has("to")).toBe(false);
+    expect(params.has("tz")).toBe(false);
   });
 });
