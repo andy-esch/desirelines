@@ -135,22 +135,27 @@ func newPropagator() propagation.TextMapPropagator {
 	)
 }
 
+// histogramBucketView applies explicit bucket boundaries to the histogram
+// instrument with the given name.
+func histogramBucketView(name string, boundaries []float64) sdkmetric.View {
+	return sdkmetric.NewView(
+		// Kind filter is defensive: if someone later adds a counter with this
+		// name, it shouldn't accidentally pick up histogram bucket boundaries.
+		sdkmetric.Instrument{Name: name, Kind: sdkmetric.InstrumentKindHistogram},
+		sdkmetric.Stream{
+			Aggregation: sdkmetric.AggregationExplicitBucketHistogram{
+				Boundaries: boundaries,
+			},
+		},
+	)
+}
+
 // extendedDurationViews returns one View per name in
 // extendedDurationInstrumentNames, each applying extendedDurationBuckets.
 func extendedDurationViews() []sdkmetric.View {
 	views := make([]sdkmetric.View, len(extendedDurationInstrumentNames))
 	for i, name := range extendedDurationInstrumentNames {
-		views[i] = sdkmetric.NewView(
-			// Kind filter is defensive: if someone later adds a counter
-			// with one of these names, it shouldn't accidentally pick up
-			// histogram bucket boundaries.
-			sdkmetric.Instrument{Name: name, Kind: sdkmetric.InstrumentKindHistogram},
-			sdkmetric.Stream{
-				Aggregation: sdkmetric.AggregationExplicitBucketHistogram{
-					Boundaries: extendedDurationBuckets,
-				},
-			},
-		)
+		views[i] = histogramBucketView(name, extendedDurationBuckets)
 	}
 	return views
 }
@@ -158,17 +163,7 @@ func extendedDurationViews() []sdkmetric.View {
 // eventAgeView applies the seconds-based delivery-age buckets only to the
 // dispatcher event-age histogram.
 func eventAgeView() sdkmetric.View {
-	return sdkmetric.NewView(
-		sdkmetric.Instrument{
-			Name: "desirelines.io/webhook/event_age",
-			Kind: sdkmetric.InstrumentKindHistogram,
-		},
-		sdkmetric.Stream{
-			Aggregation: sdkmetric.AggregationExplicitBucketHistogram{
-				Boundaries: eventAgeBuckets,
-			},
-		},
-	)
+	return histogramBucketView("desirelines.io/webhook/event_age", eventAgeBuckets)
 }
 
 // Providers holds the initialized OTel meter and tracer.
