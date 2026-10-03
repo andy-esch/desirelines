@@ -98,6 +98,13 @@ PostgreSQL, then cut over and retire the old path.
   best-effort second publish that can never affect the primary path.
 - **Eventual consistency.** CDC apply is not instantaneous (seconds), which is
   fine for an archival store.
+- **Best-effort heals upserts, not deletes.** The row publish drops its row on
+  any failure rather than affect the webhook. A dropped create or update is made
+  good by the activity's next event, if one comes, because that event upserts
+  the whole row. A dropped `DELETE` has no later event to correct it, so the
+  deleted activity stays in `activities_live` permanently: nothing reconciles
+  that table today (see
+  [PostgreSQL ↔ BigQuery consistency](postgres-bigquery-consistency.md)).
 - **Cutover retires** the old service. It did not seed history — see below.
 
 ## What actually shipped

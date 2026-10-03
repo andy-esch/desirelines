@@ -981,6 +981,12 @@ func (h *Handler) handleActivityEvent(ctx context.Context, w http.ResponseWriter
 //
 // A nil rowPublisher means the feature is switched off, which is the default.
 //
+// Dropping a row is not symmetric. A dropped create or update is made good by
+// the activity's next event, if one comes, because that event upserts the whole
+// row. A dropped DELETE has no later event to correct it: the deleted activity
+// stays in activities_live permanently, since nothing reconciles that table
+// today.
+//
 // It publishes synchronously, so it does spend webhook-response time: one more
 // publish on a path that already makes one, bounded by whatever is left of
 // handleEventDeadline. That fits inside Strava's 2s expectation with room to

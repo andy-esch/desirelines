@@ -14,9 +14,14 @@ mechanics that create the divergence window see
   the intended steady state, but BigQuery **may lag or diverge** from PostgreSQL
   and that is an accepted, bounded condition — not a bug — because no product
   read path trusts BigQuery.
-- **The backfill job is the reconciliation mechanism.** Re-running the
-  per-athlete/per-year backfill re-projects history into a store. There is no
-  separate per-id reconciler (see "Escalation" below).
+- **The backfill job reconciles PostgreSQL and the frozen `activities` table,
+  not `activities_live`.** Re-running the per-athlete/per-year backfill
+  re-projects history into those two. `activities_live` has no reconciliation or
+  seeding path at all today: the mapping from a Strava activity to a CDC row
+  exists only in the Go dispatcher, and seeding is parked behind the question of
+  whether backfill keeps a BigQuery path (see
+  [Why the two stores diverge](#why-the-two-stores-diverge)). There is no separate
+  per-id reconciler (see "Escalation" below).
 
 ## Why the two stores diverge
 
