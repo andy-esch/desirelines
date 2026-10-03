@@ -2,10 +2,68 @@
 package server
 
 import (
+	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
+	"runtime/debug"
+	"strconv"
+	"time"
+
+	chiMiddleware "github.com/go-chi/chi/v5/middleware"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/pkg/cors"
+	"github.com/andy-esch/desirelines/packages/shared/apierrors"
 )
+
+// RecoverOutermost turns a panic in the middleware that run before chi's
+// Recoverer into the standard JSON 500. Recoverer sits innermost so the request
+// logger can record the 500 it writes; a panic above it (RealIP, the security
+// headers, CORS, the limiter) would otherwise reach net/http, which logs it as
+// unstructured text and drops the connection. This guard logs the panic with
+// its stack, writes the 500 if nothing has been written yet, and records the
+// request in the histogram the request logger feeds, with the same attributes,
+// so the failure counts where every other 500 does.
+func RecoverOutermost(logger *slog.Logger, histogram metric.Float64Histogram) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+			ww := chiMiddleware.NewWrapResponseWriter(w, r.ProtoMajor)
+			//nolint:contextcheck // the 500 and the histogram deliberately use the request context, as the request logger's own deferred recorder does
+			defer func() {
+				rec := recover()
+				if rec == nil {
+					return
+				}
+				// net/http's own abort signal, which chi's Recoverer passes on too.
+				if err, ok := rec.(error); ok && errors.Is(err, http.ErrAbortHandler) {
+					panic(rec) //nolint:forbidigo // passes net/http's abort signal on, as chi's Recoverer does, so the server aborts the response quietly
+				}
+				logger.Error("Recovered a panic outside the request logger",
+					"panic", fmt.Sprint(rec),
+					"stack", string(debug.Stack()),
+					"method", r.Method,
+					"path", r.URL.Path)
+				if ww.Status() == 0 {
+					apierrors.WriteError(ww, r, apierrors.NewAPIError(http.StatusInternalServerError, "Internal server error"), logger)
+				}
+				if histogram != nil {
+					histogram.Record(r.Context(), float64(time.Since(start).Milliseconds()),
+						metric.WithAttributes(
+							attribute.String("http.method", r.Method),
+							attribute.String("http.status_code", strconv.Itoa(http.StatusInternalServerError)),
+							attribute.String("http.route", "unknown"),
+						),
+					)
+				}
+			}()
+
+			next.ServeHTTP(ww, r)
+		})
+	}
+}
 
 // CORSMiddleware wraps a CORS handler as HTTP middleware.
 // It handles preflight OPTIONS requests and sets CORS headers for all responses.
