@@ -139,19 +139,15 @@
   --nav-size: 0.6875rem;
   --nav-tracking: 0.24em;
   --nav-case: uppercase;
-  --nav-active-bg: transparent;
-  --nav-active-radius: 0px;
   /* The active item is carried by its glow, not a rule under it. */
   --nav-active-underline: none;
   --nav-active-underline-image: none;
   --nav-active-shadow: 0 0 10px rgba(0, 255, 255, 0.7);
   --nav-color: #7f9aa0;
   --nav-active-color: #00ffff;
-  --nav-active-hover-bg: transparent;
   --avatar-radius: 0px;
   --avatar-border: 1px solid #00ffff;
   --avatar-glow: inset 0 0 10px rgba(0, 255, 255, 0.3), 0 0 10px rgba(0, 255, 255, 0.35);
-  --demo-rule: none;
   --demo-bg: transparent;
   --demo-bg-image: none;
   --demo-label-color: var(--color-accent-cyan);
@@ -169,8 +165,6 @@
   --hero-number-unit-color: initial;
   --hero-card-edge: none;
   --hero-card-shadow: none;
-  --glass-blur: 0px;
-  --glass-blur-sm: 0px;
 
   /* Panels: outline only, no fill, no radius. */
   --radius: 0px;

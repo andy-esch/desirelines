@@ -146,18 +146,14 @@
   --nav-size: 0.75rem;
   --nav-tracking: 0.14em;
   --nav-case: uppercase;
-  --nav-active-bg: transparent;
-  --nav-active-radius: 0px;
   --nav-active-underline: 3px solid #d000b6;
   --nav-active-underline-image: linear-gradient(90deg, #ff00d4, #8a3dff 50%, #00e5ff);
   --nav-active-shadow: none;
   --nav-color: #5b4a7a;
   --nav-active-color: #1d0b3a;
-  --nav-active-hover-bg: transparent;
   --avatar-radius: 50%;
   --avatar-border: 2px solid #8a3dff;
   --avatar-glow: 0 0 14px rgba(138, 61, 255, 0.45);
-  --demo-rule: none;
   /* The image's darkest stop, so the contrast pairs measure the worst case. */
   --demo-bg: #ff7ae3;
   --demo-bg-image: linear-gradient(90deg, #ff7ae3, #c9b0ff 50%, #9aefff);
@@ -176,8 +172,6 @@
   --hero-number-unit-color: #1d0b3a;
   --hero-card-edge: linear-gradient(90deg, #ff00d4, #8a3dff 50%, #00e5ff);
   --hero-card-shadow: 0 14px 32px -14px rgba(138, 61, 255, 0.6);
-  --glass-blur: 0px;
-  --glass-blur-sm: 0px;
 
   /* Panels */
   --radius: 0.5rem;

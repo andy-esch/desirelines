@@ -13,9 +13,9 @@ const alertVariants = cva("rounded-md border px-4 py-3", {
       warning: "border-warning/25 bg-warning/10 text-warning",
       success: "border-success/25 bg-success/10 text-success",
       info: "border-surface-border bg-surface-hover text-body-text",
-      // The demo-mode banner: the theme's fill, an image over it (`none` for a flat fill),
-      // its border and its left rule.
-      demo: "bg-(--demo-bg) [background-image:var(--demo-bg-image)] [border:var(--demo-border)] [border-left:var(--demo-rule)] text-subtle-text",
+      // The demo-mode banner: the theme's fill, an image over it (`none` for a flat fill)
+      // and its border.
+      demo: "bg-(--demo-bg) [background-image:var(--demo-bg-image)] [border:var(--demo-border)] text-subtle-text",
     },
   },
   defaultVariants: { variant: "info" },
