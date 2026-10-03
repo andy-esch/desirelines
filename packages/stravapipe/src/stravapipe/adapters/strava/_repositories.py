@@ -33,7 +33,6 @@ import requests
 from stravapipe.config.common import StravaApiConfig
 from stravapipe.domain import (
     DetailedStravaActivity,
-    StandardActivity,
     StravaTokenSet,
     SummaryStravaActivity,
 )
@@ -45,7 +44,6 @@ from stravapipe.exceptions import (
 )
 from stravapipe.ports.out.read import (
     ReadDetailedActivities,
-    ReadStandardActivities,
     ReadStravaToken,
 )
 from stravapipe.retry import retry_on_failure
@@ -604,7 +602,7 @@ class StravaApiClient:
 # =============================================================================
 
 
-class StravaActivitiesRepo(ReadDetailedActivities, ReadStandardActivities):
+class StravaActivitiesRepo(ReadDetailedActivities):
     """Repository for fetching Strava activities and converting to domain models.
 
     Responsibilities:
@@ -632,14 +630,6 @@ class StravaActivitiesRepo(ReadDetailedActivities, ReadStandardActivities):
         """
         raw = self._client.get_activity(activity_id)
         return DetailedStravaActivity(**raw)
-
-    def read_standard_activity_by_id(self, activity_id: int) -> StandardActivity:
-        """Fetch a standard Activity from Strava (only PostgreSQL-relevant fields).
-
-        Used by PostgreSQL writer. Validates only the fields we store.
-        """
-        raw = self._client.get_activity(activity_id)
-        return StandardActivity.model_validate(raw)
 
     def read_activities_by_year(
         self, year: int
