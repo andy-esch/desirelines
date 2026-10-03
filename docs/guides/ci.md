@@ -113,7 +113,7 @@ just go-lint    # Lint + format check for both packages
 
 ### 4. Web/React
 
-Tests, lints, type-checks, and builds the React frontend.
+Tests, lints, type-checks, checks for dead code, and builds the React frontend.
 
 ```bash
 # Run locally (from packages/web/)
@@ -121,6 +121,7 @@ npm run test:coverage
 npm run lint
 npm run format:check
 npm run typecheck
+npm run knip
 npm run build
 ```
 
@@ -130,6 +131,7 @@ npm run build
 - ESLint - Linting
 - Prettier - Formatting
 - TypeScript - Type checking
+- knip - Unused files, exports, types and dependencies (`packages/web/knip.json`)
 
 **Coverage:** Uploaded to Codecov.
 
@@ -181,6 +183,7 @@ cd packages/web
 npm run test:coverage
 npm run lint
 npm run typecheck
+npm run knip
 
 # Terraform only
 just tf-validate-all

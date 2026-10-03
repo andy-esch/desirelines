@@ -9,7 +9,7 @@ import Loader from "../Loader";
 import { MapDrawerSection } from "../routes/MapDrawerSection";
 import { LineChart, Line } from "recharts";
 import { Slider } from "../ui/slider";
-import { YAxisMarker } from "../charts/YAxisMarker";
+import YAxisMarker from "../charts/YAxisMarker";
 import { SectionLabel } from "./SectionLabel";
 import { Section } from "./Section";
 import { Button } from "../ui/button";

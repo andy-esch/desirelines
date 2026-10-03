@@ -66,6 +66,7 @@ To provision it:
 | `npm test`          | Run tests (watch mode)      |
 | `npm run test:run`  | Run tests once (CI)         |
 | `npm run typecheck` | TypeScript check            |
+| `npm run knip`      | Unused code and deps check  |
 | `npm run lint`      | Lint code                   |
 | `npm run format`    | Format code                 |
 

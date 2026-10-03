@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { type RouteFilterState, yearRange } from "../../utils/routeFilters";
 import type { RegionSummary } from "../../api/map";
 import { convertDistance, getDistanceLabel, type DistanceUnit } from "../../utils/units";
-import { SportVisibilityHint } from "../SportVisibilityHint";
+import SportVisibilityHint from "../SportVisibilityHint";
 import { sportChipClass, sportChipStyle, SportChipDot } from "../sportChip";
 
 /** A selectable sport: app-category key + display label + legend color. */

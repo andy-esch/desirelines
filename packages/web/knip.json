@@ -1,0 +1,13 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "ignoreBinaries": ["just", "firebase"],
+  "ignoreDependencies": ["ts-proto"],
+  "ignoreExportsUsedInFile": true,
+  "ignoreIssues": {
+    "src/components/ui/**": ["exports", "types"],
+    "src/types/generated/**": ["exports", "types", "enumMembers"]
+  },
+  "vitest": {
+    "config": ["vite.config.ts", "vitest.integration.config.ts"]
+  }
+}

@@ -11,9 +11,6 @@ import type {
   GoalsForYear as ProtoGoalsForYear,
   AnnotationsForYear,
   Preferences,
-  Metadata,
-  Goal,
-  Annotation,
 } from "../types/generated/user_config";
 
 /**
@@ -507,12 +504,4 @@ export class UserConfigService {
 
 // Re-export protobuf types for convenience.
 // GoalsForYear is declared above (extends ProtoGoalsForYear with storageVersion).
-export type {
-  UserConfig,
-  SportGoalsForYear,
-  AnnotationsForYear,
-  Preferences,
-  Metadata,
-  Goal,
-  Annotation,
-};
+export type { UserConfig, SportGoalsForYear, AnnotationsForYear, Preferences };

@@ -2,7 +2,7 @@ import { describe, it, expect, onTestFinished, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { ChartContainer } from "./ChartContainer";
+import ChartContainer from "./ChartContainer";
 import { getTheme } from "../../themes/registry";
 import { ThemeStructureProvider } from "../theme/ThemeStructureProvider";
 

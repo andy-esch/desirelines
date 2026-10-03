@@ -246,7 +246,7 @@ function AchievementLegend({ achievements }: { achievements: GoalAchievement[] }
  * />
  * ```
  */
-export function CumulativeChartPresenter({
+function CumulativeChartPresenter({
   mergedData,
   goalLines,
   goalAchievements,

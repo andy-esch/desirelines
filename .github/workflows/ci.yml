@@ -363,6 +363,11 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
+      # Unused files, exports, types and dependencies (knip.json). Clean when added, so a
+      # new dead export fails here rather than piling up for the next simplify sweep.
+      - name: Dead code check
+        run: npm run knip
+
       - name: Test with coverage
         run: npm run test:coverage
 

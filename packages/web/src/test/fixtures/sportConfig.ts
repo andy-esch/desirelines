@@ -102,11 +102,6 @@ export const mockMinimalSportConfig: SportConfig = {
 export const defaultVisibleSports = ["cycling", "running", "yoga"];
 
 /**
- * Extended visible sports list for testing with more sports.
- */
-export const extendedVisibleSports = ["cycling", "running", "yoga", "swimming", "hiking"];
-
-/**
  * Factory function for useSportConfig mock return value.
  * Allows easy customization of loading/error states.
  */
@@ -231,80 +226,6 @@ export function mockDailySportDataReturn(overrides?: {
     isLoading: overrides?.isLoading ?? false,
     error: overrides?.error ?? null,
     retry: overrides?.retry ?? (() => {}),
-  };
-}
-
-/**
- * Mock activities for testing activity lists.
- */
-export const mockActivities = [
-  {
-    id: 123456789,
-    name: "Morning Ride",
-    type: "Ride",
-    sport: "cycling",
-    startDateLocal: "2026-01-05T08:30:00",
-    distanceMeters: 45000,
-    movingTimeSeconds: 5400,
-    elevationMeters: 450,
-  },
-  {
-    id: 123456790,
-    name: "Evening Run",
-    type: "Run",
-    sport: "running",
-    startDateLocal: "2026-01-04T18:00:00",
-    distanceMeters: 8000,
-    movingTimeSeconds: 2400,
-    elevationMeters: 50,
-  },
-  {
-    id: 123456791,
-    name: "Yoga Flow",
-    type: "Yoga",
-    sport: "yoga",
-    startDateLocal: "2026-01-03T07:00:00",
-    distanceMeters: 0,
-    movingTimeSeconds: 1800,
-  },
-  {
-    id: 123456792,
-    name: "Hill Climb",
-    type: "Ride",
-    sport: "cycling",
-    startDateLocal: "2026-01-02T10:00:00",
-    distanceMeters: 30000,
-    movingTimeSeconds: 4200,
-    elevationMeters: 800,
-  },
-  {
-    id: 123456793,
-    name: "Recovery Run",
-    type: "Run",
-    sport: "running",
-    startDateLocal: "2026-01-01T16:00:00",
-    distanceMeters: 5000,
-    movingTimeSeconds: 1800,
-    elevationMeters: 20,
-  },
-];
-
-/**
- * Factory function for useActivities mock return value.
- */
-export function mockActivitiesReturn(overrides?: {
-  activities?: typeof mockActivities;
-  isLoading?: boolean;
-  error?: Error | null;
-  hasMore?: boolean;
-}) {
-  return {
-    activities: overrides?.activities ?? mockActivities,
-    isLoading: overrides?.isLoading ?? false,
-    error: overrides?.error ?? null,
-    hasMore: overrides?.hasMore ?? false,
-    loadMore: vi.fn(),
-    retry: vi.fn(),
   };
 }
 

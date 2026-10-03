@@ -44,7 +44,7 @@ function SportYearMessage({
  * <EmptyState message="No chart data available" />
  * <EmptyState sport="cycling" year={2026} suggestedYear={2025} />
  */
-export function EmptyState({
+function EmptyState({
   sport,
   year,
   message,

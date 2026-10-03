@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { screen } from "@testing-library/react";
-import { EmptyState } from "./EmptyState";
+import EmptyState from "./EmptyState";
 import { renderWithRouter } from "../test/renderWithRouter";
 
 // usePublicSportConfig pulls from React Query; stub it so the component can
