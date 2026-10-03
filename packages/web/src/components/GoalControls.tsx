@@ -64,7 +64,6 @@ const GoalControls: React.FC<GoalControlsProps> = ({
 }) => {
   const {
     editingId,
-    setEditingId,
     editValue,
     setEditValue,
     editingLabel,
@@ -73,6 +72,7 @@ const GoalControls: React.FC<GoalControlsProps> = ({
     setEditValidationError,
     handleStartEdit,
     handleSaveEdit,
+    handleCancelEdit,
     handleLabelEdit,
     handleLabelSave,
     handleIncrement,
@@ -99,6 +99,15 @@ const GoalControls: React.FC<GoalControlsProps> = ({
   const stepperField = boxed
     ? "h-auto min-w-0 rounded-none border-0 bg-transparent text-center text-xs shadow-none"
     : "mx-[min(0px,calc(var(--stepper-gap)_-_1px))] h-8 min-w-0 rounded-none text-center text-xs";
+
+  // Set while Enter or Escape blurs the value field, so the blur doesn't save a second time
+  // or save the entry Escape just dropped.
+  const endingEditByKey = React.useRef(false);
+  const blurEndingEdit = (field: HTMLInputElement) => {
+    endingEditByKey.current = true;
+    field.blur();
+    endingEditByKey.current = false;
+  };
 
   const validation = validateGoals(goals);
   // No change while a save is in flight, or while what's saved isn't known.
@@ -228,39 +237,41 @@ const GoalControls: React.FC<GoalControlsProps> = ({
               >
                 −
               </Button>
-              {editingId === goal.id ? (
-                <Input
-                  type="number"
-                  className={stepperField}
-                  value={editValue}
-                  onChange={(e) => {
-                    setEditValue(e.target.value);
-                    setEditValidationError(null);
-                  }}
-                  onBlur={() => handleSaveEdit(goal.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleSaveEdit(goal.id);
-                    if (e.key === "Escape") {
-                      setEditingId(null);
-                      setEditValidationError(null);
-                    }
-                  }}
-                  // eslint-disable-next-line jsx-a11y/no-autofocus -- user-initiated inline edit; focus is expected
-                  autoFocus
-                  disabled={locked}
-                  aria-describedby={editValidationError ? `goal-error-${goal.id}` : undefined}
-                />
-              ) : (
-                <Input
-                  type="text"
-                  className={stepperField}
-                  value={`${goal.value.toLocaleString()} ${unit}`}
-                  onFocus={() => handleStartEdit(goal.id, goal.value)}
-                  readOnly
-                  disabled={locked}
-                  style={{ cursor: locked ? "not-allowed" : "pointer" }}
-                />
-              )}
+              {/* One field, shown formatted at rest and edited in place as a bare number, so
+                  the tap that focuses it is the tap that raises a phone's keyboard: a
+                  read-only field doesn't raise it, and iOS ignores a focus moved to a field
+                  swapped in afterwards. `numeric` asks for the digit pad. Enter and Escape
+                  blur the field, which closes the keyboard. */}
+              <Input
+                type="text"
+                inputMode="numeric"
+                enterKeyHint="done"
+                aria-label={`${goal.label || "Goal"} value`}
+                className={stepperField}
+                value={editingId === goal.id ? editValue : `${goal.value.toLocaleString()} ${unit}`}
+                onFocus={() => {
+                  if (editingId !== goal.id) handleStartEdit(goal.id, goal.value);
+                }}
+                onChange={(e) => {
+                  setEditValue(e.target.value);
+                  setEditValidationError(null);
+                }}
+                onBlur={() => {
+                  if (!endingEditByKey.current && editingId === goal.id) handleSaveEdit(goal.id);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && handleSaveEdit(goal.id)) blurEndingEdit(e.currentTarget);
+                  if (e.key === "Escape") {
+                    handleCancelEdit();
+                    blurEndingEdit(e.currentTarget);
+                  }
+                }}
+                disabled={locked}
+                aria-describedby={
+                  editingId === goal.id && editValidationError ? `goal-error-${goal.id}` : undefined
+                }
+                style={{ cursor: locked ? "not-allowed" : "pointer" }}
+              />
               <Button
                 variant={boxed ? "ghost" : "outline"}
                 size="sm"
