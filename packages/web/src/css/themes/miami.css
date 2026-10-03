@@ -134,18 +134,14 @@
   --nav-size: 0.75rem;
   --nav-tracking: 0.14em;
   --nav-case: uppercase;
-  --nav-active-bg: transparent;
-  --nav-active-radius: 0px;
   --nav-active-underline: 2px solid #ff2ec4;
   --nav-active-underline-image: none;
   --nav-active-shadow: none;
   --nav-color: #c9b8e0;
   --nav-active-color: #ff2ec4;
-  --nav-active-hover-bg: transparent;
   --avatar-radius: 50%;
   --avatar-border: 1px solid #ff2ec4;
   --avatar-glow: 0 0 10px rgba(255, 46, 196, 0.45);
-  --demo-rule: none;
   --demo-bg: #1b0d36;
   --demo-bg-image: none;
   --demo-label-color: var(--color-accent-cyan);
@@ -163,8 +159,6 @@
   --hero-number-unit-color: initial;
   --hero-card-edge: none;
   --hero-card-shadow: none;
-  --glass-blur: 0px;
-  --glass-blur-sm: 0px;
 
   /* Panels */
   --radius: 0.375rem;

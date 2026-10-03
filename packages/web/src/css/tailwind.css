@@ -94,7 +94,7 @@
      so their accents and the Base UI primitives inside them (which paint through
      `--color-primary` → `accent-cyan`) take a map-specific color. Dark themes use full
      neon cyan, which reads over the dark basemap; light themes keep the readable
-     interactive accent, because neon cyan is illegible on pale glass. === */
+     interactive accent, because neon cyan is illegible on a pale panel. === */
   --color-map-chrome-accent: #00e5ff;
 
   /* === Accent: Magenta — secondary accent === */

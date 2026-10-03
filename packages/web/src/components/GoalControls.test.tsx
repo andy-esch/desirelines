@@ -4,6 +4,8 @@ import GoalControls from "./GoalControls";
 import type { Goals } from "../utils/goalCalculations";
 import type { SportConfig } from "../api/activities";
 import { testGoals } from "../utils/goalTestFixtures";
+import { THEMES, type ThemeStructure } from "../themes/registry";
+import { ThemeStructureProvider } from "./theme/ThemeStructureProvider";
 
 describe("GoalControls", () => {
   const mockGoals: Goals = testGoals([
@@ -435,6 +437,54 @@ describe("GoalControls", () => {
       );
       expect(screen.getByRole("button", { name: "+ Add Goal" })).toBeDisabled();
       expect(screen.getByRole("button", { name: /Reset/ })).toBeDisabled();
+    });
+  });
+
+  describe("theme structure", () => {
+    const renderIn = (overrides: Partial<ThemeStructure>) =>
+      render(
+        <ThemeStructureProvider structure={{ ...THEMES[0].structure, ...overrides }}>
+          <GoalControls {...defaultProps} />
+        </ThemeStructureProvider>
+      );
+    const firstMinus = () => screen.getAllByRole("button", { name: "−" })[0]!;
+
+    it("draws a stepper as outline buttons around its value, gapped by the theme", () => {
+      renderIn({ stepperStyle: "buttons" });
+      expect(firstMinus().className).toContain("border-(color:--button-outline-border-color)");
+      expect(firstMinus().parentElement!.className).toContain("gap-(--stepper-gap)");
+    });
+
+    it("draws a stepper as one control box, the − and + divided off inside it", () => {
+      renderIn({ stepperStyle: "box" });
+      const minus = firstMinus();
+      expect(minus.parentElement!.className).toContain("border-input");
+      expect(minus.className).toContain("border-divider");
+      expect(minus.className).not.toContain("--button-outline-border-color");
+      // The value sits borderless inside the box; the label field comes first.
+      expect(screen.getAllByRole("textbox")[1]!.className).toContain("border-0");
+    });
+
+    it("steps the goal the same way in the box", () => {
+      renderIn({ stepperStyle: "box" });
+      fireEvent.click(screen.getAllByRole("button", { name: "+" })[0]!);
+      expect(defaultProps.onGoalsChange).toHaveBeenCalledTimes(1);
+    });
+
+    it("draws adding and resetting as buttons, or as text links", () => {
+      const look = (goalActionsStyle: ThemeStructure["goalActionsStyle"]) => {
+        const { unmount } = renderIn({ goalActionsStyle });
+        const classes = [
+          screen.getByRole("button", { name: "+ Add Goal" }).className,
+          screen.getByRole("button", { name: /Reset/ }).className,
+        ];
+        unmount();
+        return classes;
+      };
+      const [addButton, resetButton] = look("buttons");
+      expect(addButton).toContain("border-(color:--button-outline-border-color)");
+      expect(resetButton).not.toContain("underline-offset-4");
+      for (const link of look("links")) expect(link).toContain("underline-offset-4");
     });
   });
 });

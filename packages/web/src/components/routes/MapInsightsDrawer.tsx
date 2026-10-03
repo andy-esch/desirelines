@@ -115,7 +115,7 @@ export default function MapInsightsDrawer({
         style={MAP_CHROME_STYLE}
         className={cn(
           "absolute z-30 inline-flex items-center justify-center rounded-md [border:var(--map-chrome-edge)]",
-          "bg-(--map-chrome-bg) text-body-text shadow-lg backdrop-blur-(--glass-blur)",
+          "bg-(--map-chrome-bg) text-body-text shadow-lg",
           "transition-all duration-200 ease-out hover:border-accent-cyan/50 hover:text-accent-cyan",
           "motion-reduce:transition-none",
           // Mobile: bottom-dock pill, left edge just right of center. Fixed width
@@ -142,7 +142,7 @@ export default function MapInsightsDrawer({
         inert={!open}
         style={MAP_CHROME_STYLE}
         className={cn(
-          "absolute z-20 flex flex-col bg-(--map-chrome-bg) [box-shadow:var(--map-chrome-shadow)] backdrop-blur-(--glass-blur)",
+          "absolute z-20 flex flex-col bg-(--map-chrome-bg) [box-shadow:var(--map-chrome-shadow)]",
           "transition-transform duration-300 ease-out motion-reduce:transition-none",
           // Mobile: bottom sheet (safe-area-aware), mirroring the filter drawer.
           "inset-x-0 bottom-0 max-h-[70%] [border-top:var(--map-chrome-edge)] pb-[env(safe-area-inset-bottom)]",

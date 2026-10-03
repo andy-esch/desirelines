@@ -12,7 +12,7 @@ import Loader from "../Loader";
  */
 export default function MapLoadingState() {
   return (
-    <div className="pointer-events-none absolute inset-0 grid place-items-center bg-bg-body/60 backdrop-blur-(--glass-blur-sm)">
+    <div className="pointer-events-none absolute inset-0 grid place-items-center bg-bg-body/60">
       <Loader label="Loading map…" />
     </div>
   );
