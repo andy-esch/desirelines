@@ -6,6 +6,7 @@ Receives Strava webhook events, enriches CREATE events with activity data from t
 
 ```
 Strava Webhook → Dispatcher (Cloud Run) → [enrich with Strava API] → PubSub Topic → Eventarc → downstream services
+                                         ↘ [best-effort, when enabled] → activity-row topic → BigQuery CDC subscription → activities_live
                                          ↘ [athlete deauth] → delete Firestore tokens + PubSub Deauth Topic → downstream services
 ```
 
@@ -82,8 +83,10 @@ startup precisely because of this flow.
 
 ## Environment Variables
 
-All four variables below are validated up front in `config.LoadConfig` — the
-service refuses to start (fail-fast) if any is missing.
+`config.LoadConfig` validates everything below up front. The service refuses to
+start (fail-fast) if a required variable is missing, or if an optional one is set
+to a value it can't parse, so a typo surfaces at boot instead of as a silent
+default.
 
 ```bash
 # Required (fail-fast)
@@ -92,10 +95,30 @@ GCP_PUBSUB_TOPIC=desirelines_activity_events
 GCP_PUBSUB_DEAUTH_TOPIC=desirelines_deauth_events
 FIRESTORE_DATABASE=desirelines
 
+# Activity-row publish to BigQuery (best-effort, alongside the primary publish)
+ACTIVITY_ROW_PUBLISH_ENABLED=false   # Default: false. Also the kill switch: false stops it by config alone
+GCP_PUBSUB_ACTIVITY_ROWS_TOPIC=desirelines-activity-rows-dev  # Required (fail-fast) when the publish is enabled
+ACTIVITY_ROW_ENCODING=json           # "json" (default) or "proto"; must match what the topic accepts
+
+# Firestore lookup caches. "0" disables a cache: the incident kill switch
+ALLOWLIST_CACHE_TTL=5m   # Default: 5m
+TOKEN_CACHE_TTL=5m       # Default: 5m
+
+# HTTP server
+HTTP_READ_TIMEOUT=30s          # Default: 30s
+HTTP_WRITE_TIMEOUT=30s         # Default: 30s
+HTTP_READ_HEADER_TIMEOUT=10s   # Default: 10s
+MAX_REQUEST_BODY_SIZE=1048576  # Default: 1 MiB, in bytes
+
 # Optional
 LOG_LEVEL=INFO   # Default: INFO
 PORT=8080        # Default: 8080 (Cloud Run sets this)
 ```
+
+The activity-row publish is the only path by which activity rows reach BigQuery.
+It is best-effort: a failed or skipped publish never fails the webhook, and it
+corrects itself on the activity's next update, but not on a delete (see
+`publishActivityRow` in `adapters/http/handler.go`).
 
 ### Secrets
 
@@ -108,7 +131,7 @@ are **not** plain config vars:
 |-------------|------------------|-------------|
 | `/etc/secrets/INFISICAL_STRAVA_WEBHOOK_VERIFY_TOKEN/value` | `STRAVA_WEBHOOK_VERIFY_TOKEN` | Webhook subscription verify token |
 | `/etc/secrets/INFISICAL_STRAVA_WEBHOOK_SUBSCRIPTION_ID/value` | `STRAVA_WEBHOOK_SUBSCRIPTION_ID` | Strava webhook subscription ID |
-| `/etc/secrets/INFISICAL_STRAVA_WEBHOOK_CALLBACK_CAPABILITY/value` | `STRAVA_WEBHOOK_CALLBACK_CAPABILITY` | 32 random bytes encoded as 64 lowercase hex characters; required in `dual` and `capability` modes |
+| `/etc/secrets/INFISICAL_STRAVA_WEBHOOK_CALLBACK_CAPABILITY/value` | `STRAVA_WEBHOOK_CALLBACK_CAPABILITY` | 32 random bytes encoded as 64 lowercase hex characters; required at startup |
 | `/etc/secrets/INFISICAL_STRAVA_CLIENT_ID/value` | `STRAVA_CLIENT_ID` | Strava API app client ID |
 | `/etc/secrets/INFISICAL_STRAVA_CLIENT_SECRET/value` | `STRAVA_CLIENT_SECRET` | Strava API app client secret |
 
@@ -120,9 +143,9 @@ are **not** plain config vars:
 # Start backend (includes PubSub emulator)
 docker compose --profile backend up
 
-# Test webhook in legacy mode (use `/webhook/$STRAVA_WEBHOOK_CALLBACK_CAPABILITY`
-# in dual/capability mode; do not paste a real capability into shared output)
-curl -X POST http://localhost:8081/webhook \
+# Test the webhook through the capability route (plain /webhook is retired and
+# returns 404). Use a local capability; never paste a real one into shared output
+curl -X POST "http://localhost:8081/webhook/$STRAVA_WEBHOOK_CALLBACK_CAPABILITY" \
   -H "Content-Type: application/json" \
   -d '{"aspect_type":"create","event_time":1234567890,"object_id":12345,"object_type":"activity","owner_id":67890,"subscription_id":123456}'
 ```
