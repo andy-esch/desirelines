@@ -35,6 +35,8 @@ describe("useActivities", () => {
       movingTimeSeconds: 5400,
       elevationMeters: 450,
       hasRoute: true,
+      source: "strava",
+      sourceUrl: "https://www.strava.com/activities/123456789",
     },
     {
       id: "123456790",
@@ -46,6 +48,8 @@ describe("useActivities", () => {
       movingTimeSeconds: 2400,
       elevationMeters: 50,
       hasRoute: true,
+      source: "strava",
+      sourceUrl: "https://www.strava.com/activities/123456790",
     },
   ];
 

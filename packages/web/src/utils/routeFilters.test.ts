@@ -27,6 +27,8 @@ function act(over: Partial<MapActivity> = {}): MapActivity {
     elevationMeters: 200,
     startDateLocal: "2026-05-01T08:00:00",
     regionIds: [10],
+    source: "strava",
+    sourceUrl: "https://www.strava.com/activities/1",
     ...over,
   };
 }
@@ -173,6 +175,8 @@ describe("summarizeMapActivities", () => {
       movingTime: 2_000,
       startDateLocal: "2026-05-01T08:00:00",
       regionIds: [],
+      source: "strava",
+      sourceUrl: "https://www.strava.com/activities/2",
     };
     expect(
       summarizeMapActivities([

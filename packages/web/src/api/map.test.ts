@@ -183,6 +183,8 @@ describe("fetchMapDataset", () => {
       elevationMeters: 200,
       startDateLocal: "2026-05-01T08:00:00",
       regionIds: [10, 20],
+      source: "strava",
+      sourceUrl: "https://www.strava.com/activities/42",
       bbox: [-74.1, 40.6, -73.8, 40.9],
     };
     mockGet.mockResolvedValue({ data: { activities: [activity] } });
@@ -204,6 +206,8 @@ describe("fetchMapDataset", () => {
             movingTime: 3_600,
             startDateLocal: "2026-05-01T08:00:00",
             regionIds: ["10", "20"],
+            source: "strava",
+            sourceUrl: "https://www.strava.com/activities/12345678901",
           },
         ],
       },
@@ -238,6 +242,8 @@ describe("fetchMapDataset", () => {
       movingTime: 0,
       startDateLocal: "2026-05-01T08:00:00",
       regionIds: [],
+      source: "",
+      sourceUrl: "",
     });
   });
 

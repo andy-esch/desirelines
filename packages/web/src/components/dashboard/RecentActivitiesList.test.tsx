@@ -41,6 +41,8 @@ function activity(id: number): ActivitySummary {
     movingTimeSeconds: 600,
     elevationMeters: 10,
     hasRoute: false,
+    source: "strava",
+    sourceUrl: `https://www.strava.com/activities/${id}`,
   };
 }
 
@@ -64,6 +66,34 @@ describe("RecentActivitiesList missing values", () => {
     for (const dash of dashes) {
       expect(dash.parentElement?.className).toContain("--missing-value-color");
     }
+  });
+});
+
+describe("RecentActivitiesList source links", () => {
+  function renderWith(activities: ActivitySummary[]) {
+    mockUseActivities.mockReturnValue({
+      activities,
+      isLoading: false,
+      error: null,
+      hasMore: false,
+      isLoadingMore: false,
+      loadMore: vi.fn(),
+      retry: vi.fn(),
+    });
+    render(<RecentActivitiesList timeRange="4weeks" pageSize={5} />);
+  }
+
+  it("links the name to the URL the API supplies", () => {
+    renderWith([{ ...activity(1), sourceUrl: "https://example.test/rides/1" }]);
+    expect(screen.getByRole("link", { name: "Activity 1" })).toHaveAttribute(
+      "href",
+      "https://example.test/rides/1"
+    );
+  });
+
+  it("shows the name as plain text when there is no source URL", () => {
+    renderWith([{ ...activity(1), sourceUrl: "" }]);
+    expect(screen.getByText("Activity 1").closest("a")).toBeNull();
   });
 });
 

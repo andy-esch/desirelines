@@ -16,7 +16,7 @@
   display: none;
 }
 /* The popup wrapper is otherwise an invisible click-blocker over the map; let map
-   clicks pass through it, keeping only the card itself interactive (Strava link). */
+   clicks pass through it, keeping only the card itself interactive (source link). */
 .routes-map-popup {
   pointer-events: none;
 }

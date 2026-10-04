@@ -34,6 +34,8 @@ function act(over: Partial<MapActivity> = {}): MapActivity {
     elevationMeters: 0,
     startDateLocal: "2026-05-04T08:00:00",
     regionIds: [],
+    source: "strava",
+    sourceUrl: "https://www.strava.com/activities/1",
     ...over,
   };
 }

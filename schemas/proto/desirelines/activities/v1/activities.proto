@@ -13,7 +13,8 @@ option go_package = "github.com/andy-esch/desirelines/packages/apigateway/types/
 // Activity represents a single activity with full details.
 // Used for GET /activities/{id} responses.
 message Activity {
-  // Strava activity ID.
+  // Activity ID. Treat it as opaque: it currently equals the Strava activity ID,
+  // but link out with source_url rather than building URLs from it.
   int64 id = 1;
 
   // Activity name/title.
@@ -53,12 +54,19 @@ message Activity {
 
   // Max heart rate in bpm (nullable).
   optional double max_heartrate = 13;
+
+  // Platform this activity was ingested from (currently always "strava").
+  string source = 14;
+
+  // Link to the activity on the platform it was ingested from; empty when there is none.
+  string source_url = 15;
 }
 
 // ActivitySummary represents a condensed activity for list views.
 // Omits detailed stats not needed in list/table displays.
 message ActivitySummary {
-  // Strava activity ID.
+  // Activity ID. Treat it as opaque: it currently equals the Strava activity ID,
+  // but link out with source_url rather than building URLs from it.
   int64 id = 1;
 
   // Activity name/title.
@@ -88,6 +96,12 @@ message ActivitySummary {
   // GET /activities/map/dataset). Indoor/virtual activities have no region tag
   // and are false. Drives the "view on map" affordance in list views.
   bool has_route = 9;
+
+  // Platform this activity was ingested from (currently always "strava").
+  string source = 10;
+
+  // Link to the activity on the platform it was ingested from; empty when there is none.
+  string source_url = 11;
 }
 
 // MapActivity is a single geo-bearing activity for the routes-map cross-filter
@@ -96,7 +110,8 @@ message ActivitySummary {
 // (virtual/indoor activities are excluded), matching the /map/tiles and
 // /map/regions inclusion rule.
 message MapActivity {
-  // Strava activity ID.
+  // Activity ID. Treat it as opaque: it currently equals the Strava activity ID,
+  // but link out with source_url rather than building URLs from it.
   int64 activity_id = 1;
 
   // Activity name/title (for the cross-filter activity list + click popover).
@@ -127,6 +142,12 @@ message MapActivity {
   // the activity's route geometry, for map "fit to results". Absent when the
   // activity has no stored route geometry.
   repeated double bbox = 8;
+
+  // Platform this activity was ingested from (currently always "strava").
+  string source = 10;
+
+  // Link to the activity on the platform it was ingested from; empty when there is none.
+  string source_url = 11;
 }
 
 // MapDatasetResponse wraps the full set of geo-bearing activities for the
@@ -234,7 +255,7 @@ message AggregateActivitiesResponse {
 // GetActivityRequest identifies a single activity to retrieve.
 // Used for GET /activities/{id} endpoint.
 message GetActivityRequest {
-  // Strava activity ID.
+  // Activity ID, as returned in Activity.id or ActivitySummary.id.
   int64 id = 1;
 }
 

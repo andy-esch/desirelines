@@ -11,6 +11,8 @@ const act = (id: number, sport: string, startDateLocal: string): ActivitySummary
   distanceMeters: 1000,
   movingTimeSeconds: 600,
   hasRoute: false,
+  source: "strava",
+  sourceUrl: `https://www.strava.com/activities/${id}`,
 });
 
 const ACTIVITIES = [

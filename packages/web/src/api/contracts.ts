@@ -135,6 +135,10 @@ const ActivitySchema = z
     // Present on ActivitySummary (list responses); gates the "view on map"
     // affordance. Absent on the full Activity (GET /activities/{id}).
     hasRoute: z.boolean().optional(),
+    // Where the activity came from and the link to it there; the client renders
+    // this link rather than building one from the ID.
+    source: z.string().optional(),
+    sourceUrl: z.string().optional(),
   })
   .passthrough();
 

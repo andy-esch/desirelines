@@ -749,6 +749,9 @@ export function generateDemoActivities(
       // No "view on map" pin in demo: /routes is auth-gated (demo users never
       // reach it), so a pin would only lead to the sign-in wall.
       hasRoute: false,
+      // Demo activities exist on no platform, so there is no source page to link.
+      source: "",
+      sourceUrl: "",
     });
 
     activitiesGenerated++;

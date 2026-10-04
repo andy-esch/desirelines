@@ -21,6 +21,7 @@ import { Panel } from "./theme/Panel";
 import { MissingValue } from "./theme/MissingValue";
 import EmptyState from "./EmptyState";
 import { ErrorState } from "./ErrorState";
+import { sourceHref, viewOnSourceLabel } from "../utils/activitySource";
 import { Table } from "./ui/table";
 import { SportLabel } from "./theme/SportLabel";
 
@@ -177,90 +178,106 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
             </tr>
           </thead>
           <tbody>
-            {activities.map((activity) => (
-              <tr key={activity.id}>
-                <td className="whitespace-nowrap">
-                  {formatActivityDate(activity.startDateLocal, { year: true })}
-                </td>
-                <td>
-                  <a
-                    href={`https://www.strava.com/activities/${activity.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="truncate inline-block align-bottom"
-                    style={{ maxWidth: "200px" }}
-                  >
-                    {activity.name}
-                  </a>
-                </td>
-                <td>
-                  <SportLabel color={SPORT_COLORS[activity.sport] ?? DEFAULT_SPORT_COLOR}>
-                    {getSportDisplayName(activity.sport, sportConfig)}
-                  </SportLabel>
-                </td>
-                <td className="text-right whitespace-nowrap">
-                  {activity.distanceMeters > 0 ? (
-                    formatDistance(activity.distanceMeters, distanceUnit)
-                  ) : (
-                    <MissingValue />
-                  )}
-                </td>
-                <td className="text-right whitespace-nowrap">
-                  {formatDuration(activity.movingTimeSeconds)}
-                </td>
-                <td className="text-right whitespace-nowrap">
-                  {activity.elevationMeters ? (
-                    formatElevation(activity.elevationMeters, elevationUnit)
-                  ) : (
-                    <MissingValue />
-                  )}
-                </td>
-                <td className="text-right whitespace-nowrap">
-                  {formatPaceOrSpeed(
-                    activity.distanceMeters,
-                    activity.movingTimeSeconds,
-                    activity.sport,
-                    distanceUnit
-                  ) ?? <MissingValue />}
-                </td>
-                {showImpact && goalTarget > 0 && (
-                  <td className="text-right whitespace-nowrap text-muted-text">
-                    {formatImpactPct(
-                      isSessionSport
-                        ? (1 / goalTarget) * 100
-                        : activity.distanceMeters > 0
-                          ? (convertDistance(activity.distanceMeters, distanceUnit) / goalTarget) *
-                            100
-                          : null
+            {activities.map((activity) => {
+              const href = sourceHref(activity.sourceUrl);
+              return (
+                <tr key={activity.id}>
+                  <td className="whitespace-nowrap">
+                    {formatActivityDate(activity.startDateLocal, { year: true })}
+                  </td>
+                  <td>
+                    {href ? (
+                      <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="truncate inline-block align-bottom"
+                        style={{ maxWidth: "200px" }}
+                      >
+                        {activity.name}
+                      </a>
+                    ) : (
+                      <span
+                        className="truncate inline-block align-bottom"
+                        style={{ maxWidth: "200px" }}
+                      >
+                        {activity.name}
+                      </span>
+                    )}
+                  </td>
+                  <td>
+                    <SportLabel color={SPORT_COLORS[activity.sport] ?? DEFAULT_SPORT_COLOR}>
+                      {getSportDisplayName(activity.sport, sportConfig)}
+                    </SportLabel>
+                  </td>
+                  <td className="text-right whitespace-nowrap">
+                    {activity.distanceMeters > 0 ? (
+                      formatDistance(activity.distanceMeters, distanceUnit)
+                    ) : (
+                      <MissingValue />
+                    )}
+                  </td>
+                  <td className="text-right whitespace-nowrap">
+                    {formatDuration(activity.movingTimeSeconds)}
+                  </td>
+                  <td className="text-right whitespace-nowrap">
+                    {activity.elevationMeters ? (
+                      formatElevation(activity.elevationMeters, elevationUnit)
+                    ) : (
+                      <MissingValue />
+                    )}
+                  </td>
+                  <td className="text-right whitespace-nowrap">
+                    {formatPaceOrSpeed(
+                      activity.distanceMeters,
+                      activity.movingTimeSeconds,
+                      activity.sport,
+                      distanceUnit
                     ) ?? <MissingValue />}
                   </td>
-                )}
-                <td className="text-right pe-6">
-                  <div className="inline-flex items-center gap-3">
-                    {onViewOnMap && activity.hasRoute && (
-                      <button
-                        type="button"
-                        onClick={() => onViewOnMap(activity.id)}
-                        className="text-muted-text hover:text-accent-cyan motion-safe:transition-colors"
-                        title="View on map"
-                        aria-label="View this activity on the map"
-                      >
-                        <MapPinIcon size={14} />
-                      </button>
-                    )}
-                    <a
-                      href={`https://www.strava.com/activities/${activity.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-muted-text"
-                      title="View on Strava"
-                    >
-                      <ExternalLinkIcon size={14} />
-                    </a>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                  {showImpact && goalTarget > 0 && (
+                    <td className="text-right whitespace-nowrap text-muted-text">
+                      {formatImpactPct(
+                        isSessionSport
+                          ? (1 / goalTarget) * 100
+                          : activity.distanceMeters > 0
+                            ? (convertDistance(activity.distanceMeters, distanceUnit) /
+                                goalTarget) *
+                              100
+                            : null
+                      ) ?? <MissingValue />}
+                    </td>
+                  )}
+                  <td className="text-right pe-6">
+                    <div className="inline-flex items-center gap-3">
+                      {onViewOnMap && activity.hasRoute && (
+                        <button
+                          type="button"
+                          onClick={() => onViewOnMap(activity.id)}
+                          className="text-muted-text hover:text-accent-cyan motion-safe:transition-colors"
+                          title="View on map"
+                          aria-label="View this activity on the map"
+                        >
+                          <MapPinIcon size={14} />
+                        </button>
+                      )}
+                      {href && (
+                        <a
+                          href={href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-muted-text"
+                          title={viewOnSourceLabel(activity.source)}
+                          aria-label={viewOnSourceLabel(activity.source)}
+                        >
+                          <ExternalLinkIcon size={14} />
+                        </a>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </Table>
       </div>

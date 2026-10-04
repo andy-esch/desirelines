@@ -560,6 +560,7 @@ func (r *ActivityRepository) GetActivityByID(ctx context.Context, userID string,
 		return nil, fmt.Errorf("query activity by id: %w", retErr)
 	}
 
+	source, sourceURL := repository.ActivitySourceLink(activityID)
 	return &activitiesv1.Activity{
 		Id:                 activityID,
 		Name:               name,
@@ -574,6 +575,8 @@ func (r *ActivityRepository) GetActivityByID(ctx context.Context, userID string,
 		MaxSpeedMps:        maxSpeed,
 		AverageHeartrate:   avgHR,
 		MaxHeartrate:       maxHR,
+		Source:             source,
+		SourceUrl:          sourceURL,
 	}, nil
 }
 
@@ -772,6 +775,7 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 	// Build proto messages
 	activities := make([]*activitiesv1.ActivitySummary, 0, len(scannedActivities))
 	for _, a := range scannedActivities {
+		source, sourceURL := repository.ActivitySourceLink(a.id)
 		activities = append(activities, &activitiesv1.ActivitySummary{
 			Id:                a.id,
 			Name:              a.name,
@@ -782,6 +786,8 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 			MovingTimeSeconds: a.movingTime,
 			ElevationMeters:   a.elevation,
 			HasRoute:          a.hasRoute,
+			Source:            source,
+			SourceUrl:         sourceURL,
 		})
 	}
 
@@ -1114,6 +1120,7 @@ func (r *ActivityRepository) GetMapDataset(ctx context.Context, userID string) (
 			return nil, fmt.Errorf("scan map dataset row: %w", retErr)
 		}
 
+		source, sourceURL := repository.ActivitySourceLink(id)
 		activity := &activitiesv1.MapActivity{
 			ActivityId:      id,
 			Name:            name,
@@ -1123,6 +1130,8 @@ func (r *ActivityRepository) GetMapDataset(ctx context.Context, userID string) (
 			ElevationMeters: elevation,
 			StartDateLocal:  startDateLocal.Format(time.RFC3339),
 			RegionIds:       regionIDs,
+			Source:          source,
+			SourceUrl:       sourceURL,
 		}
 		if minLng != nil && minLat != nil && maxLng != nil && maxLat != nil {
 			activity.Bbox = []float64{*minLng, *minLat, *maxLng, *maxLat}
