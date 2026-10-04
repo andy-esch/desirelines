@@ -112,12 +112,22 @@ describe("MapActivityList", () => {
     expect(screen.queryByText("Morning Ride")).not.toBeInTheDocument();
   });
 
-  it("has a Strava link per row that does NOT trigger row selection", async () => {
+  it("has a source link per row that does NOT trigger row selection", async () => {
     const user = userEvent.setup();
-    const { onSelect } = renderList();
+    const { onSelect } = renderList({
+      activities: [
+        act_({ activityId: 1, name: "Morning Ride", sourceUrl: "https://example.test/rides/1" }),
+        act_({ activityId: 2, name: "Evening Run", sport: "running" }),
+      ],
+    });
     const links = screen.getAllByRole("link", { name: /view on strava/i });
-    expect(links[0]).toHaveAttribute("href", "https://www.strava.com/activities/1");
+    expect(links[0]).toHaveAttribute("href", "https://example.test/rides/1");
     await user.click(links[0]!);
     expect(onSelect).not.toHaveBeenCalled(); // stopPropagation — link opens Strava, not select
+  });
+
+  it("omits the source link for a row without one", () => {
+    renderList({ activities: [act_({ activityId: 1, sourceUrl: "" })] });
+    expect(screen.queryByRole("link", { name: /view on/i })).not.toBeInTheDocument();
   });
 });

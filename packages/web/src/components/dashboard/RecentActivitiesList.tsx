@@ -7,6 +7,7 @@ import type { SportGoalData } from "../../hooks/useDashboardGoalData";
 import Loader from "../Loader";
 import { ErrorState } from "../ErrorState";
 import { MapPinIcon } from "../ui/MapPinIcon";
+import { sourceHref } from "../../utils/activitySource";
 import type { TimeRange } from "../../utils/dataNormalization";
 import { convertDistance, formatDistance, formatImpactPct } from "../../utils/units";
 import { MissingValue } from "../theme/MissingValue";
@@ -315,6 +316,7 @@ export default function RecentActivitiesList({
           </thead>
           <tbody>
             {visibleActivities.map((activity) => {
+              const href = sourceHref(activity.sourceUrl);
               const goal = goalLookup[activity.sport];
               let impactPct: number | null = null;
               let impactTooltip = "";
@@ -343,9 +345,9 @@ export default function RecentActivitiesList({
                     <div className="flex items-center gap-1.5" style={{ minWidth: 0 }}>
                       {user ? (
                         <>
-                          {activity.sourceUrl ? (
+                          {href ? (
                             <a
-                              href={activity.sourceUrl}
+                              href={href}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="truncate"

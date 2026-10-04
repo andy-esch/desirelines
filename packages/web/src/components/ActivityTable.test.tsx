@@ -25,7 +25,8 @@ describe("ActivityTable", () => {
       elevationMeters: 450,
       hasRoute: true,
       source: "strava",
-      sourceUrl: "https://www.strava.com/activities/123456789",
+      // Not derivable from the id: proves the table renders the API's link.
+      sourceUrl: "https://example.test/rides/morning",
     },
     {
       id: "123456790",
@@ -136,13 +137,29 @@ describe("ActivityTable", () => {
       expect(screen.getByText("Yoga")).toBeInTheDocument();
     });
 
-    it("renders Strava links for each activity", () => {
+    it("renders the source link the API supplies for each activity", () => {
       render(<ActivityTable {...defaultProps} />);
 
       const links = screen.getAllByTitle("View on Strava");
       expect(links).toHaveLength(3);
-      expect(links[0]).toHaveAttribute("href", "https://www.strava.com/activities/123456789");
+      expect(links[0]).toHaveAttribute("href", "https://example.test/rides/morning");
       expect(links[1]).toHaveAttribute("href", "https://www.strava.com/activities/123456790");
+      expect(screen.getByRole("link", { name: "Morning Ride" })).toHaveAttribute(
+        "href",
+        "https://example.test/rides/morning"
+      );
+    });
+
+    it.each([
+      ["no source URL", ""],
+      ["a non-https source URL", "http://example.test/rides/morning"],
+    ])("shows the name as plain text with no source link for %s", (_label, sourceUrl) => {
+      render(
+        <ActivityTable {...defaultProps} activities={[{ ...mockActivities[0]!, sourceUrl }]} />
+      );
+
+      expect(screen.getByText("Morning Ride").closest("a")).toBeNull();
+      expect(screen.queryByTitle("View on Strava")).not.toBeInTheDocument();
     });
 
     it("opens Strava links in new tab", () => {

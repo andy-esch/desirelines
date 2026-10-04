@@ -6,7 +6,7 @@ import type { MapActivity } from "../../api/map";
 import { formatDistance, type DistanceUnit } from "../../utils/units";
 import { useThemeDateFormat } from "../theme/useThemeDateFormat";
 import { DEFAULT_SPORT_COLOR } from "../../utils/sportConfig";
-import { viewOnSourceLabel } from "../../utils/activitySource";
+import { sourceHref, viewOnSourceLabel } from "../../utils/activitySource";
 
 /** Keep the list compact so the filters above it stay in view. */
 const PAGE_SIZE = 5;
@@ -142,6 +142,7 @@ export default function MapActivityList({
         <ul ref={listRef} id="map-activity-list" className="space-y-0.5">
           {pageItems.map((a) => {
             const isSelected = a.activityId === selectedId;
+            const href = sourceHref(a.sourceUrl);
             return (
               // The select control and the source link are SIBLINGS (a native
               // <button> may not contain a focusable <a> — invalid interactive
@@ -176,12 +177,13 @@ export default function MapActivityList({
                     </span>
                   </span>
                 </button>
-                {a.sourceUrl && (
+                {href && (
                   <a
-                    href={a.sourceUrl}
+                    href={href}
                     target="_blank"
                     rel="noopener noreferrer"
                     title={viewOnSourceLabel(a.source)}
+                    aria-label={viewOnSourceLabel(a.source)}
                     className={cn(
                       "shrink-0 rounded p-1 text-muted-text opacity-0 transition-opacity",
                       "hover:text-accent-cyan focus-visible:opacity-100 group-hover:opacity-100",

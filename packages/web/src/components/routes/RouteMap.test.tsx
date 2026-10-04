@@ -444,7 +444,7 @@ describe("RouteMap interactivity (hover + click popover)", () => {
           activityId: id,
           movingTime: 3600,
           source: "strava",
-          sourceUrl: `https://www.strava.com/activities/${id}`,
+          sourceUrl: `https://example.test/rides/${id}`,
         }) as never,
     });
 
@@ -454,13 +454,19 @@ describe("RouteMap interactivity (hover + click popover)", () => {
     expect(popup).toHaveTextContent("May 1, 2026"); // formatted (not raw 2026-05-01)
     expect(popup).toHaveTextContent("1 hr"); // movingTime 3600s from the lookup
     const link = screen.getByRole("link", { name: /view on strava/i });
-    expect(link).toHaveAttribute("href", "https://www.strava.com/activities/123");
+    expect(link).toHaveAttribute("href", "https://example.test/rides/123");
   });
 
-  it("omits the source link when the dataset row has none (or is not loaded)", () => {
+  it.each([
+    ["the dataset row is not loaded", () => undefined],
+    [
+      "the dataset row has no source URL",
+      (id: number) => ({ activityId: id, sourceUrl: "" }) as never,
+    ],
+  ])("omits the source link when %s", (_label, getActivity) => {
     renderMap({
       selected: { id: 123, name: "Morning Ride", distanceMeters: 0, date: "", lng: -74, lat: 40.7 },
-      getActivity: () => undefined,
+      getActivity,
     });
 
     expect(screen.getByTestId("popup")).toHaveTextContent("Morning Ride");

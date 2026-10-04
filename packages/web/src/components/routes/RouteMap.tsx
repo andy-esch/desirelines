@@ -11,7 +11,7 @@ import type {
   LngLatBoundsLike,
 } from "mapbox-gl";
 import type { MapActivity, RegionSummary, MapTileJSON } from "../../api/map";
-import { viewOnSourceLabel } from "../../utils/activitySource";
+import { sourceHref, viewOnSourceLabel } from "../../utils/activitySource";
 import { isInternalRequest } from "../../api/url";
 import { logger } from "../../lib/logger";
 import { useIsMobile } from "../../hooks/useIsMobile";
@@ -901,6 +901,7 @@ function RoutePopupCard({
   onClose: () => void;
 }) {
   const movingTime = activity?.movingTime;
+  const href = sourceHref(activity?.sourceUrl);
   const { formatActivityDate } = useThemeDateFormat();
   const distance = `${convertDistance(selected.distanceMeters, distanceUnit).toLocaleString(
     undefined,
@@ -945,14 +946,14 @@ function RoutePopupCard({
           </div>
         )}
       </dl>
-      {activity?.sourceUrl && (
+      {href && (
         <a
-          href={activity.sourceUrl}
+          href={href}
           target="_blank"
           rel="noopener noreferrer"
           className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-accent-cyan hover:underline"
         >
-          {viewOnSourceLabel(activity.source)}
+          {viewOnSourceLabel(activity?.source)}
           <ExternalLinkIcon />
         </a>
       )}
