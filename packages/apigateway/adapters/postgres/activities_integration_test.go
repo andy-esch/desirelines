@@ -6,6 +6,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -192,6 +193,14 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			// Jan 16 > Jan 15 (ride at 8am) > Jan 15 (run at 7am) > Jan 15 (yoga at 6am)
 			if response.Activities[0].Id != 1002 {
 				t.Errorf("expected first activity ID 1002 (newest), got %d", response.Activities[0].Id)
+			}
+
+			// Every list row carries the link the web renders.
+			for _, a := range response.Activities {
+				want := "https://www.strava.com/activities/" + strconv.FormatInt(a.Id, 10)
+				if a.Source != "strava" || a.SourceUrl != want {
+					t.Errorf("activity %d source link = (%q, %q), want (%q, %q)", a.Id, a.Source, a.SourceUrl, "strava", want)
+				}
 			}
 
 			// No more results
