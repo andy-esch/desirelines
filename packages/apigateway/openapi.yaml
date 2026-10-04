@@ -496,7 +496,7 @@ paths:
     get:
       tags: [Activities]
       summary: Get activity by ID
-      description: Returns a single activity by its Strava ID
+      description: Returns a single activity by its ID
       operationId: getActivityById
       security:
         - bearerAuth: []
@@ -504,7 +504,7 @@ paths:
         - name: id
           in: path
           required: true
-          description: Strava activity ID
+          description: Activity ID, as returned in a list response's `id`
           schema:
             type: integer
             format: int64
@@ -765,7 +765,9 @@ components:
         id:
           type: string
           description: >-
-            Strava activity ID. Serialized as a **string**: the API marshals
+            Activity ID. Treat it as opaque: it currently equals the Strava
+            activity ID, but link out with `sourceUrl` rather than building URLs
+            from it. Serialized as a **string**: the API marshals
             protobuf `int64` fields as JSON strings (protojson), so this is a
             numeric id in string form.
         name:
@@ -816,13 +818,13 @@ components:
           description: Max heart rate (bpm)
         source:
           type: string
-          description: Platform the activity was synced from. Currently always `strava`.
+          description: Platform this activity was ingested from. Currently always `strava`.
         sourceUrl:
           type: string
           description: >-
-            Link to the activity on its source platform. Clients render this
-            rather than building a URL from the activity ID; empty when there is
-            no page to link to.
+            Link to the activity on the platform it was ingested from. Clients
+            render this rather than building a URL from the activity ID; empty
+            when there is no page to link to.
 
     ActivitySummary:
       type: object
@@ -832,7 +834,9 @@ components:
         id:
           type: string
           description: >-
-            Strava activity ID. Serialized as a **string**: the API marshals
+            Activity ID. Treat it as opaque: it currently equals the Strava
+            activity ID, but link out with `sourceUrl` rather than building URLs
+            from it. Serialized as a **string**: the API marshals
             protobuf `int64` fields as JSON strings (protojson), so this is a
             numeric id in string form.
         name:
@@ -861,13 +865,13 @@ components:
             affordance in list views.
         source:
           type: string
-          description: Platform the activity was synced from. Currently always `strava`.
+          description: Platform this activity was ingested from. Currently always `strava`.
         sourceUrl:
           type: string
           description: >-
-            Link to the activity on its source platform. Clients render this
-            rather than building a URL from the activity ID; empty when there is
-            no page to link to.
+            Link to the activity on the platform it was ingested from. Clients
+            render this rather than building a URL from the activity ID; empty
+            when there is no page to link to.
 
     ActivityListResponse:
       type: object
@@ -1052,7 +1056,9 @@ components:
         activityId:
           type: string
           description: >-
-            Strava activity ID. Serialized as a **string**: the API marshals
+            Activity ID. Treat it as opaque: it currently equals the Strava
+            activity ID, but link out with `sourceUrl` rather than building URLs
+            from it. Serialized as a **string**: the API marshals
             protobuf `int64` fields as JSON strings (protojson), so this is a
             numeric id in string form.
         name:
@@ -1094,13 +1100,13 @@ components:
             format: double
         source:
           type: string
-          description: Platform the activity was synced from. Currently always `strava`.
+          description: Platform this activity was ingested from. Currently always `strava`.
         sourceUrl:
           type: string
           description: >-
-            Link to the activity on its source platform. Clients render this
-            rather than building a URL from the activity ID; empty when there is
-            no page to link to.
+            Link to the activity on the platform it was ingested from. Clients
+            render this rather than building a URL from the activity ID; empty
+            when there is no page to link to.
 
     DailySummary:
       type: object

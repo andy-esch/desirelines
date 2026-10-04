@@ -14,7 +14,10 @@ export const protobufPackage = "desirelines.activities.v1";
  * Used for GET /activities/{id} responses.
  */
 export interface Activity {
-  /** Strava activity ID. */
+  /**
+   * Activity ID. Treat it as opaque: it currently equals the Strava activity ID,
+   * but link out with source_url rather than building URLs from it.
+   */
   id: string;
   /** Activity name/title. */
   name: string;
@@ -56,9 +59,9 @@ export interface Activity {
   maxHeartrate?:
     | number
     | undefined;
-  /** Platform the activity was synced from (currently always "strava"). */
+  /** Platform this activity was ingested from (currently always "strava"). */
   source: string;
-  /** Link to the activity on its source platform; empty when there is none. */
+  /** Link to the activity on the platform it was ingested from; empty when there is none. */
   sourceUrl: string;
 }
 
@@ -67,7 +70,10 @@ export interface Activity {
  * Omits detailed stats not needed in list/table displays.
  */
 export interface ActivitySummary {
-  /** Strava activity ID. */
+  /**
+   * Activity ID. Treat it as opaque: it currently equals the Strava activity ID,
+   * but link out with source_url rather than building URLs from it.
+   */
   id: string;
   /** Activity name/title. */
   name: string;
@@ -95,9 +101,9 @@ export interface ActivitySummary {
    * and are false. Drives the "view on map" affordance in list views.
    */
   hasRoute: boolean;
-  /** Platform the activity was synced from (currently always "strava"). */
+  /** Platform this activity was ingested from (currently always "strava"). */
   source: string;
-  /** Link to the activity on its source platform; empty when there is none. */
+  /** Link to the activity on the platform it was ingested from; empty when there is none. */
   sourceUrl: string;
 }
 
@@ -109,7 +115,10 @@ export interface ActivitySummary {
  * /map/regions inclusion rule.
  */
 export interface MapActivity {
-  /** Strava activity ID. */
+  /**
+   * Activity ID. Treat it as opaque: it currently equals the Strava activity ID,
+   * but link out with source_url rather than building URLs from it.
+   */
   activityId: string;
   /** Activity name/title (for the cross-filter activity list + click popover). */
   name: string;
@@ -140,9 +149,9 @@ export interface MapActivity {
    * activity has no stored route geometry.
    */
   bbox: number[];
-  /** Platform the activity was synced from (currently always "strava"). */
+  /** Platform this activity was ingested from (currently always "strava"). */
   source: string;
-  /** Link to the activity on its source platform; empty when there is none. */
+  /** Link to the activity on the platform it was ingested from; empty when there is none. */
   sourceUrl: string;
 }
 
@@ -258,7 +267,7 @@ export interface AggregateActivitiesResponse {
  * Used for GET /activities/{id} endpoint.
  */
 export interface GetActivityRequest {
-  /** Strava activity ID. */
+  /** Activity ID, as returned in Activity.id or ActivitySummary.id. */
   id: string;
 }
 

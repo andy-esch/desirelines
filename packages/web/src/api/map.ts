@@ -72,7 +72,8 @@ export type RouteRegionsResponse = z.infer<typeof RouteRegionsResponseSchema>;
  * keys on the filtered `activityId` set, not the tile `sport`.
  */
 export const MapActivitySchema = z.object({
-  /** Strava activity id, coerced from the protojson string to a number. */
+  /** Activity id (opaque: link out with `sourceUrl`), coerced from the protojson string
+   *  to a number to match the tile's numeric `activity_id`. */
   activityId: int64ToNumber,
   /** Activity name/title (for the cross-filter list + click popover). */
   name: z.string().default(""),

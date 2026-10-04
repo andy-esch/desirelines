@@ -27,7 +27,8 @@ type Activity struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Strava activity ID.
+	// Activity ID. Treat it as opaque: it currently equals the Strava activity ID,
+	// but link out with source_url rather than building URLs from it.
 	Id int64 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 	// Activity name/title.
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
@@ -55,9 +56,9 @@ type Activity struct {
 	AverageHeartrate *float64 `protobuf:"fixed64,12,opt,name=average_heartrate,json=averageHeartrate,proto3,oneof" json:"average_heartrate,omitempty"`
 	// Max heart rate in bpm (nullable).
 	MaxHeartrate *float64 `protobuf:"fixed64,13,opt,name=max_heartrate,json=maxHeartrate,proto3,oneof" json:"max_heartrate,omitempty"`
-	// Platform the activity was synced from (currently always "strava").
+	// Platform this activity was ingested from (currently always "strava").
 	Source string `protobuf:"bytes,14,opt,name=source,proto3" json:"source,omitempty"`
-	// Link to the activity on its source platform; empty when there is none.
+	// Link to the activity on the platform it was ingested from; empty when there is none.
 	SourceUrl string `protobuf:"bytes,15,opt,name=source_url,json=sourceUrl,proto3" json:"source_url,omitempty"`
 }
 
@@ -205,7 +206,8 @@ type ActivitySummary struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Strava activity ID.
+	// Activity ID. Treat it as opaque: it currently equals the Strava activity ID,
+	// but link out with source_url rather than building URLs from it.
 	Id int64 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 	// Activity name/title.
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
@@ -227,9 +229,9 @@ type ActivitySummary struct {
 	// GET /activities/map/dataset). Indoor/virtual activities have no region tag
 	// and are false. Drives the "view on map" affordance in list views.
 	HasRoute bool `protobuf:"varint,9,opt,name=has_route,json=hasRoute,proto3" json:"has_route,omitempty"`
-	// Platform the activity was synced from (currently always "strava").
+	// Platform this activity was ingested from (currently always "strava").
 	Source string `protobuf:"bytes,10,opt,name=source,proto3" json:"source,omitempty"`
-	// Link to the activity on its source platform; empty when there is none.
+	// Link to the activity on the platform it was ingested from; empty when there is none.
 	SourceUrl string `protobuf:"bytes,11,opt,name=source_url,json=sourceUrl,proto3" json:"source_url,omitempty"`
 }
 
@@ -352,7 +354,8 @@ type MapActivity struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Strava activity ID.
+	// Activity ID. Treat it as opaque: it currently equals the Strava activity ID,
+	// but link out with source_url rather than building URLs from it.
 	ActivityId int64 `protobuf:"varint,1,opt,name=activity_id,json=activityId,proto3" json:"activity_id,omitempty"`
 	// Activity name/title (for the cross-filter activity list + click popover).
 	Name string `protobuf:"bytes,9,opt,name=name,proto3" json:"name,omitempty"`
@@ -375,9 +378,9 @@ type MapActivity struct {
 	// the activity's route geometry, for map "fit to results". Absent when the
 	// activity has no stored route geometry.
 	Bbox []float64 `protobuf:"fixed64,8,rep,packed,name=bbox,proto3" json:"bbox,omitempty"`
-	// Platform the activity was synced from (currently always "strava").
+	// Platform this activity was ingested from (currently always "strava").
 	Source string `protobuf:"bytes,10,opt,name=source,proto3" json:"source,omitempty"`
-	// Link to the activity on its source platform; empty when there is none.
+	// Link to the activity on the platform it was ingested from; empty when there is none.
 	SourceUrl string `protobuf:"bytes,11,opt,name=source_url,json=sourceUrl,proto3" json:"source_url,omitempty"`
 }
 
@@ -919,7 +922,7 @@ type GetActivityRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Strava activity ID.
+	// Activity ID, as returned in Activity.id or ActivitySummary.id.
 	Id int64 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 }
 
