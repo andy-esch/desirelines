@@ -11,6 +11,7 @@ import type {
   LngLatBoundsLike,
 } from "mapbox-gl";
 import type { MapActivity, RegionSummary, MapTileJSON } from "../../api/map";
+import { viewOnSourceLabel } from "../../utils/activitySource";
 import { isInternalRequest } from "../../api/url";
 import { logger } from "../../lib/logger";
 import { useIsMobile } from "../../hooks/useIsMobile";
@@ -184,11 +185,6 @@ const HIT_PAINT: NonNullable<LineLayerSpecification["paint"]> = {
   "line-width": HIT_WIDTH,
 };
 
-/** Strava deep link for an activity. */
-function stravaUrl(activityId: number): string {
-  return `https://www.strava.com/activities/${activityId}`;
-}
-
 /** The subset of an MVT feature we read (react-map-gl's feature type omits id/props). */
 type RouteFeature = { id?: number | string; properties?: Record<string, unknown> };
 
@@ -243,9 +239,9 @@ export interface RouteMapProps {
   /** Display unit for the click popover's distance. */
   distanceUnit: DistanceUnit;
   /**
-   * Look up an activity by id for the click popover — supplies `movingTime`, which
-   * the MVT tile doesn't carry (the tile has name/distance/date). Optional: without
-   * it the popover just omits the time row.
+   * Look up an activity by id for the click popover: supplies `movingTime` and the
+   * source link, which the MVT tile doesn't carry (the tile has name/distance/date).
+   * Optional: without it the popover omits the time row and the link.
    */
   getActivity?: (id: number) => MapActivity | undefined;
   /** Selected route (controlled) — highlights the line + drives the popover. */
@@ -822,7 +818,7 @@ export default function RouteMap({
             <RoutePopupCard
               selected={selected}
               distanceUnit={distanceUnit}
-              movingTime={getActivity?.(selected.id)?.movingTime}
+              activity={getActivity?.(selected.id)}
               onClose={closePopup}
             />
           </Popup>
@@ -890,18 +886,21 @@ export default function RouteMap({
   );
 }
 
-/** Details card shown in the click `<Popup>`: title, distance, date, time, Strava link. */
+/** Details card shown in the click `<Popup>`: title, distance, date, time, source link. */
 function RoutePopupCard({
   selected,
   distanceUnit,
-  movingTime,
+  activity,
   onClose,
 }: {
   selected: SelectedRoute;
   distanceUnit: DistanceUnit;
-  movingTime: number | undefined;
+  /** The dataset row for the selected route: moving time and the source link,
+   *  which the MVT tile doesn't carry. Rows that need it are omitted when absent. */
+  activity: MapActivity | undefined;
   onClose: () => void;
 }) {
+  const movingTime = activity?.movingTime;
   const { formatActivityDate } = useThemeDateFormat();
   const distance = `${convertDistance(selected.distanceMeters, distanceUnit).toLocaleString(
     undefined,
@@ -946,15 +945,17 @@ function RoutePopupCard({
           </div>
         )}
       </dl>
-      <a
-        href={stravaUrl(selected.id)}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-accent-cyan hover:underline"
-      >
-        View on Strava
-        <ExternalLinkIcon />
-      </a>
+      {activity?.sourceUrl && (
+        <a
+          href={activity.sourceUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-accent-cyan hover:underline"
+        >
+          {viewOnSourceLabel(activity.source)}
+          <ExternalLinkIcon />
+        </a>
+      )}
     </div>
   );
 }

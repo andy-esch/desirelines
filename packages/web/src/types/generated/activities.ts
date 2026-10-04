@@ -53,7 +53,13 @@ export interface Activity {
     | number
     | undefined;
   /** Max heart rate in bpm (nullable). */
-  maxHeartrate?: number | undefined;
+  maxHeartrate?:
+    | number
+    | undefined;
+  /** Platform the activity was synced from (currently always "strava"). */
+  source: string;
+  /** Link to the activity on its source platform; empty when there is none. */
+  sourceUrl: string;
 }
 
 /**
@@ -89,6 +95,10 @@ export interface ActivitySummary {
    * and are false. Drives the "view on map" affordance in list views.
    */
   hasRoute: boolean;
+  /** Platform the activity was synced from (currently always "strava"). */
+  source: string;
+  /** Link to the activity on its source platform; empty when there is none. */
+  sourceUrl: string;
 }
 
 /**
@@ -130,6 +140,10 @@ export interface MapActivity {
    * activity has no stored route geometry.
    */
   bbox: number[];
+  /** Platform the activity was synced from (currently always "strava"). */
+  source: string;
+  /** Link to the activity on its source platform; empty when there is none. */
+  sourceUrl: string;
 }
 
 /**
@@ -272,6 +286,8 @@ function createBaseActivity(): Activity {
     maxSpeedMps: undefined,
     averageHeartrate: undefined,
     maxHeartrate: undefined,
+    source: "",
+    sourceUrl: "",
   };
 }
 
@@ -315,6 +331,12 @@ export const Activity: MessageFns<Activity> = {
     }
     if (message.maxHeartrate !== undefined) {
       writer.uint32(105).double(message.maxHeartrate);
+    }
+    if (message.source !== "") {
+      writer.uint32(114).string(message.source);
+    }
+    if (message.sourceUrl !== "") {
+      writer.uint32(122).string(message.sourceUrl);
     }
     return writer;
   },
@@ -436,6 +458,22 @@ export const Activity: MessageFns<Activity> = {
             message.maxHeartrate = reader.double();
             continue;
           }
+          case 14: {
+            if (tag !== 114) {
+              break;
+            }
+
+            message.source = reader.string();
+            continue;
+          }
+          case 15: {
+            if (tag !== 122) {
+              break;
+            }
+
+            message.sourceUrl = reader.string();
+            continue;
+          }
         }
         if ((tag & 7) === 4 || tag === 0) {
           break;
@@ -460,6 +498,8 @@ function createBaseActivitySummary(): ActivitySummary {
     movingTimeSeconds: 0,
     elevationMeters: undefined,
     hasRoute: false,
+    source: "",
+    sourceUrl: "",
   };
 }
 
@@ -491,6 +531,12 @@ export const ActivitySummary: MessageFns<ActivitySummary> = {
     }
     if (message.hasRoute !== false) {
       writer.uint32(72).bool(message.hasRoute);
+    }
+    if (message.source !== "") {
+      writer.uint32(82).string(message.source);
+    }
+    if (message.sourceUrl !== "") {
+      writer.uint32(90).string(message.sourceUrl);
     }
     return writer;
   },
@@ -580,6 +626,22 @@ export const ActivitySummary: MessageFns<ActivitySummary> = {
             message.hasRoute = reader.bool();
             continue;
           }
+          case 10: {
+            if (tag !== 82) {
+              break;
+            }
+
+            message.source = reader.string();
+            continue;
+          }
+          case 11: {
+            if (tag !== 90) {
+              break;
+            }
+
+            message.sourceUrl = reader.string();
+            continue;
+          }
         }
         if ((tag & 7) === 4 || tag === 0) {
           break;
@@ -604,6 +666,8 @@ function createBaseMapActivity(): MapActivity {
     startDateLocal: "",
     regionIds: [],
     bbox: [],
+    source: "",
+    sourceUrl: "",
   };
 }
 
@@ -640,6 +704,12 @@ export const MapActivity: MessageFns<MapActivity> = {
       writer.double(v);
     }
     writer.join();
+    if (message.source !== "") {
+      writer.uint32(82).string(message.source);
+    }
+    if (message.sourceUrl !== "") {
+      writer.uint32(90).string(message.sourceUrl);
+    }
     return writer;
   },
 
@@ -747,6 +817,22 @@ export const MapActivity: MessageFns<MapActivity> = {
             }
 
             break;
+          }
+          case 10: {
+            if (tag !== 82) {
+              break;
+            }
+
+            message.source = reader.string();
+            continue;
+          }
+          case 11: {
+            if (tag !== 90) {
+              break;
+            }
+
+            message.sourceUrl = reader.string();
+            continue;
           }
         }
         if ((tag & 7) === 4 || tag === 0) {

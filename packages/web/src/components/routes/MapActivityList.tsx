@@ -6,6 +6,7 @@ import type { MapActivity } from "../../api/map";
 import { formatDistance, type DistanceUnit } from "../../utils/units";
 import { useThemeDateFormat } from "../theme/useThemeDateFormat";
 import { DEFAULT_SPORT_COLOR } from "../../utils/sportConfig";
+import { viewOnSourceLabel } from "../../utils/activitySource";
 
 /** Keep the list compact so the filters above it stay in view. */
 const PAGE_SIZE = 5;
@@ -22,10 +23,6 @@ export interface MapActivityListProps {
   selectedId: number | null;
   /** Row click → select on the map (highlight + fit). */
   onSelect: (activity: MapActivity) => void;
-}
-
-function stravaUrl(activityId: number): string {
-  return `https://www.strava.com/activities/${activityId}`;
 }
 
 /**
@@ -146,7 +143,7 @@ export default function MapActivityList({
           {pageItems.map((a) => {
             const isSelected = a.activityId === selectedId;
             return (
-              // The select control and the Strava link are SIBLINGS (a native
+              // The select control and the source link are SIBLINGS (a native
               // <button> may not contain a focusable <a> — invalid interactive
               // nesting). Native <button> also gives Enter/Space for free.
               <li
@@ -179,20 +176,22 @@ export default function MapActivityList({
                     </span>
                   </span>
                 </button>
-                <a
-                  href={stravaUrl(a.activityId)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title="View on Strava"
-                  className={cn(
-                    "shrink-0 rounded p-1 text-muted-text opacity-0 transition-opacity",
-                    "hover:text-accent-cyan focus-visible:opacity-100 group-hover:opacity-100",
-                    "motion-reduce:transition-none",
-                    isSelected && "opacity-100"
-                  )}
-                >
-                  <ExternalLinkIcon />
-                </a>
+                {a.sourceUrl && (
+                  <a
+                    href={a.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={viewOnSourceLabel(a.source)}
+                    className={cn(
+                      "shrink-0 rounded p-1 text-muted-text opacity-0 transition-opacity",
+                      "hover:text-accent-cyan focus-visible:opacity-100 group-hover:opacity-100",
+                      "motion-reduce:transition-none",
+                      isSelected && "opacity-100"
+                    )}
+                  >
+                    <ExternalLinkIcon />
+                  </a>
+                )}
               </li>
             );
           })}

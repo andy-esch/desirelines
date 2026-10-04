@@ -378,6 +378,9 @@ func TestIntegration_MapDataset(t *testing.T) {
 			if a.GetSport() != "Ride" {
 				t.Errorf("sport = %q, want raw Strava type %q (handler maps to category)", a.GetSport(), "Ride")
 			}
+			if a.GetSource() != "strava" || a.GetSourceUrl() != "https://www.strava.com/activities/5001" {
+				t.Errorf("source link = (%q, %q), want the Strava activity page", a.GetSource(), a.GetSourceUrl())
+			}
 			if a.GetStartDateLocal() == "" {
 				t.Error("startDateLocal must be set")
 			}

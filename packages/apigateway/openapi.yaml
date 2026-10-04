@@ -760,7 +760,7 @@ components:
     Activity:
       type: object
       description: Full activity details
-      required: [id, name, type, sport, startDateLocal, distanceMeters, movingTimeSeconds, elapsedTimeSeconds]
+      required: [id, name, type, sport, startDateLocal, distanceMeters, movingTimeSeconds, elapsedTimeSeconds, source, sourceUrl]
       properties:
         id:
           type: string
@@ -814,11 +814,20 @@ components:
           type: number
           format: double
           description: Max heart rate (bpm)
+        source:
+          type: string
+          description: Platform the activity was synced from. Currently always `strava`.
+        sourceUrl:
+          type: string
+          description: >-
+            Link to the activity on its source platform. Clients render this
+            rather than building a URL from the activity ID; empty when there is
+            no page to link to.
 
     ActivitySummary:
       type: object
       description: Condensed activity for list views
-      required: [id, name, type, sport, startDateLocal, distanceMeters, movingTimeSeconds, hasRoute]
+      required: [id, name, type, sport, startDateLocal, distanceMeters, movingTimeSeconds, hasRoute, source, sourceUrl]
       properties:
         id:
           type: string
@@ -850,6 +859,15 @@ components:
             the routes map (same inclusion rule as GET /activities/map/dataset).
             Indoor/virtual activities are false. Drives the "view on map"
             affordance in list views.
+        source:
+          type: string
+          description: Platform the activity was synced from. Currently always `strava`.
+        sourceUrl:
+          type: string
+          description: >-
+            Link to the activity on its source platform. Clients render this
+            rather than building a URL from the activity ID; empty when there is
+            no page to link to.
 
     ActivityListResponse:
       type: object
@@ -1029,7 +1047,7 @@ components:
       description: >-
         A single geo-bearing activity for the routes-map cross-filter dataset:
         scalar attributes plus the region tag ids it belongs to.
-      required: [activityId, name, sport, distanceMeters, movingTime, startDateLocal, regionIds]
+      required: [activityId, name, sport, distanceMeters, movingTime, startDateLocal, regionIds, source, sourceUrl]
       properties:
         activityId:
           type: string
@@ -1074,6 +1092,15 @@ components:
           items:
             type: number
             format: double
+        source:
+          type: string
+          description: Platform the activity was synced from. Currently always `strava`.
+        sourceUrl:
+          type: string
+          description: >-
+            Link to the activity on its source platform. Clients render this
+            rather than building a URL from the activity ID; empty when there is
+            no page to link to.
 
     DailySummary:
       type: object

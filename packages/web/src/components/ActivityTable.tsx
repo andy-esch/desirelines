@@ -21,6 +21,7 @@ import { Panel } from "./theme/Panel";
 import { MissingValue } from "./theme/MissingValue";
 import EmptyState from "./EmptyState";
 import { ErrorState } from "./ErrorState";
+import { viewOnSourceLabel } from "../utils/activitySource";
 import { Table } from "./ui/table";
 import { SportLabel } from "./theme/SportLabel";
 
@@ -183,15 +184,24 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                   {formatActivityDate(activity.startDateLocal, { year: true })}
                 </td>
                 <td>
-                  <a
-                    href={`https://www.strava.com/activities/${activity.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="truncate inline-block align-bottom"
-                    style={{ maxWidth: "200px" }}
-                  >
-                    {activity.name}
-                  </a>
+                  {activity.sourceUrl ? (
+                    <a
+                      href={activity.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="truncate inline-block align-bottom"
+                      style={{ maxWidth: "200px" }}
+                    >
+                      {activity.name}
+                    </a>
+                  ) : (
+                    <span
+                      className="truncate inline-block align-bottom"
+                      style={{ maxWidth: "200px" }}
+                    >
+                      {activity.name}
+                    </span>
+                  )}
                 </td>
                 <td>
                   <SportLabel color={SPORT_COLORS[activity.sport] ?? DEFAULT_SPORT_COLOR}>
@@ -248,15 +258,17 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                         <MapPinIcon size={14} />
                       </button>
                     )}
-                    <a
-                      href={`https://www.strava.com/activities/${activity.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-muted-text"
-                      title="View on Strava"
-                    >
-                      <ExternalLinkIcon size={14} />
-                    </a>
+                    {activity.sourceUrl && (
+                      <a
+                        href={activity.sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-muted-text"
+                        title={viewOnSourceLabel(activity.source)}
+                      >
+                        <ExternalLinkIcon size={14} />
+                      </a>
+                    )}
                   </div>
                 </td>
               </tr>

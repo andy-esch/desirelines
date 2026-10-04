@@ -53,6 +53,12 @@ message Activity {
 
   // Max heart rate in bpm (nullable).
   optional double max_heartrate = 13;
+
+  // Platform the activity was synced from (currently always "strava").
+  string source = 14;
+
+  // Link to the activity on its source platform; empty when there is none.
+  string source_url = 15;
 }
 
 // ActivitySummary represents a condensed activity for list views.
@@ -88,6 +94,12 @@ message ActivitySummary {
   // GET /activities/map/dataset). Indoor/virtual activities have no region tag
   // and are false. Drives the "view on map" affordance in list views.
   bool has_route = 9;
+
+  // Platform the activity was synced from (currently always "strava").
+  string source = 10;
+
+  // Link to the activity on its source platform; empty when there is none.
+  string source_url = 11;
 }
 
 // MapActivity is a single geo-bearing activity for the routes-map cross-filter
@@ -127,6 +139,12 @@ message MapActivity {
   // the activity's route geometry, for map "fit to results". Absent when the
   // activity has no stored route geometry.
   repeated double bbox = 8;
+
+  // Platform the activity was synced from (currently always "strava").
+  string source = 10;
+
+  // Link to the activity on its source platform; empty when there is none.
+  string source_url = 11;
 }
 
 // MapDatasetResponse wraps the full set of geo-bearing activities for the

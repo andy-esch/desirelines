@@ -343,14 +343,18 @@ export default function RecentActivitiesList({
                     <div className="flex items-center gap-1.5" style={{ minWidth: 0 }}>
                       {user ? (
                         <>
-                          <a
-                            href={`https://www.strava.com/activities/${activity.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="truncate"
-                          >
-                            {activity.name}
-                          </a>
+                          {activity.sourceUrl ? (
+                            <a
+                              href={activity.sourceUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="truncate"
+                            >
+                              {activity.name}
+                            </a>
+                          ) : (
+                            <span className="truncate">{activity.name}</span>
+                          )}
                           {activity.hasRoute && (
                             <button
                               type="button"

@@ -41,6 +41,8 @@ function activity(id: number): ActivitySummary {
     movingTimeSeconds: 600,
     elevationMeters: 10,
     hasRoute: false,
+    source: "strava",
+    sourceUrl: `https://www.strava.com/activities/${id}`,
   };
 }
 

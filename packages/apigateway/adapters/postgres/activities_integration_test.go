@@ -153,6 +153,10 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			if activity.MovingTimeSeconds != 1800 {
 				t.Errorf("expected moving time 1800, got %d", activity.MovingTimeSeconds)
 			}
+
+			if activity.Source != "strava" || activity.SourceUrl != "https://www.strava.com/activities/1001" {
+				t.Errorf("source link = (%q, %q), want the Strava activity page", activity.Source, activity.SourceUrl)
+			}
 		})
 	})
 

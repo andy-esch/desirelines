@@ -439,7 +439,13 @@ describe("RouteMap interactivity (hover + click popover)", () => {
         lng: -74,
         lat: 40.7,
       },
-      getActivity: (id) => ({ activityId: id, movingTime: 3600 }) as never,
+      getActivity: (id) =>
+        ({
+          activityId: id,
+          movingTime: 3600,
+          source: "strava",
+          sourceUrl: `https://www.strava.com/activities/${id}`,
+        }) as never,
     });
 
     const popup = screen.getByTestId("popup");
@@ -449,6 +455,16 @@ describe("RouteMap interactivity (hover + click popover)", () => {
     expect(popup).toHaveTextContent("1 hr"); // movingTime 3600s from the lookup
     const link = screen.getByRole("link", { name: /view on strava/i });
     expect(link).toHaveAttribute("href", "https://www.strava.com/activities/123");
+  });
+
+  it("omits the source link when the dataset row has none (or is not loaded)", () => {
+    renderMap({
+      selected: { id: 123, name: "Morning Ride", distanceMeters: 0, date: "", lng: -74, lat: 40.7 },
+      getActivity: () => undefined,
+    });
+
+    expect(screen.getByTestId("popup")).toHaveTextContent("Morning Ride");
+    expect(screen.queryByRole("link", { name: /view on/i })).not.toBeInTheDocument();
   });
 
   it("highlights the selected route even without a popover position (list selection)", () => {

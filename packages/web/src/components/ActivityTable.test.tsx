@@ -24,6 +24,8 @@ describe("ActivityTable", () => {
       movingTimeSeconds: 5400,
       elevationMeters: 450,
       hasRoute: true,
+      source: "strava",
+      sourceUrl: "https://www.strava.com/activities/123456789",
     },
     {
       id: "123456790",
@@ -35,6 +37,8 @@ describe("ActivityTable", () => {
       movingTimeSeconds: 2400,
       elevationMeters: 50,
       hasRoute: true,
+      source: "strava",
+      sourceUrl: "https://www.strava.com/activities/123456790",
     },
     {
       id: "123456791",
@@ -46,6 +50,8 @@ describe("ActivityTable", () => {
       movingTimeSeconds: 3600,
       // Indoor/no geography → no "view on map" affordance.
       hasRoute: false,
+      source: "strava",
+      sourceUrl: "https://www.strava.com/activities/123456791",
     },
   ];
 

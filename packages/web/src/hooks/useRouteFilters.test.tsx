@@ -16,6 +16,8 @@ function act_(over: Partial<MapActivity> = {}): MapActivity {
     elevationMeters: 200,
     startDateLocal: "2026-05-01T08:00:00",
     regionIds: [10],
+    source: "strava",
+    sourceUrl: "https://www.strava.com/activities/1",
     ...over,
   };
 }
@@ -27,6 +29,8 @@ const DATASET: MapActivity[] = [
     distanceMeters: 30_000,
     startDateLocal: "2026-05-01T08:00:00",
     regionIds: [10],
+    source: "strava",
+    sourceUrl: "https://www.strava.com/activities/1",
   }),
   act_({
     activityId: 2,
@@ -34,6 +38,8 @@ const DATASET: MapActivity[] = [
     distanceMeters: 10_000,
     startDateLocal: "2026-02-10T08:00:00",
     regionIds: [20],
+    source: "strava",
+    sourceUrl: "https://www.strava.com/activities/2",
   }),
   act_({
     activityId: 3,
@@ -41,6 +47,8 @@ const DATASET: MapActivity[] = [
     distanceMeters: 80_000,
     startDateLocal: "2025-08-01T08:00:00",
     regionIds: [10],
+    source: "strava",
+    sourceUrl: "https://www.strava.com/activities/3",
   }),
 ];
 

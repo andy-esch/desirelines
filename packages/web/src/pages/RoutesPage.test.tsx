@@ -231,6 +231,8 @@ describe("RoutesPage", () => {
       movingTime: 3_600,
       startDateLocal: "2026-05-01T08:00:00",
       regionIds: [],
+      source: "strava",
+      sourceUrl: "https://www.strava.com/activities/12345",
       bbox: [-74.1, 40.6, -73.8, 40.9],
     };
     mockUseMapDataset.mockReturnValue({ activities: [activity], isLoading: false, error: null });
@@ -257,6 +259,8 @@ describe("RoutesPage", () => {
       movingTime: 3_000,
       startDateLocal: "2020-05-01T08:00:00",
       regionIds: [],
+      source: "strava",
+      sourceUrl: "https://www.strava.com/activities/777",
       bbox: [-74.1, 40.6, -73.8, 40.9],
     };
     mockUseMapDataset.mockReturnValue({ activities: [activity], isLoading: false, error: null });
@@ -317,6 +321,8 @@ describe("RoutesPage", () => {
       movingTime: 1_800,
       startDateLocal: "2026-05-01T08:00:00",
       regionIds: [],
+      source: "strava",
+      sourceUrl: "https://www.strava.com/activities/1",
       bbox: [-74.1, 40.6, -73.8, 40.9],
     };
     mockUseMapDataset.mockReturnValue({ activities: [activity], isLoading: false, error: null });
@@ -373,6 +379,8 @@ describe("RoutesPage", () => {
           movingTime: 1_800,
           startDateLocal: "2026-05-01T08:00:00",
           regionIds: [],
+          source: "strava",
+          sourceUrl: "https://www.strava.com/activities/1",
           bbox: [-74.1, 40.6, -73.8, 40.9],
         },
         {
@@ -383,6 +391,8 @@ describe("RoutesPage", () => {
           movingTime: 1_500,
           startDateLocal: "2026-05-02T08:00:00",
           regionIds: [],
+          source: "strava",
+          sourceUrl: "https://www.strava.com/activities/2",
           bbox: [-74.1, 40.6, -73.8, 40.9],
         },
       ],
@@ -509,6 +519,8 @@ describe("RoutesPage", () => {
         movingTime: 3_600,
         startDateLocal: "2026-05-01T08:00:00",
         regionIds: [],
+        source: "strava",
+        sourceUrl: "https://www.strava.com/activities/12345",
         // Deliberately different from `viewport.bbox` so the assertion proves the
         // activity — not the default region — won the camera.
         bbox: [-73.99, 40.7, -73.95, 40.75],
@@ -534,6 +546,8 @@ describe("RoutesPage", () => {
       movingTime: 1_800,
       startDateLocal: "2026-05-01T08:00:00",
       regionIds: [],
+      source: "strava",
+      sourceUrl: "https://www.strava.com/activities/1",
       bbox: [-74.1, 40.6, -73.8, 40.9],
     };
 

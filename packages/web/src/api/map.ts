@@ -90,6 +90,10 @@ export const MapActivitySchema = z.object({
   regionIds: z.array(int64ToNumber).default([]),
   /** [minLng, minLat, maxLng, maxLat] route bbox; absent without geometry. */
   bbox: z.array(finiteNumber).optional(),
+  /** Platform the activity was synced from (e.g. `strava`). */
+  source: z.string().default(""),
+  /** Link to the activity on its source platform; `""` when there is none. */
+  sourceUrl: z.string().default(""),
 });
 export type MapActivity = z.infer<typeof MapActivitySchema>;
 

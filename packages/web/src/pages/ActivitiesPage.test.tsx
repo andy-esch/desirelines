@@ -95,6 +95,8 @@ describe("ActivitiesPage", () => {
       movingTimeSeconds: 5400,
       elevationMeters: 450,
       hasRoute: true,
+      source: "strava",
+      sourceUrl: "https://www.strava.com/activities/123456789",
     },
   ];
 
