@@ -850,6 +850,196 @@ class TestBackfillWatermarkUpsert:
         assert row.last_event_time == 100  # unchanged across replays
 
 
+class TestActivitySourceAndMapping:
+    """Writers record each activity's source and its platform-ID mapping (V0010)."""
+
+    def _insert_unrecorded(
+        self, db_session, activity_id: int, last_event_time: int | None = None
+    ) -> None:
+        """An activity as writers stored it before recording source and mapping."""
+        db_session.execute(
+            text("""
+                INSERT INTO desirelines.activities
+                    (id, user_id, type, sport, start_date_local, year,
+                     distance, moving_time, elapsed_time, last_event_time)
+                VALUES (:id, '999', 'Run', 'Run', '2024-01-15 07:30:00', 2024,
+                        5000, 1800, 2000, :last_event_time)
+            """),
+            {"id": activity_id, "last_event_time": last_event_time},
+        )
+
+    def _source(self, db_session, activity_id: int) -> str | None:
+        return db_session.execute(
+            text("SELECT source FROM desirelines.activities WHERE id = :id"),
+            {"id": activity_id},
+        ).scalar_one()
+
+    def _mappings(self, db_session, activity_id: int) -> list[tuple[str, str, str]]:
+        rows = db_session.execute(
+            text("""
+                SELECT source, external_id, external_owner_id
+                FROM desirelines.activity_external_ids WHERE activity_id = :id
+            """),
+            {"id": activity_id},
+        ).fetchall()
+        return [tuple(row) for row in rows]
+
+    def _check_deferred_constraints(self, db_session) -> None:
+        # The tests never really commit, so check the deferred mapping FK now,
+        # as a commit would.
+        db_session.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
+
+    def test_insert_records_source_and_mapping(self, uow, db_session):
+        with uow:
+            assert (
+                uow.activities.insert(
+                    make_activity(activity_id=100100, user_id=4242), 100
+                )
+                is InsertResult.INSERTED
+            )
+            uow.commit()
+
+        assert self._source(db_session, 100100) == "strava"
+        assert self._mappings(db_session, 100100) == [("strava", "100100", "4242")]
+        self._check_deferred_constraints(db_session)
+
+    def test_duplicate_insert_keeps_one_mapping(self, uow, db_session):
+        activity = make_activity(activity_id=100101)
+        with uow:
+            uow.activities.insert(activity, 100)
+            uow.commit()
+
+        with uow:
+            assert uow.activities.insert(activity, 100) is InsertResult.ALREADY_EXISTS
+            uow.commit()
+
+        assert len(self._mappings(db_session, 100101)) == 1
+
+    def test_blocked_insert_records_no_mapping(self, uow, db_session):
+        with uow:
+            uow.activities.delete(100102, 200)  # a DELETE before its CREATE
+            uow.commit()
+
+        with uow:
+            assert (
+                uow.activities.insert(make_activity(activity_id=100102), 100)
+                is InsertResult.RESURRECTION_BLOCKED
+            )
+            uow.commit()
+
+        assert self._mappings(db_session, 100102) == []
+        self._check_deferred_constraints(db_session)
+
+    def test_delete_records_tombstone_source_and_drops_mapping(self, uow, db_session):
+        with uow:
+            uow.activities.insert(make_activity(activity_id=100103), 100)
+            uow.commit()
+
+        with uow:
+            assert uow.activities.delete(100103, 200) is DeleteResult.DELETED
+            uow.commit()
+
+        tombstone_source = db_session.execute(
+            text("SELECT source FROM desirelines.deleted_activities WHERE id = :id"),
+            {"id": 100103},
+        ).scalar_one()
+        assert tombstone_source == "strava"
+        assert self._mappings(db_session, 100103) == []
+
+    def test_upsert_insert_records_mapping(self, uow, db_session):
+        with uow:
+            assert uow.activities.upsert(make_activity(activity_id=100104), 300)
+            uow.commit()
+
+        assert self._source(db_session, 100104) == "strava"
+        assert self._mappings(db_session, 100104) == [("strava", "100104", "999")]
+        self._check_deferred_constraints(db_session)
+
+    def test_upsert_fills_in_an_unrecorded_activity(self, uow, db_session):
+        self._insert_unrecorded(db_session, 100105)
+
+        with uow:
+            assert uow.activities.upsert(make_activity(activity_id=100105), 300)
+            uow.commit()
+
+        assert self._source(db_session, 100105) == "strava"
+        assert self._mappings(db_session, 100105) == [("strava", "100105", "999")]
+
+    def test_fenced_out_upsert_records_nothing(self, uow, db_session):
+        self._insert_unrecorded(db_session, 100106, last_event_time=500)
+
+        with uow:
+            assert not uow.activities.upsert(make_activity(activity_id=100106), 100)
+            uow.commit()
+
+        assert self._source(db_session, 100106) is None
+        assert self._mappings(db_session, 100106) == []
+
+    def test_backfill_fills_in_an_unrecorded_activity(self, uow, db_session):
+        self._insert_unrecorded(db_session, 100107)
+
+        with uow:
+            assert (
+                uow.activities.upsert_backfill(make_activity(activity_id=100107), 2000)
+                is BackfillUpsertResult.APPLIED
+            )
+            uow.commit()
+
+        assert self._source(db_session, 100107) == "strava"
+        assert self._mappings(db_session, 100107) == [("strava", "100107", "999")]
+        self._check_deferred_constraints(db_session)
+
+    def test_rewrites_of_a_mapped_activity_keep_one_mapping(self, uow, db_session):
+        # Each rewrite returns its row, so it reaches the mapping insert and
+        # relies on its ON CONFLICT (a duplicate CREATE stops before it).
+        with uow:
+            uow.activities.insert(make_activity(activity_id=100108), 100)
+            uow.commit()
+
+        with uow:
+            assert uow.activities.upsert(make_activity(activity_id=100108), 200)
+            assert (
+                uow.activities.upsert_backfill(make_activity(activity_id=100108), 2000)
+                is BackfillUpsertResult.APPLIED
+            )
+            uow.commit()
+
+        assert self._mappings(db_session, 100108) == [("strava", "100108", "999")]
+
+    def test_skipped_backfill_records_nothing(self, uow, db_session):
+        # A live event newer than the run's watermark owns the row.
+        self._insert_unrecorded(db_session, 100109, last_event_time=5000)
+
+        with uow:
+            assert (
+                uow.activities.upsert_backfill(make_activity(activity_id=100109), 2000)
+                is BackfillUpsertResult.SKIPPED
+            )
+            uow.commit()
+
+        assert self._source(db_session, 100109) is None
+        assert self._mappings(db_session, 100109) == []
+
+    def test_redelete_fills_in_an_unrecorded_tombstone_source(self, uow, db_session):
+        db_session.execute(
+            text("""
+                INSERT INTO desirelines.deleted_activities (id, deletion_event_time)
+                VALUES (:id, 100)
+            """),
+            {"id": 100110},
+        )
+
+        with uow:
+            assert uow.activities.delete(100110, 200) is DeleteResult.NOT_FOUND
+            uow.commit()
+
+        tombstone_source = db_session.execute(
+            text("SELECT source FROM desirelines.deleted_activities WHERE id = :id"),
+            {"id": 100110},
+        ).scalar_one()
+        assert tombstone_source == "strava"
+
+
 class TestActivityRouteRepository:
     """Integration tests for activity route geometry storage."""
 

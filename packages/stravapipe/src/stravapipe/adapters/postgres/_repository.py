@@ -64,9 +64,16 @@ _ACTIVITY_COLUMN_ATTRIBUTES: Final[dict[str, str]] = {
     "manual": "manual",
     "year": "year",
 }
+# The platform stravapipe ingests from. The schema has no default for it: the
+# writer records it on every activity, mapping and tombstone.
+_ACTIVITY_SOURCE: Final[str] = "strava"
+
+# Columns the writer fills itself rather than from StandardActivity: the
+# timestamps from its clock, `source` from _ACTIVITY_SOURCE.
 _ACTIVITY_SYSTEM_COLUMNS: Final[tuple[str, ...]] = (
     "created_at",
     "updated_at",
+    "source",
 )
 _ACTIVITY_COLUMNS: Final[tuple[str, ...]] = (
     *_ACTIVITY_COLUMN_ATTRIBUTES,
@@ -109,6 +116,22 @@ _ACTIVITY_UPSERT_EVENT_TIME_GUARD: Final[str] = (
     "OR activities.last_event_time <= EXCLUDED.last_event_time"
 )
 
+# Every activity write also records the activity's platform ID, as a CTE after
+# a `written` CTE that returns the rows it wrote (`id`, `user_id`, `source`).
+# An activity's ID is still its Strava ID, so `external_id` is `id::text`. A
+# duplicate is a no-op, and a write that returns no row (a tombstone block, a
+# fenced-out update) records nothing, so a mapping never outlives its activity
+# to fail the deferred foreign key at commit. A write that does return a row
+# fills in the mapping of an activity written before writers recorded one.
+_RECORD_MAPPING_CTE: Final[str] = (
+    "mapped AS ("
+    "  INSERT INTO desirelines.activity_external_ids"
+    "   (source, external_id, activity_id, external_owner_id)"
+    "  SELECT source, id::text, id, user_id FROM written"
+    "  ON CONFLICT (source, external_id) DO NOTHING"
+    ")"
+)
+
 # CREATE path. Existence, the deletion-tombstone guard, and the write are all
 # resolved in one statement so a concurrently-committed DELETE can't race the
 # classification. The `tombstone` CTE fires only when the incoming event_time is
@@ -121,15 +144,15 @@ _ACTIVITY_TOMBSTONED_INSERT_SQL: Final[str] = (
     "WITH tombstone AS ("  # noqa: S608 -- column names from _ACTIVITY_INSERT_COLUMNS const; values are bound :params
     "  SELECT 1 FROM desirelines.deleted_activities"
     "  WHERE id = :id AND deletion_event_time >= :last_event_time"
-    "), ins AS ("
+    "), written AS ("
     f"  INSERT INTO desirelines.activities ({', '.join(_ACTIVITY_INSERT_COLUMNS)})"
     f"  SELECT {', '.join(f':{col}' for col in _ACTIVITY_INSERT_COLUMNS)}"
     "  WHERE NOT EXISTS (SELECT 1 FROM tombstone)"
     "  ON CONFLICT (id) DO NOTHING"
-    "  RETURNING id"
-    ")"
+    "  RETURNING id, user_id, source"
+    f"), {_RECORD_MAPPING_CTE}"
     " SELECT"
-    "  EXISTS (SELECT 1 FROM ins) AS inserted,"
+    "  EXISTS (SELECT 1 FROM written) AS inserted,"
     "  EXISTS (SELECT 1 FROM tombstone) AS blocked"
 )
 
@@ -157,7 +180,8 @@ _ACTIVITY_INSERT_SELECT_SQL: Final[str] = (
 #     last_event_time is at-or-before the watermark (no newer live UPDATE).
 # No row returned => the write was skipped (a newer live event owns the row).
 _ACTIVITY_BACKFILL_UPSERT_SQL: Final[str] = (
-    f"INSERT INTO desirelines.activities ({', '.join(_ACTIVITY_INSERT_COLUMNS)}) "  # noqa: S608 -- column names from _ACTIVITY_INSERT_COLUMNS const; values are bound :params
+    "WITH written AS ("  # noqa: S608 -- column names from _ACTIVITY_INSERT_COLUMNS const; values are bound :params
+    f"INSERT INTO desirelines.activities ({', '.join(_ACTIVITY_INSERT_COLUMNS)}) "
     f"SELECT {', '.join(f':{col}' for col in _ACTIVITY_INSERT_COLUMNS)} "
     "WHERE NOT EXISTS ("
     "  SELECT 1 FROM desirelines.deleted_activities"
@@ -166,23 +190,28 @@ _ACTIVITY_BACKFILL_UPSERT_SQL: Final[str] = (
     f"ON CONFLICT (id) DO UPDATE SET {_ACTIVITY_UPSERT_SET_SQL} "
     "WHERE activities.last_event_time IS NULL "
     "OR activities.last_event_time <= :watermark "
-    "RETURNING id"
+    "RETURNING id, user_id, source"
+    f"), {_RECORD_MAPPING_CTE} "
+    "SELECT id FROM written"
 )
 
 # DELETE path. Read + lock the live row's fence token first so a stale/reordered
 # DELETE can't remove a newer (re-created) row, then upsert the tombstone and
 # hard-delete. GREATEST keeps the newest deletion_event_time; deleted_at and
 # correlation_id only advance with it (a stale re-delete must not overwrite the
-# authoritative delete's metadata). Everything runs in the caller's Unit of Work.
+# authoritative delete's metadata). A re-delete fills in the source of a
+# tombstone written before writers recorded one. Everything runs in the caller's
+# Unit of Work.
 _SELECT_ACTIVITY_FENCE_FOR_UPDATE_SQL: Final[str] = (
     "SELECT last_event_time FROM desirelines.activities "
     "WHERE id = :activity_id FOR UPDATE"
 )
 _TOMBSTONE_UPSERT_SQL: Final[str] = (
     "INSERT INTO desirelines.deleted_activities"
-    " (id, deletion_event_time, deleted_at, deletion_correlation_id)"
-    " VALUES (:activity_id, :event_time, :deleted_at, :correlation_id)"
+    " (id, source, deletion_event_time, deleted_at, deletion_correlation_id)"
+    " VALUES (:activity_id, :source, :event_time, :deleted_at, :correlation_id)"
     " ON CONFLICT (id) DO UPDATE SET"
+    "  source = COALESCE(deleted_activities.source, EXCLUDED.source),"
     "  deletion_event_time = GREATEST("
     "    deleted_activities.deletion_event_time, EXCLUDED.deletion_event_time),"
     "  deleted_at = CASE"
@@ -255,6 +284,7 @@ def _activity_write_params(activity: StandardActivity, now: datetime) -> dict[st
 
     ``created_at`` and ``updated_at`` are both set to ``now``; on an upsert
     conflict ``created_at`` isn't in the SET clause, so the original is kept.
+    ``source`` is always ``_ACTIVITY_SOURCE``.
     The ``last_event_time`` fence token is bound by the caller (``insert`` /
     ``upsert``) since it comes from the event envelope, not the activity model.
     """
@@ -266,6 +296,7 @@ def _activity_write_params(activity: StandardActivity, now: datetime) -> dict[st
         {
             "created_at": now,
             "updated_at": now,
+            "source": _ACTIVITY_SOURCE,
         }
     )
     return params
@@ -313,6 +344,8 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         allowed. The insert leg records ``event_time`` as ``last_event_time`` so
         a later UPDATE can fence against this CREATE. Existence, tombstone, and
         write are classified in one statement (no race with a concurrent delete).
+        An inserted activity's mapping is recorded in the same statement (see
+        ``_RECORD_MAPPING_CTE``).
 
         Args:
             activity: StandardActivity domain model
@@ -349,7 +382,8 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         tombstone-guarded like ``insert`` so a stale enriched UPDATE for a
         deleted activity can't resurrect it via the insert leg (returns False).
         ``event_time=None`` is an unfenced upsert (always applied, never advances
-        the token) used for test seeding, not the live path.
+        the token) used for test seeding, not the live path. A written row's
+        mapping is recorded in the same statement (see ``_RECORD_MAPPING_CTE``).
 
         Routes are intentionally not touched here: a type change doesn't alter
         geometry, and the route was written on CREATE. (In the rare case the
@@ -366,11 +400,12 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             was rejected by the fence guard or blocked by a deletion tombstone.
         """
         query = text(
-            f"{_ACTIVITY_INSERT_SELECT_SQL} "
+            f"WITH written AS ({_ACTIVITY_INSERT_SELECT_SQL} "  # noqa: S608 -- SQL from module constants; values are bound :params
             f"ON CONFLICT (id) DO UPDATE SET "
             f"{_ACTIVITY_UPSERT_SET_SQL}, {_ACTIVITY_LAST_EVENT_TIME_SET} "
             f"WHERE {_ACTIVITY_UPSERT_EVENT_TIME_GUARD} "
-            f"RETURNING id"
+            f"RETURNING id, user_id, source), {_RECORD_MAPPING_CTE} "
+            f"SELECT id FROM written"
         )
         params = _activity_write_params(activity, datetime.now(UTC))
         params["last_event_time"] = event_time
@@ -387,6 +422,8 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         tombstone), otherwise refreshes all activity columns. Never sets or
         advances ``last_event_time`` — a refreshed row keeps its token and a
         newly-inserted backfill row gets NULL. See ``_ACTIVITY_BACKFILL_UPSERT_SQL``.
+        A written row's mapping is recorded in the same statement, so a backfill
+        fills in mappings missing from older rows.
 
         Trade-off (accepted): because backfill leaves ``last_event_time`` at its
         old/NULL value, a *delayed* live webhook older than the backfilled data
@@ -832,6 +869,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             text(_TOMBSTONE_UPSERT_SQL),
             {
                 "activity_id": activity_id,
+                "source": _ACTIVITY_SOURCE,
                 "event_time": event_time,
                 "deleted_at": datetime.now(UTC),
                 "correlation_id": correlation_id,

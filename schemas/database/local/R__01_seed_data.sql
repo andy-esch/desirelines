@@ -1016,4 +1016,13 @@ INSERT INTO desirelines.activities (
     (1130, '123456789', 'Activity Ride 1130', 'Ride', 'Ride', '2024-02-27 08:47:04', 2024, 24259.6, 4268, 31648, 269, 5.684, 11.865, 143.7, 175)
 ON CONFLICT (id) DO NOTHING;
 
+-- Record what the writers record for each activity: its platform, and its
+-- platform ID (the activity's own ID) in the external-ID mapping.
+UPDATE desirelines.activities SET source = 'strava' WHERE source IS NULL;
+
+INSERT INTO desirelines.activity_external_ids (source, external_id, activity_id, external_owner_id)
+SELECT source, id::text, id, user_id
+FROM desirelines.activities
+ON CONFLICT (source, external_id) DO NOTHING;
+
 DO $$ BEGIN RAISE NOTICE 'Seed data insertion complete (1000 activities, conflicts ignored)'; END $$;
