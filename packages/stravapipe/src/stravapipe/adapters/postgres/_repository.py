@@ -199,7 +199,9 @@ _ACTIVITY_BACKFILL_UPSERT_SQL: Final[str] = (
 # DELETE can't remove a newer (re-created) row, then upsert the tombstone and
 # hard-delete. GREATEST keeps the newest deletion_event_time; deleted_at and
 # correlation_id only advance with it (a stale re-delete must not overwrite the
-# authoritative delete's metadata). Everything runs in the caller's Unit of Work.
+# authoritative delete's metadata). A re-delete fills in the source of a
+# tombstone written before writers recorded one. Everything runs in the caller's
+# Unit of Work.
 _SELECT_ACTIVITY_FENCE_FOR_UPDATE_SQL: Final[str] = (
     "SELECT last_event_time FROM desirelines.activities "
     "WHERE id = :activity_id FOR UPDATE"
@@ -209,6 +211,7 @@ _TOMBSTONE_UPSERT_SQL: Final[str] = (
     " (id, source, deletion_event_time, deleted_at, deletion_correlation_id)"
     " VALUES (:activity_id, :source, :event_time, :deleted_at, :correlation_id)"
     " ON CONFLICT (id) DO UPDATE SET"
+    "  source = COALESCE(deleted_activities.source, EXCLUDED.source),"
     "  deletion_event_time = GREATEST("
     "    deleted_activities.deletion_event_time, EXCLUDED.deletion_event_time),"
     "  deleted_at = CASE"

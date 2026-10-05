@@ -989,6 +989,56 @@ class TestActivitySourceAndMapping:
         assert self._mappings(db_session, 100107) == [("strava", "100107", "999")]
         self._check_deferred_constraints(db_session)
 
+    def test_rewrites_of_a_mapped_activity_keep_one_mapping(self, uow, db_session):
+        # Each rewrite returns its row, so it reaches the mapping insert and
+        # relies on its ON CONFLICT (a duplicate CREATE stops before it).
+        with uow:
+            uow.activities.insert(make_activity(activity_id=100108), 100)
+            uow.commit()
+
+        with uow:
+            assert uow.activities.upsert(make_activity(activity_id=100108), 200)
+            assert (
+                uow.activities.upsert_backfill(make_activity(activity_id=100108), 2000)
+                is BackfillUpsertResult.APPLIED
+            )
+            uow.commit()
+
+        assert self._mappings(db_session, 100108) == [("strava", "100108", "999")]
+
+    def test_skipped_backfill_records_nothing(self, uow, db_session):
+        # A live event newer than the run's watermark owns the row.
+        self._insert_unrecorded(db_session, 100109, last_event_time=5000)
+
+        with uow:
+            assert (
+                uow.activities.upsert_backfill(make_activity(activity_id=100109), 2000)
+                is BackfillUpsertResult.SKIPPED
+            )
+            uow.commit()
+
+        assert self._source(db_session, 100109) is None
+        assert self._mappings(db_session, 100109) == []
+
+    def test_redelete_fills_in_an_unrecorded_tombstone_source(self, uow, db_session):
+        db_session.execute(
+            text("""
+                INSERT INTO desirelines.deleted_activities (id, deletion_event_time)
+                VALUES (:id, 100)
+            """),
+            {"id": 100110},
+        )
+
+        with uow:
+            assert uow.activities.delete(100110, 200) is DeleteResult.NOT_FOUND
+            uow.commit()
+
+        tombstone_source = db_session.execute(
+            text("SELECT source FROM desirelines.deleted_activities WHERE id = :id"),
+            {"id": 100110},
+        ).scalar_one()
+        assert tombstone_source == "strava"
+
 
 class TestActivityRouteRepository:
     """Integration tests for activity route geometry storage."""
