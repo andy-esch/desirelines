@@ -64,10 +64,13 @@ ENV UV_LINK_MODE=copy \
 # diagnose it. Build the venv where it will run.
 WORKDIR /app
 
-# Standalone CPython, pinned to a specific patch (matches
-# `.python-version`). Without the patch, `uv python install 3.14`
-# resolves to whatever 3.14.x is latest at build time → builds drift.
-RUN uv python install 3.14.8
+# Standalone CPython at the patch `.python-version` pins (with no
+# arguments, `uv python install` reads that file). It is the only place
+# the patch is written down: CI installs the same interpreter with the
+# same uv, so a patch the pinned uv can't download fails the PR, not the
+# deploy.
+COPY .python-version ./
+RUN uv python install
 
 # Prune the standalone CPython stdlib of server-irrelevant directories.
 # uv ships python-build-standalone's "install_only" tarball (no

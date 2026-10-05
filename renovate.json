@@ -64,7 +64,7 @@
       "groupName": "uv"
     },
     {
-      "description": "Keep CPython in one PR across .python-version (pyenv manager) and the stravapipe Dockerfile's `uv python install` (custom manager below), and hold it at 3.14.x — pants `interpreter_constraints` (>=3.14,<3.15) and pyproject `requires-python` forbid 3.15. Without the custom manager the Dockerfile line drifted behind .python-version. Must stay after the group-by-manager rule to win under last-rule-wins.",
+      "description": "Hold CPython at 3.14.x: pants `interpreter_constraints` (>=3.14,<3.15) and pyproject `requires-python` forbid 3.15. packages/stravapipe/.python-version (pyenv manager) is the only patch pin; the stravapipe Dockerfile and CI's integration job both install from it with the pinned uv, so a patch that uv has no download for fails that PR's CI. Must stay after the group-by-manager rule to win under last-rule-wins.",
       "matchDepNames": ["python"],
       "allowedVersions": "3.14.x",
       "groupName": "python version"
@@ -84,14 +84,6 @@
       "depNameTemplate": "ghcr.io/astral-sh/uv",
       "datasourceTemplate": "docker",
       "versioningTemplate": "docker"
-    },
-    {
-      "customType": "regex",
-      "description": "Track the CPython patch the stravapipe Dockerfile installs via `uv python install X.Y.Z` — a raw shell command no built-in manager sees, which is why it drifted behind .python-version (3.14.5 vs 3.14.6). The `python version` packageRule above groups it with the pyenv bump and caps it at 3.14.x.",
-      "fileMatch": ["^packages/stravapipe/Dockerfile$"],
-      "matchStrings": ["uv python install (?<currentValue>\\d+\\.\\d+\\.\\d+)"],
-      "depNameTemplate": "python",
-      "datasourceTemplate": "python-version"
     },
     {
       "customType": "regex",
