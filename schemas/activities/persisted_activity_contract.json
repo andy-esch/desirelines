@@ -753,6 +753,10 @@
     "updated_at": {
       "source": "application_clock",
       "target": "desirelines.activities.updated_at"
+    },
+    "source": {
+      "source": "application_constant",
+      "target": "desirelines.activities.source"
     }
   }
 }

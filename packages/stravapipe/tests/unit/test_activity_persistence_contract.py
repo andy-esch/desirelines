@@ -142,7 +142,7 @@ def test_manifest_shape_and_dispositions_are_valid():
     assert contract["version"] == 1
     assert contract["fields"]
     assert contract["nested_differences"]
-    assert set(contract["system_columns"]) == {"created_at", "updated_at"}
+    assert set(contract["system_columns"]) == {"created_at", "updated_at", "source"}
 
     for path, disposition in {
         **contract["fields"],
@@ -268,6 +268,7 @@ def test_postgres_contract_matches_model_and_repository_mapping():
     assert tuple(params) == _ACTIVITY_COLUMNS
     assert params["created_at"] is now
     assert params["updated_at"] is now
+    assert params["source"] == "strava"
 
 
 def test_bigquery_contract_matches_descriptor_and_summary_exclusions():
