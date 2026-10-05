@@ -418,6 +418,15 @@ jobs:
           enable-cache: true
           cache-dependency-glob: packages/stravapipe/uv.lock
 
+      # The interpreter the stravapipe image ships: the uv-managed CPython at
+      # the patch .python-version pins, installed exactly as the Dockerfile
+      # does. Fails if the pinned uv has no download for that patch, which
+      # otherwise surfaces only when the image builds at deploy. uv then
+      # prefers it over setup-python's for the Python steps below.
+      - name: Install the shipped Python
+        working-directory: packages/stravapipe
+        run: uv python install
+
       - name: Set up Python
         uses: actions/setup-python@v7
         with:

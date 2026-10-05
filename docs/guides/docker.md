@@ -122,7 +122,8 @@ handling, and per-service `command` overrides are omitted below).
 # Builder: Debian + uv-managed standalone CPython, build the venv at /app/.venv
 FROM debian:bookworm-slim AS builder
 COPY --from=ghcr.io/astral-sh/uv:<pinned> /uv /uvx /bin/
-RUN uv python install 3.14.6        # patch-pinned to match .python-version
+COPY .python-version ./
+RUN uv python install               # the patch .python-version pins
 RUN uv sync --frozen --no-dev       # venv at /app/.venv
 
 # Runtime: distroless cc (glibc + libstdc++ for psycopg-binary), no shell
