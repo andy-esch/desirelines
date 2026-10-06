@@ -72,6 +72,7 @@ func insertActivityWithRoute(t *testing.T, tx pgx.Tx, id int64, userID, routeWKT
 	); err != nil {
 		t.Fatalf("insert activity %d: %v", id, err)
 	}
+	insertStravaMapping(t, tx, id, userID)
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO desirelines.activity_routes (activity_id, route)
 		VALUES ($1, ST_GeomFromText($2, 4326))`, id, routeWKT,
@@ -93,6 +94,7 @@ func insertRoutelessActivity(t *testing.T, tx pgx.Tx, id int64, userID string) {
 	); err != nil {
 		t.Fatalf("insert routeless activity %d: %v", id, err)
 	}
+	insertStravaMapping(t, tx, id, userID)
 }
 
 // countMVTFeatures returns how many features the named layer of an MVT tile

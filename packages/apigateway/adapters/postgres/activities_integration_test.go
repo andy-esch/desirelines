@@ -174,6 +174,75 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 		})
 	})
 
+	// Source links are built from the activity's ID on its source, read from
+	// the external-ID mapping, never from the desirelines ID.
+	t.Run("SourceLinks_FollowTheMapping", func(t *testing.T) {
+		tx, err := pool.Begin(ctx)
+		if err != nil {
+			t.Fatalf("begin transaction: %v", err)
+		}
+		defer tx.Rollback(ctx) //nolint:errcheck // rollback after test is best-effort
+		seedTestData(t, tx)
+
+		// Renumber activity 1001, as the move to desirelines IDs will; its
+		// mapping keeps the Strava ID. Activity 1002 comes from a platform
+		// without a link template.
+		const renumbered = int64(7)
+		for _, stmt := range []string{
+			`UPDATE desirelines.activities SET id = 7 WHERE id = 1001`,
+			`UPDATE desirelines.activities SET source = 'garmin' WHERE id = 1002`,
+		} {
+			if _, err := tx.Exec(ctx, stmt); err != nil {
+				t.Fatalf("%s: %v", stmt, err)
+			}
+		}
+		regionID := insertTestRegion(t, tx, "source-links", "county")
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO desirelines.activity_regions (activity_id, region_id) VALUES ($1, $2)`,
+			renumbered, regionID,
+		); err != nil {
+			t.Fatalf("tag renumbered activity: %v", err)
+		}
+		repo := postgres.NewTestActivityRepository(tx)
+
+		const stravaPage = "https://www.strava.com/activities/1001"
+		activity, err := repo.GetActivityByID(ctx, "test-user", renumbered)
+		if err != nil || activity == nil {
+			t.Fatalf("GetActivityByID(renumbered) = %v, %v", activity, err)
+		}
+		if activity.Source != "strava" || activity.SourceUrl != stravaPage {
+			t.Errorf("renumbered source link = (%q, %q), want (strava, %q)", activity.Source, activity.SourceUrl, stravaPage)
+		}
+		unlinked, err := repo.GetActivityByID(ctx, "test-user", 1002)
+		if err != nil || unlinked == nil {
+			t.Fatalf("GetActivityByID(1002) = %v, %v", unlinked, err)
+		}
+		if unlinked.Source != "garmin" || unlinked.SourceUrl != "" {
+			t.Errorf("unknown-source link = (%q, %q), want (garmin, no link)", unlinked.Source, unlinked.SourceUrl)
+		}
+
+		list, err := repo.ListActivities(ctx, repository.ActivityListFilter{UserID: "test-user", Limit: 10})
+		if err != nil {
+			t.Fatalf("ListActivities failed: %v", err)
+		}
+		links := map[int64]string{}
+		for _, a := range list.Activities {
+			links[a.Id] = a.SourceUrl
+		}
+		if links[renumbered] != stravaPage || links[1002] != "" {
+			t.Errorf("list links = %v, want %d -> %q and 1002 -> no link", links, renumbered, stravaPage)
+		}
+
+		mapActivities, err := repo.GetMapDataset(ctx, "test-user")
+		if err != nil {
+			t.Fatalf("GetMapDataset failed: %v", err)
+		}
+		if len(mapActivities) != 1 || mapActivities[0].GetActivityId() != renumbered ||
+			mapActivities[0].GetSourceUrl() != stravaPage {
+			t.Errorf("map dataset = %v, want only activity %d linking to %q", mapActivities, renumbered, stravaPage)
+		}
+	})
+
 	t.Run("ListActivities_Basic", func(t *testing.T) {
 		withTestTx(t, pool, func(repo *postgres.ActivityRepository) {
 			response, err := repo.ListActivities(ctx, repository.ActivityListFilter{
@@ -601,6 +670,7 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			if err != nil {
 				t.Fatalf("insert late-night activity: %v", err)
 			}
+			insertStravaMapping(t, tx, 9001, "tz-user")
 
 			// Query for from=2024-12-31, to=2024-12-31 — must include it.
 			result, err := repo.GetMultiSportDailySummaryByDateRange(
@@ -815,6 +885,7 @@ func TestIntegration_AggregateActivities(t *testing.T) {
 			); err != nil {
 				t.Fatalf("failed to insert fixture %d: %v", f.id, err)
 			}
+			insertStravaMapping(t, tx, f.id, "agg-user")
 			if f.hasRouteGeometry {
 				if _, err := tx.Exec(ctx, `
 					INSERT INTO desirelines.activity_routes (activity_id, route)

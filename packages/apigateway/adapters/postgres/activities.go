@@ -519,7 +519,16 @@ func (r *ActivityRepository) GetActivityByID(ctx context.Context, userID string,
 			id, name, type, sport, start_date_local,
 			distance, moving_time, elapsed_time,
 			total_elevation_gain, average_speed, max_speed,
-			average_heartrate, max_heartrate
+			average_heartrate, max_heartrate,
+			source,
+			-- The activity's ID on its source, for the source link (see
+			-- repository.ActivitySourceLink); '' when it has no mapping there.
+			COALESCE((
+				SELECT m.external_id FROM desirelines.activity_external_ids m
+				WHERE m.activity_id = activities.id AND m.source = activities.source
+				ORDER BY m.linked_at, m.external_id
+				LIMIT 1
+			), '') AS source_external_id
 		FROM desirelines.activities
 		WHERE user_id = $1 AND id = $2
 	`
@@ -532,6 +541,7 @@ func (r *ActivityRepository) GetActivityByID(ctx context.Context, userID string,
 	var distanceMeters float64
 	var movingTime, elapsedTime int32
 	var elevation, avgSpeed, maxSpeed, avgHR, maxHR *float64
+	var source, sourceExternalID string
 
 	retErr = row.Scan(
 		&activityID,
@@ -547,6 +557,8 @@ func (r *ActivityRepository) GetActivityByID(ctx context.Context, userID string,
 		&maxSpeed,
 		&avgHR,
 		&maxHR,
+		&source,
+		&sourceExternalID,
 	)
 
 	if retErr != nil {
@@ -560,7 +572,6 @@ func (r *ActivityRepository) GetActivityByID(ctx context.Context, userID string,
 		return nil, fmt.Errorf("query activity by id: %w", retErr)
 	}
 
-	source, sourceURL := repository.ActivitySourceLink(activityID)
 	return &activitiesv1.Activity{
 		Id:                 activityID,
 		Name:               name,
@@ -576,7 +587,7 @@ func (r *ActivityRepository) GetActivityByID(ctx context.Context, userID string,
 		AverageHeartrate:   avgHR,
 		MaxHeartrate:       maxHR,
 		Source:             source,
-		SourceUrl:          sourceURL,
+		SourceUrl:          repository.ActivitySourceLink(source, sourceExternalID),
 	}, nil
 }
 
@@ -678,7 +689,16 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 			EXISTS (
 				SELECT 1 FROM desirelines.activity_regions r
 				WHERE r.activity_id = activities.id
-			) AS has_route
+			) AS has_route,
+			source,
+			-- The activity's ID on its source, for the source link (see
+			-- repository.ActivitySourceLink); '' when it has no mapping there.
+			COALESCE((
+				SELECT m.external_id FROM desirelines.activity_external_ids m
+				WHERE m.activity_id = activities.id AND m.source = activities.source
+				ORDER BY m.linked_at, m.external_id
+				LIMIT 1
+			), '') AS source_external_id
 		FROM desirelines.activities
 		WHERE 1=1
 	`)
@@ -722,6 +742,8 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 		movingTime     int32
 		elevation      *float64
 		hasRoute       bool
+		source         string
+		sourceURL      string
 	}
 
 	scannedActivities := make([]scannedActivity, 0, limit)
@@ -733,6 +755,7 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 		var movingTime int32
 		var elevation *float64
 		var hasRoute bool
+		var source, sourceExternalID string
 
 		if retErr = rows.Scan(
 			&id,
@@ -744,6 +767,8 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 			&movingTime,
 			&elevation,
 			&hasRoute,
+			&source,
+			&sourceExternalID,
 		); retErr != nil {
 			return nil, fmt.Errorf("scan activity row: %w", retErr)
 		}
@@ -758,6 +783,8 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 			movingTime:     movingTime,
 			elevation:      elevation,
 			hasRoute:       hasRoute,
+			source:         source,
+			sourceURL:      repository.ActivitySourceLink(source, sourceExternalID),
 		})
 	}
 
@@ -774,8 +801,8 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 
 	// Build proto messages
 	activities := make([]*activitiesv1.ActivitySummary, 0, len(scannedActivities))
-	for _, a := range scannedActivities {
-		source, sourceURL := repository.ActivitySourceLink(a.id)
+	for i := range scannedActivities {
+		a := &scannedActivities[i]
 		activities = append(activities, &activitiesv1.ActivitySummary{
 			Id:                a.id,
 			Name:              a.name,
@@ -786,8 +813,8 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 			MovingTimeSeconds: a.movingTime,
 			ElevationMeters:   a.elevation,
 			HasRoute:          a.hasRoute,
-			Source:            source,
-			SourceUrl:         sourceURL,
+			Source:            a.source,
+			SourceUrl:         a.sourceURL,
 		})
 	}
 
@@ -1067,7 +1094,17 @@ func (r *ActivityRepository) GetMapDataset(ctx context.Context, userID string) (
 			a.total_elevation_gain,
 			a.start_date_local,
 			array_agg(DISTINCT ar.region_id ORDER BY ar.region_id) AS region_ids,
-			bb.min_lng, bb.min_lat, bb.max_lng, bb.max_lat
+			bb.min_lng, bb.min_lat, bb.max_lng, bb.max_lat,
+			a.source,
+			-- The activity's ID on its source, for the source link (see
+			-- repository.ActivitySourceLink); '' when it has no mapping there.
+			-- Grouping by a.id (the key) covers a.source.
+			COALESCE((
+				SELECT m.external_id FROM desirelines.activity_external_ids m
+				WHERE m.activity_id = a.id AND m.source = a.source
+				ORDER BY m.linked_at, m.external_id
+				LIMIT 1
+			), '') AS source_external_id
 		FROM desirelines.activities a
 		JOIN desirelines.activity_regions ar ON ar.activity_id = a.id
 		-- One route row per activity (activity_routes.activity_id is PK), so read
@@ -1110,17 +1147,19 @@ func (r *ActivityRepository) GetMapDataset(ctx context.Context, userID string) (
 			minLat         *float64
 			maxLng         *float64
 			maxLat         *float64
+			source         string
+			externalID     string
 		)
 
 		if retErr = rows.Scan(
 			&id, &name, &sport, &distanceMeters, &movingTime, &elevation,
 			&startDateLocal, &regionIDs,
 			&minLng, &minLat, &maxLng, &maxLat,
+			&source, &externalID,
 		); retErr != nil {
 			return nil, fmt.Errorf("scan map dataset row: %w", retErr)
 		}
 
-		source, sourceURL := repository.ActivitySourceLink(id)
 		activity := &activitiesv1.MapActivity{
 			ActivityId:      id,
 			Name:            name,
@@ -1131,7 +1170,7 @@ func (r *ActivityRepository) GetMapDataset(ctx context.Context, userID string) (
 			StartDateLocal:  startDateLocal.Format(time.RFC3339),
 			RegionIds:       regionIDs,
 			Source:          source,
-			SourceUrl:       sourceURL,
+			SourceUrl:       repository.ActivitySourceLink(source, externalID),
 		}
 		if minLng != nil && minLat != nil && maxLng != nil && maxLat != nil {
 			activity.Bbox = []float64{*minLng, *minLat, *maxLng, *maxLat}

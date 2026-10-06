@@ -3,12 +3,23 @@ package repository
 import "testing"
 
 func TestActivitySourceLink(t *testing.T) {
-	source, url := ActivitySourceLink(123456789)
-
-	if source != ActivitySourceStrava {
-		t.Errorf("source = %q, want %q", source, ActivitySourceStrava)
+	tests := []struct {
+		name       string
+		source     string
+		externalID string
+		want       string
+	}{
+		{"strava", ActivitySourceStrava, "123456789", "https://www.strava.com/activities/123456789"},
+		{"unknown source", "garmin", "123456789", ""},
+		{"no source", "", "123456789", ""},
+		{"no external ID", ActivitySourceStrava, "", ""},
+		{"external ID is escaped", ActivitySourceStrava, "a/b?c", "https://www.strava.com/activities/a%2Fb%3Fc"},
 	}
-	if want := "https://www.strava.com/activities/123456789"; url != want {
-		t.Errorf("url = %q, want %q", url, want)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ActivitySourceLink(tt.source, tt.externalID); got != tt.want {
+				t.Errorf("ActivitySourceLink(%q, %q) = %q, want %q", tt.source, tt.externalID, got, tt.want)
+			}
+		})
 	}
 }
