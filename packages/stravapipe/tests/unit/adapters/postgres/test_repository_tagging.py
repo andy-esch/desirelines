@@ -34,6 +34,13 @@ def _readiness(*, specific_regions: int = 100, has_earth: bool = True) -> MagicM
     return result
 
 
+def _mapped(activity_id: int | None = 123) -> MagicMock:
+    """The mapping lookup tagging starts with: the Strava ID's activity."""
+    result = MagicMock()
+    result.scalar_one.return_value = activity_id
+    return result
+
+
 def _has_route(value: bool = True) -> MagicMock:
     result = MagicMock()
     result.scalar_one.return_value = value
@@ -44,6 +51,7 @@ def test_tag_activity_regions_preserves_existing_tags_on_spatial_error(caplog):
     """A spatial failure restores existing tags, so recovery inserts nothing."""
     session = _session_with_savepoints()
     session.execute.side_effect = [
+        _mapped(),  # mapping lookup
         MagicMock(),  # DELETE
         SQLAlchemyError("spatial boom"),  # specific-region INSERT (inside savepoint)
         _result(),  # guarded earth recovery sees the restored existing tags
@@ -57,7 +65,7 @@ def test_tag_activity_regions_preserves_existing_tags_on_spatial_error(caplog):
     assert "Region spatial tagging failed" in caplog.text
     assert "SQLAlchemyError" in caplog.text
     assert "existing tags are preserved when present" in caplog.text
-    assert session.execute.call_count == 3
+    assert session.execute.call_count == 4
     assert session.begin_nested.call_count == 2
 
 
@@ -65,6 +73,7 @@ def test_tag_activity_regions_recovers_new_routed_activity_to_earth(caplog):
     """A spatial failure still gives a newly inserted routed activity a tag."""
     session = _session_with_savepoints()
     session.execute.side_effect = [
+        _mapped(),  # mapping lookup
         MagicMock(),  # DELETE
         SQLAlchemyError("spatial boom"),  # specific-region INSERT
         _result((1,)),  # guarded earth recovery
@@ -76,13 +85,14 @@ def test_tag_activity_regions_recovers_new_routed_activity_to_earth(caplog):
 
     assert count == 1
     assert "Region spatial tagging failed" in caplog.text
-    assert session.execute.call_count == 3
+    assert session.execute.call_count == 4
     assert session.begin_nested.call_count == 2
 
 
 def test_tag_activity_regions_logs_unloaded_table_after_earth_fallback(caplog):
     session = _session_with_savepoints()
     session.execute.side_effect = [
+        _mapped(),  # mapping lookup
         MagicMock(),  # DELETE
         _result(),  # no specific matches
         _has_route(),
@@ -102,6 +112,7 @@ def test_tag_activity_regions_logs_unloaded_table_after_earth_fallback(caplog):
 def test_tag_activity_regions_does_not_log_systemic_error_for_off_grid_route(caplog):
     session = _session_with_savepoints()
     session.execute.side_effect = [
+        _mapped(),  # mapping lookup
         MagicMock(),  # DELETE
         _result(),  # no specific matches
         _has_route(),
@@ -121,6 +132,7 @@ def test_tag_activity_regions_skips_readiness_check_without_route(caplog):
     """An absent route clears stale tags without paying for the dataset count."""
     session = _session_with_savepoints()
     session.execute.side_effect = [
+        _mapped(),  # mapping lookup
         MagicMock(),  # DELETE
         _result(),  # no specific matches
         _has_route(False),
@@ -131,7 +143,7 @@ def test_tag_activity_regions_skips_readiness_check_without_route(caplog):
         count = repo.tag_activity_regions(123)
 
     assert count == 0
-    assert session.execute.call_count == 3
+    assert session.execute.call_count == 4
     assert "Regions table appears unloaded or incomplete" not in caplog.text
 
 
@@ -139,11 +151,12 @@ def test_tag_activity_regions_skips_readiness_check_without_route(caplog):
     ("calls", "message"),
     [
         (
-            [SQLAlchemyError("reset boom")],
+            [_mapped(), SQLAlchemyError("reset boom")],
             "Region-tag reset failed",
         ),
         (
             [
+                _mapped(),
                 MagicMock(),
                 _result(),
                 _has_route(),
@@ -169,3 +182,24 @@ def test_tag_activity_regions_degrades_when_atomic_retag_step_fails(
     assert count == 0
     assert message in caplog.text
     assert "existing tags are preserved when present" in caplog.text
+
+
+def test_tag_activity_regions_skips_an_unmapped_activity():
+    """A Strava ID that maps to no activity has no route to tag."""
+    session = _session_with_savepoints()
+    session.execute.side_effect = [_mapped(None)]
+    repo = SqlAlchemyActivityRepository(session)
+
+    assert repo.tag_activity_regions(123) == 0
+    assert session.execute.call_count == 1
+
+
+def test_tag_activity_regions_contains_a_failed_mapping_lookup(caplog):
+    """The lookup runs in the savepoint too, so its failure never escapes."""
+    session = _session_with_savepoints()
+    session.execute.side_effect = [SQLAlchemyError("lookup boom")]
+    repo = SqlAlchemyActivityRepository(session)
+
+    with caplog.at_level(logging.WARNING):
+        assert repo.tag_activity_regions(123) == 0
+    assert "Region-tag reset failed" in caplog.text

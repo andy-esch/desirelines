@@ -73,8 +73,8 @@ func seedOtherUserData(t *testing.T, tx pgx.Tx) {
 	_, err := tx.Exec(ctx, `
 		INSERT INTO desirelines.activities (
 			id, user_id, name, type, sport, start_date_local, year,
-			distance, moving_time, elapsed_time, total_elevation_gain
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			distance, moving_time, elapsed_time, total_elevation_gain, source
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'strava')
 	`,
 		int64(2001), "other-user", "Evening Run", "Run", "Run",
 		time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC), 2024,
@@ -167,8 +167,8 @@ func seedTestData(t *testing.T, tx pgx.Tx) {
 		_, err := tx.Exec(ctx, `
 			INSERT INTO desirelines.activities (
 				id, user_id, name, type, sport, start_date_local, year,
-				distance, moving_time, elapsed_time, total_elevation_gain
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+				distance, moving_time, elapsed_time, total_elevation_gain, source
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'strava')
 		`,
 			a.id, a.userID, a.name, a.activityType, a.sport, a.startDateLocal, a.year,
 			a.distance, a.movingTime, a.elapsedTime, a.elevationGain,

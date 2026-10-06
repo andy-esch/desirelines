@@ -591,8 +591,8 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			_, err := tx.Exec(ctx, `
 				INSERT INTO desirelines.activities (
 					id, user_id, name, type, sport, start_date_local, year,
-					distance, moving_time, elapsed_time, total_elevation_gain
-				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+					distance, moving_time, elapsed_time, total_elevation_gain, source
+				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'strava')
 			`,
 				int64(9001), "tz-user", "New Year's Eve Run", "Run", "Run",
 				lateNight, 2024,
@@ -808,8 +808,8 @@ func TestIntegration_AggregateActivities(t *testing.T) {
 				INSERT INTO desirelines.activities (
 					id, user_id, name, type, sport, start_date_local, year,
 					distance, moving_time, elapsed_time, total_elevation_gain,
-					trainer, manual
-				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+					trainer, manual, source
+				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'strava')
 			`, f.id, "agg-user", "Fixture", f.activityType, f.sport, f.start, f.start.Year(),
 				f.distance, f.movingTime, f.movingTime+100, float64(0), f.trainer, f.manual,
 			); err != nil {

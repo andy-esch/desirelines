@@ -1,4 +1,4 @@
-"""Integration tests for the activity external-ID schema (V0010).
+"""Integration tests for the activity external-ID schema (V0010, V0011).
 
 The ingested-from source column, the external-ID mapping and the cascading
 foreign keys are what desirelines-owned activity IDs build on; these tests pin
@@ -19,9 +19,9 @@ def _insert_activity(session, activity_id: int) -> None:
         text("""
             INSERT INTO desirelines.activities
                 (id, user_id, type, sport, start_date_local, year,
-                 distance, moving_time, elapsed_time)
+                 distance, moving_time, elapsed_time, source)
             VALUES (:id, 'identity-test', 'Ride', 'Ride', '2026-05-01 08:00:00', 2026,
-                    1000, 100, 100)
+                    1000, 100, 100, 'strava')
         """),
         {"id": activity_id},
     )
@@ -45,16 +45,20 @@ def _count(session, table: str, activity_id: int) -> int:
 
 
 class TestActivityIdentitySchema:
-    """V0010: the schema desirelines-owned activity IDs build on."""
+    """V0010 and V0011: the schema desirelines-owned activity IDs build on."""
 
-    def test_the_schema_leaves_an_activitys_source_to_the_application(self, db_session):
-        _insert_activity(db_session, _ACTIVITY_ID)
-
-        source = db_session.execute(
-            text("SELECT source FROM desirelines.activities WHERE id = :id"),
-            {"id": _ACTIVITY_ID},
-        ).scalar_one()
-        assert source is None  # no DDL default; writers set it explicitly
+    @pytest.mark.parametrize("table", ["activities", "deleted_activities"])
+    def test_a_source_is_required_and_left_to_the_application(self, db_session, table):
+        column = db_session.execute(
+            text("""
+                SELECT is_nullable, column_default FROM information_schema.columns
+                WHERE table_schema = 'desirelines' AND table_name = :table
+                  AND column_name = 'source'
+            """),
+            {"table": table},
+        ).one()
+        assert column.is_nullable == "NO"
+        assert column.column_default is None  # writers set it; the schema doesn't
 
     def test_activity_ids_come_from_an_identity_that_accepts_explicit_ids(
         self, db_session
@@ -131,8 +135,9 @@ class TestActivityIdentitySchema:
     def test_tombstones_carry_their_external_id(self, db_session):
         db_session.execute(
             text("""
-                INSERT INTO desirelines.deleted_activities (id, deletion_event_time)
-                VALUES (:id, 1700000000)
+                INSERT INTO desirelines.deleted_activities
+                    (id, source, deletion_event_time)
+                VALUES (:id, 'strava', 1700000000)
             """),
             {"id": _ACTIVITY_ID},
         )
@@ -145,4 +150,4 @@ class TestActivityIdentitySchema:
             {"id": _ACTIVITY_ID},
         ).one()
         assert row.external_id == str(_ACTIVITY_ID)  # generated from id
-        assert row.source is None  # no DDL default; writers set it explicitly
+        assert row.source == "strava"

@@ -66,8 +66,8 @@ func insertActivityWithRoute(t *testing.T, tx pgx.Tx, id int64, userID, routeWKT
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO desirelines.activities (
 			id, user_id, name, type, sport, start_date_local, year,
-			distance, moving_time, elapsed_time, total_elevation_gain
-		) VALUES ($1, $2, 'Geo Ride', 'Ride', 'Ride', $3, 2024, 1000, 100, 100, 10)`,
+			distance, moving_time, elapsed_time, total_elevation_gain, source
+		) VALUES ($1, $2, 'Geo Ride', 'Ride', 'Ride', $3, 2024, 1000, 100, 100, 10, 'strava')`,
 		id, userID, time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC),
 	); err != nil {
 		t.Fatalf("insert activity %d: %v", id, err)
@@ -87,8 +87,8 @@ func insertRoutelessActivity(t *testing.T, tx pgx.Tx, id int64, userID string) {
 	if _, err := tx.Exec(context.Background(), `
 		INSERT INTO desirelines.activities (
 			id, user_id, name, type, sport, start_date_local, year,
-			distance, moving_time, elapsed_time, total_elevation_gain
-		) VALUES ($1, $2, 'Routeless', 'Ride', 'Ride', $3, 2024, 1000, 100, 100, 10)`,
+			distance, moving_time, elapsed_time, total_elevation_gain, source
+		) VALUES ($1, $2, 'Routeless', 'Ride', 'Ride', $3, 2024, 1000, 100, 100, 10, 'strava')`,
 		id, userID, time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC),
 	); err != nil {
 		t.Fatalf("insert routeless activity %d: %v", id, err)
