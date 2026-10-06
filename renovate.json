@@ -79,7 +79,9 @@
     {
       "customType": "regex",
       "description": "Track [tool.uv] required-version as the uv image, so it bumps alongside the Dockerfile tag rather than drifting silently.",
-      "fileMatch": ["^packages/stravapipe/pyproject\\.toml$"],
+      "managerFilePatterns": [
+        "/^packages/stravapipe/pyproject\\.toml$/"
+      ],
       "matchStrings": ["required-version\\s*=\\s*\"==(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "ghcr.io/astral-sh/uv",
       "datasourceTemplate": "docker",
@@ -88,7 +90,9 @@
     {
       "customType": "regex",
       "description": "Track the Flyway image the CI migration step runs via `docker run flyway/flyway:X` — a raw shell command the github-actions manager does not parse, so without this the tag would silently rot at whatever was pinned. The schemas/database/Dockerfile FROM is covered by the dockerfile manager; the `flyway` packageRule above keeps both in one PR.",
-      "fileMatch": ["^\\.github/workflows/ci\\.yml$"],
+      "managerFilePatterns": [
+        "/^\\.github/workflows/ci\\.yml$/"
+      ],
       "matchStrings": ["flyway/flyway:(?<currentValue>[^\\s\\\\]+)"],
       "depNameTemplate": "flyway/flyway",
       "datasourceTemplate": "docker"
