@@ -116,20 +116,71 @@ _ACTIVITY_UPSERT_EVENT_TIME_GUARD: Final[str] = (
     "OR activities.last_event_time <= EXCLUDED.last_event_time"
 )
 
-# Every activity write also records the activity's platform ID, as a CTE after
-# a `written` CTE that returns the rows it wrote (`id`, `user_id`, `source`).
-# An activity's ID is still its Strava ID, so `external_id` is `id::text`. A
-# duplicate is a no-op, and a write that returns no row (a tombstone block, a
-# fenced-out update) records nothing, so a mapping never outlives its activity
-# to fail the deferred foreign key at commit. A write that does return a row
-# fills in the mapping of an activity written before writers recorded one.
-_RECORD_MAPPING_CTE: Final[str] = (
-    "mapped AS ("
-    "  INSERT INTO desirelines.activity_external_ids"
-    "   (source, external_id, activity_id, external_owner_id)"
-    "  SELECT source, id::text, id, user_id FROM written"
-    "  ON CONFLICT (source, external_id) DO NOTHING"
+# Callers name an activity by its Strava ID. Every lookup resolves that through
+# activity_external_ids to the activity's own ID, in the same statement; an
+# unmapped Strava ID resolves to NULL and so matches nothing, as a missing row
+# does. Bind `_platform_id(...)`.
+_MAPPED_ACTIVITY_ID_SQL: Final[str] = (
+    "(SELECT activity_id FROM desirelines.activity_external_ids"
+    " WHERE source = :source AND external_id = :external_id)"
+)
+
+# A platform ID's tombstone, ahead of each activity write. A live write is
+# blocked by a deletion at or after its event; a backfill by one after its run
+# started (see the BACKFILL path).
+_LIVE_TOMBSTONE_CTE: Final[str] = (
+    "tombstone AS ("
+    "  SELECT 1 FROM desirelines.deleted_activities"
+    "  WHERE source = :source AND external_id = :external_id"
+    "    AND deletion_event_time >= :last_event_time"
     ")"
+)
+_BACKFILL_TOMBSTONE_CTE: Final[str] = (
+    "tombstone AS ("
+    "  SELECT 1 FROM desirelines.deleted_activities"
+    "  WHERE source = :source AND external_id = :external_id"
+    "    AND deletion_event_time > :watermark"
+    ")"
+)
+
+# Activity writes are mapping first: the `mapping` CTE claims the platform ID for
+# the activity (a new activity takes its Strava ID as its own ID), and the
+# activity row is then written only under the ID the mapping returns. One
+# platform ID therefore always means one activity row, and a write the tombstone
+# blocks claims nothing (no mapping is left to fail the deferred foreign key at
+# commit).
+_CLAIM_MAPPING_SQL: Final[str] = (
+    "INSERT INTO desirelines.activity_external_ids"
+    " (source, external_id, activity_id, external_owner_id)"
+    " SELECT :source, :external_id, :id, :user_id"
+    " WHERE NOT EXISTS (SELECT 1 FROM tombstone)"
+)
+# CREATE: a platform ID already claimed is a duplicate, and the statement stops.
+_CLAIM_NEW_MAPPING_CTE: Final[str] = (
+    f"mapping AS ({_CLAIM_MAPPING_SQL}"
+    " ON CONFLICT (source, external_id) DO NOTHING"
+    " RETURNING activity_id)"
+)
+# UPSERT and BACKFILL: an already-claimed platform ID resolves to its activity.
+# The no-op DO UPDATE (not a lookup) also returns a mapping that a concurrent
+# CREATE commits while this statement waits on it, which the statement's
+# snapshot would miss. It locks the mapping row before the activity row, the
+# order `delete` follows too, so the two cannot deadlock.
+_CLAIM_OR_FIND_MAPPING_CTE: Final[str] = (
+    f"mapping AS ({_CLAIM_MAPPING_SQL}"
+    " ON CONFLICT (source, external_id)"
+    " DO UPDATE SET activity_id = activity_external_ids.activity_id"
+    " RETURNING activity_id)"
+)
+# The activity's columns as bind params, except `id`: the mapping's.
+_ACTIVITY_INSERT_SELECT_FROM_MAPPING: Final[str] = (
+    f"INSERT INTO desirelines.activities ({', '.join(_ACTIVITY_INSERT_COLUMNS)})"  # noqa: S608 -- column names from _ACTIVITY_INSERT_COLUMNS const; values are bound :params
+    " SELECT "
+    + ", ".join(
+        "mapping.activity_id" if col == "id" else f":{col}"
+        for col in _ACTIVITY_INSERT_COLUMNS
+    )
+    + " FROM mapping"
 )
 
 # CREATE path. Existence, the deletion-tombstone guard, and the write are all
@@ -141,67 +192,63 @@ _RECORD_MAPPING_CTE: Final[str] = (
 # blocks and the row inserts unfenced. The outer SELECT reports inserted vs
 # blocked so the caller can tell RESURRECTION_BLOCKED from ALREADY_EXISTS.
 _ACTIVITY_TOMBSTONED_INSERT_SQL: Final[str] = (
-    "WITH tombstone AS ("  # noqa: S608 -- column names from _ACTIVITY_INSERT_COLUMNS const; values are bound :params
-    "  SELECT 1 FROM desirelines.deleted_activities"
-    "  WHERE id = :id AND deletion_event_time >= :last_event_time"
-    "), written AS ("
-    f"  INSERT INTO desirelines.activities ({', '.join(_ACTIVITY_INSERT_COLUMNS)})"
-    f"  SELECT {', '.join(f':{col}' for col in _ACTIVITY_INSERT_COLUMNS)}"
-    "  WHERE NOT EXISTS (SELECT 1 FROM tombstone)"
+    f"WITH {_LIVE_TOMBSTONE_CTE}, {_CLAIM_NEW_MAPPING_CTE}, written AS ("  # noqa: S608 -- column names from _ACTIVITY_INSERT_COLUMNS const; values are bound :params
+    f"  {_ACTIVITY_INSERT_SELECT_FROM_MAPPING}"
     "  ON CONFLICT (id) DO NOTHING"
-    "  RETURNING id, user_id, source"
-    f"), {_RECORD_MAPPING_CTE}"
+    "  RETURNING id"
+    ")"
     " SELECT"
     "  EXISTS (SELECT 1 FROM written) AS inserted,"
     "  EXISTS (SELECT 1 FROM tombstone) AS blocked"
 )
 
-# UPSERT insert-leg is tombstone-guarded too (enriched UPDATE = a live write that
-# would otherwise resurrect a deleted activity via its insert leg). Same guard as
-# the CREATE path; when the tombstone blocks, the SELECT yields no row so nothing
-# inserts and no conflict fires. On an existing row the SELECT yields a row, the
-# INSERT conflicts, and the fenced DO UPDATE runs as before.
-_ACTIVITY_INSERT_SELECT_SQL: Final[str] = (
-    f"INSERT INTO desirelines.activities ({', '.join(_ACTIVITY_INSERT_COLUMNS)}) "  # noqa: S608 -- column names from _ACTIVITY_INSERT_COLUMNS const; values are bound :params
-    f"SELECT {', '.join(f':{col}' for col in _ACTIVITY_INSERT_COLUMNS)} "
-    "WHERE NOT EXISTS ("
-    "  SELECT 1 FROM desirelines.deleted_activities"
-    "  WHERE id = :id AND deletion_event_time >= :last_event_time"
+# UPSERT path (enriched UPDATE: a live write that would otherwise resurrect a
+# deleted activity). Same tombstone guard as the CREATE path; when it blocks,
+# nothing is claimed, so nothing inserts and no conflict fires. On an existing
+# row the INSERT conflicts and the fenced DO UPDATE runs.
+_ACTIVITY_UPSERT_SQL: Final[str] = (
+    f"WITH {_LIVE_TOMBSTONE_CTE}, {_CLAIM_OR_FIND_MAPPING_CTE}, written AS ("  # noqa: S608 -- column names from _ACTIVITY_INSERT_COLUMNS const; values are bound :params
+    f"  {_ACTIVITY_INSERT_SELECT_FROM_MAPPING}"
+    "  ON CONFLICT (id) DO UPDATE SET"
+    f"  {_ACTIVITY_UPSERT_SET_SQL}, {_ACTIVITY_LAST_EVENT_TIME_SET}"
+    f"  WHERE {_ACTIVITY_UPSERT_EVENT_TIME_GUARD}"
+    "  RETURNING id"
     ")"
+    " SELECT id FROM written"
 )
 
 # BACKFILL path. A backfill fetched its activities as of the run's start
 # (:watermark), so it must not overwrite state a newer live event already wrote.
 # It is fenced on the watermark, not on an event_time it doesn't have, and it
 # never touches last_event_time (omitted from the SET; the insert leg binds NULL):
-#   - insert leg blocked by a deletion tombstone strictly newer than the watermark
-#     (a live DELETE after run start — don't resurrect);
+#   - blocked by a deletion tombstone strictly newer than the watermark (a live
+#     DELETE after run start — don't resurrect);
 #   - conflict (DO UPDATE) applied only when the row is unfenced (NULL) or its
 #     last_event_time is at-or-before the watermark (no newer live UPDATE).
 # No row returned => the write was skipped (a newer live event owns the row).
 _ACTIVITY_BACKFILL_UPSERT_SQL: Final[str] = (
-    "WITH written AS ("  # noqa: S608 -- column names from _ACTIVITY_INSERT_COLUMNS const; values are bound :params
-    f"INSERT INTO desirelines.activities ({', '.join(_ACTIVITY_INSERT_COLUMNS)}) "
-    f"SELECT {', '.join(f':{col}' for col in _ACTIVITY_INSERT_COLUMNS)} "
-    "WHERE NOT EXISTS ("
-    "  SELECT 1 FROM desirelines.deleted_activities"
-    "  WHERE id = :id AND deletion_event_time > :watermark"
-    ") "
-    f"ON CONFLICT (id) DO UPDATE SET {_ACTIVITY_UPSERT_SET_SQL} "
-    "WHERE activities.last_event_time IS NULL "
-    "OR activities.last_event_time <= :watermark "
-    "RETURNING id, user_id, source"
-    f"), {_RECORD_MAPPING_CTE} "
-    "SELECT id FROM written"
+    f"WITH {_BACKFILL_TOMBSTONE_CTE}, {_CLAIM_OR_FIND_MAPPING_CTE}, written AS ("  # noqa: S608 -- column names from _ACTIVITY_INSERT_COLUMNS const; values are bound :params
+    f"  {_ACTIVITY_INSERT_SELECT_FROM_MAPPING}"
+    f"  ON CONFLICT (id) DO UPDATE SET {_ACTIVITY_UPSERT_SET_SQL}"
+    "  WHERE activities.last_event_time IS NULL"
+    "  OR activities.last_event_time <= :watermark"
+    "  RETURNING id"
+    ")"
+    " SELECT id FROM written"
 )
 
-# DELETE path. Read + lock the live row's fence token first so a stale/reordered
-# DELETE can't remove a newer (re-created) row, then upsert the tombstone and
-# hard-delete. GREATEST keeps the newest deletion_event_time; deleted_at and
-# correlation_id only advance with it (a stale re-delete must not overwrite the
-# authoritative delete's metadata). A re-delete fills in the source of a
-# tombstone written before writers recorded one. Everything runs in the caller's
-# Unit of Work.
+# DELETE path. Lock the mapping row, then the live row's fence token, so a
+# stale/reordered DELETE can't remove a newer (re-created) row and the locks
+# follow the activity writes' order. Then upsert the tombstone and hard-delete
+# (the mapping goes with the activity, by cascade). GREATEST keeps the newest
+# deletion_event_time; deleted_at and correlation_id only advance with it (a
+# stale re-delete must not overwrite the authoritative delete's metadata).
+# Tombstones are keyed by the Strava ID (`external_id` is generated from `id`).
+# Everything runs in the caller's Unit of Work.
+_LOCK_MAPPING_SQL: Final[str] = (
+    "SELECT activity_id FROM desirelines.activity_external_ids"
+    " WHERE source = :source AND external_id = :external_id FOR UPDATE"
+)
 _SELECT_ACTIVITY_FENCE_FOR_UPDATE_SQL: Final[str] = (
     "SELECT last_event_time FROM desirelines.activities "
     "WHERE id = :activity_id FOR UPDATE"
@@ -209,9 +256,9 @@ _SELECT_ACTIVITY_FENCE_FOR_UPDATE_SQL: Final[str] = (
 _TOMBSTONE_UPSERT_SQL: Final[str] = (
     "INSERT INTO desirelines.deleted_activities"
     " (id, source, deletion_event_time, deleted_at, deletion_correlation_id)"
-    " VALUES (:activity_id, :source, :event_time, :deleted_at, :correlation_id)"
+    " VALUES (:external_activity_id, :source, :event_time, :deleted_at,"
+    "  :correlation_id)"
     " ON CONFLICT (id) DO UPDATE SET"
-    "  source = COALESCE(deleted_activities.source, EXCLUDED.source),"
     "  deletion_event_time = GREATEST("
     "    deleted_activities.deletion_event_time, EXCLUDED.deletion_event_time),"
     "  deleted_at = CASE"
@@ -302,6 +349,11 @@ def _activity_write_params(activity: StandardActivity, now: datetime) -> dict[st
     return params
 
 
+def _platform_id(activity_id: int) -> dict[str, str]:
+    """Bind params naming an activity by its Strava ID, for the mapping."""
+    return {"source": _ACTIVITY_SOURCE, "external_id": str(activity_id)}
+
+
 def _rowcount(result: Result[Any]) -> int:
     """Return the number of rows a DML statement affected.
 
@@ -332,20 +384,27 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         """
         self._session = session
 
+    def _mapped_activity_id(self, activity_id: int) -> int | None:
+        """The ID of the activity a Strava ID maps to, or None if it has none."""
+        mapped_id: int | None = self._session.execute(
+            text(f"SELECT {_MAPPED_ACTIVITY_ID_SQL}"),
+            _platform_id(activity_id),
+        ).scalar_one()
+        return mapped_id
+
     def insert(
         self, activity: StandardActivity, event_time: int | None
     ) -> InsertResult:
         """Insert activity, ignore if already exists, block resurrection.
 
-        ON CONFLICT DO NOTHING makes a duplicate CREATE a no-op. A deletion
+        The activity's platform ID is claimed first, so a duplicate CREATE stops
+        there and is a no-op. A deletion
         tombstone (see ``delete``) whose ``deletion_event_time`` is >= this
         CREATE's ``event_time`` blocks the insert so a late/reordered CREATE
         can't resurrect a deleted activity; a genuinely newer re-creation is
         allowed. The insert leg records ``event_time`` as ``last_event_time`` so
         a later UPDATE can fence against this CREATE. Existence, tombstone, and
         write are classified in one statement (no race with a concurrent delete).
-        An inserted activity's mapping is recorded in the same statement (see
-        ``_RECORD_MAPPING_CTE``).
 
         Args:
             activity: StandardActivity domain model
@@ -358,6 +417,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         """
         params = _activity_write_params(activity, datetime.now(UTC))
         params["last_event_time"] = event_time
+        params.update(_platform_id(activity.id))
         row = self._session.execute(
             text(_ACTIVITY_TOMBSTONED_INSERT_SQL), params
         ).fetchone()
@@ -382,8 +442,8 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         tombstone-guarded like ``insert`` so a stale enriched UPDATE for a
         deleted activity can't resurrect it via the insert leg (returns False).
         ``event_time=None`` is an unfenced upsert (always applied, never advances
-        the token) used for test seeding, not the live path. A written row's
-        mapping is recorded in the same statement (see ``_RECORD_MAPPING_CTE``).
+        the token) used for test seeding, not the live path. The row is found
+        through its platform ID's mapping (see ``_CLAIM_OR_FIND_MAPPING_CTE``).
 
         Routes are intentionally not touched here: a type change doesn't alter
         geometry, and the route was written on CREATE. (In the rare case the
@@ -399,17 +459,10 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             True if the row was inserted or updated; False if a stale live event
             was rejected by the fence guard or blocked by a deletion tombstone.
         """
-        query = text(
-            f"WITH written AS ({_ACTIVITY_INSERT_SELECT_SQL} "  # noqa: S608 -- SQL from module constants; values are bound :params
-            f"ON CONFLICT (id) DO UPDATE SET "
-            f"{_ACTIVITY_UPSERT_SET_SQL}, {_ACTIVITY_LAST_EVENT_TIME_SET} "
-            f"WHERE {_ACTIVITY_UPSERT_EVENT_TIME_GUARD} "
-            f"RETURNING id, user_id, source), {_RECORD_MAPPING_CTE} "
-            f"SELECT id FROM written"
-        )
         params = _activity_write_params(activity, datetime.now(UTC))
         params["last_event_time"] = event_time
-        result = self._session.execute(query, params)
+        params.update(_platform_id(activity.id))
+        result = self._session.execute(text(_ACTIVITY_UPSERT_SQL), params)
         return result.fetchone() is not None
 
     def upsert_backfill(
@@ -422,8 +475,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         tombstone), otherwise refreshes all activity columns. Never sets or
         advances ``last_event_time`` — a refreshed row keeps its token and a
         newly-inserted backfill row gets NULL. See ``_ACTIVITY_BACKFILL_UPSERT_SQL``.
-        A written row's mapping is recorded in the same statement, so a backfill
-        fills in mappings missing from older rows.
+        The row is found through its platform ID's mapping.
 
         Trade-off (accepted): because backfill leaves ``last_event_time`` at its
         old/NULL value, a *delayed* live webhook older than the backfilled data
@@ -443,6 +495,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         params = _activity_write_params(activity, datetime.now(UTC))
         params["last_event_time"] = None
         params["watermark"] = watermark
+        params.update(_platform_id(activity.id))
         result = self._session.execute(text(_ACTIVITY_BACKFILL_UPSERT_SQL), params)
         return (
             BackfillUpsertResult.APPLIED
@@ -454,7 +507,8 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         """Insert activity route geometry, ignore if already exists.
 
         Args:
-            activity_id: Strava activity ID (must exist in activities table)
+            activity_id: the activity's Strava ID (the activity must exist; an
+                unmapped one fails the insert's NOT NULL)
             geojson: GeoJSON LineString or MultiLineString string for
                 ST_GeomFromGeoJSON(). The column is MultiLineString, so a
                 LineString is stored as a 1-part MultiLineString.
@@ -462,16 +516,16 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         Returns:
             True if inserted, False if already existed (conflict)
         """
-        query = text("""
+        query = text(f"""
             INSERT INTO desirelines.activity_routes (activity_id, route)
-            VALUES (:activity_id, ST_GeomFromGeoJSON(:geojson))
+            VALUES ({_MAPPED_ACTIVITY_ID_SQL}, ST_GeomFromGeoJSON(:geojson))
             ON CONFLICT (activity_id) DO NOTHING
             RETURNING activity_id
-        """)
+        """)  # noqa: S608 -- static SQL constants; values bound via :params
 
         result = self._session.execute(
             query,
-            {"activity_id": activity_id, "geojson": geojson},
+            {**_platform_id(activity_id), "geojson": geojson},
         )
         return result.fetchone() is not None
 
@@ -506,8 +560,8 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         belong in the complementary non-map view with zero region rows.
 
         Args:
-            activity_id: Strava activity ID. Its route may already exist or have
-                been written in the current transaction.
+            activity_id: the activity's Strava ID. Its route may already exist or
+                have been written in the current transaction.
 
         Returns:
             Number of region rows written (0 if the activity has no route).
@@ -515,12 +569,16 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         specific: list[Any] = []
         earth: list[Any] = []
         has_route = False
+        mapped_id: int | None = None
         phase = "reset"
         try:
             with self._session.begin_nested():
+                mapped_id = self._mapped_activity_id(activity_id)
+                if mapped_id is None:
+                    return 0  # no such activity, so no route to tag
                 self._session.execute(
                     text(_DELETE_ACTIVITY_REGIONS_SQL),
-                    {"activity_id": activity_id},
+                    {"activity_id": mapped_id},
                 )
 
                 # Specific regions: every non-fallback boundary the route intersects.
@@ -537,7 +595,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
                               AND re.region_kind <> 'global'
                             RETURNING region_id
                         """),
-                        {"activity_id": activity_id},
+                        {"activity_id": mapped_id},
                     ).fetchall()
                 )
 
@@ -546,7 +604,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
                     has_route = bool(
                         self._session.execute(
                             text(_ACTIVITY_HAS_ROUTE_SQL),
-                            {"activity_id": activity_id},
+                            {"activity_id": mapped_id},
                         ).scalar_one()
                     )
 
@@ -557,7 +615,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
                         earth = list(
                             self._session.execute(
                                 text(_EARTH_FALLBACK_SQL),
-                                {"activity_id": activity_id},
+                                {"activity_id": mapped_id},
                             ).fetchall()
                         )
         except SQLAlchemyError as exc:
@@ -584,9 +642,9 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             # inserted routed activity has no tags to restore. Recover that case
             # to the global fallback in a fresh savepoint. The NOT EXISTS guard
             # leaves previously tagged activities untouched.
-            if phase != "spatial":
+            if phase != "spatial" or mapped_id is None:
                 return 0
-            return self._recover_earth_after_spatial_failure(activity_id)
+            return self._recover_earth_after_spatial_failure(mapped_id, activity_id)
 
         if specific:
             return len(specific)
@@ -600,14 +658,20 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         self._observe_region_readiness(activity_id)
         return len(earth)
 
-    def _recover_earth_after_spatial_failure(self, activity_id: int) -> int:
-        """Assign earth to a routed activity only when it has no restored tags."""
+    def _recover_earth_after_spatial_failure(
+        self, mapped_id: int, activity_id: int
+    ) -> int:
+        """Assign earth to a routed activity only when it has no restored tags.
+
+        ``mapped_id`` is the activity's ID; ``activity_id``, its Strava ID, is
+        what the logs name, as elsewhere in tagging.
+        """
         try:
             with self._session.begin_nested():
                 recovered_earth = list(
                     self._session.execute(
                         text(_EARTH_FALLBACK_SQL),
-                        {"activity_id": activity_id},
+                        {"activity_id": mapped_id},
                     ).fetchall()
                 )
         except SQLAlchemyError as recovery_exc:
@@ -685,11 +749,15 @@ class SqlAlchemyActivityRepository(ActivityRepository):
 
         Used when an activity becomes virtual/indoor on an enriched UPDATE so it
         stops appearing on the map (zero region rows = non-geographic).
+        ``activity_id`` is the activity's Strava ID.
         """
         return _rowcount(
             self._session.execute(
-                text(_DELETE_ACTIVITY_REGIONS_SQL),
-                {"activity_id": activity_id},
+                text(
+                    "DELETE FROM desirelines.activity_regions"  # noqa: S608 -- static SQL constant; values bound via :params
+                    f" WHERE activity_id = {_MAPPED_ACTIVITY_ID_SQL}"
+                ),
+                _platform_id(activity_id),
             )
         )
 
@@ -697,15 +765,15 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         """Check if activity exists in database.
 
         Args:
-            activity_id: Strava activity ID
+            activity_id: the activity's Strava ID
 
         Returns:
             True if exists, False otherwise
         """
-        query = text("""
-            SELECT 1 FROM desirelines.activities WHERE id = :activity_id
-        """)
-        result = self._session.execute(query, {"activity_id": activity_id})
+        query = text(
+            f"SELECT 1 FROM desirelines.activities WHERE id = {_MAPPED_ACTIVITY_ID_SQL}"  # noqa: S608 -- static SQL constant; values bound via :params
+        )
+        result = self._session.execute(query, _platform_id(activity_id))
         return result.fetchone() is not None
 
     def get_existing_ids(self, activity_ids: list[int]) -> set[int]:
@@ -715,15 +783,24 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             activity_ids: List of Strava activity IDs to check
 
         Returns:
-            Set of activity IDs that are already present in the database
+            The Strava IDs of the activities already present in the database
         """
         if not activity_ids:
             return set()
         query = text("""
-            SELECT id FROM desirelines.activities WHERE id = ANY(:ids)
+            SELECT m.external_id
+            FROM desirelines.activity_external_ids m
+            JOIN desirelines.activities a ON a.id = m.activity_id
+            WHERE m.source = :source AND m.external_id = ANY(:external_ids)
         """)
-        result = self._session.execute(query, {"ids": list(activity_ids)})
-        return {row.id for row in result.fetchall()}
+        result = self._session.execute(
+            query,
+            {
+                "source": _ACTIVITY_SOURCE,
+                "external_ids": [str(activity_id) for activity_id in activity_ids],
+            },
+        )
+        return {int(row.external_id) for row in result.fetchall()}
 
     def update_metadata(
         self, activity_id: int, updates: dict[str, Any], event_time: int | None
@@ -742,7 +819,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         ``exists()`` round-trip that a concurrently-committed CREATE could race.
 
         Args:
-            activity_id: Strava activity ID
+            activity_id: the activity's Strava ID
             updates: Dict with optional keys: 'title', 'type'
             event_time: webhook event_time (unix seconds); ``None`` skips fencing
 
@@ -762,7 +839,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             )
 
         set_clauses: list[str] = []
-        params: dict[str, Any] = {"activity_id": activity_id}
+        params: dict[str, Any] = dict(_platform_id(activity_id))
 
         if "title" in updates:
             set_clauses.extend(_ALLOWED_UPDATE_CLAUSES["title"])
@@ -802,7 +879,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             WITH target AS (
                 SELECT id, last_event_time
                 FROM desirelines.activities
-                WHERE id = :activity_id
+                WHERE id = {_MAPPED_ACTIVITY_ID_SQL}
                 FOR UPDATE
             ),
             upd AS (
@@ -820,7 +897,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             SELECT
                 EXISTS (SELECT 1 FROM target) AS existed,
                 EXISTS (SELECT 1 FROM upd) AS applied
-        """)  # noqa: S608 -- static SQL + column constants; activity_id/event_time bound via :params
+        """)  # noqa: S608 -- static SQL + column constants; IDs/event_time bound via :params
 
         row = self._session.execute(query, params).fetchone()
         if row is None or not row.existed:
@@ -834,28 +911,38 @@ class SqlAlchemyActivityRepository(ActivityRepository):
     ) -> DeleteResult:
         """Delete activity by ID and record a deletion tombstone.
 
-        Locks and reads the live row's ``last_event_time`` first: if the row is
-        newer than this delete's ``event_time`` (a reordered/stale DELETE, e.g.
-        arriving after a genuine re-creation), the delete is ignored — the row
-        stays and no tombstone is written (``STALE``). Otherwise it upserts the
-        ``deleted_activities`` tombstone (``GREATEST`` keeps the newest
-        ``deletion_event_time``) and hard-deletes the row. The tombstone is
-        written even when no live row exists (a DELETE before its CREATE), so
+        Locks the activity's mapping, then reads and locks the live row's
+        ``last_event_time``: if the row is newer than this delete's
+        ``event_time`` (a reordered/stale DELETE, e.g. arriving after a genuine
+        re-creation), the delete is ignored — the row stays and no tombstone is
+        written (``STALE``). Otherwise it upserts the ``deleted_activities``
+        tombstone (``GREATEST`` keeps the newest ``deletion_event_time``) and
+        hard-deletes the row, and its mapping with it. The tombstone is written
+        even when no live row exists (a DELETE before its CREATE), so
         ``insert``/``upsert`` can reject a later write that isn't strictly newer.
         All statements run in the caller's Unit of Work and commit together; the
-        ``FOR UPDATE`` lock serializes concurrent writers on the row.
+        ``FOR UPDATE`` locks serialize concurrent writers on the activity, in the
+        same mapping-then-row order as the activity writes.
 
         Args:
-            activity_id: Strava activity ID
+            activity_id: the activity's Strava ID
             event_time: webhook event_time (unix seconds) of the delete
             correlation_id: trace id for the delete (stored for diagnostics)
 
         Returns:
             A :class:`DeleteResult` (``DELETED`` / ``NOT_FOUND`` / ``STALE``).
         """
-        existing = self._session.execute(
-            text(_SELECT_ACTIVITY_FENCE_FOR_UPDATE_SQL), {"activity_id": activity_id}
-        ).fetchone()
+        platform_id = _platform_id(activity_id)
+        mapped_id = self._session.execute(
+            text(_LOCK_MAPPING_SQL), platform_id
+        ).scalar_one_or_none()
+        existing = (
+            self._session.execute(
+                text(_SELECT_ACTIVITY_FENCE_FOR_UPDATE_SQL), {"activity_id": mapped_id}
+            ).fetchone()
+            if mapped_id is not None
+            else None
+        )
         if (
             existing is not None
             and existing.last_event_time is not None
@@ -868,15 +955,17 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         self._session.execute(
             text(_TOMBSTONE_UPSERT_SQL),
             {
-                "activity_id": activity_id,
-                "source": _ACTIVITY_SOURCE,
+                **platform_id,
+                "external_activity_id": activity_id,
                 "event_time": event_time,
                 "deleted_at": datetime.now(UTC),
                 "correlation_id": correlation_id,
             },
         )
+        if mapped_id is None:
+            return DeleteResult.NOT_FOUND
         result = self._session.execute(
-            text(_DELETE_ACTIVITY_SQL), {"activity_id": activity_id}
+            text(_DELETE_ACTIVITY_SQL), {"activity_id": mapped_id}
         )
         return (
             DeleteResult.DELETED
@@ -887,7 +976,10 @@ class SqlAlchemyActivityRepository(ActivityRepository):
     def delete_by_user(self, user_id: str) -> int:
         """Delete all activities for a user.
 
-        activity_routes are cascade-deleted via FK (ON DELETE CASCADE).
+        Their routes, region tags and mappings are cascade-deleted via FK (ON
+        DELETE CASCADE). The mappings are locked first, the order every other
+        writer locks in, so a deauthorization racing a live write on one of the
+        user's activities waits for it instead of deadlocking.
 
         Args:
             user_id: Strava athlete ID (string)
@@ -895,6 +987,16 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         Returns:
             Count of deleted activity rows
         """
+        self._session.execute(
+            text("""
+                SELECT 1
+                FROM desirelines.activity_external_ids m
+                JOIN desirelines.activities a ON a.id = m.activity_id
+                WHERE a.user_id = :user_id
+                FOR UPDATE OF m
+            """),
+            {"user_id": user_id},
+        )
         query = text("""
             DELETE FROM desirelines.activities
             WHERE user_id = :user_id

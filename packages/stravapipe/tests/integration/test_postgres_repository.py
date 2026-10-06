@@ -4,11 +4,18 @@ Run with: pytest tests/integration/ -v
 Requires: PostgreSQL running (docker compose --profile backend up postgres flyway)
 """
 
+from collections.abc import Callable, Iterator
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 import logging
+import time
 
-from sqlalchemy import event, text
+import pytest
+from sqlalchemy import Engine, event, text
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
+from stravapipe.adapters.postgres import SqlAlchemyActivityRepository
 from stravapipe.domain import StandardActivity
 from stravapipe.domain.activity import MetaAthlete
 from stravapipe.ports.out.postgres import (
@@ -851,24 +858,9 @@ class TestBackfillWatermarkUpsert:
 
 
 class TestActivitySourceAndMapping:
-    """Writers record each activity's source and its platform-ID mapping (V0010)."""
+    """Writers record each activity's source and its platform-ID mapping."""
 
-    def _insert_unrecorded(
-        self, db_session, activity_id: int, last_event_time: int | None = None
-    ) -> None:
-        """An activity as writers stored it before recording source and mapping."""
-        db_session.execute(
-            text("""
-                INSERT INTO desirelines.activities
-                    (id, user_id, type, sport, start_date_local, year,
-                     distance, moving_time, elapsed_time, last_event_time)
-                VALUES (:id, '999', 'Run', 'Run', '2024-01-15 07:30:00', 2024,
-                        5000, 1800, 2000, :last_event_time)
-            """),
-            {"id": activity_id, "last_event_time": last_event_time},
-        )
-
-    def _source(self, db_session, activity_id: int) -> str | None:
+    def _source(self, db_session, activity_id: int) -> str:
         return db_session.execute(
             text("SELECT source FROM desirelines.activities WHERE id = :id"),
             {"id": activity_id},
@@ -955,43 +947,9 @@ class TestActivitySourceAndMapping:
         assert self._mappings(db_session, 100104) == [("strava", "100104", "999")]
         self._check_deferred_constraints(db_session)
 
-    def test_upsert_fills_in_an_unrecorded_activity(self, uow, db_session):
-        self._insert_unrecorded(db_session, 100105)
-
-        with uow:
-            assert uow.activities.upsert(make_activity(activity_id=100105), 300)
-            uow.commit()
-
-        assert self._source(db_session, 100105) == "strava"
-        assert self._mappings(db_session, 100105) == [("strava", "100105", "999")]
-
-    def test_fenced_out_upsert_records_nothing(self, uow, db_session):
-        self._insert_unrecorded(db_session, 100106, last_event_time=500)
-
-        with uow:
-            assert not uow.activities.upsert(make_activity(activity_id=100106), 100)
-            uow.commit()
-
-        assert self._source(db_session, 100106) is None
-        assert self._mappings(db_session, 100106) == []
-
-    def test_backfill_fills_in_an_unrecorded_activity(self, uow, db_session):
-        self._insert_unrecorded(db_session, 100107)
-
-        with uow:
-            assert (
-                uow.activities.upsert_backfill(make_activity(activity_id=100107), 2000)
-                is BackfillUpsertResult.APPLIED
-            )
-            uow.commit()
-
-        assert self._source(db_session, 100107) == "strava"
-        assert self._mappings(db_session, 100107) == [("strava", "100107", "999")]
-        self._check_deferred_constraints(db_session)
-
     def test_rewrites_of_a_mapped_activity_keep_one_mapping(self, uow, db_session):
-        # Each rewrite returns its row, so it reaches the mapping insert and
-        # relies on its ON CONFLICT (a duplicate CREATE stops before it).
+        # Each rewrite finds the activity through its existing mapping (the
+        # claim's ON CONFLICT) rather than adding one.
         with uow:
             uow.activities.insert(make_activity(activity_id=100108), 100)
             uow.commit()
@@ -1006,38 +964,430 @@ class TestActivitySourceAndMapping:
 
         assert self._mappings(db_session, 100108) == [("strava", "100108", "999")]
 
-    def test_skipped_backfill_records_nothing(self, uow, db_session):
-        # A live event newer than the run's watermark owns the row.
-        self._insert_unrecorded(db_session, 100109, last_event_time=5000)
+    def test_delete_by_user_removes_their_activities_and_mappings(
+        self, uow, db_session
+    ):
+        with uow:
+            uow.activities.insert(make_activity(activity_id=100110, user_id=4343), 100)
+            uow.activities.insert(make_activity(activity_id=100111, user_id=4343), 100)
+            uow.commit()
 
         with uow:
+            assert uow.activities.delete_by_user("4343") == 2
+            uow.commit()
+
+        assert self._mappings(db_session, 100110) == []
+        assert self._mappings(db_session, 100111) == []
+
+    def test_blocked_upsert_and_backfill_claim_nothing(self, uow, db_session):
+        with uow:
+            uow.activities.delete(100109, 3000)  # a DELETE before its CREATE
+            uow.commit()
+
+        with uow:
+            assert not uow.activities.upsert(make_activity(activity_id=100109), 100)
             assert (
                 uow.activities.upsert_backfill(make_activity(activity_id=100109), 2000)
                 is BackfillUpsertResult.SKIPPED
             )
             uow.commit()
 
-        assert self._source(db_session, 100109) is None
         assert self._mappings(db_session, 100109) == []
+        self._check_deferred_constraints(db_session)
 
-    def test_redelete_fills_in_an_unrecorded_tombstone_source(self, uow, db_session):
+
+class TestLookupsThroughTheMapping:
+    """Writers find an activity through its platform ID's mapping, not its ID.
+
+    Each test renumbers an activity, as the move to desirelines-owned IDs will,
+    so its ID no longer equals its Strava ID, then drives the repository by the
+    Strava ID alone.
+    """
+
+    def _create_renumbered(
+        self, uow, db_session, strava_id: int, event_time: int = 100
+    ) -> int:
+        with uow:
+            assert (
+                uow.activities.insert(make_activity(activity_id=strava_id), event_time)
+                is InsertResult.INSERTED
+            )
+            uow.commit()
+        renumbered = strava_id + 9_000_000
         db_session.execute(
-            text("""
-                INSERT INTO desirelines.deleted_activities (id, deletion_event_time)
-                VALUES (:id, 100)
-            """),
-            {"id": 100110},
+            text("UPDATE desirelines.activities SET id = :new WHERE id = :old"),
+            {"new": renumbered, "old": strava_id},
         )
+        return renumbered
+
+    def _name(self, db_session, activity_id: int) -> str | None:
+        return db_session.execute(
+            text("SELECT name FROM desirelines.activities WHERE id = :id"),
+            {"id": activity_id},
+        ).scalar_one_or_none()
+
+    def test_existence_checks_follow_the_mapping(self, uow, db_session):
+        renumbered = self._create_renumbered(uow, db_session, 100300)
 
         with uow:
-            assert uow.activities.delete(100110, 200) is DeleteResult.NOT_FOUND
+            assert uow.activities.exists(100300)
+            assert not uow.activities.exists(renumbered)  # no platform's ID
+            assert uow.activities.get_existing_ids([100300, 100301, renumbered]) == {
+                100300
+            }
+
+    def test_metadata_update_reaches_the_renumbered_row(self, uow, db_session):
+        renumbered = self._create_renumbered(uow, db_session, 100302)
+
+        with uow:
+            assert (
+                uow.activities.update_metadata(100302, {"title": "Renamed"}, 200)
+                is MetadataUpdateResult.UPDATED
+            )
             uow.commit()
 
-        tombstone_source = db_session.execute(
-            text("SELECT source FROM desirelines.deleted_activities WHERE id = :id"),
-            {"id": 100110},
+        assert self._name(db_session, renumbered) == "Renamed"
+
+    def test_writes_reach_the_renumbered_row_and_add_no_other(self, uow, db_session):
+        renumbered = self._create_renumbered(uow, db_session, 100303)
+
+        with uow:
+            assert (
+                uow.activities.insert(make_activity(activity_id=100303), 100)
+                is InsertResult.ALREADY_EXISTS
+            )
+            assert uow.activities.upsert(
+                make_activity(activity_id=100303, name="Enriched"), 200
+            )
+            uow.commit()
+        assert self._name(db_session, renumbered) == "Enriched"
+
+        with uow:
+            assert (
+                uow.activities.upsert_backfill(
+                    make_activity(activity_id=100303, name="Backfilled"), 2000
+                )
+                is BackfillUpsertResult.APPLIED
+            )
+            uow.commit()
+        assert self._name(db_session, renumbered) == "Backfilled"
+        assert self._name(db_session, 100303) is None  # nothing under the Strava ID
+
+    def test_route_and_region_tags_attach_to_the_renumbered_row(self, uow, db_session):
+        region_id = _insert_test_region(db_session, code="lookup", wkt=_TEST_REGION_WKT)
+        renumbered = self._create_renumbered(uow, db_session, 100304)
+        geojson = '{"type":"LineString","coordinates":[[-30.2,0.1],[-29.8,-0.1]]}'
+
+        with uow:
+            assert uow.activities.insert_route(100304, geojson)
+            assert uow.activities.tag_activity_regions(100304) == 1
+            uow.commit()
+
+        routes = db_session.execute(
+            text(
+                "SELECT count(*) FROM desirelines.activity_routes "
+                "WHERE activity_id = :id"
+            ),
+            {"id": renumbered},
         ).scalar_one()
-        assert tombstone_source == "strava"
+        assert routes == 1
+        assert _tagged_region_ids(db_session, renumbered) == [region_id]
+
+        with uow:
+            assert uow.activities.clear_activity_regions(100304) == 1
+            uow.commit()
+        assert _tagged_region_ids(db_session, renumbered) == []
+
+    def test_delete_removes_the_renumbered_row_and_blocks_a_late_create(
+        self, uow, db_session
+    ):
+        renumbered = self._create_renumbered(uow, db_session, 100305)
+
+        with uow:
+            assert uow.activities.delete(100305, 300) is DeleteResult.DELETED
+            uow.commit()
+
+        assert self._name(db_session, renumbered) is None
+        tombstone = db_session.execute(
+            text(
+                "SELECT source, external_id FROM desirelines.deleted_activities "
+                "WHERE id = :id"
+            ),
+            {"id": 100305},
+        ).one()
+        assert tuple(tombstone) == ("strava", "100305")
+
+        with uow:
+            assert (
+                uow.activities.insert(make_activity(activity_id=100305), 200)
+                is InsertResult.RESURRECTION_BLOCKED
+            )
+            uow.commit()
+
+    def test_stale_delete_leaves_the_renumbered_row(self, uow, db_session):
+        renumbered = self._create_renumbered(uow, db_session, 100306, event_time=500)
+
+        with uow:
+            assert uow.activities.delete(100306, 100) is DeleteResult.STALE
+            uow.commit()
+
+        assert self._name(db_session, renumbered) is not None
+
+    def test_an_unmapped_strava_id_matches_nothing(self, uow, db_session):
+        with uow:
+            assert not uow.activities.exists(100307)
+            assert uow.activities.get_existing_ids([100307]) == set()
+            assert (
+                uow.activities.update_metadata(100307, {"title": "x"}, 100)
+                is MetadataUpdateResult.NOT_FOUND
+            )
+            assert uow.activities.tag_activity_regions(100307) == 0
+            assert uow.activities.clear_activity_regions(100307) == 0
+            assert uow.activities.delete(100307, 100) is DeleteResult.NOT_FOUND
+
+            # A route needs its activity: an unmapped one fails loudly.
+            with pytest.raises(IntegrityError):
+                uow.activities.insert_route(
+                    100307, '{"type":"LineString","coordinates":[[0,0],[1,1]]}'
+                )
+
+
+# Activities the concurrency tests commit, removed after each test.
+_CONCURRENT_IDS: list[int] = [9_600_001, 9_600_002, 9_600_003, 9_600_004, 9_600_005]
+# The athlete of the lock-order test's activity, so `delete_by_user` removes it
+# alone.
+_LOCK_ORDER_USER = 96_000_005
+
+
+def _remove_concurrent_rows(engine: Engine) -> None:
+    with engine.begin() as connection:
+        connection.execute(
+            text("DELETE FROM desirelines.activities WHERE id = ANY(:ids)"),
+            {"ids": _CONCURRENT_IDS},
+        )
+        connection.execute(
+            text("DELETE FROM desirelines.deleted_activities WHERE id = ANY(:ids)"),
+            {"ids": _CONCURRENT_IDS},
+        )
+
+
+@pytest.fixture
+def committing_session(engine: Engine) -> Iterator[Callable[[], Session]]:
+    """Open sessions that really commit, each on its own connection.
+
+    Their rows are removed before (a killed earlier run may have left some) and
+    after each test.
+    """
+    sessions: list[Session] = []
+
+    def open_session() -> Session:
+        connection = engine.connect()
+        # Never hang the suite: a lock wait past this fails the test instead.
+        connection.execute(text("SET lock_timeout = '10s'"))
+        connection.commit()
+        session = Session(bind=connection)
+        sessions.append(session)
+        return session
+
+    _remove_concurrent_rows(engine)
+    yield open_session
+
+    for session in sessions:
+        session.rollback()
+        connection = session.get_bind()
+        session.close()
+        connection.close()  # type: ignore[union-attr]
+    _remove_concurrent_rows(engine)
+
+
+def _wait_until_waiting_on_a_lock(engine: Engine, pid: int) -> None:
+    """Block until the backend with this pid is waiting on a lock."""
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        with engine.connect() as connection:
+            wait = connection.execute(
+                text("SELECT wait_event_type FROM pg_stat_activity WHERE pid = :pid"),
+                {"pid": pid},
+            ).scalar_one_or_none()
+        if wait == "Lock":
+            return
+        time.sleep(0.02)
+    raise AssertionError("the racing writer never waited on the first one")
+
+
+class TestConcurrentWritesThroughTheMapping:
+    """Two real transactions on one platform ID: no error or lost write.
+
+    The second writer starts while the first holds its locks, waits on them,
+    and finishes once the first commits. The lock-order test checks the order
+    that keeps writers from deadlocking each other.
+    """
+
+    def _race(
+        self,
+        engine: Engine,
+        first: Session,
+        second: Session,
+        write: Callable[[SqlAlchemyActivityRepository], object],
+    ) -> object:
+        # Read before the race: the worker thread owns `second` once it starts.
+        pid = second.execute(text("SELECT pg_backend_pid()")).scalar_one()
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            racing = pool.submit(write, SqlAlchemyActivityRepository(second))
+            _wait_until_waiting_on_a_lock(engine, pid)
+            first.commit()
+            outcome = racing.result(timeout=15)
+        second.commit()
+        return outcome
+
+    def test_a_create_racing_a_create_is_a_duplicate(self, engine, committing_session):
+        first, second = committing_session(), committing_session()
+        activity = make_activity(activity_id=9_600_001)
+        assert (
+            SqlAlchemyActivityRepository(first).insert(activity, 100)
+            is InsertResult.INSERTED
+        )
+
+        outcome = self._race(
+            engine, first, second, lambda repo: repo.insert(activity, 100)
+        )
+
+        assert outcome is InsertResult.ALREADY_EXISTS
+
+    def test_an_upsert_racing_a_create_updates_the_created_row(
+        self, engine, committing_session
+    ):
+        first, second = committing_session(), committing_session()
+        assert (
+            SqlAlchemyActivityRepository(first).insert(
+                make_activity(activity_id=9_600_002, name="Created"), 100
+            )
+            is InsertResult.INSERTED
+        )
+
+        outcome = self._race(
+            engine,
+            first,
+            second,
+            lambda repo: repo.upsert(
+                make_activity(activity_id=9_600_002, name="Enriched"), 200
+            ),
+        )
+
+        assert outcome is True
+        with engine.connect() as connection:
+            name = connection.execute(
+                text("SELECT name FROM desirelines.activities WHERE id = 9600002")
+            ).scalar_one()
+        assert name == "Enriched"
+
+    def test_a_delete_racing_an_upsert_waits_and_deletes(
+        self, engine, committing_session
+    ):
+        setup, first, second = (committing_session() for _ in range(3))
+        SqlAlchemyActivityRepository(setup).insert(
+            make_activity(activity_id=9_600_003), 100
+        )
+        setup.commit()
+        assert SqlAlchemyActivityRepository(first).upsert(
+            make_activity(activity_id=9_600_003, name="Enriched"), 200
+        )
+
+        outcome = self._race(
+            engine, first, second, lambda repo: repo.delete(9_600_003, 300)
+        )
+
+        assert outcome is DeleteResult.DELETED
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "An older enriched UPDATE that waits on a DELETE re-creates the "
+            "activity once the DELETE commits: its tombstone check ran before "
+            "the wait. Not caused by the mapping (main behaves the same)."
+        ),
+    )
+    def test_an_upsert_racing_a_delete_does_not_resurrect_it(
+        self, engine, committing_session
+    ):
+        setup, first, second = (committing_session() for _ in range(3))
+        SqlAlchemyActivityRepository(setup).insert(
+            make_activity(activity_id=9_600_004), 100
+        )
+        setup.commit()
+        assert (
+            SqlAlchemyActivityRepository(first).delete(9_600_004, 300)
+            is DeleteResult.DELETED
+        )
+
+        self._race(
+            engine,
+            first,
+            second,
+            lambda repo: repo.upsert(make_activity(activity_id=9_600_004), 200),
+        )
+
+        with engine.connect() as connection:
+            resurrected = connection.execute(
+                text("SELECT count(*) FROM desirelines.activities WHERE id = 9600004")
+            ).scalar_one()
+        assert resurrected == 0
+
+    @pytest.mark.parametrize(
+        "write",
+        [
+            pytest.param(lambda repo: repo.delete(9_600_005, 300), id="delete"),
+            pytest.param(
+                lambda repo: repo.upsert(
+                    make_activity(activity_id=9_600_005, user_id=_LOCK_ORDER_USER),
+                    200,
+                ),
+                id="upsert",
+            ),
+            pytest.param(
+                lambda repo: repo.upsert_backfill(
+                    make_activity(activity_id=9_600_005, user_id=_LOCK_ORDER_USER),
+                    2000,
+                ),
+                id="backfill",
+            ),
+            pytest.param(
+                lambda repo: repo.delete_by_user(str(_LOCK_ORDER_USER)),
+                id="delete_by_user",
+            ),
+        ],
+    )
+    def test_writers_lock_the_mapping_before_the_activity(
+        self, engine, committing_session, write
+    ):
+        setup, holder, writer = (committing_session() for _ in range(3))
+        SqlAlchemyActivityRepository(setup).insert(
+            make_activity(activity_id=9_600_005, user_id=_LOCK_ORDER_USER), 100
+        )
+        setup.commit()
+
+        # Hold the mapping row, as another writer partway through would.
+        holder.execute(
+            text("""
+                SELECT 1 FROM desirelines.activity_external_ids
+                WHERE source = 'strava' AND external_id = '9600005' FOR UPDATE
+            """)
+        )
+        pid = writer.execute(text("SELECT pg_backend_pid()")).scalar_one()
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            racing = pool.submit(write, SqlAlchemyActivityRepository(writer))
+            _wait_until_waiting_on_a_lock(engine, pid)
+            # The waiting writer holds no lock on the activity row yet; one
+            # that locked it first could deadlock against the holder.
+            holder.execute(
+                text(
+                    "SELECT 1 FROM desirelines.activities "
+                    "WHERE id = 9600005 FOR UPDATE NOWAIT"
+                )
+            )
+            holder.commit()
+            racing.result(timeout=15)
+        writer.commit()
 
 
 class TestActivityRouteRepository:

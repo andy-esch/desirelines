@@ -12,8 +12,13 @@ DO $$ BEGIN RAISE NOTICE 'Inserting 1000 seed activities...'; END $$;
 INSERT INTO desirelines.activities (
     id, user_id, name, type, sport, start_date_local, year,
     distance, moving_time, elapsed_time, total_elevation_gain,
-    average_speed, max_speed, average_heartrate, max_heartrate
-) VALUES
+    average_speed, max_speed, average_heartrate, max_heartrate, source
+)
+SELECT
+    id, user_id, name, type, sport, start_date_local::timestamp, year,
+    distance, moving_time, elapsed_time, total_elevation_gain,
+    average_speed, max_speed, average_heartrate, max_heartrate, 'strava'
+FROM (VALUES
     (2129, '123456789', 'Activity Yoga 2129', 'Yoga', 'Yoga', '2026-01-17 06:55:14', 2026, 0, 869, 869, 0, 0, 0, NULL, NULL),
     (2128, '123456789', 'Activity WeightTraining 2128', 'WeightTraining', 'WeightTraining', '2026-01-16 12:48:03', 2026, 0, 1156, 1156, 0, 0, 0, 102.3, 141),
     (2127, '123456789', 'Activity Ride 2127', 'Ride', 'Ride', '2026-01-16 09:13:30', 2026, 2858.2, 577, 674, 39, 4.954, 7.34, 116.8, 151),
@@ -1014,12 +1019,15 @@ INSERT INTO desirelines.activities (
     (1132, '123456789', 'Activity Ride 1132', 'Ride', 'Ride', '2024-02-29 15:36:19', 2024, 27839.6, 3742, 3742, 0, 7.44, 8.678, 130.7, 143),
     (1131, '123456789', 'Activity Ride 1131', 'Ride', 'Ride', '2024-02-28 16:09:11', 2024, 21607.9, 3025, 3025, 0, 7.143, 9.43, 127.8, 139),
     (1130, '123456789', 'Activity Ride 1130', 'Ride', 'Ride', '2024-02-27 08:47:04', 2024, 24259.6, 4268, 31648, 269, 5.684, 11.865, 143.7, 175)
+) AS seed (
+    id, user_id, name, type, sport, start_date_local, year,
+    distance, moving_time, elapsed_time, total_elevation_gain,
+    average_speed, max_speed, average_heartrate, max_heartrate
+)
 ON CONFLICT (id) DO NOTHING;
 
--- Record what the writers record for each activity: its platform, and its
--- platform ID (the activity's own ID) in the external-ID mapping.
-UPDATE desirelines.activities SET source = 'strava' WHERE source IS NULL;
-
+-- Record each activity's platform ID (its own ID) in the external-ID mapping,
+-- as the writers do.
 INSERT INTO desirelines.activity_external_ids (source, external_id, activity_id, external_owner_id)
 SELECT source, id::text, id, user_id
 FROM desirelines.activities
