@@ -4,6 +4,7 @@ package postgres_test
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 
@@ -12,6 +13,18 @@ import (
 
 	"github.com/andy-esch/desirelines/packages/apigateway/adapters/postgres"
 )
+
+// insertStravaMapping records a fixture activity's Strava ID, its own ID, in the
+// external-ID mapping as the writers do, so its source link resolves.
+func insertStravaMapping(t *testing.T, tx pgx.Tx, id int64, userID string) {
+	t.Helper()
+	if _, err := tx.Exec(context.Background(), `
+		INSERT INTO desirelines.activity_external_ids (source, external_id, activity_id, external_owner_id)
+		VALUES ('strava', $1, $2, $3)
+	`, strconv.FormatInt(id, 10), id, userID); err != nil {
+		t.Fatalf("insert Strava mapping for activity %d: %v", id, err)
+	}
+}
 
 // withTestTx runs fn inside a database transaction that is rolled back after fn returns.
 // This gives each test a clean, isolated view of the database without manual cleanup.
@@ -83,6 +96,7 @@ func seedOtherUserData(t *testing.T, tx pgx.Tx) {
 	if err != nil {
 		t.Fatalf("failed to insert other-user test activity: %v", err)
 	}
+	insertStravaMapping(t, tx, 2001, "other-user")
 }
 
 // seedTestData inserts the standard set of 4 test activities into the transaction.
@@ -176,5 +190,6 @@ func seedTestData(t *testing.T, tx pgx.Tx) {
 		if err != nil {
 			t.Fatalf("failed to insert test activity %d: %v", a.id, err)
 		}
+		insertStravaMapping(t, tx, a.id, a.userID)
 	}
 }
