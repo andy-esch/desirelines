@@ -242,7 +242,7 @@ func (h *Handler) HandleMapTileJSON(w http.ResponseWriter, r *http.Request) {
 			{
 				ID: "routes", MinZoom: repository.TileLineMinZoom, MaxZoom: repository.TileMaxZoom,
 				Fields: map[string]string{
-					"activity_id": "Strava activity id",
+					"activity_id": "Activity ID (opaque desirelines ID)",
 					"name":        "Activity name",
 					"sport":       "Raw Strava sport_type",
 					"distance":    "Distance in meters",

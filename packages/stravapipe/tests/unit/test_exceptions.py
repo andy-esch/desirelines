@@ -35,13 +35,13 @@ class TestStravaApiError:
         error = StravaApiError("API failed")
         assert str(error) == "API failed"
         assert error.status_code is None
-        assert error.activity_id is None
+        assert error.external_id is None
 
     def test_strava_api_error_with_details(self):
-        error = StravaApiError("API failed", status_code=500, activity_id=123)
+        error = StravaApiError("API failed", status_code=500, external_id=123)
         assert str(error) == "API failed"
         assert error.status_code == 500
-        assert error.activity_id == 123
+        assert error.external_id == 123
 
 
 class TestStravaTokenError:
@@ -70,7 +70,7 @@ class TestActivityNotFoundError:
     def test_activity_not_found_error(self):
         error = ActivityNotFoundError(12345)
         assert str(error) == "Activity 12345 not found"
-        assert error.activity_id == 12345
+        assert error.external_id == 12345
 
 
 class TestOtherExceptions:

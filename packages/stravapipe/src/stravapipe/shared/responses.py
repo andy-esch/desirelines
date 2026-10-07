@@ -20,7 +20,7 @@ class WebhookResponse(BaseModel):
     """
 
     status: ResponseStatus
-    activity_id: int | None = None
+    external_id: int | None = None  # the activity's Strava ID
     correlation_id: str | None = None
     reason: SkipReason | None = None
     details: str | None = None

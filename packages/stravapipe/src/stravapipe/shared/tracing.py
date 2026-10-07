@@ -277,7 +277,7 @@ def record_span(
 
     Usage::
 
-        with record_span(tracer, "postgres.insert", {"desirelines.activity_id": 123}):
+        with record_span(tracer, "postgres.insert", {"desirelines.external_id": 123}):
             uow.activities.insert(activity)
 
     On exception, records the error and sets the span status to ERROR; on

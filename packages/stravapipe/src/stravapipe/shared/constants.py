@@ -5,6 +5,12 @@ for better maintainability, type safety, and IDE autocomplete support.
 """
 
 from enum import StrEnum
+from typing import Final
+
+# The platform stravapipe ingests activities from. The schema has no default for
+# it: writers record it on every activity, mapping and tombstone, and logs and
+# spans name it next to the activity's ID there (`external_id`).
+ACTIVITY_SOURCE: Final[str] = "strava"
 
 
 class ResponseStatus(StrEnum):

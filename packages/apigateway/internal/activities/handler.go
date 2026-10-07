@@ -535,10 +535,10 @@ func (h *Handler) HandleGetActivity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse activity ID from path. Span attribute uses `activity_id` (not the
-	// chi param `id`) so a Cloud Trace filter `desirelines.activity_id=<id>`
-	// matches the same attribute the dispatcher stamps in
-	// stampWebhookIDsOnSpan.
+	// Parse activity ID from path. The span attribute is
+	// `desirelines.activity_id` (not the chi param `id`), the desirelines
+	// activity ID; webhook spans carry the Strava ID as
+	// `desirelines.external_id` instead.
 	otel.AddChiURLParamsAs(r, map[string]string{"id": "activity_id"})
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)

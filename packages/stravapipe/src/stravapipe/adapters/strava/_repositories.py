@@ -140,7 +140,7 @@ def _call_through_breaker[T](
     fn: Callable[..., T],
     /,
     *args: Any,
-    _activity_id: int | None = None,
+    _external_id: int | None = None,
     **kwargs: Any,
 ) -> T:
     """Call ``fn`` through ``breaker``, translating an open breaker to a 503.
@@ -148,7 +148,8 @@ def _call_through_breaker[T](
     Shared by the three outbound Strava entrypoints (``StravaTokenRepo.refresh``,
     ``StravaApiClient.get_activity`` / ``list_activities``) so the
     ``CircuitBreakerError`` → ``StravaApiError(503)`` mapping has one home.
-    ``_activity_id`` is attached to the raised error on the activity path
+    ``_external_id`` (the activity's Strava ID) is attached to the raised error
+    on the activity path
     (``None`` is a no-op for the token/list paths).
     """
     try:
@@ -157,7 +158,7 @@ def _call_through_breaker[T](
         raise StravaApiError(
             f"Strava circuit breaker open: {exc}",
             status_code=HTTP_SERVICE_UNAVAILABLE,
-            activity_id=_activity_id,
+            external_id=_external_id,
         ) from exc
 
 
@@ -362,7 +363,7 @@ class StravaApiClient:
             self._get_activity_with_retry,
             activity_id,
             _token_refresh_count=0,
-            _activity_id=activity_id,
+            _external_id=activity_id,
         )
 
     def _retried_get(
@@ -428,7 +429,7 @@ class StravaApiClient:
             "Successfully fetched activity from Strava",
             extra={
                 "operation": "fetch_activity",
-                "activity_id": activity_id,
+                "external_id": activity_id,
                 "status_code": resp.status_code,
             },
         )
@@ -559,7 +560,7 @@ class StravaApiClient:
                 self._MAX_TOKEN_REFRESH_RETRIES,
                 extra={
                     "operation": "strava_api_call",
-                    "activity_id": activity_id,
+                    "external_id": activity_id,
                     "action": "token_refresh_retry",
                     "token_refresh_attempt": token_refresh_count + 1,
                     "max_token_refresh_retries": self._MAX_TOKEN_REFRESH_RETRIES,
@@ -570,12 +571,12 @@ class StravaApiClient:
 
         # Log and raise appropriate exception.
         logger.error(
-            "Strava API call failed (status=%s, activity_id=%s)",
+            "Strava API call failed (status=%s, external_id=%s)",
             status_code,
             activity_id,
             extra={
                 "operation": "strava_api_call",
-                "activity_id": activity_id,
+                "external_id": activity_id,
                 "status_code": status_code,
                 "error_type": "api_error",
             },

@@ -1427,24 +1427,27 @@ func (h *Handler) writeJSON(w http.ResponseWriter, body any) {
 	}
 }
 
+// activitySourceStrava names the platform webhook activities come from, as
+// span attribute `desirelines.source`.
+const activitySourceStrava = "strava"
+
 // stampWebhookIDsOnSpan attaches the parsed identifiers to the active OTel
 // server span. Pulled out of handleEvent so the latter stays under the
 // cyclomatic-complexity limit.
 //
 // `OwnerId` is the Strava athlete ID across all object types and is always
-// stamped. `ObjectId` ONLY represents an activity ID when the event is
+// stamped. `ObjectId` ONLY represents an activity when the event is
 // `OBJECT_TYPE_ACTIVITY`; for athlete (deauth) events `ObjectId` is the
-// athlete ID, so stamping it as `desirelines.activity_id` would silently
-// misclassify the trace and break the cross-service convention. Hence
-// activity_id is gated on ObjectType.
+// athlete ID, so stamping it as the activity's ID would silently misclassify
+// the trace. Hence it is gated on ObjectType.
 //
-// Attribute names match apigateway's HandleGetActivity span attribute (set
-// via otel.AddChiURLParamsAs(r, {"id": "activity_id"})) so a single Cloud
-// Trace filter `desirelines.activity_id=<id>` matches spans from BOTH
-// services for the same activity. `enduser.id` is reserved for authenticated
-// end-users; the dispatcher only handles Strava webhooks and does not
-// authenticate end-users, so the athlete ID is namespaced under
-// `desirelines.*` instead.
+// `ObjectId` is the activity's Strava ID, so it is stamped as
+// `desirelines.external_id` with `desirelines.source`, the names the postgres
+// writer uses for the same ID. `desirelines.activity_id` is reserved for the
+// desirelines activity ID (apigateway's `/activities/{id}`), which can differ
+// from the Strava ID. `enduser.id` is reserved for authenticated end-users;
+// the dispatcher only handles Strava webhooks and does not authenticate
+// end-users, so the athlete ID is namespaced under `desirelines.*` instead.
 //
 // No-op when no valid span is on the context.
 func stampWebhookIDsOnSpan(ctx context.Context, webhook *generated.WebhookEvent) {
@@ -1456,7 +1459,10 @@ func stampWebhookIDsOnSpan(ctx context.Context, webhook *generated.WebhookEvent)
 		attribute.Int64("desirelines.athlete_id", webhook.OwnerId),
 	}
 	if webhook.ObjectType == generated.ObjectType_OBJECT_TYPE_ACTIVITY {
-		attrs = append(attrs, attribute.Int64("desirelines.activity_id", webhook.ObjectId))
+		attrs = append(attrs,
+			attribute.Int64("desirelines.external_id", webhook.ObjectId),
+			attribute.String("desirelines.source", activitySourceStrava),
+		)
 	}
 	span.SetAttributes(attrs...)
 }

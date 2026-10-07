@@ -13,17 +13,20 @@ class ConfigurationError(StravaPipeError):
 
 
 class StravaApiError(StravaPipeError):
-    """Raised when Strava API calls fail."""
+    """Raised when Strava API calls fail.
+
+    ``external_id`` is the activity's Strava ID, when the call concerned one.
+    """
 
     def __init__(
         self,
         message: str,
         status_code: int | None = None,
-        activity_id: int | None = None,
+        external_id: int | None = None,
     ):
         super().__init__(message)
         self.status_code = status_code
-        self.activity_id = activity_id
+        self.external_id = external_id
 
 
 class StravaTokenError(StravaApiError):
@@ -39,33 +42,23 @@ class StravaRateLimitError(StravaApiError):
 
 
 class ActivityNotFoundError(StravaApiError):
-    """Raised when activity is not found.
+    """Raised when Strava has no such activity (HTTP 404).
 
-    Used in multiple contexts:
-    - Strava API: Activity not found (HTTP 404)
-    - BigQuery: Activity not in database tables
-    - Summary: Activity not in aggregated JSON summaries
-
-    This typically occurs when:
-    - An activity has been deleted from Strava
-    - An activity ID is invalid
-    - An activity is not accessible to the authenticated user
-    - Activity missing from expected data stores (indicates data inconsistency)
-
-    For Strava API 404s, this is recoverable (activity already gone).
-    For BigQuery/Summary misses, this may indicate missed webhook events.
+    Typically the activity was deleted from Strava, the ID is invalid, or the
+    authenticated athlete can't see it. Recoverable: the activity is already
+    gone.
     """
 
-    def __init__(self, activity_id: int, message: str | None = None):
+    def __init__(self, external_id: int, message: str | None = None):
         """Initialize ActivityNotFoundError.
 
         Args:
-            activity_id: The Strava activity ID that was not found
+            external_id: The activity's Strava ID
             message: Optional custom error message. If not provided, uses default.
         """
-        error_message = message or f"Activity {activity_id} not found"
-        # StravaApiError.__init__ already stores activity_id.
-        super().__init__(error_message, activity_id=activity_id)
+        error_message = message or f"Activity {external_id} not found"
+        # StravaApiError.__init__ already stores external_id.
+        super().__init__(error_message, external_id=external_id)
 
 
 class BigQueryError(StravaPipeError):

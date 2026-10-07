@@ -1649,10 +1649,10 @@ func TestHandler_Health(t *testing.T) {
 
 func TestStampWebhookIDsOnSpan(t *testing.T) {
 	// Pins down the type-aware stamping rule: athlete_id is always meaningful
-	// (OwnerId is always the Strava athlete ID), but activity_id is ONLY
-	// meaningful when the event is OBJECT_TYPE_ACTIVITY. For athlete/deauth
-	// events, ObjectId == OwnerId, so stamping it as desirelines.activity_id
-	// would silently misclassify the trace.
+	// (OwnerId is always the Strava athlete ID), but the activity's Strava ID
+	// (external_id) is ONLY meaningful when the event is OBJECT_TYPE_ACTIVITY.
+	// For athlete/deauth events, ObjectId == OwnerId, so stamping it as an
+	// activity would silently misclassify the trace.
 	tests := []struct {
 		name           string
 		objectType     generated.ObjectType
@@ -1700,11 +1700,16 @@ func TestStampWebhookIDsOnSpan(t *testing.T) {
 
 			var gotActivityID, gotAthleteID int64
 			var sawActivityAttr bool
+			var gotSource string
 			for _, a := range attrs {
 				switch string(a.Key) {
-				case "desirelines.activity_id":
+				case "desirelines.external_id":
 					sawActivityAttr = true
 					gotActivityID = a.Value.AsInt64()
+				case "desirelines.source":
+					gotSource = a.Value.AsString()
+				case "desirelines.activity_id":
+					t.Errorf("desirelines.activity_id set on a webhook span; it names the desirelines ID")
 				case "desirelines.athlete_id":
 					gotAthleteID = a.Value.AsInt64()
 				}
@@ -1712,10 +1717,18 @@ func TestStampWebhookIDsOnSpan(t *testing.T) {
 
 			if tt.wantActivityID == 0 {
 				if sawActivityAttr {
-					t.Errorf("desirelines.activity_id set to %d on %v event; should be omitted", gotActivityID, tt.objectType)
+					t.Errorf("desirelines.external_id set to %d on %v event; should be omitted", gotActivityID, tt.objectType)
 				}
-			} else if !sawActivityAttr || gotActivityID != tt.wantActivityID {
-				t.Errorf("desirelines.activity_id = %d (set=%v), want %d", gotActivityID, sawActivityAttr, tt.wantActivityID)
+				if gotSource != "" {
+					t.Errorf("desirelines.source = %q on %v event; should be omitted", gotSource, tt.objectType)
+				}
+			} else {
+				if !sawActivityAttr || gotActivityID != tt.wantActivityID {
+					t.Errorf("desirelines.external_id = %d (set=%v), want %d", gotActivityID, sawActivityAttr, tt.wantActivityID)
+				}
+				if gotSource != "strava" {
+					t.Errorf("desirelines.source = %q, want strava", gotSource)
+				}
 			}
 			if gotAthleteID != tt.wantAthleteID {
 				t.Errorf("desirelines.athlete_id = %d, want %d", gotAthleteID, tt.wantAthleteID)
@@ -1898,7 +1911,7 @@ func TestHandler_SubscriptionMismatchSpanCarriesAthleteID(t *testing.T) {
 	if v, ok := spanAttrInt(parent, "desirelines.athlete_id"); !ok || v != testOwnerID {
 		t.Errorf("desirelines.athlete_id = %d (set=%v), want %d — stamp must run before subscription-id check", v, ok, testOwnerID)
 	}
-	if v, ok := spanAttrInt(parent, "desirelines.activity_id"); !ok || v != testObjectID {
-		t.Errorf("desirelines.activity_id = %d (set=%v), want %d", v, ok, testObjectID)
+	if v, ok := spanAttrInt(parent, "desirelines.external_id"); !ok || v != testObjectID {
+		t.Errorf("desirelines.external_id = %d (set=%v), want %d", v, ok, testObjectID)
 	}
 }
