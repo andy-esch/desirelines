@@ -49,7 +49,7 @@ export interface DailyActivity {
     | undefined;
   /** Number of activities on this day */
   activities: number;
-  /** Strava activity IDs */
+  /** Activity IDs (desirelines IDs) */
   activityIds: number[];
 }
 

@@ -23,8 +23,11 @@ Needs a Strava OAuth **access token** (not the client id/secret) with
 
 ```bash
 export STRAVA_ACCESS_TOKEN="..."
-uv run scripts/ops/routes/compare_route_sources.py <activity_id> --out-dir /tmp/route
+uv run scripts/ops/routes/compare_route_sources.py <strava_activity_id> --out-dir /tmp/route
 ```
+
+Pass the activity's Strava ID (the number in its Strava URL, or its `strava`
+row in `desirelines.activity_external_ids`), not the desirelines activity ID.
 
 It writes `activity_<id>_polyline.geojson` and `activity_<id>_streams.geojson`
 for overlaying in a GIS tool, and prints a stream inventory, the gaps found, a

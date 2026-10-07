@@ -71,7 +71,10 @@ be noise, not signal, and it would wake the (compute-metered) database on a
 schedule for no actionable result. **Trigger to build it:** once history is
 seeded into `activities_live` and BigQuery has been caught up to PostgreSQL, add a
 periodic count/`id`-diff compare that alerts when the delta exceeds a small
-threshold. Before that, the gap is expected and this document is the record of
+threshold. BigQuery rows are keyed by Strava ID and PostgreSQL activities by
+their desirelines ID, so compare BigQuery `id` with the `strava` rows of
+`desirelines.activity_external_ids` (`external_id`), not with
+`activities.id`. Before that, the gap is expected and this document is the record of
 why.
 
 ## Escalation (explicitly not built)

@@ -508,7 +508,7 @@ paths:
           schema:
             type: integer
             format: int64
-            example: 12345678901
+            example: 1000042
       responses:
         '200':
           description: Activity details
@@ -765,8 +765,8 @@ components:
         id:
           type: string
           description: >-
-            Activity ID. Treat it as opaque: it currently equals the Strava
-            activity ID, but link out with `sourceUrl` rather than building URLs
+            Activity ID: the desirelines ID, not the platform's. Treat it as
+            opaque, and link out with `sourceUrl` rather than building URLs
             from it. Serialized as a **string**: the API marshals
             protobuf `int64` fields as JSON strings (protojson), so this is a
             numeric id in string form.
@@ -834,8 +834,8 @@ components:
         id:
           type: string
           description: >-
-            Activity ID. Treat it as opaque: it currently equals the Strava
-            activity ID, but link out with `sourceUrl` rather than building URLs
+            Activity ID: the desirelines ID, not the platform's. Treat it as
+            opaque, and link out with `sourceUrl` rather than building URLs
             from it. Serialized as a **string**: the API marshals
             protobuf `int64` fields as JSON strings (protojson), so this is a
             numeric id in string form.
@@ -1056,8 +1056,8 @@ components:
         activityId:
           type: string
           description: >-
-            Activity ID. Treat it as opaque: it currently equals the Strava
-            activity ID, but link out with `sourceUrl` rather than building URLs
+            Activity ID: the desirelines ID, not the platform's. Treat it as
+            opaque, and link out with `sourceUrl` rather than building URLs
             from it. Serialized as a **string**: the API marshals
             protobuf `int64` fields as JSON strings (protojson), so this is a
             numeric id in string form.

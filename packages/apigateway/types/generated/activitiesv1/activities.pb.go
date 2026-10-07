@@ -27,8 +27,8 @@ type Activity struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Activity ID. Treat it as opaque: it currently equals the Strava activity ID,
-	// but link out with source_url rather than building URLs from it.
+	// Activity ID: the desirelines ID, not the platform's. Treat it as opaque, and
+	// link out with source_url rather than building URLs from it.
 	Id int64 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 	// Activity name/title.
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
@@ -206,8 +206,8 @@ type ActivitySummary struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Activity ID. Treat it as opaque: it currently equals the Strava activity ID,
-	// but link out with source_url rather than building URLs from it.
+	// Activity ID: the desirelines ID, not the platform's. Treat it as opaque, and
+	// link out with source_url rather than building URLs from it.
 	Id int64 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 	// Activity name/title.
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
@@ -354,8 +354,8 @@ type MapActivity struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Activity ID. Treat it as opaque: it currently equals the Strava activity ID,
-	// but link out with source_url rather than building URLs from it.
+	// Activity ID: the desirelines ID, not the platform's. Treat it as opaque, and
+	// link out with source_url rather than building URLs from it.
 	ActivityId int64 `protobuf:"varint,1,opt,name=activity_id,json=activityId,proto3" json:"activity_id,omitempty"`
 	// Activity name/title (for the cross-filter activity list + click popover).
 	Name string `protobuf:"bytes,9,opt,name=name,proto3" json:"name,omitempty"`

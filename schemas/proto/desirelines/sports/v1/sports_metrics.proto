@@ -36,7 +36,7 @@ message DailyActivity {
   // Number of activities on this day
   int32 activities = 4;
 
-  // Strava activity IDs
+  // Activity IDs (desirelines IDs)
   repeated int64 activity_ids = 5;
 }
 
