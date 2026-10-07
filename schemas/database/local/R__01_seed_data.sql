@@ -4,8 +4,13 @@
 -- To regenerate:
 --   1. Export from dev: just db-connect dev
 --   2. Run: COPY (SELECT ... FROM activities ORDER BY start_date_local DESC LIMIT 1000) TO STDOUT WITH CSV HEADER
---   3. Replace user_id with '123456789' (matches mock athlete ID), sanitize names, convert to INSERT statements
+--   3. Replace user_id with '123456789' (matches mock athlete ID), sanitize names,
+--      renumber IDs below 10,000 (see below), and convert to rows of the VALUES list
 --   4. Update NEWEST_IN_DUMP in R__02_shift_timestamps.sql to match newest date
+--
+-- Seed IDs stay below 10,000 (currently 1130-2129). Integration tests insert
+-- their own fixtures into this database: the Python suite uses IDs from 12,345
+-- up, and the Go suite a range reserved from 9,000,000,000,000.
 
 DO $$ BEGIN RAISE NOTICE 'Inserting 1000 seed activities...'; END $$;
 

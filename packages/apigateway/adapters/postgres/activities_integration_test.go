@@ -122,7 +122,7 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 
 	t.Run("GetActivityByID", func(t *testing.T) {
 		withTestTx(t, pool, func(repo *postgres.ActivityRepository) {
-			activity, err := repo.GetActivityByID(ctx, "test-user", 1001)
+			activity, err := repo.GetActivityByID(ctx, "test-user", fixtureID(1001))
 			if err != nil {
 				t.Fatalf("GetActivityByID failed: %v", err)
 			}
@@ -131,8 +131,8 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 				t.Fatal("expected activity, got nil")
 			}
 
-			if activity.Id != 1001 {
-				t.Errorf("expected ID 1001, got %d", activity.Id)
+			if activity.Id != fixtureID(1001) {
+				t.Errorf("expected ID %d, got %d", fixtureID(1001), activity.Id)
 			}
 
 			if activity.Name != "Morning Ride" {
@@ -155,7 +155,7 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 				t.Errorf("expected moving time 1800, got %d", activity.MovingTimeSeconds)
 			}
 
-			if activity.Source != "strava" || activity.SourceUrl != "https://www.strava.com/activities/1001" {
+			if activity.Source != "strava" || activity.SourceUrl != stravaActivityPage(fixtureID(1001)) {
 				t.Errorf("source link = (%q, %q), want the Strava activity page", activity.Source, activity.SourceUrl)
 			}
 		})
@@ -163,7 +163,7 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 
 	t.Run("GetActivityByID_NotFound", func(t *testing.T) {
 		withTestTx(t, pool, func(repo *postgres.ActivityRepository) {
-			activity, err := repo.GetActivityByID(ctx, "test-user", 99999999)
+			activity, err := repo.GetActivityByID(ctx, "test-user", fixtureID(9999))
 			if err != nil {
 				t.Fatalf("GetActivityByID failed: %v", err)
 			}
@@ -177,70 +177,65 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 	// Source links are built from the activity's ID on its source, read from
 	// the external-ID mapping, never from the desirelines ID.
 	t.Run("SourceLinks_FollowTheMapping", func(t *testing.T) {
-		tx, err := pool.Begin(ctx)
-		if err != nil {
-			t.Fatalf("begin transaction: %v", err)
-		}
-		defer tx.Rollback(ctx) //nolint:errcheck // rollback after test is best-effort
-		seedTestData(t, tx)
+		withTestTxRaw(t, pool, func(tx pgx.Tx, repo *postgres.ActivityRepository) {
+			seedTestData(t, tx)
 
-		// Renumber activity 1001, as the move to desirelines IDs will; its
-		// mapping keeps the Strava ID. Activity 1002 comes from a platform
-		// without a link template.
-		const renumbered = int64(7)
-		for _, stmt := range []string{
-			`UPDATE desirelines.activities SET id = 7 WHERE id = 1001`,
-			`UPDATE desirelines.activities SET source = 'garmin' WHERE id = 1002`,
-		} {
-			if _, err := tx.Exec(ctx, stmt); err != nil {
-				t.Fatalf("%s: %v", stmt, err)
+			// Renumber fixture 1001, as the move to desirelines IDs will; its
+			// mapping keeps the Strava ID. Fixture 1002 comes from a platform
+			// without a link template.
+			strava, renumbered, unknown := fixtureID(1001), fixtureID(7), fixtureID(1002)
+			if _, err := tx.Exec(ctx,
+				`UPDATE desirelines.activities SET id = $1 WHERE id = $2`, renumbered, strava,
+			); err != nil {
+				t.Fatalf("renumber fixture 1001: %v", err)
 			}
-		}
-		regionID := insertTestRegion(t, tx, "source-links", "county")
-		if _, err := tx.Exec(ctx,
-			`INSERT INTO desirelines.activity_regions (activity_id, region_id) VALUES ($1, $2)`,
-			renumbered, regionID,
-		); err != nil {
-			t.Fatalf("tag renumbered activity: %v", err)
-		}
-		repo := postgres.NewTestActivityRepository(tx)
+			if _, err := tx.Exec(ctx,
+				`UPDATE desirelines.activities SET source = 'garmin' WHERE id = $1`, unknown,
+			); err != nil {
+				t.Fatalf("re-source fixture 1002: %v", err)
+			}
+			tagActivityRegion(t, tx, renumbered, insertTestRegion(t, tx, "source-links", "county"))
+			stravaPage := stravaActivityPage(strava)
 
-		const stravaPage = "https://www.strava.com/activities/1001"
-		activity, err := repo.GetActivityByID(ctx, "test-user", renumbered)
-		if err != nil || activity == nil {
-			t.Fatalf("GetActivityByID(renumbered) = %v, %v", activity, err)
-		}
-		if activity.Source != "strava" || activity.SourceUrl != stravaPage {
-			t.Errorf("renumbered source link = (%q, %q), want (strava, %q)", activity.Source, activity.SourceUrl, stravaPage)
-		}
-		unlinked, err := repo.GetActivityByID(ctx, "test-user", 1002)
-		if err != nil || unlinked == nil {
-			t.Fatalf("GetActivityByID(1002) = %v, %v", unlinked, err)
-		}
-		if unlinked.Source != "garmin" || unlinked.SourceUrl != "" {
-			t.Errorf("unknown-source link = (%q, %q), want (garmin, no link)", unlinked.Source, unlinked.SourceUrl)
-		}
+			activity, err := repo.GetActivityByID(ctx, "test-user", renumbered)
+			if err != nil || activity == nil {
+				t.Fatalf("GetActivityByID(renumbered) = %v, %v", activity, err)
+			}
+			if activity.Source != "strava" || activity.SourceUrl != stravaPage {
+				t.Errorf("renumbered source link = (%q, %q), want (strava, %q)", activity.Source, activity.SourceUrl, stravaPage)
+			}
+			unlinked, err := repo.GetActivityByID(ctx, "test-user", unknown)
+			if err != nil || unlinked == nil {
+				t.Fatalf("GetActivityByID(unknown source) = %v, %v", unlinked, err)
+			}
+			if unlinked.Source != "garmin" || unlinked.SourceUrl != "" {
+				t.Errorf("unknown-source link = (%q, %q), want (garmin, no link)", unlinked.Source, unlinked.SourceUrl)
+			}
 
-		list, err := repo.ListActivities(ctx, repository.ActivityListFilter{UserID: "test-user", Limit: 10})
-		if err != nil {
-			t.Fatalf("ListActivities failed: %v", err)
-		}
-		links := map[int64]string{}
-		for _, a := range list.Activities {
-			links[a.Id] = a.SourceUrl
-		}
-		if links[renumbered] != stravaPage || links[1002] != "" {
-			t.Errorf("list links = %v, want %d -> %q and 1002 -> no link", links, renumbered, stravaPage)
-		}
+			list, err := repo.ListActivities(ctx, repository.ActivityListFilter{UserID: "test-user", Limit: 10})
+			if err != nil {
+				t.Fatalf("ListActivities failed: %v", err)
+			}
+			links := map[int64]string{}
+			for _, a := range list.Activities {
+				links[a.Id] = a.SourceUrl
+			}
+			if link, ok := links[renumbered]; !ok || link != stravaPage {
+				t.Errorf("list link of renumbered = %q (listed: %t), want %q", link, ok, stravaPage)
+			}
+			if link, ok := links[unknown]; !ok || link != "" {
+				t.Errorf("list link of unknown source = %q (listed: %t), want no link", link, ok)
+			}
 
-		mapActivities, err := repo.GetMapDataset(ctx, "test-user")
-		if err != nil {
-			t.Fatalf("GetMapDataset failed: %v", err)
-		}
-		if len(mapActivities) != 1 || mapActivities[0].GetActivityId() != renumbered ||
-			mapActivities[0].GetSourceUrl() != stravaPage {
-			t.Errorf("map dataset = %v, want only activity %d linking to %q", mapActivities, renumbered, stravaPage)
-		}
+			mapActivities, err := repo.GetMapDataset(ctx, "test-user")
+			if err != nil {
+				t.Fatalf("GetMapDataset failed: %v", err)
+			}
+			if len(mapActivities) != 1 || mapActivities[0].GetActivityId() != renumbered ||
+				mapActivities[0].GetSourceUrl() != stravaPage {
+				t.Errorf("map dataset = %v, want only activity %d linking to %q", mapActivities, renumbered, stravaPage)
+			}
+		})
 	})
 
 	t.Run("ListActivities_Basic", func(t *testing.T) {
@@ -260,8 +255,8 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 
 			// Should be ordered by start_date_local DESC (newest first)
 			// Jan 16 > Jan 15 (ride at 8am) > Jan 15 (run at 7am) > Jan 15 (yoga at 6am)
-			if response.Activities[0].Id != 1002 {
-				t.Errorf("expected first activity ID 1002 (newest), got %d", response.Activities[0].Id)
+			if response.Activities[0].Id != fixtureID(1002) {
+				t.Errorf("expected fixture 1002 (newest) first, got %d", response.Activities[0].Id)
 			}
 
 			// Every list row carries the link the web renders.
@@ -286,10 +281,10 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 		// map" pin only appears when the routes map can actually show the activity.
 		withTestTxRaw(t, pool, func(tx pgx.Tx, repo *postgres.ActivityRepository) {
 			regionID := insertTestRegion(t, tx, "r1", "cbsa_metro")
-			insertRoutedActivity(t, tx, 5001, "test-user") // routed + tagged → true
-			tagActivityRegion(t, tx, 5001, regionID)
-			insertRoutedActivity(t, tx, 5002, "test-user")    // routed, untagged → false
-			insertRoutelessActivity(t, tx, 5003, "test-user") // routeless → false
+			insertRoutedActivity(t, tx, fixtureID(5001), "test-user") // routed + tagged → true
+			tagActivityRegion(t, tx, fixtureID(5001), regionID)
+			insertRoutedActivity(t, tx, fixtureID(5002), "test-user")    // routed, untagged → false
+			insertRoutelessActivity(t, tx, fixtureID(5003), "test-user") // routeless → false
 
 			resp, err := repo.ListActivities(ctx, repository.ActivityListFilter{
 				UserID: "test-user",
@@ -303,14 +298,14 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			for _, a := range resp.Activities {
 				got[a.Id] = a.HasRoute
 			}
-			if !got[5001] {
-				t.Error("activity 5001 (region-tagged) should have HasRoute=true")
+			if !got[fixtureID(5001)] {
+				t.Error("fixture 5001 (region-tagged) should have HasRoute=true")
 			}
-			if got[5002] {
-				t.Error("activity 5002 (routed but untagged) should have HasRoute=false")
+			if got[fixtureID(5002)] {
+				t.Error("fixture 5002 (routed but untagged) should have HasRoute=false")
 			}
-			if got[5003] {
-				t.Error("activity 5003 (routeless) should have HasRoute=false")
+			if got[fixtureID(5003)] {
+				t.Error("fixture 5003 (routeless) should have HasRoute=false")
 			}
 		})
 	})
@@ -613,8 +608,8 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			if !ok {
 				t.Fatal("expected Yoga entry for 2024-01-15")
 			}
-			if len(yogaJan15.ActivityIds) == 0 || yogaJan15.ActivityIds[0] != 1004 {
-				t.Errorf("expected Yoga activity ID 1004, got %v", yogaJan15.ActivityIds)
+			if len(yogaJan15.ActivityIds) == 0 || yogaJan15.ActivityIds[0] != fixtureID(1004) {
+				t.Errorf("expected Yoga fixture 1004, got %v", yogaJan15.ActivityIds)
 			}
 		})
 	})
@@ -663,14 +658,14 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 					distance, moving_time, elapsed_time, total_elevation_gain, source
 				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'strava')
 			`,
-				int64(9001), "tz-user", "New Year's Eve Run", "Run", "Run",
+				fixtureID(9001), "tz-user", "New Year's Eve Run", "Run", "Run",
 				lateNight, 2024,
 				float64(5000), int32(1500), int32(1600), float64(50),
 			)
 			if err != nil {
 				t.Fatalf("insert late-night activity: %v", err)
 			}
-			insertStravaMapping(t, tx, 9001, "tz-user")
+			insertStravaMapping(t, tx, fixtureID(9001), "tz-user")
 
 			// Query for from=2024-12-31, to=2024-12-31 — must include it.
 			result, err := repo.GetMultiSportDailySummaryByDateRange(
@@ -687,8 +682,8 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			if dec31 == nil {
 				t.Fatalf("expected 2024-12-31 bucket; got daily=%v", runSummary.Daily)
 			}
-			if len(dec31.ActivityIds) != 1 || dec31.ActivityIds[0] != 9001 {
-				t.Errorf("expected activity 9001 in 2024-12-31 bucket, got %v", dec31.ActivityIds)
+			if len(dec31.ActivityIds) != 1 || dec31.ActivityIds[0] != fixtureID(9001) {
+				t.Errorf("expected fixture 9001 in 2024-12-31 bucket, got %v", dec31.ActivityIds)
 			}
 			if _, leaked := runSummary.Daily["2025-01-01"]; leaked {
 				t.Error("activity leaked into 2025-01-01 bucket — UTC conversion regression")
@@ -716,8 +711,8 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			if err != nil {
 				t.Fatalf("ListActivities (Dec 31): %v", err)
 			}
-			if len(listResp.Activities) != 1 || listResp.Activities[0].Id != 9001 {
-				t.Errorf("expected activity 9001 in ListActivities Dec 31 result, got %+v", listResp.Activities)
+			if len(listResp.Activities) != 1 || listResp.Activities[0].Id != fixtureID(9001) {
+				t.Errorf("expected fixture 9001 in ListActivities Dec 31 result, got %+v", listResp.Activities)
 			}
 		})
 	})
@@ -754,30 +749,30 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 	t.Run("UserIsolation_GetActivityByID", func(t *testing.T) {
 		withTestTxMultiUser(t, pool, func(repo *postgres.ActivityRepository) {
 			// test-user can see their own activity
-			activity, err := repo.GetActivityByID(ctx, "test-user", 1001)
+			activity, err := repo.GetActivityByID(ctx, "test-user", fixtureID(1001))
 			if err != nil {
 				t.Fatalf("GetActivityByID failed: %v", err)
 			}
 			if activity == nil {
-				t.Fatal("test-user should see activity 1001")
+				t.Fatal("test-user should see fixture 1001")
 			}
 
 			// other-user cannot see test-user's activity (returns nil, not error)
-			activity2, err := repo.GetActivityByID(ctx, "other-user", 1001)
+			activity2, err := repo.GetActivityByID(ctx, "other-user", fixtureID(1001))
 			if err != nil {
 				t.Fatalf("GetActivityByID failed: %v", err)
 			}
 			if activity2 != nil {
-				t.Error("other-user should NOT see test-user's activity 1001")
+				t.Error("other-user should NOT see test-user's fixture 1001")
 			}
 
 			// other-user can see their own activity
-			activity3, err := repo.GetActivityByID(ctx, "other-user", 2001)
+			activity3, err := repo.GetActivityByID(ctx, "other-user", fixtureID(2001))
 			if err != nil {
 				t.Fatalf("GetActivityByID failed: %v", err)
 			}
 			if activity3 == nil {
-				t.Fatal("other-user should see activity 2001")
+				t.Fatal("other-user should see fixture 2001")
 			}
 		})
 	})
@@ -863,15 +858,15 @@ func TestIntegration_AggregateActivities(t *testing.T) {
 		}
 		fixtures := []fixture{
 			// Plain outdoor ride with geometry → geographic.
-			{3001, "Ride", "Ride", time.Date(2024, 3, 5, 8, 0, 0, 0, time.UTC), 10000, 1800, false, false, true},
+			{fixtureID(3001), "Ride", "Ride", time.Date(2024, 3, 5, 8, 0, 0, 0, time.UTC), 10000, 1800, false, false, true},
 			// Trainer ride WITH stored geometry → still non-geographic (the predicate case).
-			{3002, "Ride", "Ride", time.Date(2024, 3, 12, 8, 0, 0, 0, time.UTC), 20000, 3600, true, false, true},
+			{fixtureID(3002), "Ride", "Ride", time.Date(2024, 3, 12, 8, 0, 0, 0, time.UTC), 20000, 3600, true, false, true},
 			// VirtualRide, no geometry → non-geographic.
-			{3003, "VirtualRide", "VirtualRide", time.Date(2024, 3, 19, 8, 0, 0, 0, time.UTC), 30000, 2400, false, false, false},
+			{fixtureID(3003), "VirtualRide", "VirtualRide", time.Date(2024, 3, 19, 8, 0, 0, 0, time.UTC), 30000, 2400, false, false, false},
 			// Run with no geometry (e.g. treadmill/manual-less indoor) → non-geographic.
-			{3004, "Run", "Run", time.Date(2024, 3, 20, 8, 0, 0, 0, time.UTC), 5000, 1500, false, false, false},
+			{fixtureID(3004), "Run", "Run", time.Date(2024, 3, 20, 8, 0, 0, 0, time.UTC), 5000, 1500, false, false, false},
 			// Outdoor ride in the next month → its own bucket.
-			{3005, "Ride", "Ride", time.Date(2024, 4, 2, 8, 0, 0, 0, time.UTC), 12000, 2000, false, false, true},
+			{fixtureID(3005), "Ride", "Ride", time.Date(2024, 4, 2, 8, 0, 0, 0, time.UTC), 12000, 2000, false, false, true},
 		}
 		for _, f := range fixtures {
 			if _, err := tx.Exec(ctx, `

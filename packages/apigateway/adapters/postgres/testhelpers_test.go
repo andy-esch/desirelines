@@ -14,6 +14,20 @@ import (
 	"github.com/andy-esch/desirelines/packages/apigateway/adapters/postgres"
 )
 
+// Fixture activity IDs sit in a range reserved for tests: far above the IDs the
+// local development seed or any real Strava activity uses, and below
+// JavaScript's safe-integer limit. Tests name fixtures by short number
+// (fixtureID(1001)), so the suite runs against a seeded development database
+// as well as CI's empty one.
+const fixtureIDBase int64 = 9_000_000_000_000
+
+func fixtureID(n int64) int64 { return fixtureIDBase + n }
+
+// stravaActivityPage is the source link of a fixture whose Strava ID is id.
+func stravaActivityPage(id int64) string {
+	return "https://www.strava.com/activities/" + strconv.FormatInt(id, 10)
+}
+
 // insertStravaMapping records a fixture activity's Strava ID, its own ID, in the
 // external-ID mapping as the writers do, so its source link resolves.
 func insertStravaMapping(t *testing.T, tx pgx.Tx, id int64, userID string) {
@@ -78,7 +92,7 @@ func withTestTxRaw(t *testing.T, pool *pgxpool.Pool, fn func(tx pgx.Tx, repo *po
 // seedOtherUserData inserts a single activity for "other-user" to test isolation.
 //
 // Test data:
-//   - ID 2001: Run, Jan 15 09:00, 3km, user_id="other-user"
+//   - fixture 2001: Run, Jan 15 09:00, 3km, user_id="other-user"
 func seedOtherUserData(t *testing.T, tx pgx.Tx) {
 	t.Helper()
 	ctx := context.Background()
@@ -89,23 +103,23 @@ func seedOtherUserData(t *testing.T, tx pgx.Tx) {
 			distance, moving_time, elapsed_time, total_elevation_gain, source
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'strava')
 	`,
-		int64(2001), "other-user", "Evening Run", "Run", "Run",
+		fixtureID(2001), "other-user", "Evening Run", "Run", "Run",
 		time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC), 2024,
 		float64(3000), int32(900), int32(1000), float64(20),
 	)
 	if err != nil {
 		t.Fatalf("failed to insert other-user test activity: %v", err)
 	}
-	insertStravaMapping(t, tx, 2001, "other-user")
+	insertStravaMapping(t, tx, fixtureID(2001), "other-user")
 }
 
 // seedTestData inserts the standard set of 4 test activities into the transaction.
 //
 // Test data:
-//   - ID 1001: Ride, Jan 15 08:00, 10km
-//   - ID 1002: Ride, Jan 16 14:00, 15km
-//   - ID 1003: Run,  Jan 15 07:00, 5km
-//   - ID 1004: Yoga (type=Workout), Jan 15 06:00, 0km
+//   - fixture 1001: Ride, Jan 15 08:00, 10km
+//   - fixture 1002: Ride, Jan 16 14:00, 15km
+//   - fixture 1003: Run,  Jan 15 07:00, 5km
+//   - fixture 1004: Yoga (type=Workout), Jan 15 06:00, 0km
 func seedTestData(t *testing.T, tx pgx.Tx) {
 	t.Helper()
 	ctx := context.Background()
@@ -124,7 +138,7 @@ func seedTestData(t *testing.T, tx pgx.Tx) {
 		elevationGain  float64
 	}{
 		{
-			id:             1001,
+			id:             fixtureID(1001),
 			userID:         "test-user",
 			name:           "Morning Ride",
 			activityType:   "Ride",
@@ -137,7 +151,7 @@ func seedTestData(t *testing.T, tx pgx.Tx) {
 			elevationGain:  100,
 		},
 		{
-			id:             1002,
+			id:             fixtureID(1002),
 			userID:         "test-user",
 			name:           "Afternoon Ride",
 			activityType:   "Ride",
@@ -150,7 +164,7 @@ func seedTestData(t *testing.T, tx pgx.Tx) {
 			elevationGain:  200,
 		},
 		{
-			id:             1003,
+			id:             fixtureID(1003),
 			userID:         "test-user",
 			name:           "Morning Run",
 			activityType:   "Run",
@@ -163,7 +177,7 @@ func seedTestData(t *testing.T, tx pgx.Tx) {
 			elevationGain:  50,
 		},
 		{
-			id:             1004,
+			id:             fixtureID(1004),
 			userID:         "test-user",
 			name:           "Morning Yoga",
 			activityType:   "Workout",
