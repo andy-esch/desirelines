@@ -261,7 +261,7 @@ class TestCreateEventHandling:
             assert response.status_code == 200
             data = response.json()
             assert data["status"] == "created"
-            assert data["activity_id"] == 12345678
+            assert data["external_id"] == 12345678
             mock_uow.activities.insert.assert_called_once_with(
                 mock_activity, 1704067200
             )
@@ -772,7 +772,7 @@ class TestDeleteEventHandling:
             assert response.status_code == 200
             data = response.json()
             assert data["status"] == "deleted"
-            assert data["activity_id"] == 12345678
+            assert data["external_id"] == 12345678
             # The delete threads the webhook event_time (for the tombstone) and
             # the activity id positionally.
             delete_args = mock_uow.activities.delete.call_args.args

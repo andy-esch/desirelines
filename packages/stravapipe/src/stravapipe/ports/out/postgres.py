@@ -1,7 +1,9 @@
 """PostgreSQL repository port for activity data.
 
 Defines the contract for PostgreSQL-backed activity repository.
-Only includes methods actually needed by the postgres_writer cloud function.
+Only includes the methods the postgres writer service and the backfill job use.
+Activities are named by their Strava ID (``external_id``); implementations
+resolve it to the activity through the external-ID mapping.
 
 Error Handling Pattern:
     These methods return bool for "not found" scenarios instead of raising
@@ -170,14 +172,14 @@ class ActivityRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def exists(self, activity_id: int) -> bool:
+    def exists(self, external_id: int) -> bool:
         """Check if activity exists in database.
 
         Used by UPDATE handler to determine if activity needs to be
         fetched from Strava (for activities predating our PostgreSQL setup).
 
         Args:
-            activity_id: Strava activity ID
+            external_id: the activity's Strava ID
 
         Returns:
             True if exists, False otherwise
@@ -185,22 +187,22 @@ class ActivityRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_existing_ids(self, activity_ids: list[int]) -> set[int]:
-        """Filter a list of activity IDs, returning only the ones that exist.
+    def get_existing_ids(self, external_ids: list[int]) -> set[int]:
+        """Filter Strava IDs down to those of activities that already exist.
 
         Used in batch processing to separate inserts and updates efficiently.
 
         Args:
-            activity_ids: List of Strava activity IDs to check
+            external_ids: Strava IDs of the activities to check
 
         Returns:
-            Set of activity IDs that are already present in the database
+            The Strava IDs of the activities already present in the database
         """
         raise NotImplementedError
 
     @abstractmethod
     def update_metadata(
-        self, activity_id: int, updates: dict[str, Any], event_time: int | None
+        self, external_id: int, updates: dict[str, Any], event_time: int | None
     ) -> MetadataUpdateResult:
         """Update only metadata fields (name, type, sport).
 
@@ -212,7 +214,7 @@ class ActivityRepository(ABC):
         fencing (applies unconditionally) and preserves the stored token.
 
         Args:
-            activity_id: Strava activity ID
+            external_id: the activity's Strava ID
             updates: Dict with optional keys: 'title', 'type'
             event_time: webhook event_time (unix seconds); ``None`` skips fencing
 
@@ -227,13 +229,13 @@ class ActivityRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def insert_route(self, activity_id: int, geojson: str) -> bool:
+    def insert_route(self, external_id: int, geojson: str) -> bool:
         """Insert activity route geometry, ignore if already exists.
 
         Uses ON CONFLICT DO NOTHING to match activity insert behavior.
 
         Args:
-            activity_id: Strava activity ID (must exist in activities table)
+            external_id: the activity's Strava ID (the activity must exist)
             geojson: GeoJSON LineString or MultiLineString string for
                 ST_GeomFromGeoJSON(). The column is MultiLineString, so a
                 LineString is stored as a 1-part MultiLineString.
@@ -244,7 +246,7 @@ class ActivityRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def tag_activity_regions(self, activity_id: int) -> int:
+    def tag_activity_regions(self, external_id: int) -> int:
         """Tag an activity with every region its route intersects (many-to-many).
 
         Writes ``activity_regions`` rows for each region any part of the route
@@ -259,7 +261,7 @@ class ActivityRepository(ABC):
         any tags restored by the savepoint rollback.
 
         Args:
-            activity_id: Strava activity ID
+            external_id: the activity's Strava ID
 
         Returns:
             Number of region rows written (0 if the activity has no route)
@@ -267,7 +269,7 @@ class ActivityRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def clear_activity_regions(self, activity_id: int) -> int:
+    def clear_activity_regions(self, external_id: int) -> int:
         """Remove all region tags for an activity.
 
         Used on the enriched UPDATE path when an activity becomes virtual/indoor
@@ -275,7 +277,7 @@ class ActivityRepository(ABC):
         on the map.
 
         Args:
-            activity_id: Strava activity ID
+            external_id: the activity's Strava ID
 
         Returns:
             Number of region rows deleted
@@ -284,7 +286,7 @@ class ActivityRepository(ABC):
 
     @abstractmethod
     def delete(
-        self, activity_id: int, event_time: int, correlation_id: str | None = None
+        self, external_id: int, event_time: int, correlation_id: str | None = None
     ) -> DeleteResult:
         """Delete activity by ID and record a deletion tombstone.
 
@@ -303,7 +305,7 @@ class ActivityRepository(ABC):
         concurrent writers.
 
         Args:
-            activity_id: Strava activity ID
+            external_id: the activity's Strava ID
             event_time: webhook event_time (unix seconds) of the delete; stored
                 as the tombstone's ``deletion_event_time``
             correlation_id: trace id for the delete, stored for diagnostics

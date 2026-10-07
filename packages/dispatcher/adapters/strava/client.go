@@ -548,7 +548,7 @@ func (c *Client) fetchActivityWithTokens(ctx context.Context, ownerID, activityI
 				return nil, fmt.Errorf("%w: still unauthorized after token refresh", ErrStravaAuth)
 			}
 			c.logger.Warn("Strava 401, refreshing token",
-				"correlation_id", cid, "activity_id", activityID, "owner_id", ownerID)
+				"correlation_id", cid, "external_id", activityID, "owner_id", ownerID)
 			refreshedTokens, refreshErr := c.refreshAndPersist(ctx, ownerID, tokens, refreshReasonReactive401)
 			if refreshErr != nil {
 				// Same wrapping rule as the proactive path above — see
@@ -575,7 +575,7 @@ func (c *Client) fetchActivityWithTokens(ctx context.Context, ownerID, activityI
 			backoff := stampRetryBackoff(ctx, attempt, activityRetryBackoff, fetchErr)
 			c.logger.Warn("Strava fetch retry",
 				"correlation_id", cid,
-				"activity_id", activityID,
+				"external_id", activityID,
 				"attempt", attempt+1,
 				"backoff", backoff,
 				"error", fetchErr,

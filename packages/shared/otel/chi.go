@@ -52,9 +52,8 @@ func SpanNameFromChiRoute(next http.Handler) http.Handler {
 // unconditionally from a handler without a span guard.
 //
 // Use AddChiURLParamsAs when the chi param name should not be the attribute
-// suffix (e.g. route param `{id}` → attribute `desirelines.activity_id` so a
-// single Cloud Trace filter matches across services that name the same
-// concept differently).
+// suffix (e.g. route param `{id}` → attribute `desirelines.activity_id`, the
+// name every service uses for the desirelines activity ID).
 //
 // Usage in a handler:
 //
@@ -79,15 +78,15 @@ func AddChiURLParams(r *http.Request, params ...string) {
 // when the chi route param name is part of the public URL contract but the
 // span attribute should follow a cross-service naming convention.
 //
-// Convention reminder: dispatcher stamps webhook fields as
-// `desirelines.activity_id` and `desirelines.athlete_id` — apigateway should
-// match those names so a Cloud Trace filter like `desirelines.activity_id=42`
-// finds spans from both services.
+// Convention reminder: `desirelines.activity_id` is the desirelines activity
+// ID. A platform's ID for an activity is `desirelines.external_id` with
+// `desirelines.source` (the dispatcher and postgres writer stamp Strava's), and
+// the Strava athlete ID is `desirelines.athlete_id`.
 //
 // Usage in a handler:
 //
 //	// /v1/activities/{id} — `{id}` is the public URL surface, but we want the
-//	// span attribute to be `desirelines.activity_id` (matches dispatcher).
+//	// span attribute to be `desirelines.activity_id`.
 //	otel.AddChiURLParamsAs(r, map[string]string{"id": "activity_id"})
 func AddChiURLParamsAs(r *http.Request, aliases map[string]string) {
 	span := trace.SpanFromContext(r.Context())

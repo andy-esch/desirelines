@@ -35,7 +35,7 @@ from stravapipe.ports.out.postgres import (
     InsertResult,
     MetadataUpdateResult,
 )
-from stravapipe.shared.constants import ResponseStatus, SkipReason
+from stravapipe.shared.constants import ACTIVITY_SOURCE, ResponseStatus, SkipReason
 from stravapipe.shared.correlation import get_dispatcher_received_at_ms
 from stravapipe.shared.logging import setup_logging
 from stravapipe.shared.metrics import record_duration, setup_metrics
@@ -62,15 +62,16 @@ def _pg_span(
     tracer: Tracer | None,
     name: str,
     verb: str,
-    activity_id: int,
+    external_id: int,
 ) -> AbstractContextManager[None]:
     """Open a postgres span with this module's shared ``db.*`` attributes.
 
     Every postgres call site here tags its span with the same invariants —
-    ``db.system=postgresql``, ``db.name=desirelines``, and the activity_id —
-    varying only the span name and SQL verb. Centralizing the ``db_attributes``
-    call keeps those three constants in one place (mirrors ``_try_delete_step``
-    in ``deletion_service_app.py``).
+    ``db.system=postgresql``, ``db.name=desirelines``, and the activity's Strava
+    ID (``desirelines.external_id``, with ``desirelines.source``) — varying only
+    the span name and SQL verb. Centralizing the ``db_attributes`` call keeps
+    those in one place (mirrors ``_try_delete_step`` in
+    ``deletion_service_app.py``).
     """
     return record_span(
         tracer,
@@ -79,7 +80,10 @@ def _pg_span(
             "postgresql",
             "desirelines",
             verb,
-            {"desirelines.activity_id": activity_id},
+            {
+                "desirelines.external_id": external_id,
+                "desirelines.source": ACTIVITY_SOURCE,
+            },
         ),
     )
 
@@ -303,17 +307,17 @@ async def _handle_create(
     No Strava API call is needed. A CREATE that would resurrect a deleted
     activity (blocked by a deletion tombstone) is skipped, not inserted.
     """
-    activity_id = event.object_id
+    external_id = event.object_id
     raw_activity = event_data.get("raw_activity")
 
     if raw_activity is None:
         logger.warning(
             "CREATE event missing raw_activity, skipping",
-            extra={"activity_id": activity_id},
+            extra={"external_id": external_id, "source": ACTIVITY_SOURCE},
         )
         return WebhookResponse(
             status=ResponseStatus.SKIPPED,
-            activity_id=activity_id,
+            external_id=external_id,
             correlation_id=correlation_id,
             reason=SkipReason.ACTIVITY_NOT_FOUND,
         )
@@ -345,7 +349,10 @@ async def _handle_create(
         with record_span(
             tracer,
             "postgres.polyline.decode",
-            {"desirelines.activity_id": activity_id},
+            {
+                "desirelines.external_id": external_id,
+                "desirelines.source": ACTIVITY_SOURCE,
+            },
         ):
             geojson = decode_polyline_to_geojson(activity.map.polyline)
 
@@ -355,7 +362,7 @@ async def _handle_create(
     # so a trace shows insert / route-insert / commit latency separately.
     uow = SqlAlchemyUnitOfWork(session_factory, tracer=tracer)
     with (
-        _pg_span(tracer, "postgres.insert", "INSERT", activity_id),
+        _pg_span(tracer, "postgres.insert", "INSERT", external_id),
         record_duration(pg_histogram, {"operation": "insert"}),
         uow,
     ):
@@ -365,7 +372,7 @@ async def _handle_create(
         # Recording on the same `postgres/operation.duration` histogram with
         # a sub-operation label lets the SLO task alert on it independently.
         with (
-            _pg_span(tracer, "postgres.activities.insert", "INSERT", activity_id),
+            _pg_span(tracer, "postgres.activities.insert", "INSERT", external_id),
             record_duration(pg_histogram, {"operation": "activities_insert"}),
         ):
             insert_result = uow.activities.insert(activity, event.event_time)
@@ -377,7 +384,7 @@ async def _handle_create(
         ):
             if geojson:
                 with _pg_span(
-                    tracer, "postgres.activities.insert_route", "INSERT", activity_id
+                    tracer, "postgres.activities.insert_route", "INSERT", external_id
                 ):
                     uow.activities.insert_route(activity.id, geojson)
 
@@ -387,7 +394,7 @@ async def _handle_create(
                 # view. Runs in the same transaction as the route insert.
                 if not is_non_geographic_activity(activity):
                     with _pg_span(
-                        tracer, "postgres.activities.tag_regions", "INSERT", activity_id
+                        tracer, "postgres.activities.tag_regions", "INSERT", external_id
                     ):
                         uow.activities.tag_activity_regions(activity.id)
             else:
@@ -400,7 +407,7 @@ async def _handle_create(
                 logger.warning(
                     "Activity %s has a polyline but decoded to no geometry; "
                     "route + region tagging skipped (not on map)",
-                    activity_id,
+                    external_id,
                     extra={
                         "user_id": activity.user_id,
                         "polyline_length": len(activity.map.polyline),
@@ -414,12 +421,12 @@ async def _handle_create(
 
         logger.info(
             "Created activity %s in PostgreSQL",
-            activity_id,
+            external_id,
             extra={"user_id": activity.user_id},
         )
         return WebhookResponse(
             status=ResponseStatus.CREATED,
-            activity_id=activity_id,
+            external_id=external_id,
             correlation_id=correlation_id,
         )
 
@@ -429,27 +436,27 @@ async def _handle_create(
         logger.warning(
             "Blocked resurrecting deleted activity %s "
             "(CREATE event_time %s not newer than its deletion tombstone)",
-            activity_id,
+            external_id,
             event.event_time,
         )
         return WebhookResponse(
             status=ResponseStatus.SKIPPED,
-            activity_id=activity_id,
+            external_id=external_id,
             correlation_id=correlation_id,
             reason=SkipReason.RESURRECTION_BLOCKED,
         )
 
-    logger.warning("Activity %s already exists (duplicate CREATE)", activity_id)
+    logger.warning("Activity %s already exists (duplicate CREATE)", external_id)
     return WebhookResponse(
         status=ResponseStatus.SKIPPED,
-        activity_id=activity_id,
+        external_id=external_id,
         correlation_id=correlation_id,
         reason=SkipReason.ALREADY_EXISTS,
     )
 
 
 def _handle_update_enriched(
-    activity_id: int,
+    external_id: int,
     raw_activity: Any,
     event_time: int,
     correlation_id: str,
@@ -472,7 +479,7 @@ def _handle_update_enriched(
 
     uow = SqlAlchemyUnitOfWork(session_factory, tracer=tracer)
     with (
-        _pg_span(tracer, "postgres.upsert", "UPDATE", activity_id),
+        _pg_span(tracer, "postgres.upsert", "UPDATE", external_id),
         record_duration(pg_histogram, {"operation": "upsert"}),
         uow,
     ):
@@ -491,14 +498,14 @@ def _handle_update_enriched(
         if upserted:
             if is_non_geographic_activity(activity):
                 with _pg_span(
-                    tracer, "postgres.activities.clear_regions", "DELETE", activity_id
+                    tracer, "postgres.activities.clear_regions", "DELETE", external_id
                 ):
-                    uow.activities.clear_activity_regions(activity_id)
+                    uow.activities.clear_activity_regions(external_id)
             else:
                 with _pg_span(
-                    tracer, "postgres.activities.tag_regions", "INSERT", activity_id
+                    tracer, "postgres.activities.tag_regions", "INSERT", external_id
                 ):
-                    uow.activities.tag_activity_regions(activity_id)
+                    uow.activities.tag_activity_regions(external_id)
 
         uow.commit()
 
@@ -508,12 +515,12 @@ def _handle_update_enriched(
         logger.info(
             "Dropped stale enriched UPDATE for activity %s "
             "(event_time %s older than stored last_event_time)",
-            activity_id,
+            external_id,
             event_time,
         )
         return WebhookResponse(
             status=ResponseStatus.SKIPPED,
-            activity_id=activity_id,
+            external_id=external_id,
             correlation_id=correlation_id,
             reason=SkipReason.STALE_EVENT,
         )
@@ -521,12 +528,12 @@ def _handle_update_enriched(
     _record_freshness(freshness_histogram, "update")
     logger.info(
         "Refreshed activity %s from enriched UPDATE",
-        activity_id,
+        external_id,
         extra={"user_id": activity.user_id},
     )
     return WebhookResponse(
         status=ResponseStatus.UPDATED,
-        activity_id=activity_id,
+        external_id=external_id,
         correlation_id=correlation_id,
     )
 
@@ -553,12 +560,12 @@ async def _handle_update(
       type-change whose dispatcher fetch failed. Apply only the metadata we
       trust (``name`` / ``type``); never clobber ``sport`` with the broad type.
     """
-    activity_id = event.object_id
+    external_id = event.object_id
 
     raw_activity = event_data.get("raw_activity")
     if raw_activity is not None:
         response = _handle_update_enriched(
-            activity_id,
+            external_id,
             raw_activity,
             event.event_time,
             correlation_id,
@@ -584,20 +591,21 @@ async def _handle_update(
         logger.info(
             "Skipping UPDATE with no relevant changes",
             extra={
-                "activity_id": activity_id,
+                "external_id": external_id,
+                "source": ACTIVITY_SOURCE,
                 "has_private_update": updates.HasField("private"),
             },
         )
         return WebhookResponse(
             status=ResponseStatus.SKIPPED,
-            activity_id=activity_id,
+            external_id=external_id,
             correlation_id=correlation_id,
             reason=SkipReason.NO_RELEVANT_UPDATES,
         )
 
     uow = SqlAlchemyUnitOfWork(session_factory, tracer=tracer)
     with (
-        _pg_span(tracer, "postgres.update_metadata", "UPDATE", activity_id),
+        _pg_span(tracer, "postgres.update_metadata", "UPDATE", external_id),
         record_duration(pg_histogram, {"operation": "update_metadata"}),
         uow,
     ):
@@ -606,7 +614,7 @@ async def _handle_update(
         # classifies stale-vs-not-found atomically, so no exists() probe is
         # needed here.
         result = uow.activities.update_metadata(
-            activity_id, relevant_updates, event.event_time
+            external_id, relevant_updates, event.event_time
         )
         uow.commit()
 
@@ -615,12 +623,12 @@ async def _handle_update(
 
         logger.info(
             "Updated activity %s metadata",
-            activity_id,
+            external_id,
             extra={"updates": relevant_updates},
         )
         return WebhookResponse(
             status=ResponseStatus.UPDATED,
-            activity_id=activity_id,
+            external_id=external_id,
             correlation_id=correlation_id,
         )
 
@@ -629,23 +637,23 @@ async def _handle_update(
         logger.info(
             "Dropped stale UPDATE for activity %s "
             "(event_time %s older than stored last_event_time)",
-            activity_id,
+            external_id,
             event.event_time,
         )
         return WebhookResponse(
             status=ResponseStatus.SKIPPED,
-            activity_id=activity_id,
+            external_id=external_id,
             correlation_id=correlation_id,
             reason=SkipReason.STALE_EVENT,
         )
 
     logger.warning(
         "Activity %s not in PostgreSQL, skipping UPDATE (no backfill)",
-        activity_id,
+        external_id,
     )
     return WebhookResponse(
         status=ResponseStatus.SKIPPED,
-        activity_id=activity_id,
+        external_id=external_id,
         correlation_id=correlation_id,
         reason=SkipReason.NOT_FOUND,
     )
@@ -665,24 +673,24 @@ async def _handle_delete(
     Fenced: a reordered/stale DELETE that would remove a newer (re-created) row
     is dropped rather than applied.
     """
-    activity_id = event.object_id
+    external_id = event.object_id
     uow = SqlAlchemyUnitOfWork(session_factory, tracer=tracer)
 
     with (
-        _pg_span(tracer, "postgres.delete", "DELETE", activity_id),
+        _pg_span(tracer, "postgres.delete", "DELETE", external_id),
         record_duration(pg_histogram, {"operation": "delete"}),
         uow,
     ):
-        result = uow.activities.delete(activity_id, event.event_time, correlation_id)
+        result = uow.activities.delete(external_id, event.event_time, correlation_id)
         uow.commit()
 
     if result is DeleteResult.DELETED:
         _record_freshness(freshness_histogram, "delete")
 
-        logger.info("Deleted activity %s from PostgreSQL", activity_id)
+        logger.info("Deleted activity %s from PostgreSQL", external_id)
         return WebhookResponse(
             status=ResponseStatus.DELETED,
-            activity_id=activity_id,
+            external_id=external_id,
             correlation_id=correlation_id,
         )
 
@@ -691,23 +699,23 @@ async def _handle_delete(
         logger.info(
             "Dropped stale DELETE for activity %s "
             "(event_time %s older than the live row's last_event_time)",
-            activity_id,
+            external_id,
             event.event_time,
         )
         return WebhookResponse(
             status=ResponseStatus.SKIPPED,
-            activity_id=activity_id,
+            external_id=external_id,
             correlation_id=correlation_id,
             reason=SkipReason.STALE_EVENT,
         )
 
     logger.info(
         "Activity %s not found in PostgreSQL (already deleted or never synced)",
-        activity_id,
+        external_id,
     )
     return WebhookResponse(
         status=ResponseStatus.SKIPPED,
-        activity_id=activity_id,
+        external_id=external_id,
         correlation_id=correlation_id,
         reason=SkipReason.NOT_FOUND,
     )

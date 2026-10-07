@@ -22,6 +22,7 @@ from stravapipe.ports.out.postgres import (
     InsertResult,
     MetadataUpdateResult,
 )
+from stravapipe.shared.constants import ACTIVITY_SOURCE
 from stravapipe.shared.logging import log_best_effort
 
 logger = logging.getLogger(__name__)
@@ -64,12 +65,8 @@ _ACTIVITY_COLUMN_ATTRIBUTES: Final[dict[str, str]] = {
     "manual": "manual",
     "year": "year",
 }
-# The platform stravapipe ingests from. The schema has no default for it: the
-# writer records it on every activity, mapping and tombstone.
-_ACTIVITY_SOURCE: Final[str] = "strava"
-
 # Columns the writer fills itself rather than from StandardActivity: the
-# timestamps from its clock, `source` from _ACTIVITY_SOURCE.
+# timestamps from its clock, `source` from ACTIVITY_SOURCE.
 _ACTIVITY_SYSTEM_COLUMNS: Final[tuple[str, ...]] = (
     "created_at",
     "updated_at",
@@ -331,7 +328,7 @@ def _activity_write_params(activity: StandardActivity, now: datetime) -> dict[st
 
     ``created_at`` and ``updated_at`` are both set to ``now``; on an upsert
     conflict ``created_at`` isn't in the SET clause, so the original is kept.
-    ``source`` is always ``_ACTIVITY_SOURCE``.
+    ``source`` is always ``ACTIVITY_SOURCE``.
     The ``last_event_time`` fence token is bound by the caller (``insert`` /
     ``upsert``) since it comes from the event envelope, not the activity model.
     """
@@ -343,15 +340,15 @@ def _activity_write_params(activity: StandardActivity, now: datetime) -> dict[st
         {
             "created_at": now,
             "updated_at": now,
-            "source": _ACTIVITY_SOURCE,
+            "source": ACTIVITY_SOURCE,
         }
     )
     return params
 
 
-def _platform_id(activity_id: int) -> dict[str, str]:
+def _platform_id(external_id: int) -> dict[str, str]:
     """Bind params naming an activity by its Strava ID, for the mapping."""
-    return {"source": _ACTIVITY_SOURCE, "external_id": str(activity_id)}
+    return {"source": ACTIVITY_SOURCE, "external_id": str(external_id)}
 
 
 def _rowcount(result: Result[Any]) -> int:
@@ -384,13 +381,13 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         """
         self._session = session
 
-    def _mapped_activity_id(self, activity_id: int) -> int | None:
+    def _mapped_activity_id(self, external_id: int) -> int | None:
         """The ID of the activity a Strava ID maps to, or None if it has none."""
-        mapped_id: int | None = self._session.execute(
+        activity_id: int | None = self._session.execute(
             text(f"SELECT {_MAPPED_ACTIVITY_ID_SQL}"),
-            _platform_id(activity_id),
+            _platform_id(external_id),
         ).scalar_one()
-        return mapped_id
+        return activity_id
 
     def insert(
         self, activity: StandardActivity, event_time: int | None
@@ -503,11 +500,11 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             else BackfillUpsertResult.SKIPPED
         )
 
-    def insert_route(self, activity_id: int, geojson: str) -> bool:
+    def insert_route(self, external_id: int, geojson: str) -> bool:
         """Insert activity route geometry, ignore if already exists.
 
         Args:
-            activity_id: the activity's Strava ID (the activity must exist; an
+            external_id: the activity's Strava ID (the activity must exist; an
                 unmapped one fails the insert's NOT NULL)
             geojson: GeoJSON LineString or MultiLineString string for
                 ST_GeomFromGeoJSON(). The column is MultiLineString, so a
@@ -525,11 +522,11 @@ class SqlAlchemyActivityRepository(ActivityRepository):
 
         result = self._session.execute(
             query,
-            {**_platform_id(activity_id), "geojson": geojson},
+            {**_platform_id(external_id), "geojson": geojson},
         )
         return result.fetchone() is not None
 
-    def tag_activity_regions(self, activity_id: int) -> int:
+    def tag_activity_regions(self, external_id: int) -> int:
         """Tag an activity with every region its route intersects (many-to-many).
 
         Writes ``desirelines.activity_regions`` rows for each region whose boundary
@@ -560,7 +557,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         belong in the complementary non-map view with zero region rows.
 
         Args:
-            activity_id: the activity's Strava ID. Its route may already exist or
+            external_id: the activity's Strava ID. Its route may already exist or
                 have been written in the current transaction.
 
         Returns:
@@ -569,16 +566,16 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         specific: list[Any] = []
         earth: list[Any] = []
         has_route = False
-        mapped_id: int | None = None
+        activity_id: int | None = None
         phase = "reset"
         try:
             with self._session.begin_nested():
-                mapped_id = self._mapped_activity_id(activity_id)
-                if mapped_id is None:
+                activity_id = self._mapped_activity_id(external_id)
+                if activity_id is None:
                     return 0  # no such activity, so no route to tag
                 self._session.execute(
                     text(_DELETE_ACTIVITY_REGIONS_SQL),
-                    {"activity_id": mapped_id},
+                    {"activity_id": activity_id},
                 )
 
                 # Specific regions: every non-fallback boundary the route intersects.
@@ -595,7 +592,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
                               AND re.region_kind <> 'global'
                             RETURNING region_id
                         """),
-                        {"activity_id": mapped_id},
+                        {"activity_id": activity_id},
                     ).fetchall()
                 )
 
@@ -604,7 +601,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
                     has_route = bool(
                         self._session.execute(
                             text(_ACTIVITY_HAS_ROUTE_SQL),
-                            {"activity_id": mapped_id},
+                            {"activity_id": activity_id},
                         ).scalar_one()
                     )
 
@@ -615,7 +612,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
                         earth = list(
                             self._session.execute(
                                 text(_EARTH_FALLBACK_SQL),
-                                {"activity_id": mapped_id},
+                                {"activity_id": activity_id},
                             ).fetchall()
                         )
         except SQLAlchemyError as exc:
@@ -632,7 +629,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
                     "rolled back, existing tags are preserved when present, "
                     "and ingestion continues",
                     failed_operation.capitalize(),
-                    activity_id,
+                    external_id,
                     type(exc).__name__,
                     exc_info=True,
                 )
@@ -642,9 +639,9 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             # inserted routed activity has no tags to restore. Recover that case
             # to the global fallback in a fresh savepoint. The NOT EXISTS guard
             # leaves previously tagged activities untouched.
-            if phase != "spatial" or mapped_id is None:
+            if phase != "spatial" or activity_id is None:
                 return 0
-            return self._recover_earth_after_spatial_failure(mapped_id, activity_id)
+            return self._recover_earth_after_spatial_failure(activity_id, external_id)
 
         if specific:
             return len(specific)
@@ -655,15 +652,15 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         # only path where dataset readiness matters. Keep the count query here,
         # off the normal spatial-match hot path. Its own savepoint ensures this
         # observability check cannot poison the surrounding write transaction.
-        self._observe_region_readiness(activity_id)
+        self._observe_region_readiness(external_id)
         return len(earth)
 
     def _recover_earth_after_spatial_failure(
-        self, mapped_id: int, activity_id: int
+        self, activity_id: int, external_id: int
     ) -> int:
         """Assign earth to a routed activity only when it has no restored tags.
 
-        ``mapped_id`` is the activity's ID; ``activity_id``, its Strava ID, is
+        ``activity_id`` is the activity's ID; ``external_id``, its Strava ID, is
         what the logs name, as elsewhere in tagging.
         """
         try:
@@ -671,7 +668,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
                 recovered_earth = list(
                     self._session.execute(
                         text(_EARTH_FALLBACK_SQL),
-                        {"activity_id": mapped_id},
+                        {"activity_id": activity_id},
                     ).fetchall()
                 )
         except SQLAlchemyError as recovery_exc:
@@ -681,7 +678,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
                     "Earth recovery after spatial tagging failure also failed "
                     "for activity %s (%s); existing tags are preserved when "
                     "present and ingestion continues",
-                    activity_id,
+                    external_id,
                     type(recovery_exc).__name__,
                     exc_info=True,
                 )
@@ -689,7 +686,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             return 0
         return len(recovered_earth)
 
-    def _observe_region_readiness(self, activity_id: int) -> None:
+    def _observe_region_readiness(self, external_id: int) -> None:
         """Log systemic fallback-data problems without altering ingestion."""
         try:
             with self._session.begin_nested():
@@ -702,7 +699,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
                     logger.warning,
                     "Regions table readiness check failed for activity %s (%s); "
                     "ingestion continues",
-                    activity_id,
+                    external_id,
                     type(exc).__name__,
                     exc_info=True,
                 )
@@ -715,7 +712,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
                     logger.warning,
                     "Regions table readiness check returned no row for activity %s; "
                     "ingestion continues",
-                    activity_id,
+                    external_id,
                 )
             )
             return
@@ -730,7 +727,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
                     "fallback (earth region present: %s)",
                     specific_region_count,
                     _MIN_SPECIFIC_REGIONS,
-                    activity_id,
+                    external_id,
                     bool(has_earth_region),
                 )
             )
@@ -740,16 +737,16 @@ class SqlAlchemyActivityRepository(ActivityRepository):
                     logger.error,
                     "Earth fallback region is missing while tagging activity %s; "
                     "regions table is incomplete",
-                    activity_id,
+                    external_id,
                 )
             )
 
-    def clear_activity_regions(self, activity_id: int) -> int:
+    def clear_activity_regions(self, external_id: int) -> int:
         """Remove all region tags for an activity. Returns rows deleted.
 
         Used when an activity becomes virtual/indoor on an enriched UPDATE so it
         stops appearing on the map (zero region rows = non-geographic).
-        ``activity_id`` is the activity's Strava ID.
+        ``external_id`` is the activity's Strava ID.
         """
         return _rowcount(
             self._session.execute(
@@ -757,15 +754,15 @@ class SqlAlchemyActivityRepository(ActivityRepository):
                     "DELETE FROM desirelines.activity_regions"  # noqa: S608 -- static SQL constant; values bound via :params
                     f" WHERE activity_id = {_MAPPED_ACTIVITY_ID_SQL}"
                 ),
-                _platform_id(activity_id),
+                _platform_id(external_id),
             )
         )
 
-    def exists(self, activity_id: int) -> bool:
+    def exists(self, external_id: int) -> bool:
         """Check if activity exists in database.
 
         Args:
-            activity_id: the activity's Strava ID
+            external_id: the activity's Strava ID
 
         Returns:
             True if exists, False otherwise
@@ -773,19 +770,19 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         query = text(
             f"SELECT 1 FROM desirelines.activities WHERE id = {_MAPPED_ACTIVITY_ID_SQL}"  # noqa: S608 -- static SQL constant; values bound via :params
         )
-        result = self._session.execute(query, _platform_id(activity_id))
+        result = self._session.execute(query, _platform_id(external_id))
         return result.fetchone() is not None
 
-    def get_existing_ids(self, activity_ids: list[int]) -> set[int]:
+    def get_existing_ids(self, external_ids: list[int]) -> set[int]:
         """Filter a list of activity IDs, returning only the ones that exist.
 
         Args:
-            activity_ids: List of Strava activity IDs to check
+            external_ids: Strava IDs of the activities to check
 
         Returns:
             The Strava IDs of the activities already present in the database
         """
-        if not activity_ids:
+        if not external_ids:
             return set()
         query = text("""
             SELECT m.external_id
@@ -796,14 +793,14 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         result = self._session.execute(
             query,
             {
-                "source": _ACTIVITY_SOURCE,
-                "external_ids": [str(activity_id) for activity_id in activity_ids],
+                "source": ACTIVITY_SOURCE,
+                "external_ids": [str(external_id) for external_id in external_ids],
             },
         )
         return {int(row.external_id) for row in result.fetchall()}
 
     def update_metadata(
-        self, activity_id: int, updates: dict[str, Any], event_time: int | None
+        self, external_id: int, updates: dict[str, Any], event_time: int | None
     ) -> MetadataUpdateResult:
         """Update only metadata fields (name, type, sport).
 
@@ -819,7 +816,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         ``exists()`` round-trip that a concurrently-committed CREATE could race.
 
         Args:
-            activity_id: the activity's Strava ID
+            external_id: the activity's Strava ID
             updates: Dict with optional keys: 'title', 'type'
             event_time: webhook event_time (unix seconds); ``None`` skips fencing
 
@@ -839,7 +836,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             )
 
         set_clauses: list[str] = []
-        params: dict[str, Any] = dict(_platform_id(activity_id))
+        params: dict[str, Any] = dict(_platform_id(external_id))
 
         if "title" in updates:
             set_clauses.extend(_ALLOWED_UPDATE_CLAUSES["title"])
@@ -907,7 +904,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         )
 
     def delete(
-        self, activity_id: int, event_time: int, correlation_id: str | None = None
+        self, external_id: int, event_time: int, correlation_id: str | None = None
     ) -> DeleteResult:
         """Delete activity by ID and record a deletion tombstone.
 
@@ -925,22 +922,23 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         same mapping-then-row order as the activity writes.
 
         Args:
-            activity_id: the activity's Strava ID
+            external_id: the activity's Strava ID
             event_time: webhook event_time (unix seconds) of the delete
             correlation_id: trace id for the delete (stored for diagnostics)
 
         Returns:
             A :class:`DeleteResult` (``DELETED`` / ``NOT_FOUND`` / ``STALE``).
         """
-        platform_id = _platform_id(activity_id)
-        mapped_id = self._session.execute(
+        platform_id = _platform_id(external_id)
+        activity_id = self._session.execute(
             text(_LOCK_MAPPING_SQL), platform_id
         ).scalar_one_or_none()
         existing = (
             self._session.execute(
-                text(_SELECT_ACTIVITY_FENCE_FOR_UPDATE_SQL), {"activity_id": mapped_id}
+                text(_SELECT_ACTIVITY_FENCE_FOR_UPDATE_SQL),
+                {"activity_id": activity_id},
             ).fetchone()
-            if mapped_id is not None
+            if activity_id is not None
             else None
         )
         if (
@@ -956,16 +954,16 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             text(_TOMBSTONE_UPSERT_SQL),
             {
                 **platform_id,
-                "external_activity_id": activity_id,
+                "external_activity_id": external_id,
                 "event_time": event_time,
                 "deleted_at": datetime.now(UTC),
                 "correlation_id": correlation_id,
             },
         )
-        if mapped_id is None:
+        if activity_id is None:
             return DeleteResult.NOT_FOUND
         result = self._session.execute(
-            text(_DELETE_ACTIVITY_SQL), {"activity_id": mapped_id}
+            text(_DELETE_ACTIVITY_SQL), {"activity_id": activity_id}
         )
         return (
             DeleteResult.DELETED

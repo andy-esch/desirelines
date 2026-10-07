@@ -213,8 +213,12 @@ The `done(err)` ergonomics means **always pass the error**, even if it's `nil` �
 Use the `record_span` context manager from [`stravapipe/shared/tracing.py`](../../packages/stravapipe/src/stravapipe/shared/tracing.py):
 
 ```python
-with record_span(self._tracer, "bigquery.merge_batch_from_staging", {"activity_id": activity_id}):
-    result = self._client.execute_merge_query(merge_query, params)
+with record_span(
+    tracer,
+    "postgres.polyline.decode",
+    {"desirelines.external_id": external_id, "desirelines.source": ACTIVITY_SOURCE},
+):
+    geojson = decode_polyline_to_geojson(activity.map.polyline)
 ```
 
 On exception, the span automatically gets `record_exception()` and ERROR status. The tracer parameter is `Tracer | None` — pass `None` in tests or in code paths that don't need tracing (it no-ops).
@@ -245,7 +249,8 @@ backfill job initialize the tracer **before** constructing adapters that need it
 ## Span attributes
 
 - **Dotted lowercase** keys — `activity_id`, `correlation_id`, `owner_id`. Not `ActivityID`, not `activityId`.
-- Prefer **identifiers** over **content** — `activity_id=12345` is useful in a trace search; `activity_name="Morning Run"` is PII.
+- **Name the ID you hold**: `activity_id` is the desirelines activity ID; a platform's ID for an activity is `external_id`, with `source` naming the platform. Webhook processing holds the Strava ID, the API the desirelines ID.
+- Prefer **identifiers** over **content** — `external_id=12345` is useful in a trace search; `activity_name="Morning Run"` is PII.
 - Keep them small. Cloud Trace truncates large attribute values.
 
 ## Logs ↔ Trace correlation

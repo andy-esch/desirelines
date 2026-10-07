@@ -28,24 +28,31 @@ If you only have the response in DevTools' Network tab and not the console line,
 
 ### From a known activity ID
 
-Cloud Trace doesn't index by activity_id directly, but spans carry it as an attribute. Two ways to find the trace:
+An activity has two IDs, and each service logs the one it handles:
 
-1. **Logs Explorer** — filter to the relevant service and search for the activity ID:
+- **`external_id`** (with `source`, e.g. `strava`): the activity's ID on the platform it came from. Webhooks and their processing (dispatcher, postgres writer) use it; it is the number in the activity's Strava URL.
+- **`activity_id`**: the desirelines ID, as in the API's `/activities/{id}` and the app's URLs.
+
+The two are equal for activities that haven't been renumbered; otherwise look one up from the other in `desirelines.activity_external_ids`.
+
+Cloud Trace doesn't index by either directly, but spans carry them as attributes. Two ways to find the trace:
+
+1. **Logs Explorer** — filter to the relevant service and search for the ID:
 
    ```
    resource.type="cloud_run_revision"
    resource.labels.service_name=~"desirelines-(dispatcher|postgres-writer|deletion-service)"
-   jsonPayload.activity_id="12345678"
+   jsonPayload.external_id="12345678"
    ```
 
    Click any matching log entry; the entry has a `trace` field. Click the trace icon to jump to Cloud Trace.
 
-2. **Trace explorer with span filter** — use the attribute filter `+attribute:desirelines.activity_id=12345678`. Slower but no log digging required.
+2. **Trace explorer with span filter** — use the attribute filter `+attribute:desirelines.external_id=12345678` for webhook processing, or `+attribute:desirelines.activity_id=42` for API requests. Slower but no log digging required.
 
    > Note: span attributes are `desirelines.*`-namespaced (e.g.
-   > `desirelines.activity_id`, `desirelines.aspect_type`,
+   > `desirelines.external_id`, `desirelines.aspect_type`,
    > `desirelines.object_id`), but **log fields stay bare**
-   > (`jsonPayload.activity_id`) and **metric labels stay bare**
+   > (`jsonPayload.external_id`) and **metric labels stay bare**
    > (`metric.labels.aspect_type`). Same value, different name per
    > plane — use the namespaced form only for Trace-explorer attribute
    > filters.
@@ -159,7 +166,7 @@ After pulling a trace, classify the finding:
 
 - **Don't trust Cloud Trace's compact timeline view alone.** The compact view sorts by duration and can hide structure. Switch to the tree view to see span parentage.
 - **Cold-start traces overrepresent latency.** A trace from the first request after idle scales is not representative — pull a few warm traces before drawing conclusions.
-- **Span attribute search is fuzzy.** `attribute:desirelines.activity_id=12345` works, but Trace explorer sometimes needs the leading `+` and the exact attribute name. If a search returns nothing, fall back to logs (where the field is the bare `jsonPayload.activity_id`).
+- **Span attribute search is fuzzy.** `attribute:desirelines.external_id=12345` works, but Trace explorer sometimes needs the leading `+` and the exact attribute name. If a search returns nothing, fall back to logs (where the field is the bare `jsonPayload.external_id`).
 
 ## See also
 
