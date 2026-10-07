@@ -180,8 +180,8 @@ func TestIntegration_MapEndpoints(t *testing.T) {
 	t.Run("RegionSummary_CountsAndBBox", func(t *testing.T) {
 		withTestTxRaw(t, pool, func(tx pgx.Tx, repo *postgres.ActivityRepository) {
 			regionID := insertTestRegion(t, tx, "r1", "cbsa_metro")
-			insertRoutedActivity(t, tx, 5001, "test-user")
-			tagActivityRegion(t, tx, 5001, regionID)
+			insertRoutedActivity(t, tx, fixtureID(5001), "test-user")
+			tagActivityRegion(t, tx, fixtureID(5001), regionID)
 
 			got, err := repo.GetMapRegionSummary(ctx, "test-user")
 			if err != nil {
@@ -204,12 +204,12 @@ func TestIntegration_MapEndpoints(t *testing.T) {
 	t.Run("RegionSummary_UserIsolation", func(t *testing.T) {
 		withTestTxRaw(t, pool, func(tx pgx.Tx, repo *postgres.ActivityRepository) {
 			mine := insertTestRegion(t, tx, "r1", "county")
-			insertRoutedActivity(t, tx, 5001, "test-user")
-			tagActivityRegion(t, tx, 5001, mine)
+			insertRoutedActivity(t, tx, fixtureID(5001), "test-user")
+			tagActivityRegion(t, tx, fixtureID(5001), mine)
 
 			theirs := insertTestRegion(t, tx, "r2", "county")
-			insertRoutedActivity(t, tx, 6001, "other-user")
-			tagActivityRegion(t, tx, 6001, theirs)
+			insertRoutedActivity(t, tx, fixtureID(6001), "other-user")
+			tagActivityRegion(t, tx, fixtureID(6001), theirs)
 
 			got, err := repo.GetMapRegionSummary(ctx, "test-user")
 			if err != nil {
@@ -224,8 +224,8 @@ func TestIntegration_MapEndpoints(t *testing.T) {
 	t.Run("Tile_CoveringNonEmpty_FarEmpty", func(t *testing.T) {
 		withTestTxRaw(t, pool, func(tx pgx.Tx, repo *postgres.ActivityRepository) {
 			regionID := insertTestRegion(t, tx, "r1", "county")
-			insertRoutedActivity(t, tx, 5001, "test-user")
-			tagActivityRegion(t, tx, 5001, regionID)
+			insertRoutedActivity(t, tx, fixtureID(5001), "test-user")
+			tagActivityRegion(t, tx, fixtureID(5001), regionID)
 
 			// z1 tile (0,0) = NW hemisphere — covers the route.
 			covering, err := repo.GetMapTile(ctx, "test-user", 1, 0, 0)
@@ -250,8 +250,8 @@ func TestIntegration_MapEndpoints(t *testing.T) {
 	t.Run("Tile_LOD_PointsLowZoom_LinesHighZoom", func(t *testing.T) {
 		withTestTxRaw(t, pool, func(tx pgx.Tx, repo *postgres.ActivityRepository) {
 			regionID := insertTestRegion(t, tx, "r1", "county")
-			insertRoutedActivity(t, tx, 5001, "test-user")
-			tagActivityRegion(t, tx, 5001, regionID)
+			insertRoutedActivity(t, tx, fixtureID(5001), "test-user")
+			tagActivityRegion(t, tx, fixtureID(5001), regionID)
 
 			midLng, midLat := -30.0, 0.5 // the test route's middle vertex
 
@@ -287,7 +287,7 @@ func TestIntegration_MapEndpoints(t *testing.T) {
 		withTestTxRaw(t, pool, func(tx pgx.Tx, repo *postgres.ActivityRepository) {
 			// Routed but NOT tagged (the virtual/non-geographic case): the EXISTS
 			// activity_regions filter must keep it out of the tile.
-			insertRoutedActivity(t, tx, 5002, "test-user")
+			insertRoutedActivity(t, tx, fixtureID(5002), "test-user")
 
 			tile, err := repo.GetMapTile(ctx, "test-user", 1, 0, 0)
 			if err != nil {
@@ -302,8 +302,8 @@ func TestIntegration_MapEndpoints(t *testing.T) {
 	t.Run("Tile_SplitRoute_IsOneFeaturePerActivity", func(t *testing.T) {
 		withTestTxRaw(t, pool, func(tx pgx.Tx, repo *postgres.ActivityRepository) {
 			regionID := insertTestRegion(t, tx, "r1", "county")
-			insertActivityWithRoute(t, tx, 5004, "test-user", testSplitRouteWKT)
-			tagActivityRegion(t, tx, 5004, regionID)
+			insertActivityWithRoute(t, tx, fixtureID(5004), "test-user", testSplitRouteWKT)
+			tagActivityRegion(t, tx, fixtureID(5004), regionID)
 
 			// Both legs fall in one z8 tile and stay a single feature, so map hover
 			// and click resolve the whole activity rather than one leg.
@@ -352,9 +352,9 @@ func TestIntegration_MapDataset(t *testing.T) {
 			// One activity tagged to TWO regions: regionIds must aggregate both.
 			r1 := insertTestRegion(t, tx, "r1", "cbsa_metro")
 			r2 := insertTestRegion(t, tx, "r2", "county")
-			insertRoutedActivity(t, tx, 5001, "test-user")
-			tagActivityRegion(t, tx, 5001, r1)
-			tagActivityRegion(t, tx, 5001, r2)
+			insertRoutedActivity(t, tx, fixtureID(5001), "test-user")
+			tagActivityRegion(t, tx, fixtureID(5001), r1)
+			tagActivityRegion(t, tx, fixtureID(5001), r2)
 
 			got, err := repo.GetMapDataset(ctx, "test-user")
 			if err != nil {
@@ -364,8 +364,8 @@ func TestIntegration_MapDataset(t *testing.T) {
 				t.Fatalf("want 1 activity, got %d", len(got))
 			}
 			a := got[0]
-			if a.GetActivityId() != 5001 {
-				t.Errorf("activityId = %d, want 5001", a.GetActivityId())
+			if a.GetActivityId() != fixtureID(5001) {
+				t.Errorf("activityId = %d, want fixture 5001 (%d)", a.GetActivityId(), fixtureID(5001))
 			}
 			if a.GetName() != "Geo Ride" {
 				t.Errorf("name = %q, want %q", a.GetName(), "Geo Ride")
@@ -380,7 +380,7 @@ func TestIntegration_MapDataset(t *testing.T) {
 			if a.GetSport() != "Ride" {
 				t.Errorf("sport = %q, want raw Strava type %q (handler maps to category)", a.GetSport(), "Ride")
 			}
-			if a.GetSource() != "strava" || a.GetSourceUrl() != "https://www.strava.com/activities/5001" {
+			if a.GetSource() != "strava" || a.GetSourceUrl() != stravaActivityPage(fixtureID(5001)) {
 				t.Errorf("source link = (%q, %q), want the Strava activity page", a.GetSource(), a.GetSourceUrl())
 			}
 			if a.GetStartDateLocal() == "" {
@@ -405,8 +405,8 @@ func TestIntegration_MapDataset(t *testing.T) {
 	t.Run("BBoxSpansEveryLeg", func(t *testing.T) {
 		withTestTxRaw(t, pool, func(tx pgx.Tx, repo *postgres.ActivityRepository) {
 			region := insertTestRegion(t, tx, "r1", "county")
-			insertActivityWithRoute(t, tx, 5004, "test-user", testSplitRouteWKT)
-			tagActivityRegion(t, tx, 5004, region)
+			insertActivityWithRoute(t, tx, fixtureID(5004), "test-user", testSplitRouteWKT)
+			tagActivityRegion(t, tx, fixtureID(5004), region)
 
 			got, err := repo.GetMapDataset(ctx, "test-user")
 			if err != nil {
@@ -432,17 +432,17 @@ func TestIntegration_MapDataset(t *testing.T) {
 	t.Run("ExcludesUntaggedActivity", func(t *testing.T) {
 		withTestTxRaw(t, pool, func(tx pgx.Tx, repo *postgres.ActivityRepository) {
 			region := insertTestRegion(t, tx, "r1", "county")
-			insertRoutedActivity(t, tx, 5001, "test-user")
-			tagActivityRegion(t, tx, 5001, region)
+			insertRoutedActivity(t, tx, fixtureID(5001), "test-user")
+			tagActivityRegion(t, tx, fixtureID(5001), region)
 
 			// Routed but NOT tagged — must be excluded (geo-only rule).
-			insertRoutedActivity(t, tx, 5002, "test-user")
+			insertRoutedActivity(t, tx, fixtureID(5002), "test-user")
 
 			got, err := repo.GetMapDataset(ctx, "test-user")
 			if err != nil {
 				t.Fatalf("GetMapDataset: %v", err)
 			}
-			if len(got) != 1 || got[0].GetActivityId() != 5001 {
+			if len(got) != 1 || got[0].GetActivityId() != fixtureID(5001) {
 				t.Errorf("geo-only rule broken: %+v", got)
 			}
 		})
@@ -451,18 +451,18 @@ func TestIntegration_MapDataset(t *testing.T) {
 	t.Run("UserIsolation", func(t *testing.T) {
 		withTestTxRaw(t, pool, func(tx pgx.Tx, repo *postgres.ActivityRepository) {
 			mine := insertTestRegion(t, tx, "r1", "county")
-			insertRoutedActivity(t, tx, 5001, "test-user")
-			tagActivityRegion(t, tx, 5001, mine)
+			insertRoutedActivity(t, tx, fixtureID(5001), "test-user")
+			tagActivityRegion(t, tx, fixtureID(5001), mine)
 
 			theirs := insertTestRegion(t, tx, "r2", "county")
-			insertRoutedActivity(t, tx, 6001, "other-user")
-			tagActivityRegion(t, tx, 6001, theirs)
+			insertRoutedActivity(t, tx, fixtureID(6001), "other-user")
+			tagActivityRegion(t, tx, fixtureID(6001), theirs)
 
 			got, err := repo.GetMapDataset(ctx, "test-user")
 			if err != nil {
 				t.Fatalf("GetMapDataset: %v", err)
 			}
-			if len(got) != 1 || got[0].GetActivityId() != 5001 {
+			if len(got) != 1 || got[0].GetActivityId() != fixtureID(5001) {
 				t.Errorf("user isolation broken: %+v", got)
 			}
 		})
@@ -475,14 +475,14 @@ func TestIntegration_MapDataset(t *testing.T) {
 			// This pins the LEFT-vs-INNER join choice: an INNER JOIN would
 			// silently drop it.
 			region := insertTestRegion(t, tx, "r1", "county")
-			insertRoutelessActivity(t, tx, 5003, "test-user")
-			tagActivityRegion(t, tx, 5003, region)
+			insertRoutelessActivity(t, tx, fixtureID(5003), "test-user")
+			tagActivityRegion(t, tx, fixtureID(5003), region)
 
 			got, err := repo.GetMapDataset(ctx, "test-user")
 			if err != nil {
 				t.Fatalf("GetMapDataset: %v", err)
 			}
-			if len(got) != 1 || got[0].GetActivityId() != 5003 {
+			if len(got) != 1 || got[0].GetActivityId() != fixtureID(5003) {
 				t.Fatalf("want the routeless activity returned, got %+v", got)
 			}
 			if bb := got[0].GetBbox(); len(bb) != 0 {
