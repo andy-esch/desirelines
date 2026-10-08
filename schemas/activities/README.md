@@ -50,6 +50,9 @@ both shapes can supply `map.summary_polyline`.
 
 Representative mappings:
 
+- Source `id` remains the external Strava ID in `StandardActivity` and
+  BigQuery. PostgreSQL stores it in `activity_external_ids.external_id`;
+  `activities.id` comes from the existing mapping or the identity sequence.
 - `sport_type` becomes computed `StandardActivity.sport`, then
   `desirelines.activities.sport`.
 - `athlete.id` becomes computed `StandardActivity.user_id`, then

@@ -128,7 +128,8 @@ just db-migrate dev info  # Check status
 just db-migrate dev       # Run migrations
 ```
 
-See `schemas/database/README.md` for details.
+See [Database Migrations](../../schemas/database/README.md) for details and the
+[activity-ID allocation rollout checks](../../schemas/database/README.md#activity-id-allocation-rollout).
 
 ---
 

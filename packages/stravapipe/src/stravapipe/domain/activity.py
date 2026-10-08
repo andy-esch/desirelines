@@ -288,20 +288,22 @@ class SummaryStravaActivity(BaseModel):
 
 
 class StandardActivity(BaseModel):
-    """Standard activity model matching PostgreSQL schema.
+    """Strava activity fields used by the PostgreSQL writer.
 
     Parses directly from Strava API using extra='ignore' to validate
     only fields we care about. More efficient than DetailedActivity
     validation + conversion.
 
     This is the primary model for PostgreSQL storage and application logic.
+    Its ID is external: the writer resolves it through activity_external_ids
+    and allocates a desirelines ID for a new activities row.
     Uses Pydantic v2 with Field descriptions for self-documenting schema.
     """
 
     model_config = ConfigDict(extra="ignore")
 
     # Core identification
-    id: int = Field(description="Strava activity ID (primary key)")
+    id: int = Field(description="External Strava activity ID")
     athlete: MetaAthlete = Field(description="Athlete metadata containing user ID")
 
     # Activity metadata

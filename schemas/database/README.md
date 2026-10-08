@@ -52,6 +52,56 @@ just db-connect prod admin   # Connect (admin)
 
 **First-time setup**: See [Database Setup Playbook](../../docs/guides/database-setup.md) for complete steps including pre-migration setup (schemas, extensions, roles) that must be done as `neondb_owner` before Flyway runs.
 
+### Activity-ID allocation rollout
+
+New writers allocate desirelines activity IDs from the identity sequence and
+keep Strava IDs in `activity_external_ids`. V0013 sweeps rows ingested with
+their Strava ID after the initial V0012 re-key. The deployment runs migrations
+before updating service and job images, so the V0013 count alone does not
+prove that all old writers have stopped adopting IDs.
+
+1. Record V0013's `Re-keyed ... adopted activity ID stragglers` count from the
+   migration log.
+2. Finish the `postgres-writer` and `backfill` image rollout. Wait for in-flight
+   requests on old revisions and any old backfill executions to finish (or stop
+   those executions) before checking for remaining adopted IDs.
+3. Connect with `just db-connect dev apigateway` (use `prod` for production)
+   and count remaining adopted IDs:
+
+   ```sql
+   SELECT count(*) AS adopted
+   FROM desirelines.activities a
+   JOIN desirelines.activity_external_ids m ON m.activity_id = a.id
+   WHERE m.source = 'strava' AND m.external_id = a.id::text;
+   ```
+
+4. If the count is nonzero, connect as `admin` and run the idempotent sweep:
+
+   ```sql
+   BEGIN;
+   SET LOCAL ROLE desirelines_ddl_grp;
+   SET LOCAL lock_timeout = '5s';
+   SELECT desirelines.rekey_adopted_activities() AS renumbered;
+   COMMIT;
+   ```
+
+   Record `renumbered` and confirm the adopted count is zero. The temporary
+   helper identifies adoption by equality between the two IDs; a coincidentally
+   equal sequence ID can also match, including one assigned by a sweep. If a
+   row still matches after the sweep, repeat it and re-count before proceeding.
+   If the lock
+   timeout aborts the transaction, `ROLLBACK` and retry after the busy writer
+   finishes. The sweep holds writers while routes, region tags and mappings
+   follow the re-key; reads continue.
+5. Verify a new activity arriving by webhook gets a desirelines ID, appears in
+   the app, and links to its Strava activity using the mapping's external ID.
+   Keep the second-athlete allowlist gate until the new writers and these
+   checks are complete.
+
+A rollback to a revision that adopts Strava IDs reopens this transition. Keep
+the re-key helper until allocation has been restored and the post-rollout
+check and any required sweep have run again.
+
 ## Creating New Migrations
 
 **Naming**: `V{NNNN}__{description}.sql` (e.g., `V0003__add_goals_table.sql`)
