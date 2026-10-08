@@ -5,15 +5,22 @@
 --   1. Export from dev: just db-connect dev
 --   2. Run: COPY (SELECT ... FROM activities ORDER BY start_date_local DESC LIMIT 1000) TO STDOUT WITH CSV HEADER
 --   3. Replace user_id with '123456789' (matches mock athlete ID), sanitize names,
---      renumber IDs below 10,000 (see below), and convert to rows of the VALUES list
---   4. Update NEWEST_IN_DUMP in R__02_shift_timestamps.sql to match newest date
+--      give the activities stand-in Strava IDs below 10,000 (see below), and
+--      convert to rows of the VALUES list
+--   4. Recreate the local database: R__02 shifts timestamps only when it runs,
+--      which a seed change alone doesn't trigger
 --
--- Seed IDs stay below 10,000 (currently 1130-2129). Integration tests insert
--- their own fixtures into this database: the Python suite uses IDs from 12,345
--- up, and the Go suite a range reserved from 9,000,000,000,000.
+-- The VALUES ids are the activities' Strava IDs (currently 1130-2129); like
+-- prod, each activity is then re-keyed onto a desirelines ID from 1,000,000.
+-- Integration tests insert their own fixtures into this database: the Python
+-- suite uses IDs from 12,345 up, and the Go suite a range reserved from
+-- 9,000,000,000,000.
 
 DO $$ BEGIN RAISE NOTICE 'Inserting 1000 seed activities...'; END $$;
 
+-- Each newly seeded activity's Strava ID (its own ID until re-keyed) goes into
+-- the external-ID mapping, as the writers do.
+WITH seeded AS (
 INSERT INTO desirelines.activities (
     id, user_id, name, type, sport, start_date_local, year,
     distance, moving_time, elapsed_time, total_elevation_gain,
@@ -1029,13 +1036,19 @@ FROM (VALUES
     distance, moving_time, elapsed_time, total_elevation_gain,
     average_speed, max_speed, average_heartrate, max_heartrate
 )
-ON CONFLICT (id) DO NOTHING;
-
--- Record each activity's platform ID (its own ID) in the external-ID mapping,
--- as the writers do.
+-- An activity already seeded (and since re-keyed) is known by its Strava ID.
+WHERE NOT EXISTS (
+    SELECT 1 FROM desirelines.activity_external_ids m
+    WHERE m.source = 'strava' AND m.external_id = seed.id::text
+)
+ON CONFLICT (id) DO NOTHING
+RETURNING id, user_id, source
+)
 INSERT INTO desirelines.activity_external_ids (source, external_id, activity_id, external_owner_id)
 SELECT source, id::text, id, user_id
-FROM desirelines.activities
-ON CONFLICT (source, external_id) DO NOTHING;
+FROM seeded;
+
+-- Re-key them onto desirelines IDs, as V0012 did in prod.
+SELECT desirelines.rekey_adopted_activities();
 
 DO $$ BEGIN RAISE NOTICE 'Seed data insertion complete (1000 activities, conflicts ignored)'; END $$;

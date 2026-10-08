@@ -148,7 +148,7 @@ type DailyActivity struct {
 	ElevationMeters *float64 `protobuf:"fixed64,3,opt,name=elevation_meters,json=elevationMeters,proto3,oneof" json:"elevation_meters,omitempty"`
 	// Number of activities on this day
 	Activities int32 `protobuf:"varint,4,opt,name=activities,proto3" json:"activities,omitempty"`
-	// Strava activity IDs
+	// Activity IDs (desirelines IDs)
 	ActivityIds []int64 `protobuf:"varint,5,rep,packed,name=activity_ids,json=activityIds,proto3" json:"activity_ids,omitempty"`
 }
 

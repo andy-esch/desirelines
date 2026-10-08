@@ -223,9 +223,10 @@ func NewRouter(cfg RouterConfig, public PublicRoutes, auth AuthenticatedRoutes, 
 			r.Get("/activities/summary", auth.GetActivitySummary)
 
 			// Individual activity endpoints
-			// Note: {id} occupies the same path segment as {year} above, but the
-			// {year} routes all require a sub-path (/metadata, /metrics, /source).
-			// Strava IDs are 10+ digits, so no practical collision with 4-digit years.
+			// Note: {id} occupies the same path segment as {year} above. Routes stay
+			// unambiguous because every {year} route has a sub-path (/metadata,
+			// /metrics, /source) and {id} has none; an /activities/{id}/... route
+			// would collide with them.
 			r.Get("/activities", auth.ListActivities)
 			r.Get("/activities/{id}", auth.GetActivityByID)
 

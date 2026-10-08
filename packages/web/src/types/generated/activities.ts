@@ -15,8 +15,8 @@ export const protobufPackage = "desirelines.activities.v1";
  */
 export interface Activity {
   /**
-   * Activity ID. Treat it as opaque: it currently equals the Strava activity ID,
-   * but link out with source_url rather than building URLs from it.
+   * Activity ID: the desirelines ID, not the platform's. Treat it as opaque, and
+   * link out with source_url rather than building URLs from it.
    */
   id: string;
   /** Activity name/title. */
@@ -71,8 +71,8 @@ export interface Activity {
  */
 export interface ActivitySummary {
   /**
-   * Activity ID. Treat it as opaque: it currently equals the Strava activity ID,
-   * but link out with source_url rather than building URLs from it.
+   * Activity ID: the desirelines ID, not the platform's. Treat it as opaque, and
+   * link out with source_url rather than building URLs from it.
    */
   id: string;
   /** Activity name/title. */
@@ -116,8 +116,8 @@ export interface ActivitySummary {
  */
 export interface MapActivity {
   /**
-   * Activity ID. Treat it as opaque: it currently equals the Strava activity ID,
-   * but link out with source_url rather than building URLs from it.
+   * Activity ID: the desirelines ID, not the platform's. Treat it as opaque, and
+   * link out with source_url rather than building URLs from it.
    */
   activityId: string;
   /** Activity name/title (for the cross-filter activity list + click popover). */

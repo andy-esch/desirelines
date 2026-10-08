@@ -493,7 +493,7 @@ func (r *ActivityRepository) GetYearMetadata(ctx context.Context, userID string,
 	}, nil
 }
 
-// GetActivityByID returns a single activity by its Strava ID.
+// GetActivityByID returns a single activity by its (desirelines) ID.
 // Returns nil (not error) if the activity is not found.
 func (r *ActivityRepository) GetActivityByID(ctx context.Context, userID string, id int64) (activity *activitiesv1.Activity, retErr error) {
 	ctx, spanDone := otel.StartSpan(ctx, r.tracer, "repository.activities.get_by_id",

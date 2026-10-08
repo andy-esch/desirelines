@@ -999,9 +999,8 @@ class TestActivitySourceAndMapping:
 class TestLookupsThroughTheMapping:
     """Writers find an activity through its platform ID's mapping, not its ID.
 
-    Each test renumbers an activity, as the move to desirelines-owned IDs will,
-    so its ID no longer equals its Strava ID, then drives the repository by the
-    Strava ID alone.
+    Each test renumbers an activity, as the re-key does, so its ID no longer
+    equals its Strava ID, then drives the repository by the Strava ID alone.
     """
 
     def _create_renumbered(
@@ -1160,10 +1159,22 @@ _LOCK_ORDER_USER = 96_000_005
 
 
 def _remove_concurrent_rows(engine: Engine) -> None:
+    # By Strava ID through the mapping too: a re-key may have renumbered rows a
+    # killed run left behind.
     with engine.begin() as connection:
         connection.execute(
-            text("DELETE FROM desirelines.activities WHERE id = ANY(:ids)"),
-            {"ids": _CONCURRENT_IDS},
+            text("""
+                DELETE FROM desirelines.activities
+                WHERE id = ANY(:ids)
+                   OR id IN (
+                       SELECT activity_id FROM desirelines.activity_external_ids
+                       WHERE source = 'strava' AND external_id = ANY(:external_ids)
+                   )
+            """),
+            {
+                "ids": _CONCURRENT_IDS,
+                "external_ids": [str(id_) for id_ in _CONCURRENT_IDS],
+            },
         )
         connection.execute(
             text("DELETE FROM desirelines.deleted_activities WHERE id = ANY(:ids)"),

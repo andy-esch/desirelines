@@ -13,8 +13,8 @@ option go_package = "github.com/andy-esch/desirelines/packages/apigateway/types/
 // Activity represents a single activity with full details.
 // Used for GET /activities/{id} responses.
 message Activity {
-  // Activity ID. Treat it as opaque: it currently equals the Strava activity ID,
-  // but link out with source_url rather than building URLs from it.
+  // Activity ID: the desirelines ID, not the platform's. Treat it as opaque, and
+  // link out with source_url rather than building URLs from it.
   int64 id = 1;
 
   // Activity name/title.
@@ -65,8 +65,8 @@ message Activity {
 // ActivitySummary represents a condensed activity for list views.
 // Omits detailed stats not needed in list/table displays.
 message ActivitySummary {
-  // Activity ID. Treat it as opaque: it currently equals the Strava activity ID,
-  // but link out with source_url rather than building URLs from it.
+  // Activity ID: the desirelines ID, not the platform's. Treat it as opaque, and
+  // link out with source_url rather than building URLs from it.
   int64 id = 1;
 
   // Activity name/title.
@@ -110,8 +110,8 @@ message ActivitySummary {
 // (virtual/indoor activities are excluded), matching the /map/tiles and
 // /map/regions inclusion rule.
 message MapActivity {
-  // Activity ID. Treat it as opaque: it currently equals the Strava activity ID,
-  // but link out with source_url rather than building URLs from it.
+  // Activity ID: the desirelines ID, not the platform's. Treat it as opaque, and
+  // link out with source_url rather than building URLs from it.
   int64 activity_id = 1;
 
   // Activity name/title (for the cross-filter activity list + click popover).

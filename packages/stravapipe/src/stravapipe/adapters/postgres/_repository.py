@@ -146,6 +146,16 @@ _BACKFILL_TOMBSTONE_CTE: Final[str] = (
 # platform ID therefore always means one activity row, and a write the tombstone
 # blocks claims nothing (no mapping is left to fail the deferred foreign key at
 # commit).
+#
+# Known gap: a new activity takes its Strava ID (`:id`) as its desirelines ID.
+# Existing activities have desirelines IDs from 1,000,000, and Strava issued IDs
+# that small around 2009-2010, so an old enough Strava ID can equal an existing
+# activity's ID. The claim then maps it onto that activity: the CREATE reports
+# ALREADY_EXISTS, and a later UPDATE or DELETE for that Strava ID changes the
+# other activity. Allocating `:id` from the activities ID sequence (nextval(),
+# inside this statement so the re-key's table locks hold it off) closes the gap;
+# until then, don't allowlist an athlete whose Strava activities date from
+# 2009-2010. Pinned by a strict xfail test in test_activity_rekey.py.
 _CLAIM_MAPPING_SQL: Final[str] = (
     "INSERT INTO desirelines.activity_external_ids"
     " (source, external_id, activity_id, external_owner_id)"

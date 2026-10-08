@@ -46,7 +46,7 @@ type ActivityRepository interface {
 	// Used by: GET /activities/{year}/metadata
 	GetYearMetadata(ctx context.Context, userID string, year int) (*generated.YearMetadata, error)
 
-	// GetActivityByID returns a single activity by its Strava ID.
+	// GetActivityByID returns a single activity by its (desirelines) ID.
 	// Returns nil (not error) if activity not found — also returns nil if the
 	// activity belongs to a different user (acts as authorization check).
 	// Used by: GET /activities/{id}

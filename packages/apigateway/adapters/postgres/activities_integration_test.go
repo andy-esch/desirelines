@@ -180,7 +180,7 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 		withTestTxRaw(t, pool, func(tx pgx.Tx, repo *postgres.ActivityRepository) {
 			seedTestData(t, tx)
 
-			// Renumber fixture 1001, as the move to desirelines IDs will; its
+			// Renumber fixture 1001, as the re-key does; its
 			// mapping keeps the Strava ID. Fixture 1002 comes from a platform
 			// without a link template.
 			strava, renumbered, unknown := fixtureID(1001), fixtureID(7), fixtureID(1002)

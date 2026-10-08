@@ -334,10 +334,10 @@ message Metric {
 ### Comments
 
 ```protobuf
-// Activity represents a single Strava activity.
+// Activity represents a single activity.
 // Used by the activities API endpoint.
 message Activity {
-  // Strava activity ID (unique identifier)
+  // Activity ID (the desirelines ID)
   int64 id = 1;
 
   // User-provided activity title
