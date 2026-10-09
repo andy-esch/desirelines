@@ -85,21 +85,39 @@ pants check packages/stravapipe::
 
 ### 3. Go Quality
 
-Combined testing, linting, and format checking for Go packages. Runs in parallel for each package via matrix strategy.
+Combined testing, linting, formatting and vulnerability checking for Go packages. Runs in parallel for each package via matrix strategy.
 
 ```bash
 # Run locally
-just go-test    # Tests for both packages
-just go-lint    # Lint + format check for both packages
+just go-test -race # Tests for all three modules
+just go-lint      # golangci-lint + trace-propagation analyzer
+just go-vulncheck # Reachable vulnerabilities, including the Go standard library
 ```
 
-**Matrix strategy:** Runs `dispatcher` and `apigateway` in parallel.
+**Matrix strategy:** Runs `dispatcher`, `apigateway` and `shared` in parallel.
 
 **Checks performed (per package):**
 
-1. `go test -v -race -coverprofile=coverage.out ./...`
+1. `go test -v -race -coverpkg=./... -coverprofile=coverage.out ./...`
 2. `golangci-lint run` (with inline PR annotations)
-3. `gofmt -l .` (format verification)
+3. The `lintpub` trace-propagation analyzer
+4. `gofmt -l .` (format verification)
+5. `govulncheck ./...` (reachable dependency and standard-library vulnerabilities)
+
+Install `govulncheck` with `go install golang.org/x/vuln/cmd/govulncheck@latest`.
+For a local scan that matches CI, set `GOTOOLCHAIN` to `go` followed by the exact
+`GO_VERSION` in `.github/workflows/ci.yml`. A newer local toolchain can hide
+standard-library vulnerabilities in the version CI and the Docker builders use.
+
+Renovate groups the Docker, CI, `go.work` and all three `go.mod` Go patch pins
+into one `go version` PR. Custom managers extract CI's environment variable and
+the workspace directive; `rangeStrategy: "bump"` opts the module directives into
+updates. Docker's version filter accepts the Alpine compatibility suffix while
+restricting updates to Go 1.26; a plain semver range excludes those tags as
+prereleases. `x/net` updates are enabled even when indirect, and `gomodTidyAll`
+tidies modules that depend on the updated local module. Routine updates retain
+the Monday window and three-day release delay in `renovate.json`; govulncheck
+can require a manual security update before that window.
 
 **Configuration:** `.golangci.yml` in repository root.
 

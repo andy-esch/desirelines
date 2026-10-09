@@ -140,6 +140,17 @@ go-test +args='':
         (cd packages/shared && go test -v ./... {{args}})
     fi
 
+# Scan each Go module for reachable vulnerabilities, matching the CI gate.
+# Requires govulncheck on PATH. Set GOTOOLCHAIN to the CI Go patch to check
+# the same standard library; a newer local Go can hide a vulnerable CI pin.
+go-vulncheck +args='':
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for pkg in {{go_workspace_members}}; do
+        echo "Checking Go vulnerabilities in $pkg..."
+        (cd "$pkg" && govulncheck {{args}} ./...)
+    done
+
 # Run Go linter (default: golangci-lint + lintpub, use --pants for Pants)
 go-lint +args='':
     #!/usr/bin/env bash
@@ -176,10 +187,10 @@ go-lintpub:
 # produce, or if `go.work.sum` needs an update. Wire into CI so drift
 # is caught at PR time instead of on a contributor's machine.
 #
-# Renovate updates ONE go.mod per PR with `go mod tidy` for that
-# module only; it does not run `go work sync` or tidy other members.
-# After a Renovate merge, transitively-pulled bumps surface as drift
-# in the other members — that's the failure mode this gate catches.
+# Renovate's gomodTidyAll tidies modules connected by local replace
+# directives, but workspace version selection and go.work.sum still
+# need synchronization. This gate catches any drift before merge,
+# including dependency updates made by hand.
 go-tidy-check:
     #!/usr/bin/env bash
     set -euo pipefail

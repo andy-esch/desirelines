@@ -13,7 +13,7 @@
   "minimumReleaseAge": "3 days",
   "prConcurrentLimit": 3,
   "prHourlyLimit": 2,
-  "postUpdateOptions": ["gomodTidy", "npmDedupe"],
+  "postUpdateOptions": ["gomodTidyAll", "npmDedupe"],
   "terraform": {
     "enabled": true
   },
@@ -38,10 +38,30 @@
       "allowedVersions": "17.x"
     },
     {
-      "description": "Pin Go to 1.26.x across all managers (Go modules, GitHub Actions, Docker)",
+      "description": "Keep every Go patch pin in one PR: Dockerfiles, go.mod directives, and the custom managers for go.work and CI's GO_VERSION. The gomod bump rule below opts the minimum-version directives into updates.",
       "matchDepNames": ["go", "golang"],
       "allowedVersions": "1.26.x",
       "groupName": "go version"
+    },
+    {
+      "description": "Update the go.mod Go directives with the toolchain pins. Renovate otherwise treats them as compatibility floors and leaves them unchanged.",
+      "matchManagers": ["gomod"],
+      "matchDepNames": ["go"],
+      "matchDepTypes": ["golang"],
+      "rangeStrategy": "bump"
+    },
+    {
+      "description": "Allow Go 1.26 Docker patch tags with compatibility suffixes. The semver range 1.26.x treats -alpine as a prerelease and rejects it; Docker preserves the existing suffix separately.",
+      "matchDatasources": ["docker"],
+      "matchDepNames": ["golang"],
+      "allowedVersions": "/^1\\.26\\.\\d+(?:-|$)/"
+    },
+    {
+      "description": "Track x/net security fixes even when it is indirect. The default gomod manager disables indirect updates; waiting for a parent module to upgrade can leave a reachable HTTP/2 vulnerability pinned.",
+      "matchManagers": ["gomod"],
+      "matchDepNames": ["golang.org/x/net"],
+      "matchDepTypes": ["indirect"],
+      "enabled": true
     },
     {
       "description": "Pin @vitejs/plugin-react to v5 until Babel → @rolldown/plugin-babel migration",
@@ -76,6 +96,24 @@
     }
   ],
   "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Track the CI Go patch pin. The github-actions manager cannot resolve setup-go's go-version from env.GO_VERSION.",
+      "managerFilePatterns": ["/^\\.github/workflows/ci\\.yml$/"],
+      "matchStrings": ["GO_VERSION:\\s*\"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""],
+      "depNameTemplate": "go",
+      "datasourceTemplate": "golang-version",
+      "versioningTemplate": "go"
+    },
+    {
+      "customType": "regex",
+      "description": "Track the workspace Go patch pin. The gomod manager extracts go.mod files, not go.work; use the same dependency name to join the go version group.",
+      "managerFilePatterns": ["/^go\\.work$/"],
+      "matchStrings": ["(?:^|\\n)go (?<currentValue>\\d+\\.\\d+\\.\\d+)(?:\\s|$)"],
+      "depNameTemplate": "go",
+      "datasourceTemplate": "golang-version",
+      "versioningTemplate": "go"
+    },
     {
       "customType": "regex",
       "description": "Track [tool.uv] required-version as the uv image, so it bumps alongside the Dockerfile tag rather than drifting silently.",
