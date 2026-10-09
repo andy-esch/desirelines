@@ -33,7 +33,9 @@ An activity has two IDs, and each service logs the one it handles:
 - **`external_id`** (with `source`, e.g. `strava`): the activity's ID on the platform it came from. Webhooks and their processing (dispatcher, postgres writer) use it; it is the number in the activity's Strava URL.
 - **`activity_id`**: the desirelines ID, as in the API's `/activities/{id}` and the app's URLs.
 
-The two are equal for activities that haven't been renumbered; otherwise look one up from the other in `desirelines.activity_external_ids`.
+Resolve one from the other through `desirelines.activity_external_ids`, using
+`source` with `external_id`. New activities receive sequence IDs, so do not
+infer an external ID from an activity ID.
 
 Cloud Trace doesn't index by either directly, but spans carry them as attributes. Two ways to find the trace:
 

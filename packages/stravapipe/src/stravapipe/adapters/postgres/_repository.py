@@ -141,25 +141,29 @@ _BACKFILL_TOMBSTONE_CTE: Final[str] = (
 )
 
 # Activity writes are mapping first: the `mapping` CTE claims the platform ID for
-# the activity (a new activity takes its Strava ID as its own ID), and the
+# the activity (a new activity gets a desirelines sequence ID), and the
 # activity row is then written only under the ID the mapping returns. One
 # platform ID therefore always means one activity row, and a write the tombstone
 # blocks claims nothing (no mapping is left to fail the deferred foreign key at
 # commit).
 #
-# Known gap: a new activity takes its Strava ID (`:id`) as its desirelines ID.
-# Existing activities have desirelines IDs from 1,000,000, and Strava issued IDs
-# that small around 2009-2010, so an old enough Strava ID can equal an existing
-# activity's ID. The claim then maps it onto that activity: the CREATE reports
-# ALREADY_EXISTS, and a later UPDATE or DELETE for that Strava ID changes the
-# other activity. Allocating `:id` from the activities ID sequence (nextval(),
-# inside this statement so the re-key's table locks hold it off) closes the gap;
-# until then, don't allowlist an athlete whose Strava activities date from
-# 2009-2010. Pinned by a strict xfail test in test_activity_rekey.py.
+# Lock the mapping before reusing its ID. A concurrent DELETE may have removed
+# it while this statement waited: at READ COMMITTED, the locking SELECT skips
+# that deleted version, so a genuine recreation allocates a fresh ID. A plain
+# snapshot lookup could reuse the deleted activity's ID instead.
+_LOCK_MAPPING_SQL: Final[str] = (
+    "SELECT activity_id FROM desirelines.activity_external_ids"
+    " WHERE source = :source AND external_id = :external_id FOR UPDATE"
+)
+# COALESCE calls nextval() only for an unseen platform ID; concurrent claims may
+# consume an unused value, but ON CONFLICT resolves to the winning mapping. Allocation
+# stays inside this statement so the re-key's table locks hold it off while the
+# re-key moves the sequence. Never allocate in a separate SELECT nextval().
 _CLAIM_MAPPING_SQL: Final[str] = (
-    "INSERT INTO desirelines.activity_external_ids"
+    "INSERT INTO desirelines.activity_external_ids"  # noqa: S608 -- SQL from a constant; platform IDs are bound params
     " (source, external_id, activity_id, external_owner_id)"
-    " SELECT :source, :external_id, :id, :user_id"
+    f" SELECT :source, :external_id, COALESCE(({_LOCK_MAPPING_SQL}),"
+    " nextval(pg_get_serial_sequence('desirelines.activities', 'id'))), :user_id"
     " WHERE NOT EXISTS (SELECT 1 FROM tombstone)"
 )
 # CREATE: a platform ID already claimed is a duplicate, and the statement stops.
@@ -252,10 +256,6 @@ _ACTIVITY_BACKFILL_UPSERT_SQL: Final[str] = (
 # stale re-delete must not overwrite the authoritative delete's metadata).
 # Tombstones are keyed by the Strava ID (`external_id` is generated from `id`).
 # Everything runs in the caller's Unit of Work.
-_LOCK_MAPPING_SQL: Final[str] = (
-    "SELECT activity_id FROM desirelines.activity_external_ids"
-    " WHERE source = :source AND external_id = :external_id FOR UPDATE"
-)
 _SELECT_ACTIVITY_FENCE_FOR_UPDATE_SQL: Final[str] = (
     "SELECT last_event_time FROM desirelines.activities "
     "WHERE id = :activity_id FOR UPDATE"

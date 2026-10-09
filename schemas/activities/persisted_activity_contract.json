@@ -314,14 +314,15 @@
       "summary": "available",
       "postgres": [
         {
-          "kind": "column",
+          "kind": "derived_column",
           "target": "desirelines.activities.id",
           "attribute": "id"
         }
       ],
       "bigquery": {"kind": "column", "target": "id"},
       "live": "create_write_and_enriched_pg_upsert",
-      "backfill": "write"
+      "backfill": "write",
+      "reason": "The source and StandardActivity ID remain the external Strava ID, stored in activity_external_ids.external_id. activities.id is resolved through that mapping or allocated from the desirelines identity sequence; BigQuery keeps the external ID."
     },
     "kilojoules": {
       "detailed": "available",

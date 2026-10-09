@@ -24,6 +24,7 @@ from stravapipe.ports.out.postgres import (
     InsertResult,
     MetadataUpdateResult,
 )
+from tests.integration.helpers import activity_id_for
 
 
 def make_activity(
@@ -115,7 +116,7 @@ class TestActivityRepository:
         # Verify in database
         row = db_session.execute(
             text("SELECT name FROM desirelines.activities WHERE id = :id"),
-            {"id": 100004},
+            {"id": activity_id_for(db_session, 100004)},
         ).fetchone()
         assert row.name == "Evening Run"
 
@@ -144,7 +145,7 @@ class TestActivityRepository:
 
         row = db_session.execute(
             text("SELECT type, sport FROM desirelines.activities WHERE id = :id"),
-            {"id": 100005},
+            {"id": activity_id_for(db_session, 100005)},
         ).fetchone()
         assert row.type == "Ride"  # broad type updated
         assert row.sport == "MountainBikeRide"  # granular sport preserved
@@ -160,7 +161,7 @@ class TestActivityRepository:
 
         created_row = db_session.execute(
             text("SELECT created_at FROM desirelines.activities WHERE id = :id"),
-            {"id": 100007},
+            {"id": activity_id_for(db_session, 100007)},
         ).fetchone()
 
         # Re-fetched activity after a type change Run -> MountainBikeRide.
@@ -178,7 +179,7 @@ class TestActivityRepository:
                 "SELECT name, type, sport, created_at "
                 "FROM desirelines.activities WHERE id = :id"
             ),
-            {"id": 100007},
+            {"id": activity_id_for(db_session, 100007)},
         ).fetchone()
         assert row.name == "New Name"
         assert row.type == "Ride"
@@ -197,7 +198,7 @@ class TestActivityRepository:
         assert result is True
         row = db_session.execute(
             text("SELECT sport FROM desirelines.activities WHERE id = :id"),
-            {"id": 100008},
+            {"id": activity_id_for(db_session, 100008)},
         ).fetchone()
         assert row.sport == "GravelRide"
 
@@ -267,7 +268,7 @@ class TestActivityWriteFencing:
                 "SELECT name, last_event_time FROM desirelines.activities "
                 "WHERE id = :id"
             ),
-            {"id": activity_id},
+            {"id": activity_id_for(db_session, activity_id)},
         ).fetchone()
 
     def test_upsert_fences_out_of_order_events(self, uow, db_session):
@@ -437,18 +438,21 @@ class TestActivityDeletionTombstone:
             {"id": activity_id},
         ).fetchone()
 
-    def _activity_exists(self, db_session, activity_id: int) -> bool:
+    def _activity_exists(self, db_session, fixture_owner_id: int) -> bool:
+        # A unique fixture athlete lets absence checks catch unmapped leaked rows.
         return (
             db_session.execute(
-                text("SELECT 1 FROM desirelines.activities WHERE id = :id"),
-                {"id": activity_id},
+                text("SELECT 1 FROM desirelines.activities WHERE user_id = :user_id"),
+                {"user_id": str(fixture_owner_id)},
             ).fetchone()
             is not None
         )
 
     def test_delete_writes_tombstone_and_removes_row(self, uow, db_session):
         with uow:
-            uow.activities.insert(make_activity(activity_id=100040, name="v1"), 100)
+            uow.activities.insert(
+                make_activity(activity_id=100040, user_id=100040, name="v1"), 100
+            )
             uow.commit()
 
         with uow:
@@ -464,7 +468,9 @@ class TestActivityDeletionTombstone:
 
     def test_late_create_after_delete_is_blocked(self, uow, db_session):
         with uow:
-            uow.activities.insert(make_activity(activity_id=100041, name="v1"), 50)
+            uow.activities.insert(
+                make_activity(activity_id=100041, user_id=100041, name="v1"), 50
+            )
             uow.commit()
 
         with uow:
@@ -475,7 +481,7 @@ class TestActivityDeletionTombstone:
         with uow:
             assert (
                 uow.activities.insert(
-                    make_activity(activity_id=100041, name="ghost"), 100
+                    make_activity(activity_id=100041, user_id=100041, name="ghost"), 100
                 )
                 is InsertResult.RESURRECTION_BLOCKED
             )
@@ -494,7 +500,7 @@ class TestActivityDeletionTombstone:
         with uow:
             assert (
                 uow.activities.insert(
-                    make_activity(activity_id=100042, name="ghost"), 100
+                    make_activity(activity_id=100042, user_id=100042, name="ghost"), 100
                 )
                 is InsertResult.RESURRECTION_BLOCKED
             )
@@ -511,7 +517,7 @@ class TestActivityDeletionTombstone:
         with uow:
             assert (
                 uow.activities.insert(
-                    make_activity(activity_id=100043, name="tie"), 100
+                    make_activity(activity_id=100043, user_id=100043, name="tie"), 100
                 )
                 is InsertResult.RESURRECTION_BLOCKED
             )
@@ -528,7 +534,8 @@ class TestActivityDeletionTombstone:
         with uow:
             assert (
                 uow.activities.insert(
-                    make_activity(activity_id=100044, name="reborn"), 200
+                    make_activity(activity_id=100044, user_id=100044, name="reborn"),
+                    200,
                 )
                 is InsertResult.INSERTED
             )
@@ -550,7 +557,7 @@ class TestActivityDeletionTombstone:
         with uow:
             assert (
                 uow.activities.insert(
-                    make_activity(activity_id=100045, name="mid"), 200
+                    make_activity(activity_id=100045, user_id=100045, name="mid"), 200
                 )
                 is InsertResult.RESURRECTION_BLOCKED
             )
@@ -566,7 +573,7 @@ class TestActivityDeletionTombstone:
         with uow:
             assert (
                 uow.activities.insert(
-                    make_activity(activity_id=100046, name="bf"), None
+                    make_activity(activity_id=100046, user_id=100046, name="bf"), None
                 )
                 is InsertResult.INSERTED
             )
@@ -583,7 +590,8 @@ class TestActivityDeletionTombstone:
         with uow:
             assert (
                 uow.activities.upsert(
-                    make_activity(activity_id=100047, name="bf-upsert"), None
+                    make_activity(activity_id=100047, user_id=100047, name="bf-upsert"),
+                    None,
                 )
                 is True
             )
@@ -595,7 +603,9 @@ class TestActivityDeletionTombstone:
         # An enriched UPDATE (upsert) older than the delete must not resurrect
         # the activity via its insert leg.
         with uow:
-            uow.activities.insert(make_activity(activity_id=100048, name="v1"), 100)
+            uow.activities.insert(
+                make_activity(activity_id=100048, user_id=100048, name="v1"), 100
+            )
             uow.commit()
         with uow:
             uow.activities.delete(100048, 200)
@@ -604,7 +614,7 @@ class TestActivityDeletionTombstone:
         with uow:
             assert (
                 uow.activities.upsert(
-                    make_activity(activity_id=100048, name="ghost"), 150
+                    make_activity(activity_id=100048, user_id=100048, name="ghost"), 150
                 )
                 is False
             )
@@ -616,7 +626,9 @@ class TestActivityDeletionTombstone:
         # delete@200 -> recreate@300 -> stale delete@250: the recreated row must
         # survive and the stale delete is reported STALE.
         with uow:
-            uow.activities.insert(make_activity(activity_id=100049, name="v1"), 100)
+            uow.activities.insert(
+                make_activity(activity_id=100049, user_id=100049, name="v1"), 100
+            )
             uow.commit()
         with uow:
             uow.activities.delete(100049, 200)
@@ -624,7 +636,8 @@ class TestActivityDeletionTombstone:
         with uow:
             assert (
                 uow.activities.insert(
-                    make_activity(activity_id=100049, name="reborn"), 300
+                    make_activity(activity_id=100049, user_id=100049, name="reborn"),
+                    300,
                 )
                 is InsertResult.INSERTED
             )
@@ -639,7 +652,7 @@ class TestActivityDeletionTombstone:
                 "SELECT name, last_event_time FROM desirelines.activities "
                 "WHERE id = :id"
             ),
-            {"id": 100049},
+            {"id": activity_id_for(db_session, 100049)},
         ).fetchone()
         assert row is not None
         assert row.name == "reborn"
@@ -672,7 +685,7 @@ class TestBackfillWatermarkUpsert:
                 "SELECT name, last_event_time FROM desirelines.activities "
                 "WHERE id = :id"
             ),
-            {"id": activity_id},
+            {"id": activity_id_for(db_session, activity_id)},
         ).fetchone()
 
     def test_backfill_inserts_new_row_with_null_token(self, uow, db_session):
@@ -756,13 +769,21 @@ class TestBackfillWatermarkUpsert:
         with uow:
             assert (
                 uow.activities.upsert_backfill(
-                    make_activity(activity_id=100064, name="ghost"), 200
+                    make_activity(activity_id=100064, user_id=100064, name="ghost"), 200
                 )
                 is BackfillUpsertResult.SKIPPED
             )
             uow.commit()
 
         assert self._row(db_session, 100064) is None
+        assert (
+            db_session.execute(
+                text(
+                    "SELECT count(*) FROM desirelines.activities WHERE user_id = '100064'"
+                )
+            ).scalar_one()
+            == 0
+        )
 
     def test_backfill_applies_when_tombstone_at_or_before_watermark(
         self, uow, db_session
@@ -863,16 +884,26 @@ class TestActivitySourceAndMapping:
     def _source(self, db_session, activity_id: int) -> str:
         return db_session.execute(
             text("SELECT source FROM desirelines.activities WHERE id = :id"),
-            {"id": activity_id},
+            {"id": activity_id_for(db_session, activity_id)},
         ).scalar_one()
 
     def _mappings(self, db_session, activity_id: int) -> list[tuple[str, str, str]]:
+        mapped_id = activity_id_for(db_session, activity_id)
+        # Existing activities must have exactly the expected mappings, including
+        # any extra provider links. Missing fixtures still check the external key.
+        predicate = (
+            "activity_id = :mapped_id"
+            if mapped_id is not None
+            else "source = 'strava' AND external_id = :external_id"
+        )
         rows = db_session.execute(
-            text("""
+            text(f"""
                 SELECT source, external_id, external_owner_id
-                FROM desirelines.activity_external_ids WHERE activity_id = :id
+                FROM desirelines.activity_external_ids
+                WHERE {predicate}
+                ORDER BY source, external_id
             """),
-            {"id": activity_id},
+            {"mapped_id": mapped_id, "external_id": str(activity_id)},
         ).fetchall()
         return [tuple(row) for row in rows]
 
@@ -996,6 +1027,125 @@ class TestActivitySourceAndMapping:
         self._check_deferred_constraints(db_session)
 
 
+def _sequence_state(session) -> tuple[int, bool]:
+    return tuple(
+        session.execute(
+            text("SELECT last_value, is_called FROM desirelines.activities_id_seq")
+        ).one()
+    )
+
+
+def _write_new_activity(repo, activity, write, event_time):
+    if write == "insert":
+        assert repo.insert(activity, event_time) is InsertResult.INSERTED
+    elif write == "upsert":
+        assert repo.upsert(activity, event_time)
+    else:
+        assert (
+            repo.upsert_backfill(activity, event_time) is BackfillUpsertResult.APPLIED
+        )
+
+
+class TestActivityIdAllocation:
+    """New activities allocate IDs; rewrites and blocked writes allocate nothing."""
+
+    @pytest.mark.parametrize("write", ["insert", "upsert", "backfill"])
+    def test_new_writes_allocate_from_the_identity_sequence_as_the_writer_role(
+        self, uow, db_session, write
+    ):
+        db_session.execute(text("SET LOCAL ROLE desirelines_dml_grp"))
+        last, called = _sequence_state(db_session)
+        expected_id = last + 1 if called else last
+        activity = make_activity(activity_id=17_000_000_010)
+
+        with uow:
+            _write_new_activity(uow.activities, activity, write, 100)
+            uow.commit()
+
+        allocated = activity_id_for(db_session, activity.id)
+        assert allocated == expected_id
+        assert allocated >= 1_000_000
+        assert allocated != activity.id
+        row = db_session.execute(
+            text("SELECT user_id, source FROM desirelines.activities WHERE id = :id"),
+            {"id": allocated},
+        ).one()
+        assert tuple(row) == (activity.user_id, "strava")
+        db_session.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
+
+    def test_duplicate_and_rewrites_keep_the_id_without_advancing_the_sequence(
+        self, uow, db_session
+    ):
+        activity = make_activity(activity_id=17_000_000_011)
+        with uow:
+            assert uow.activities.insert(activity, 100) is InsertResult.INSERTED
+            uow.commit()
+        allocated = activity_id_for(db_session, activity.id)
+        sequence = _sequence_state(db_session)
+
+        with uow:
+            assert uow.activities.insert(activity, 100) is InsertResult.ALREADY_EXISTS
+            assert uow.activities.upsert(activity, 200)
+            assert (
+                uow.activities.upsert_backfill(activity, 300)
+                is BackfillUpsertResult.APPLIED
+            )
+            uow.commit()
+
+        assert activity_id_for(db_session, activity.id) == allocated
+        assert _sequence_state(db_session) == sequence
+        db_session.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
+
+    @pytest.mark.parametrize("write", ["insert", "upsert", "backfill"])
+    def test_tombstone_blocked_writes_do_not_allocate(self, uow, db_session, write):
+        activity = make_activity(activity_id=17_000_000_012)
+        with uow:
+            assert uow.activities.delete(activity.id, 200) is DeleteResult.NOT_FOUND
+            uow.commit()
+        sequence = _sequence_state(db_session)
+
+        with uow:
+            if write == "insert":
+                assert (
+                    uow.activities.insert(activity, 100)
+                    is InsertResult.RESURRECTION_BLOCKED
+                )
+            elif write == "upsert":
+                assert not uow.activities.upsert(activity, 100)
+            else:
+                assert (
+                    uow.activities.upsert_backfill(activity, 100)
+                    is BackfillUpsertResult.SKIPPED
+                )
+            uow.commit()
+
+        assert activity_id_for(db_session, activity.id) is None
+        assert _sequence_state(db_session) == sequence
+        db_session.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
+
+    def test_recreation_allocates_a_new_id(self, uow, db_session):
+        activity = make_activity(activity_id=17_000_000_013)
+        with uow:
+            assert uow.activities.insert(activity, 100) is InsertResult.INSERTED
+            uow.commit()
+        original_id = activity_id_for(db_session, activity.id)
+        assert original_id is not None
+
+        with uow:
+            assert uow.activities.delete(activity.id, 200) is DeleteResult.DELETED
+            assert uow.activities.insert(activity, 300) is InsertResult.INSERTED
+            uow.commit()
+
+        assert activity_id_for(db_session, activity.id) == original_id + 1
+        assert (
+            db_session.execute(
+                text("SELECT count(*) FROM desirelines.activities WHERE id = :id"),
+                {"id": original_id},
+            ).scalar_one()
+            == 0
+        )
+
+
 class TestLookupsThroughTheMapping:
     """Writers find an activity through its platform ID's mapping, not its ID.
 
@@ -1015,7 +1165,7 @@ class TestLookupsThroughTheMapping:
         renumbered = strava_id + 9_000_000
         db_session.execute(
             text("UPDATE desirelines.activities SET id = :new WHERE id = :old"),
-            {"new": renumbered, "old": strava_id},
+            {"new": renumbered, "old": activity_id_for(db_session, strava_id)},
         )
         return renumbered
 
@@ -1090,12 +1240,12 @@ class TestLookupsThroughTheMapping:
             {"id": renumbered},
         ).scalar_one()
         assert routes == 1
-        assert _tagged_region_ids(db_session, renumbered) == [region_id]
+        assert _tagged_region_ids(db_session, 100304) == [region_id]
 
         with uow:
             assert uow.activities.clear_activity_regions(100304) == 1
             uow.commit()
-        assert _tagged_region_ids(db_session, renumbered) == []
+        assert _tagged_region_ids(db_session, 100304) == []
 
     def test_delete_removes_the_renumbered_row_and_blocks_a_late_create(
         self, uow, db_session
@@ -1165,14 +1315,12 @@ def _remove_concurrent_rows(engine: Engine) -> None:
         connection.execute(
             text("""
                 DELETE FROM desirelines.activities
-                WHERE id = ANY(:ids)
-                   OR id IN (
+                WHERE id IN (
                        SELECT activity_id FROM desirelines.activity_external_ids
                        WHERE source = 'strava' AND external_id = ANY(:external_ids)
                    )
             """),
             {
-                "ids": _CONCURRENT_IDS,
                 "external_ids": [str(id_) for id_ in _CONCURRENT_IDS],
             },
         )
@@ -1234,6 +1382,57 @@ class TestConcurrentWritesThroughTheMapping:
     that keeps writers from deadlocking each other.
     """
 
+    def test_allocation_waits_for_the_rekey_before_consuming_an_id(
+        self, engine, committing_session
+    ):
+        holder, writer = committing_session(), committing_session()
+        # A straggler ingested by the old writer. The migration sweeps it and
+        # retains its table locks until the transaction ends while a writer arrives.
+        holder.execute(
+            text("""
+                INSERT INTO desirelines.activities
+                    (id, user_id, type, sport, start_date_local, year,
+                     distance, moving_time, elapsed_time, source)
+                VALUES (9600002, '999', 'Run', 'Run', '2026-05-01', 2026,
+                        1000, 100, 100, 'strava')
+            """)
+        )
+        holder.execute(
+            text("""
+                INSERT INTO desirelines.activity_external_ids
+                    (source, external_id, activity_id, external_owner_id)
+                VALUES ('strava', '9600002', 9600002, '999')
+            """)
+        )
+        assert (
+            holder.execute(
+                text("SELECT desirelines.rekey_adopted_activities()")
+            ).scalar_one()
+            >= 1
+        )
+        sequence = _sequence_state(holder)
+        rekeyed = activity_id_for(holder, 9_600_002)
+        pid = writer.execute(text("SELECT pg_backend_pid()")).scalar_one()
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            arriving = pool.submit(
+                SqlAlchemyActivityRepository(writer).insert,
+                make_activity(activity_id=9_600_001),
+                100,
+            )
+            _wait_until_waiting_on_a_lock(engine, pid)
+            with engine.connect() as connection:
+                assert _sequence_state(connection) == sequence
+            # Roll back the sweep: legacy rows in a developer's database must
+            # not be renumbered by a committing test. Sequence gaps remain.
+            holder.rollback()
+            assert arriving.result(timeout=15) is InsertResult.INSERTED
+        writer.commit()
+
+        assert activity_id_for(writer, 9_600_001) == sequence[0] + 1
+        assert rekeyed is not None
+        assert activity_id_for(writer, 9_600_002) is None  # rolled-back fixture
+
     def _race(
         self,
         engine: Engine,
@@ -1288,7 +1487,8 @@ class TestConcurrentWritesThroughTheMapping:
         assert outcome is True
         with engine.connect() as connection:
             name = connection.execute(
-                text("SELECT name FROM desirelines.activities WHERE id = 9600002")
+                text("SELECT name FROM desirelines.activities WHERE id = :id"),
+                {"id": activity_id_for(connection, 9_600_002)},
             ).scalar_one()
         assert name == "Enriched"
 
@@ -1310,6 +1510,51 @@ class TestConcurrentWritesThroughTheMapping:
 
         assert outcome is DeleteResult.DELETED
 
+    @pytest.mark.parametrize("write", ["insert", "upsert", "backfill"])
+    def test_recreation_waiting_on_a_delete_allocates_a_new_id(
+        self, engine, committing_session, write
+    ):
+        setup, deleting, recreating = (committing_session() for _ in range(3))
+        activity = make_activity(activity_id=9_600_004, user_id=9_600_004)
+        assert (
+            SqlAlchemyActivityRepository(setup).insert(activity, 100)
+            is InsertResult.INSERTED
+        )
+        setup.commit()
+        original_id = activity_id_for(setup, activity.id)
+        assert original_id is not None
+        assert (
+            SqlAlchemyActivityRepository(deleting).delete(activity.id, 300)
+            is DeleteResult.DELETED
+        )
+
+        self._race(
+            engine,
+            deleting,
+            recreating,
+            lambda repo: _write_new_activity(repo, activity, write, 400),
+        )
+
+        recreated_id = activity_id_for(recreating, activity.id)
+        assert recreated_id is not None
+        assert recreated_id > original_id
+        assert (
+            recreating.execute(
+                text("SELECT count(*) FROM desirelines.activities WHERE id = :id"),
+                {"id": original_id},
+            ).scalar_one()
+            == 0
+        )
+        assert (
+            recreating.execute(
+                text(
+                    "SELECT count(*) FROM desirelines.activities WHERE user_id = :user_id"
+                ),
+                {"user_id": activity.user_id},
+            ).scalar_one()
+            == 1
+        )
+
     @pytest.mark.xfail(
         strict=True,
         reason=(
@@ -1323,7 +1568,7 @@ class TestConcurrentWritesThroughTheMapping:
     ):
         setup, first, second = (committing_session() for _ in range(3))
         SqlAlchemyActivityRepository(setup).insert(
-            make_activity(activity_id=9_600_004), 100
+            make_activity(activity_id=9_600_004, user_id=9_600_004), 100
         )
         setup.commit()
         assert (
@@ -1335,12 +1580,17 @@ class TestConcurrentWritesThroughTheMapping:
             engine,
             first,
             second,
-            lambda repo: repo.upsert(make_activity(activity_id=9_600_004), 200),
+            lambda repo: repo.upsert(
+                make_activity(activity_id=9_600_004, user_id=9_600_004), 200
+            ),
         )
 
         with engine.connect() as connection:
             resurrected = connection.execute(
-                text("SELECT count(*) FROM desirelines.activities WHERE id = 9600004")
+                text(
+                    "SELECT count(*) FROM desirelines.activities WHERE user_id = :user_id"
+                ),
+                {"user_id": "9600004"},
             ).scalar_one()
         assert resurrected == 0
 
@@ -1384,6 +1634,8 @@ class TestConcurrentWritesThroughTheMapping:
                 WHERE source = 'strava' AND external_id = '9600005' FOR UPDATE
             """)
         )
+        mapped_id = activity_id_for(holder, 9_600_005)
+        assert mapped_id is not None
         pid = writer.execute(text("SELECT pg_backend_pid()")).scalar_one()
         with ThreadPoolExecutor(max_workers=1) as pool:
             racing = pool.submit(write, SqlAlchemyActivityRepository(writer))
@@ -1393,9 +1645,10 @@ class TestConcurrentWritesThroughTheMapping:
             holder.execute(
                 text(
                     "SELECT 1 FROM desirelines.activities "
-                    "WHERE id = 9600005 FOR UPDATE NOWAIT"
-                )
-            )
+                    "WHERE id = :id FOR UPDATE NOWAIT"
+                ),
+                {"id": mapped_id},
+            ).scalar_one()
             holder.commit()
             racing.result(timeout=15)
         writer.commit()
@@ -1423,7 +1676,7 @@ class TestActivityRouteRepository:
                 "ST_NPoints(route) as npoints "
                 "FROM desirelines.activity_routes WHERE activity_id = :id"
             ),
-            {"id": 300001},
+            {"id": activity_id_for(db_session, 300001)},
         ).fetchone()
         assert row.geom_type == "MultiLineString"
         assert row.parts == 1
@@ -1450,7 +1703,7 @@ class TestActivityRouteRepository:
                 "ST_NPoints(ST_GeometryN(route, 2)) as second_leg_points "
                 "FROM desirelines.activity_routes WHERE activity_id = :id"
             ),
-            {"id": 300004},
+            {"id": activity_id_for(db_session, 300004)},
         ).fetchone()
         assert row.parts == 2
         assert row.second_leg_points == 3
@@ -1482,13 +1735,15 @@ class TestActivityRouteRepository:
             uow.activities.insert_route(300003, geojson)
             uow.commit()
 
+        activity_id = activity_id_for(db_session, 300003)
+        assert activity_id is not None
         with uow:
             uow.activities.delete(300003, 1700000000)
             uow.commit()
 
         row = db_session.execute(
             text("SELECT 1 FROM desirelines.activity_routes WHERE activity_id = :id"),
-            {"id": 300003},
+            {"id": activity_id},
         ).fetchone()
         assert row is None
 
@@ -1517,12 +1772,14 @@ _TEST_REGION_WKT = "POLYGON((-31 -1, -29 -1, -29 1, -31 1, -31 -1))"
 
 
 def _tagged_region_ids(session, activity_id: int) -> list[int]:
+    mapped_id = activity_id_for(session, activity_id)
+    assert mapped_id is not None
     rows = session.execute(
         text(
             "SELECT region_id FROM desirelines.activity_regions "
             "WHERE activity_id = :id ORDER BY region_id"
         ),
-        {"id": activity_id},
+        {"id": mapped_id},
     ).fetchall()
     return [r[0] for r in rows]
 
@@ -1564,7 +1821,7 @@ class TestActivityRegionTagging:
 
         row = db_session.execute(
             text("SELECT trainer, manual FROM desirelines.activities WHERE id = :id"),
-            {"id": 210000},
+            {"id": activity_id_for(db_session, 210000)},
         ).fetchone()
         assert row == (True, False)
 

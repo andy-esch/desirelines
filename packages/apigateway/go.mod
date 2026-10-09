@@ -1,6 +1,6 @@
 module github.com/andy-esch/desirelines/packages/apigateway
 
-go 1.26.6
+go 1.26.9
 
 require (
 	cloud.google.com/go/firestore v1.25.0
@@ -70,7 +70,7 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.46.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.11.0 // indirect
 	golang.org/x/crypto v0.57.0 // indirect
-	golang.org/x/net v0.59.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect

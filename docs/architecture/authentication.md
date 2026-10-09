@@ -73,14 +73,6 @@ Auth middleware (`middleware/auth.go`):
 - Firestore `allowlist/{strava_athlete_id}` — must exist for OAuth to succeed
 - Managed via Admin SDK (not client-accessible)
 
-> **Before allowlisting another athlete:** new activities still take their
-> Strava ID as their activity ID, and desirelines IDs start at 1,000,000, a
-> range Strava used around 2009-2010. An athlete with activities that old could
-> have one mapped onto an existing activity (and later updated or deleted in
-> its place). New activity IDs must come from the activity ID sequence first;
-> see the "Known gap" note on the writers' mapping claim in
-> `packages/stravapipe/src/stravapipe/adapters/postgres/_repository.py`.
-
 ## Firestore User Config
 
 User settings (preferences, goals, annotations) stored in Firestore at `users/{userId}/config/v1`.

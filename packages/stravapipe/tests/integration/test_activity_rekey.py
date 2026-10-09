@@ -18,7 +18,12 @@ from sqlalchemy.exc import ProgrammingError
 
 from stravapipe.domain import StandardActivity
 from stravapipe.domain.activity import MetaAthlete
-from stravapipe.ports.out.postgres import InsertResult, MetadataUpdateResult
+from stravapipe.ports.out.postgres import (
+    BackfillUpsertResult,
+    DeleteResult,
+    InsertResult,
+    MetadataUpdateResult,
+)
 
 # Strava-sized IDs, clear of the local seed and other fixtures. They run
 # opposite to the dates the tests give them, so ID order is never date order.
@@ -216,10 +221,14 @@ class TestRekeyAdoptedActivities:
             moving_time=100,
             elapsed_time=100,
         )
-        with uow:
-            uow.activities.insert(activity, 100)
-            uow.commit()
-        _rekey(db_session)
+        # Model an activity ingested by the old writer before the allocation
+        # flip, then swept by the migration. New writers no longer adopt IDs.
+        _insert_adopted(db_session, _OLDEST, "2026-05-01 08:00:00")
+        db_session.execute(
+            text("UPDATE desirelines.activities SET user_id = '17042' WHERE id = :id"),
+            {"id": _OLDEST},
+        )
+        assert _rekey(db_session) == 1
         rekeyed = _ids_by_strava_id(db_session, _OLDEST)[_OLDEST]
 
         with uow:
@@ -245,16 +254,8 @@ class TestRekeyAdoptedActivities:
 class TestStravaIdsInsideTheDesirelinesRange:
     """A Strava ID can equal an existing desirelines ID (old 7-digit IDs)."""
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "Known gap: a new activity still takes its Strava ID as its ID, so "
-            "one equal to an existing activity's desirelines ID is mapped onto "
-            "that activity. Allocating new IDs from the sequence closes it; "
-            "then remove this marker."
-        ),
-    )
-    def test_a_new_activity_never_claims_an_existing_one(self, uow, db_session):
+    @pytest.mark.parametrize("write", ["insert", "upsert", "backfill"])
+    def test_a_new_activity_never_claims_an_existing_one(self, uow, db_session, write):
         last = _clean_start(db_session)
         _insert_adopted(db_session, _OLDEST, "2026-05-01 08:00:00")
         _rekey(db_session)  # _OLDEST now holds desirelines ID last + 1
@@ -271,9 +272,22 @@ class TestStravaIdsInsideTheDesirelinesRange:
         )
 
         with uow:
-            result = uow.activities.insert(newcomer, 100)
+            if write == "insert":
+                assert uow.activities.insert(newcomer, 100) is InsertResult.INSERTED
+            elif write == "upsert":
+                assert uow.activities.upsert(newcomer, 100)
+            else:
+                assert (
+                    uow.activities.upsert_backfill(newcomer, 100)
+                    is BackfillUpsertResult.APPLIED
+                )
             uow.commit()
 
-        assert result is InsertResult.INSERTED
         claimed = _ids_by_strava_id(db_session, last + 1)[last + 1]
+        assert claimed == last + 2
         assert claimed != _ids_by_strava_id(db_session, _OLDEST)[_OLDEST]
+
+        with uow:
+            assert uow.activities.delete(newcomer.id, 200) is DeleteResult.DELETED
+            assert uow.activities.exists(_OLDEST)
+            uow.commit()

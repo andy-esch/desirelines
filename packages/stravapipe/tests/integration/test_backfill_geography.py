@@ -15,6 +15,7 @@ from stravapipe.application.backfill import BackfillService, PostgresWriteStats
 from stravapipe.domain import StandardActivity, SummaryMap, SummaryStravaActivity
 from stravapipe.domain.activity import MetaAthlete
 from stravapipe.ports.out.read import ReadDetailedActivities
+from tests.integration.helpers import activity_id_for
 
 WATERMARK = 2_000_000_000  # far-future run-start; seeded rows have NULL tokens
 VALID_POLYLINE = "_p~iF~ps|U_ulLnnqC_mqNvxq`@"
@@ -100,7 +101,7 @@ def route_hex(db_session, activity_id: int) -> str:
             FROM desirelines.activity_routes
             WHERE activity_id = :activity_id
         """),
-        {"activity_id": activity_id},
+        {"activity_id": activity_id_for(db_session, activity_id)},
     ).fetchone()
     assert row is not None
     return row[0]
@@ -108,6 +109,8 @@ def route_hex(db_session, activity_id: int) -> str:
 
 def tagged_region_ids(db_session, activity_id: int) -> list[int]:
     """Return all persisted region tags for an activity."""
+    mapped_id = activity_id_for(db_session, activity_id)
+    assert mapped_id is not None
     return [
         row[0]
         for row in db_session.execute(
@@ -117,7 +120,7 @@ def tagged_region_ids(db_session, activity_id: int) -> list[int]:
                 WHERE activity_id = :activity_id
                 ORDER BY region_id
             """),
-            {"activity_id": activity_id},
+            {"activity_id": mapped_id},
         ).fetchall()
     ]
 
@@ -130,7 +133,7 @@ def activity_manual(db_session, activity_id: int) -> bool:
             FROM desirelines.activities
             WHERE id = :activity_id
         """),
-        {"activity_id": activity_id},
+        {"activity_id": activity_id_for(db_session, activity_id)},
     ).fetchone()
     assert row is not None
     return row[0]
@@ -198,7 +201,7 @@ class TestBackfillGeographyIntegration:
         session_factory,
         failing_operation: str,
     ):
-        """A second-activity geography failure rolls back all three tables."""
+        """A geography failure rolls back activities, mappings, routes and tags."""
         activity_ids = [230101, 230102]
         activities = [
             make_summary_activity(activity_id) for activity_id in activity_ids
@@ -217,6 +220,18 @@ class TestBackfillGeographyIntegration:
                 raise RuntimeError(f"{failing_operation} failed")
             return original_operation(repository, activity_id, *args)
 
+        tables = (
+            "activity_regions",
+            "activity_routes",
+            "activities",
+            "activity_external_ids",
+        )
+        before = {
+            table: db_session.execute(
+                text(f"SELECT count(*) FROM desirelines.{table}")
+            ).scalar_one()
+            for table in tables
+        }
         service = make_service(session_factory)
         with patch.object(
             SqlAlchemyActivityRepository,
@@ -226,15 +241,18 @@ class TestBackfillGeographyIntegration:
             stats = service._insert_to_postgres(activities, WATERMARK)
 
         assert stats == PostgresWriteStats(errors=2)
-        for table in ("activity_regions", "activity_routes", "activities"):
+        for table in tables:
             count = db_session.execute(
-                text(
-                    f"SELECT count(*) FROM desirelines.{table} "
-                    "WHERE activity_id = ANY(:activity_ids)"
-                    if table != "activities"
-                    else "SELECT count(*) FROM desirelines.activities "
-                    "WHERE id = ANY(:activity_ids)"
-                ),
-                {"activity_ids": activity_ids},
+                text(f"SELECT count(*) FROM desirelines.{table}"),
             ).scalar_one()
-            assert count == 0
+            assert count == before[table], table
+        assert (
+            db_session.execute(
+                text(
+                    "SELECT count(*) FROM desirelines.activity_external_ids "
+                    "WHERE source = 'strava' AND external_id = ANY(:external_ids)"
+                ),
+                {"external_ids": [str(id_) for id_ in activity_ids]},
+            ).scalar_one()
+            == 0
+        )
