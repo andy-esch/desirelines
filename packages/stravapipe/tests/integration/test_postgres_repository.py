@@ -24,7 +24,7 @@ from stravapipe.ports.out.postgres import (
     InsertResult,
     MetadataUpdateResult,
 )
-from tests.integration.helpers import activity_id_for
+from tests.integration.helpers import activity_id_for, upsert_legacy_tombstone
 
 
 def make_activity(
@@ -1381,6 +1381,43 @@ class TestConcurrentWritesThroughTheMapping:
     and finishes once the first commits. The lock-order test checks the order
     that keeps writers from deadlocking each other.
     """
+
+    @pytest.mark.parametrize("legacy_first", [True, False])
+    def test_old_and_new_deletes_racing_during_rollout_share_a_tombstone(
+        self, engine, committing_session, legacy_first
+    ):
+        first, second = committing_session(), committing_session()
+        for session in (first, second):
+            session.execute(text("SET LOCAL ROLE desirelines_dml_grp"))
+        external_id = 9_600_001
+        if legacy_first:
+            upsert_legacy_tombstone(first, external_id, 100)
+            self._race(
+                engine,
+                first,
+                second,
+                lambda repo: repo.delete(external_id, 200, "current-200"),
+            )
+        else:
+            SqlAlchemyActivityRepository(first).delete(external_id, 100, "current-100")
+            self._race(
+                engine,
+                first,
+                second,
+                lambda _repo: upsert_legacy_tombstone(second, external_id, 200),
+            )
+        row = second.execute(
+            text("""
+                SELECT deletion_event_time, deletion_correlation_id
+                FROM desirelines.deleted_activities
+                WHERE source = 'strava' AND external_id = :external_id
+            """),
+            {"external_id": str(external_id)},
+        ).one()
+        assert row.deletion_event_time == 200
+        assert row.deletion_correlation_id == (
+            "current-200" if legacy_first else "legacy-200"
+        )
 
     def test_allocation_waits_for_the_rekey_before_consuming_an_id(
         self, engine, committing_session

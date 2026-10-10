@@ -13,6 +13,11 @@ python_tests(
     dependencies=[
         "packages/stravapipe:deps#psycopg",
     ],
+    overrides={
+        "test_activity_id_cleanup.py": {
+            "dependencies": ["schemas/database:migrations"],
+        },
+    },
 )
 
 python_test_utils(
