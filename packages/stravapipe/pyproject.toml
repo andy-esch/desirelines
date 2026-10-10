@@ -22,7 +22,7 @@ dependencies = [
     # sqlalchemy<2.1.0. Outside that range it logs an error and silently skips
     # instrumentation, so DB spans disappear without a failure. Lift the cap once
     # an instrumentor release supports 2.1.
-    "sqlalchemy>=2.0.0,<2.1",
+    "sqlalchemy>=2.1.3,<2.2",
     "psycopg>=3.2.0",
     "psycopg-binary>=3.2.0",
     "opentelemetry-api>=1.28.0",
