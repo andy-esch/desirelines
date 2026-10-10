@@ -48,6 +48,12 @@ Each top-level source or destination field has:
 example, detailed `map.polyline` is unavailable from the list endpoint, while
 both shapes can supply `map.summary_polyline`.
 
+`system_columns` records activity columns supplied by the writer rather than
+the source model. The internal `id` is selected from the external-ID mapping
+in SQL; timestamps and `source` are bound by the application. Source `id`
+therefore maps to the mapping table's `external_id`, not to an activity-column
+bind.
+
 Representative mappings:
 
 - Source `id` remains the external Strava ID in `StandardActivity` and

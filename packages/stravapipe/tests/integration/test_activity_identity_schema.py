@@ -149,5 +149,5 @@ class TestActivityIdentitySchema:
             """),
             {"id": _ACTIVITY_ID},
         ).one()
-        assert row.external_id == str(_ACTIVITY_ID)  # generated from id
+        assert row.external_id == str(_ACTIVITY_ID)  # V0014 bridges legacy inserts
         assert row.source == "strava"

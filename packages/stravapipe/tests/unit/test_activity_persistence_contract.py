@@ -22,6 +22,7 @@ from stravapipe.adapters.postgres._repository import (
     _ACTIVITY_COLUMNS,
     _ACTIVITY_SYSTEM_COLUMNS,
     _activity_write_params,
+    _platform_id,
 )
 from stravapipe.domain import (
     DetailedStravaActivity,
@@ -142,7 +143,12 @@ def test_manifest_shape_and_dispositions_are_valid():
     assert contract["version"] == 1
     assert contract["fields"]
     assert contract["nested_differences"]
-    assert set(contract["system_columns"]) == {"created_at", "updated_at", "source"}
+    assert set(contract["system_columns"]) == {
+        "id",
+        "created_at",
+        "updated_at",
+        "source",
+    }
 
     for path, disposition in {
         **contract["fields"],
@@ -247,10 +253,13 @@ def test_postgres_contract_matches_model_and_repository_mapping():
         assert kinds != {"not_persisted"}, name
 
     contract_column_attributes: dict[str, str] = {}
-    for disposition in contract["fields"].values():
+    for field, disposition in contract["fields"].items():
         for mapping in disposition["postgres"]:
             if mapping["kind"] not in {"column", "derived_column"}:
                 continue
+            if field == "id":
+                continue
+            assert mapping["target"].startswith("desirelines.activities."), field
             column = mapping["target"].rsplit(".", maxsplit=1)[-1]
             contract_column_attributes[column] = mapping["attribute"]
 
@@ -265,7 +274,19 @@ def test_postgres_contract_matches_model_and_repository_mapping():
     standard = StandardActivity.model_validate(summary, from_attributes=True)
     now = datetime(2026, 7, 24, tzinfo=UTC)
     params = _activity_write_params(standard, now)
-    assert tuple(params) == _ACTIVITY_COLUMNS
+    assert tuple(params) == tuple(col for col in _ACTIVITY_COLUMNS if col != "id")
+    assert "id" not in params  # the activity INSERT selects the mapping's ID
+    assert contract["fields"]["id"]["postgres"] == [
+        {
+            "kind": "derived_column",
+            "target": "desirelines.activity_external_ids.external_id",
+            "attribute": "id",
+        }
+    ]
+    assert _platform_id(standard.id) == {
+        "source": "strava",
+        "external_id": str(standard.id),
+    }
     assert params["created_at"] is now
     assert params["updated_at"] is now
     assert params["source"] == "strava"

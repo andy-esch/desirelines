@@ -315,7 +315,7 @@
       "postgres": [
         {
           "kind": "derived_column",
-          "target": "desirelines.activities.id",
+          "target": "desirelines.activity_external_ids.external_id",
           "attribute": "id"
         }
       ],
@@ -747,6 +747,10 @@
     }
   },
   "system_columns": {
+    "id": {
+      "source": "external_id_mapping_or_identity_sequence",
+      "target": "desirelines.activities.id"
+    },
     "created_at": {
       "source": "application_clock",
       "target": "desirelines.activities.created_at"

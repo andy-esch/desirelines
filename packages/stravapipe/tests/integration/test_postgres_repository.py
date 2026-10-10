@@ -24,7 +24,7 @@ from stravapipe.ports.out.postgres import (
     InsertResult,
     MetadataUpdateResult,
 )
-from tests.integration.helpers import activity_id_for
+from tests.integration.helpers import activity_id_for, upsert_legacy_tombstone
 
 
 def make_activity(
@@ -1381,6 +1381,114 @@ class TestConcurrentWritesThroughTheMapping:
     and finishes once the first commits. The lock-order test checks the order
     that keeps writers from deadlocking each other.
     """
+
+    def test_fresh_tombstone_inserts_serialize_before_conflict_checks(
+        self, engine, committing_session
+    ):
+        holder, legacy, current, observer = (committing_session() for _ in range(4))
+        external_id = 9_600_001
+        # Pause both INSERTs before either can create a row. Different ON
+        # CONFLICT arbiters can otherwise miss the key together and then fail
+        # on the other unique index during speculative insertion.
+        holder.execute(text("SELECT pg_advisory_xact_lock(:id)"), {"id": external_id})
+        pids = []
+        for session in (legacy, current):
+            session.execute(text("SET LOCAL ROLE desirelines_dml_grp"))
+            pids.append(session.execute(text("SELECT pg_backend_pid()")).scalar_one())
+
+        def legacy_delete():
+            upsert_legacy_tombstone(legacy, external_id, 100)
+            legacy.commit()
+
+        def current_delete():
+            result = SqlAlchemyActivityRepository(current).delete(
+                external_id, 200, "current-200"
+            )
+            current.commit()
+            return result
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            older = pool.submit(legacy_delete)
+            newer = pool.submit(current_delete)
+            try:
+                for pid in pids:
+                    _wait_until_waiting_on_a_lock(engine, pid)
+                assert (
+                    observer.execute(
+                        text("""
+                        SELECT count(*) FROM pg_locks
+                        WHERE pid = ANY(:pids) AND locktype = 'advisory' AND NOT granted
+                    """),
+                        {"pids": pids},
+                    ).scalar_one()
+                    == 2
+                )
+                assert (
+                    observer.execute(
+                        text(
+                            "SELECT count(*) FROM desirelines.deleted_activities WHERE id = :id"
+                        ),
+                        {"id": external_id},
+                    ).scalar_one()
+                    == 0
+                )
+                # The bridge serializes a single ID, not unrelated deletions.
+                assert (
+                    SqlAlchemyActivityRepository(observer).delete(9_600_002, 100)
+                    is DeleteResult.NOT_FOUND
+                )
+                observer.commit()
+            finally:
+                holder.rollback()
+            older.result(timeout=15)
+            assert newer.result(timeout=15) is DeleteResult.NOT_FOUND
+
+        row = observer.execute(
+            text("""
+                SELECT deletion_event_time, deletion_correlation_id
+                FROM desirelines.deleted_activities
+                WHERE source = 'strava' AND external_id = :external_id
+            """),
+            {"external_id": str(external_id)},
+        ).one()
+        assert tuple(row) == (200, "current-200")
+
+    @pytest.mark.parametrize("legacy_first", [True, False])
+    def test_old_and_new_deletes_racing_during_rollout_share_a_tombstone(
+        self, engine, committing_session, legacy_first
+    ):
+        first, second = committing_session(), committing_session()
+        for session in (first, second):
+            session.execute(text("SET LOCAL ROLE desirelines_dml_grp"))
+        external_id = 9_600_001
+        if legacy_first:
+            upsert_legacy_tombstone(first, external_id, 100)
+            self._race(
+                engine,
+                first,
+                second,
+                lambda repo: repo.delete(external_id, 200, "current-200"),
+            )
+        else:
+            SqlAlchemyActivityRepository(first).delete(external_id, 100, "current-100")
+            self._race(
+                engine,
+                first,
+                second,
+                lambda _repo: upsert_legacy_tombstone(second, external_id, 200),
+            )
+        row = second.execute(
+            text("""
+                SELECT deletion_event_time, deletion_correlation_id
+                FROM desirelines.deleted_activities
+                WHERE source = 'strava' AND external_id = :external_id
+            """),
+            {"external_id": str(external_id)},
+        ).one()
+        assert row.deletion_event_time == 200
+        assert row.deletion_correlation_id == (
+            "current-200" if legacy_first else "legacy-200"
+        )
 
     def test_allocation_waits_for_the_rekey_before_consuming_an_id(
         self, engine, committing_session

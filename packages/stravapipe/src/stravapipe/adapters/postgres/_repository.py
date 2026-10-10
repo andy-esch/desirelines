@@ -47,7 +47,6 @@ _ALLOWED_UPDATE_CLAUSES: Final[dict[str, list[str]]] = {
 # other. Computed StandardActivity attributes (`user_id`, `sport`, and `year`)
 # are intentionally named here alongside direct model fields.
 _ACTIVITY_COLUMN_ATTRIBUTES: Final[dict[str, str]] = {
-    "id": "id",
     "user_id": "user_id",
     "name": "name",
     "type": "type",
@@ -66,8 +65,11 @@ _ACTIVITY_COLUMN_ATTRIBUTES: Final[dict[str, str]] = {
     "year": "year",
 }
 # Columns the writer fills itself rather than from StandardActivity: the
-# timestamps from its clock, `source` from ACTIVITY_SOURCE.
+# `id` from the external-ID mapping, timestamps from its clock, and `source`
+# from ACTIVITY_SOURCE. The internal ID is selected in SQL, never bound from
+# StandardActivity.id (which is the external Strava ID).
 _ACTIVITY_SYSTEM_COLUMNS: Final[tuple[str, ...]] = (
+    "id",
     "created_at",
     "updated_at",
     "source",
@@ -186,6 +188,7 @@ _CLAIM_OR_FIND_MAPPING_CTE: Final[str] = (
 # The activity's columns as bind params, except `id`: the mapping's.
 _ACTIVITY_INSERT_SELECT_FROM_MAPPING: Final[str] = (
     f"INSERT INTO desirelines.activities ({', '.join(_ACTIVITY_INSERT_COLUMNS)})"  # noqa: S608 -- column names from _ACTIVITY_INSERT_COLUMNS const; values are bound :params
+    " OVERRIDING SYSTEM VALUE"
     " SELECT "
     + ", ".join(
         "mapping.activity_id" if col == "id" else f":{col}"
@@ -254,7 +257,8 @@ _ACTIVITY_BACKFILL_UPSERT_SQL: Final[str] = (
 # (the mapping goes with the activity, by cascade). GREATEST keeps the newest
 # deletion_event_time; deleted_at and correlation_id only advance with it (a
 # stale re-delete must not overwrite the authoritative delete's metadata).
-# Tombstones are keyed by the Strava ID (`external_id` is generated from `id`).
+# Tombstones are keyed by (source, external_id), independently of internal IDs.
+# V0014 bridges these inserts to the legacy id column during writer rollout.
 # Everything runs in the caller's Unit of Work.
 _SELECT_ACTIVITY_FENCE_FOR_UPDATE_SQL: Final[str] = (
     "SELECT last_event_time FROM desirelines.activities "
@@ -262,10 +266,10 @@ _SELECT_ACTIVITY_FENCE_FOR_UPDATE_SQL: Final[str] = (
 )
 _TOMBSTONE_UPSERT_SQL: Final[str] = (
     "INSERT INTO desirelines.deleted_activities"
-    " (id, source, deletion_event_time, deleted_at, deletion_correlation_id)"
-    " VALUES (:external_activity_id, :source, :event_time, :deleted_at,"
+    " (source, external_id, deletion_event_time, deleted_at, deletion_correlation_id)"
+    " VALUES (:source, :external_id, :event_time, :deleted_at,"
     "  :correlation_id)"
-    " ON CONFLICT (id) DO UPDATE SET"
+    " ON CONFLICT (source, external_id) DO UPDATE SET"
     "  deletion_event_time = GREATEST("
     "    deleted_activities.deletion_event_time, EXCLUDED.deletion_event_time),"
     "  deleted_at = CASE"
@@ -964,7 +968,6 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             text(_TOMBSTONE_UPSERT_SQL),
             {
                 **platform_id,
-                "external_activity_id": external_id,
                 "event_time": event_time,
                 "deleted_at": datetime.now(UTC),
                 "correlation_id": correlation_id,
