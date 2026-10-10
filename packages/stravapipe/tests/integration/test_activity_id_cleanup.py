@@ -20,7 +20,7 @@ from stravapipe.ports.out.postgres import (
     DeleteResult,
     InsertResult,
 )
-from tests.integration.helpers import upsert_legacy_tombstone
+from tests.integration.helpers import activity_id_for, upsert_legacy_tombstone
 
 _EXTERNAL_ID = 18_000_000_001
 
@@ -204,6 +204,7 @@ class TestWriterWithFinalIdentitySchema:
             ).scalar_one()
             == activity_id
         )
+        assert activity_id_for(db_session, _EXTERNAL_ID) == activity_id
         db_session.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
 
         assert repo.delete(_EXTERNAL_ID, 200) is DeleteResult.DELETED

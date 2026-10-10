@@ -30,6 +30,12 @@ BEGIN
     ELSIF NEW.id IS NULL THEN
         NEW.id := NEW.external_id::bigint;
     END IF;
+    -- The old and new INSERTs use different ON CONFLICT arbiters. Serialize
+    -- them before uniqueness prechecks: simultaneous speculative inserts can
+    -- otherwise fail on the other unique index instead of taking the UPDATE
+    -- path. Use the legacy key, which is unique across sources in this stage.
+    -- Writers acquire mapping/activity locks before this transaction lock.
+    PERFORM pg_advisory_xact_lock(NEW.id);
     RETURN NEW;
 END;
 $$;
@@ -40,7 +46,8 @@ CREATE TRIGGER bridge_legacy_tombstone_id
 
 COMMENT ON FUNCTION desirelines.bridge_legacy_tombstone_id() IS
     'Temporary compatibility bridge for old id-keyed and new external-ID-keyed '
-    'tombstone inserts. Remove with the legacy id column after writer rollout. '
+    'tombstone inserts, serializing them by legacy id before conflict checks. '
+    'Remove with the legacy id column after writer rollout. '
     'Until then external IDs must remain canonical bigint strings and the '
     'legacy primary key still prevents equal IDs across sources.';
 
