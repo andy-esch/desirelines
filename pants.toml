@@ -1,11 +1,11 @@
 [GLOBAL]
-pants_version = "2.32.0"  # Use latest stable version
+pants_version = "2.33.1"  # Use latest stable version
 
 # Enable colors for better readability
 colors = true
 
-# Dynamic UI shows progress (disable in CI if needed)
-dynamic_ui = true
+# Dynamic UI defaults to true on interactive TTYs and false in CI ($CI set),
+# avoiding ANSI control character redraw churn in GitHub Actions logs.
 
 # Streaming output for real-time feedback
 streaming_workunits_report_interval = 1.0
