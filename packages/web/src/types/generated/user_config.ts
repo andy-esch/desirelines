@@ -115,13 +115,20 @@ export interface Annotation {
   endDate: string;
   label: string;
   description: string;
-  /** Optional desirelines activity ID, not a source ID */
-  activityId: string;
+  /**
+   * Legacy external Strava ID. Preserve its tag/name for existing consumers;
+   * never reinterpret it as a desirelines activity ID.
+   *
+   * @deprecated
+   */
+  stravaActivityId: string;
   type: AnnotationType;
   /** RFC3339 timestamp */
   createdAt: string;
   /** RFC3339 timestamp */
   updatedAt: string;
+  /** Optional desirelines activity ID, not a source ID */
+  activityId: string;
 }
 
 /** User preferences (global, not year-specific) */
@@ -710,10 +717,11 @@ function createBaseAnnotation(): Annotation {
     endDate: "",
     label: "",
     description: "",
-    activityId: "",
+    stravaActivityId: "",
     type: 0,
     createdAt: "",
     updatedAt: "",
+    activityId: "",
   };
 }
 
@@ -734,8 +742,8 @@ export const Annotation: MessageFns<Annotation> = {
     if (message.description !== "") {
       writer.uint32(42).string(message.description);
     }
-    if (message.activityId !== "") {
-      writer.uint32(50).string(message.activityId);
+    if (message.stravaActivityId !== "") {
+      writer.uint32(50).string(message.stravaActivityId);
     }
     if (message.type !== 0) {
       writer.uint32(56).int32(message.type);
@@ -745,6 +753,9 @@ export const Annotation: MessageFns<Annotation> = {
     }
     if (message.updatedAt !== "") {
       writer.uint32(74).string(message.updatedAt);
+    }
+    if (message.activityId !== "") {
+      writer.uint32(82).string(message.activityId);
     }
     return writer;
   },
@@ -807,7 +818,7 @@ export const Annotation: MessageFns<Annotation> = {
               break;
             }
 
-            message.activityId = reader.string();
+            message.stravaActivityId = reader.string();
             continue;
           }
           case 7: {
@@ -832,6 +843,14 @@ export const Annotation: MessageFns<Annotation> = {
             }
 
             message.updatedAt = reader.string();
+            continue;
+          }
+          case 10: {
+            if (tag !== 82) {
+              break;
+            }
+
+            message.activityId = reader.string();
             continue;
           }
         }

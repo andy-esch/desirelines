@@ -73,10 +73,13 @@ message Annotation {
   string end_date = 3; // Optional, empty for single-day
   string label = 4;
   string description = 5;
-  string activity_id = 6; // Optional desirelines activity ID, not a source ID
+  // Legacy external Strava ID. Preserve its tag/name for existing consumers;
+  // never reinterpret it as a desirelines activity ID.
+  string strava_activity_id = 6 [deprecated = true];
   AnnotationType type = 7;
   string created_at = 8; // RFC3339 timestamp
   string updated_at = 9; // RFC3339 timestamp
+  string activity_id = 10; // Optional desirelines activity ID, not a source ID
 }
 
 enum AnnotationType {

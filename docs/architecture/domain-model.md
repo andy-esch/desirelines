@@ -54,6 +54,9 @@ historical-data decision.
 identity sequence. API DTOs, route/region foreign keys, tiles, pagination,
 app links and the optional annotation `activity_id` reference this internal ID.
 `activities.source` identifies the platform the activity was ingested from.
+Annotations add `activity_id` on protobuf tag 10. Deprecated tag 6 keeps the
+legacy `strava_activity_id` name and external-ID meaning for compatibility;
+consumers preserve it without treating it as an internal ID.
 
 `desirelines.activity_external_ids` maps `(source, external_id)` to `activity_id`
 and carries the platform owner ID separately. Writers claim this mapping first,

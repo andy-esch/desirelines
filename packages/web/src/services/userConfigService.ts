@@ -119,6 +119,7 @@ const AnnotationSchema = z
     endDate: proto.string(),
     label: proto.string(),
     description: proto.string(),
+    stravaActivityId: proto.string(), // Legacy source ID; preserve without converting.
     activityId: proto.string(),
     type: proto.int(),
     createdAt: proto.string(),
