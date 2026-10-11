@@ -753,7 +753,7 @@ describe("the section hooks", () => {
           endDate: "",
           label: "Race",
           description: "",
-          stravaActivityId: "",
+          activityId: "",
           type: AnnotationType.ANNOTATION_TYPE_EVENT,
           createdAt: "2025-07-14T00:00:00Z",
           updatedAt: "2025-07-14T00:00:00Z",

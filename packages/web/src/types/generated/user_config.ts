@@ -115,8 +115,8 @@ export interface Annotation {
   endDate: string;
   label: string;
   description: string;
-  /** Optional link */
-  stravaActivityId: string;
+  /** Optional desirelines activity ID, not a source ID */
+  activityId: string;
   type: AnnotationType;
   /** RFC3339 timestamp */
   createdAt: string;
@@ -710,7 +710,7 @@ function createBaseAnnotation(): Annotation {
     endDate: "",
     label: "",
     description: "",
-    stravaActivityId: "",
+    activityId: "",
     type: 0,
     createdAt: "",
     updatedAt: "",
@@ -734,8 +734,8 @@ export const Annotation: MessageFns<Annotation> = {
     if (message.description !== "") {
       writer.uint32(42).string(message.description);
     }
-    if (message.stravaActivityId !== "") {
-      writer.uint32(50).string(message.stravaActivityId);
+    if (message.activityId !== "") {
+      writer.uint32(50).string(message.activityId);
     }
     if (message.type !== 0) {
       writer.uint32(56).int32(message.type);
@@ -807,7 +807,7 @@ export const Annotation: MessageFns<Annotation> = {
               break;
             }
 
-            message.stravaActivityId = reader.string();
+            message.activityId = reader.string();
             continue;
           }
           case 7: {

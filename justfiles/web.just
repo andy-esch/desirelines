@@ -64,7 +64,7 @@ proto-gen-web:
         schemas/proto/desirelines/config/v1/user_config.proto
     @# activities: forceLong=string. Its int64 ids (activity id, region ids) cross
     @# service boundaries — the map cross-filter matches them against the numeric
-    @# activity_id in MVT tiles, and they build Strava links — and protojson
+    @# activity_id in MVT tiles, and they build app links — and protojson
     @# serializes int64 as a JSON *string*. The generated type MUST say `string` or
     @# the contract silently lies; the API boundary (api/map.ts) coerces to number.
     protoc --plugin=packages/web/node_modules/.bin/protoc-gen-ts_proto \
