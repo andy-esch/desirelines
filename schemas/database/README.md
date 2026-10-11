@@ -57,6 +57,11 @@ just db-connect prod admin   # Connect (admin)
 
 ### Activity-ID allocation rollout
 
+The allocation transition is complete in the V0015 schema. The following sweep
+steps apply only before V0015, while `rekey_adopted_activities()` still exists;
+never run them against the final schema. New ingestion and local seeds allocate
+from the identity sequence and retain external IDs only in the mapping.
+
 New writers allocate desirelines activity IDs from the identity sequence and
 keep Strava IDs in `activity_external_ids`. V0013 sweeps rows ingested with
 their Strava ID after the initial V0012 re-key. The deployment runs migrations
@@ -129,19 +134,32 @@ updating writer images. Ship the compatibility release first:
    cleanup, the previous sequence-allocating writer remains a compatible
    rollback target; a new writer requires V0014 and cannot run against V0013.
 
-Only a subsequent release may remove the legacy tombstone `id`, its bridge
-trigger/function/check, and the temporary re-key helper, then make
-`(source, external_id)` the tombstone primary key and tighten the activity
-identity to `GENERATED ALWAYS`. First repeat the adopted-ID count above and
-finish any needed sweep. Update local seeds and explicit-ID fixtures alongside
-that final migration. After cleanup, rolling back to a writer that inserts the
-legacy tombstone column or omits the identity override is incompatible; use a
+V0015 is the subsequent release that removes the legacy tombstone `id`, its bridge
+trigger/function/check, and the temporary re-key helper, makes
+`(source, external_id)` the tombstone primary key and tightens the activity
+identity to `GENERATED ALWAYS`. Before applying V0015, verify both environments'
+compatibility images, old request/backfill drainage, fresh ingestion/deletion behavior, and zero adopted
+IDs. The migration repeats the adopted-ID count while holding mapping/activity
+table locks and refuses cleanup if any remain; it does not run a sweep or
+renumber data. Investigate a nonzero count with the V0014 schema/helper retained.
+The equality check is a conservative transition heuristic, not durable identity
+provenance: an allocated ID can coincidentally equal its source ID.
+
+V0015 preserves existing internal IDs, source keys and deletion metadata. Local
+seeds claim source mappings and insert under their sequence IDs directly;
+explicit-ID fixtures intentionally use `OVERRIDING SYSTEM VALUE`. Historical
+migration/old-writer tests use isolated databases through V0014, rather than
+downgrading the current integration-test database. Their login needs CREATEDB
+(local/CI PostGIS uses the `desirelines` superuser).
+
+After cleanup, rolling back to a writer that inserts the legacy tombstone column or omits the identity override is incompatible; use a
 forward fix instead.
 
 `test_activity_id_cleanup.py` exercises the old and new tombstone statements,
-preservation through V0014, and the new writer under the final schema. The
-final schema changes in those tests are rolled back; V0014 deliberately does
-not deploy them.
+preservation through V0014, and the new writer under the final schema.
+Tests run the real V0015 migration, verify metadata preservation and refusal
+when adopted IDs remain, and cover the final-schema writer plus idempotent seeds.
+Transactional changes are rolled back within each isolated historical database.
 
 ## Creating New Migrations
 

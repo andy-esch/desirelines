@@ -24,7 +24,11 @@ from stravapipe.ports.out.postgres import (
     InsertResult,
     MetadataUpdateResult,
 )
-from tests.integration.helpers import activity_id_for, upsert_legacy_tombstone
+from tests.integration.helpers import (
+    activity_id_for,
+    migrated_database,
+    upsert_legacy_tombstone,
+)
 
 
 def make_activity(
@@ -433,7 +437,7 @@ class TestActivityDeletionTombstone:
         return db_session.execute(
             text(
                 "SELECT deletion_event_time, deletion_correlation_id "
-                "FROM desirelines.deleted_activities WHERE id = :id"
+                "FROM desirelines.deleted_activities WHERE source = 'strava' AND external_id = CAST(:id AS text)"
             ),
             {"id": activity_id},
         ).fetchone()
@@ -963,7 +967,9 @@ class TestActivitySourceAndMapping:
             uow.commit()
 
         tombstone_source = db_session.execute(
-            text("SELECT source FROM desirelines.deleted_activities WHERE id = :id"),
+            text(
+                "SELECT source FROM desirelines.deleted_activities WHERE source = 'strava' AND external_id = CAST(:id AS text)"
+            ),
             {"id": 100103},
         ).scalar_one()
         assert tombstone_source == "strava"
@@ -1149,11 +1155,11 @@ class TestActivityIdAllocation:
 class TestLookupsThroughTheMapping:
     """Writers find an activity through its platform ID's mapping, not its ID.
 
-    Each test renumbers an activity, as the re-key does, so its ID no longer
-    equals its Strava ID, then drives the repository by the Strava ID alone.
+    Each test inserts an activity with a separately allocated internal ID, then
+    drives the repository by the Strava ID alone under the final schema.
     """
 
-    def _create_renumbered(
+    def _create_mapped_activity(
         self, uow, db_session, strava_id: int, event_time: int = 100
     ) -> int:
         with uow:
@@ -1162,12 +1168,10 @@ class TestLookupsThroughTheMapping:
                 is InsertResult.INSERTED
             )
             uow.commit()
-        renumbered = strava_id + 9_000_000
-        db_session.execute(
-            text("UPDATE desirelines.activities SET id = :new WHERE id = :old"),
-            {"new": renumbered, "old": activity_id_for(db_session, strava_id)},
-        )
-        return renumbered
+        internal_id = activity_id_for(db_session, strava_id)
+        assert internal_id is not None
+        assert internal_id != strava_id
+        return internal_id
 
     def _name(self, db_session, activity_id: int) -> str | None:
         return db_session.execute(
@@ -1176,17 +1180,15 @@ class TestLookupsThroughTheMapping:
         ).scalar_one_or_none()
 
     def test_existence_checks_follow_the_mapping(self, uow, db_session):
-        renumbered = self._create_renumbered(uow, db_session, 100300)
+        mapped = self._create_mapped_activity(uow, db_session, 100300)
 
         with uow:
             assert uow.activities.exists(100300)
-            assert not uow.activities.exists(renumbered)  # no platform's ID
-            assert uow.activities.get_existing_ids([100300, 100301, renumbered]) == {
-                100300
-            }
+            assert not uow.activities.exists(mapped)  # no platform's ID
+            assert uow.activities.get_existing_ids([100300, 100301, mapped]) == {100300}
 
-    def test_metadata_update_reaches_the_renumbered_row(self, uow, db_session):
-        renumbered = self._create_renumbered(uow, db_session, 100302)
+    def test_metadata_update_reaches_the_mapped_row(self, uow, db_session):
+        mapped = self._create_mapped_activity(uow, db_session, 100302)
 
         with uow:
             assert (
@@ -1195,10 +1197,10 @@ class TestLookupsThroughTheMapping:
             )
             uow.commit()
 
-        assert self._name(db_session, renumbered) == "Renamed"
+        assert self._name(db_session, mapped) == "Renamed"
 
-    def test_writes_reach_the_renumbered_row_and_add_no_other(self, uow, db_session):
-        renumbered = self._create_renumbered(uow, db_session, 100303)
+    def test_writes_reach_the_mapped_row_and_add_no_other(self, uow, db_session):
+        mapped = self._create_mapped_activity(uow, db_session, 100303)
 
         with uow:
             assert (
@@ -1209,7 +1211,7 @@ class TestLookupsThroughTheMapping:
                 make_activity(activity_id=100303, name="Enriched"), 200
             )
             uow.commit()
-        assert self._name(db_session, renumbered) == "Enriched"
+        assert self._name(db_session, mapped) == "Enriched"
 
         with uow:
             assert (
@@ -1219,12 +1221,12 @@ class TestLookupsThroughTheMapping:
                 is BackfillUpsertResult.APPLIED
             )
             uow.commit()
-        assert self._name(db_session, renumbered) == "Backfilled"
+        assert self._name(db_session, mapped) == "Backfilled"
         assert self._name(db_session, 100303) is None  # nothing under the Strava ID
 
-    def test_route_and_region_tags_attach_to_the_renumbered_row(self, uow, db_session):
+    def test_route_and_region_tags_attach_to_the_mapped_row(self, uow, db_session):
         region_id = _insert_test_region(db_session, code="lookup", wkt=_TEST_REGION_WKT)
-        renumbered = self._create_renumbered(uow, db_session, 100304)
+        mapped = self._create_mapped_activity(uow, db_session, 100304)
         geojson = '{"type":"LineString","coordinates":[[-30.2,0.1],[-29.8,-0.1]]}'
 
         with uow:
@@ -1237,7 +1239,7 @@ class TestLookupsThroughTheMapping:
                 "SELECT count(*) FROM desirelines.activity_routes "
                 "WHERE activity_id = :id"
             ),
-            {"id": renumbered},
+            {"id": mapped},
         ).scalar_one()
         assert routes == 1
         assert _tagged_region_ids(db_session, 100304) == [region_id]
@@ -1247,20 +1249,20 @@ class TestLookupsThroughTheMapping:
             uow.commit()
         assert _tagged_region_ids(db_session, 100304) == []
 
-    def test_delete_removes_the_renumbered_row_and_blocks_a_late_create(
+    def test_delete_removes_the_mapped_row_and_blocks_a_late_create(
         self, uow, db_session
     ):
-        renumbered = self._create_renumbered(uow, db_session, 100305)
+        mapped = self._create_mapped_activity(uow, db_session, 100305)
 
         with uow:
             assert uow.activities.delete(100305, 300) is DeleteResult.DELETED
             uow.commit()
 
-        assert self._name(db_session, renumbered) is None
+        assert self._name(db_session, mapped) is None
         tombstone = db_session.execute(
             text(
                 "SELECT source, external_id FROM desirelines.deleted_activities "
-                "WHERE id = :id"
+                "WHERE source = 'strava' AND external_id = CAST(:id AS text)"
             ),
             {"id": 100305},
         ).one()
@@ -1273,14 +1275,14 @@ class TestLookupsThroughTheMapping:
             )
             uow.commit()
 
-    def test_stale_delete_leaves_the_renumbered_row(self, uow, db_session):
-        renumbered = self._create_renumbered(uow, db_session, 100306, event_time=500)
+    def test_stale_delete_leaves_the_mapped_row(self, uow, db_session):
+        mapped = self._create_mapped_activity(uow, db_session, 100306, event_time=500)
 
         with uow:
             assert uow.activities.delete(100306, 100) is DeleteResult.STALE
             uow.commit()
 
-        assert self._name(db_session, renumbered) is not None
+        assert self._name(db_session, mapped) is not None
 
     def test_an_unmapped_strava_id_matches_nothing(self, uow, db_session):
         with uow:
@@ -1325,8 +1327,10 @@ def _remove_concurrent_rows(engine: Engine) -> None:
             },
         )
         connection.execute(
-            text("DELETE FROM desirelines.deleted_activities WHERE id = ANY(:ids)"),
-            {"ids": _CONCURRENT_IDS},
+            text(
+                "DELETE FROM desirelines.deleted_activities WHERE source = 'strava' AND external_id = ANY(:ids)"
+            ),
+            {"ids": [str(id_) for id_ in _CONCURRENT_IDS]},
         )
 
 
@@ -1374,13 +1378,35 @@ def _wait_until_waiting_on_a_lock(engine: Engine, pid: int) -> None:
     raise AssertionError("the racing writer never waited on the first one")
 
 
-class TestConcurrentWritesThroughTheMapping:
+def _race(
+    engine: Engine,
+    first: Session,
+    second: Session,
+    write: Callable[[SqlAlchemyActivityRepository], object],
+) -> object:
+    # Read before the race: the worker thread owns `second` once it starts.
+    pid = second.execute(text("SELECT pg_backend_pid()")).scalar_one()
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        racing = pool.submit(write, SqlAlchemyActivityRepository(second))
+        _wait_until_waiting_on_a_lock(engine, pid)
+        first.commit()
+        outcome = racing.result(timeout=15)
+    second.commit()
+    return outcome
+
+
+class TestConcurrentHistoricalWrites:
     """Two real transactions on one platform ID: no error or lost write.
 
     The second writer starts while the first holds its locks, waits on them,
     and finishes once the first commits. The lock-order test checks the order
     that keeps writers from deadlocking each other.
     """
+
+    @pytest.fixture
+    def engine(self, db_url):
+        with migrated_database(db_url, 14) as historical:
+            yield historical
 
     def test_fresh_tombstone_inserts_serialize_before_conflict_checks(
         self, engine, committing_session
@@ -1426,7 +1452,7 @@ class TestConcurrentWritesThroughTheMapping:
                 assert (
                     observer.execute(
                         text(
-                            "SELECT count(*) FROM desirelines.deleted_activities WHERE id = :id"
+                            "SELECT count(*) FROM desirelines.deleted_activities WHERE source = 'strava' AND external_id = CAST(:id AS text)"
                         ),
                         {"id": external_id},
                     ).scalar_one()
@@ -1463,7 +1489,7 @@ class TestConcurrentWritesThroughTheMapping:
         external_id = 9_600_001
         if legacy_first:
             upsert_legacy_tombstone(first, external_id, 100)
-            self._race(
+            _race(
                 engine,
                 first,
                 second,
@@ -1471,7 +1497,7 @@ class TestConcurrentWritesThroughTheMapping:
             )
         else:
             SqlAlchemyActivityRepository(first).delete(external_id, 100, "current-100")
-            self._race(
+            _race(
                 engine,
                 first,
                 second,
@@ -1541,22 +1567,9 @@ class TestConcurrentWritesThroughTheMapping:
         assert rekeyed is not None
         assert activity_id_for(writer, 9_600_002) is None  # rolled-back fixture
 
-    def _race(
-        self,
-        engine: Engine,
-        first: Session,
-        second: Session,
-        write: Callable[[SqlAlchemyActivityRepository], object],
-    ) -> object:
-        # Read before the race: the worker thread owns `second` once it starts.
-        pid = second.execute(text("SELECT pg_backend_pid()")).scalar_one()
-        with ThreadPoolExecutor(max_workers=1) as pool:
-            racing = pool.submit(write, SqlAlchemyActivityRepository(second))
-            _wait_until_waiting_on_a_lock(engine, pid)
-            first.commit()
-            outcome = racing.result(timeout=15)
-        second.commit()
-        return outcome
+
+class TestConcurrentWritesThroughTheMapping:
+    """The deployed writer races on the fully migrated, final schema."""
 
     def test_a_create_racing_a_create_is_a_duplicate(self, engine, committing_session):
         first, second = committing_session(), committing_session()
@@ -1566,9 +1579,7 @@ class TestConcurrentWritesThroughTheMapping:
             is InsertResult.INSERTED
         )
 
-        outcome = self._race(
-            engine, first, second, lambda repo: repo.insert(activity, 100)
-        )
+        outcome = _race(engine, first, second, lambda repo: repo.insert(activity, 100))
 
         assert outcome is InsertResult.ALREADY_EXISTS
 
@@ -1583,7 +1594,7 @@ class TestConcurrentWritesThroughTheMapping:
             is InsertResult.INSERTED
         )
 
-        outcome = self._race(
+        outcome = _race(
             engine,
             first,
             second,
@@ -1612,9 +1623,7 @@ class TestConcurrentWritesThroughTheMapping:
             make_activity(activity_id=9_600_003, name="Enriched"), 200
         )
 
-        outcome = self._race(
-            engine, first, second, lambda repo: repo.delete(9_600_003, 300)
-        )
+        outcome = _race(engine, first, second, lambda repo: repo.delete(9_600_003, 300))
 
         assert outcome is DeleteResult.DELETED
 
@@ -1636,7 +1645,7 @@ class TestConcurrentWritesThroughTheMapping:
             is DeleteResult.DELETED
         )
 
-        self._race(
+        _race(
             engine,
             deleting,
             recreating,
@@ -1684,7 +1693,7 @@ class TestConcurrentWritesThroughTheMapping:
             is DeleteResult.DELETED
         )
 
-        self._race(
+        _race(
             engine,
             first,
             second,

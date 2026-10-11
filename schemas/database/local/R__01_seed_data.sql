@@ -11,25 +11,21 @@
 --      which a seed change alone doesn't trigger
 --
 -- The VALUES ids are the activities' Strava IDs (currently 1130-2129); like
--- prod, each activity is then re-keyed onto a desirelines ID from 1,000,000.
+-- prod, each activity gets a separate desirelines ID from the sequence.
 -- Integration tests insert their own fixtures into this database: the Python
 -- suite uses IDs from 12,345 up, and the Go suite a range reserved from
 -- 9,000,000,000,000.
 
 DO $$ BEGIN RAISE NOTICE 'Inserting 1000 seed activities...'; END $$;
 
--- Each newly seeded activity's Strava ID (its own ID until re-keyed) goes into
--- the external-ID mapping, as the writers do.
-WITH seeded AS (
-INSERT INTO desirelines.activities (
-    id, user_id, name, type, sport, start_date_local, year,
-    distance, moving_time, elapsed_time, total_elevation_gain,
-    average_speed, max_speed, average_heartrate, max_heartrate, source
-)
+-- Allocate once for each unseen source key, then insert its activity under
+-- that mapping-owned ID. Share the materialized seed between the mapping claim
+-- and activity insert; the deferred FK permits mappings to precede activities.
+WITH seed AS MATERIALIZED (
 SELECT
-    id, user_id, name, type, sport, start_date_local::timestamp, year,
-    distance, moving_time, elapsed_time, total_elevation_gain,
-    average_speed, max_speed, average_heartrate, max_heartrate, 'strava'
+    id::text AS external_id, user_id, name, type, sport,
+    start_date_local::timestamp, year, distance, moving_time, elapsed_time,
+    total_elevation_gain, average_speed, max_speed, average_heartrate, max_heartrate
 FROM (VALUES
     (2129, '123456789', 'Activity Yoga 2129', 'Yoga', 'Yoga', '2026-01-17 06:55:14', 2026, 0, 869, 869, 0, 0, 0, NULL, NULL),
     (2128, '123456789', 'Activity WeightTraining 2128', 'WeightTraining', 'WeightTraining', '2026-01-16 12:48:03', 2026, 0, 1156, 1156, 0, 0, 0, 102.3, 141),
@@ -1036,19 +1032,28 @@ FROM (VALUES
     distance, moving_time, elapsed_time, total_elevation_gain,
     average_speed, max_speed, average_heartrate, max_heartrate
 )
--- An activity already seeded (and since re-keyed) is known by its Strava ID.
 WHERE NOT EXISTS (
     SELECT 1 FROM desirelines.activity_external_ids m
     WHERE m.source = 'strava' AND m.external_id = seed.id::text
 )
-ON CONFLICT (id) DO NOTHING
-RETURNING id, user_id, source
+), mappings AS (
+    INSERT INTO desirelines.activity_external_ids
+        (source, external_id, activity_id, external_owner_id)
+    SELECT 'strava', external_id,
+           nextval(pg_get_serial_sequence('desirelines.activities', 'id')), user_id
+    FROM seed
+    ON CONFLICT (source, external_id) DO NOTHING
+    RETURNING external_id, activity_id
 )
-INSERT INTO desirelines.activity_external_ids (source, external_id, activity_id, external_owner_id)
-SELECT source, id::text, id, user_id
-FROM seeded;
+INSERT INTO desirelines.activities (
+    id, user_id, name, type, sport, start_date_local, year,
+    distance, moving_time, elapsed_time, total_elevation_gain,
+    average_speed, max_speed, average_heartrate, max_heartrate, source
+)
+OVERRIDING SYSTEM VALUE
+SELECT m.activity_id, s.user_id, s.name, s.type, s.sport, s.start_date_local,
+       s.year, s.distance, s.moving_time, s.elapsed_time, s.total_elevation_gain,
+       s.average_speed, s.max_speed, s.average_heartrate, s.max_heartrate, 'strava'
+FROM seed s JOIN mappings m USING (external_id);
 
--- Re-key them onto desirelines IDs, as V0012 did in prod.
-SELECT desirelines.rekey_adopted_activities();
-
-DO $$ BEGIN RAISE NOTICE 'Seed data insertion complete (1000 activities, conflicts ignored)'; END $$;
+DO $$ BEGIN RAISE NOTICE 'Seed data insertion complete (existing mappings preserved)'; END $$;

@@ -1,11 +1,12 @@
 -- Temporary diagnostic: see README.md in this directory for when to delete it.
 --
--- Read-only. Four checks over stored route geometry, with no Strava API calls:
+-- Read-only. Five checks over stored route geometry, with no Strava API calls:
 --   Q1  how many activities look paused (elapsed >> moving); no geometry needed
 --   Q2  routes with a geographic jump, per threshold, with odometer corroboration
 --   Q3  vertex spacing and jump rate by route created_at cohort
 --   Q4  traced-length / recorded-distance ratio by cohort (the privacy-trim
 --       signal), plus how many routes are stored as more than one leg
+--   Q5  source IDs for passing suspicious routes to compare_route_sources.py
 --
 -- Jumps are measured within each part of a route, so once a paused route is
 -- stored as separate legs the space between them no longer counts as a jump.
@@ -117,3 +118,29 @@ JOIN desirelines.activities a ON a.id = ar.activity_id
 WHERE a.distance > 0
 GROUP BY ar.created_at::date
 ORDER BY cohort;
+
+\echo ''
+\echo '=== Q5: source keys for individual route comparison (largest jumps first) ==='
+-- Feed strava_external_id to compare_route_sources.py, never activity_id.
+WITH parts AS (
+    SELECT ar.activity_id, (d).path[1] AS part, (d).geom AS geom
+    FROM desirelines.activity_routes ar, ST_Dump(ar.route) d
+), points AS (
+    SELECT activity_id, part, (dp).path[1] AS i, (dp).geom AS pt
+    FROM parts, ST_DumpPoints(parts.geom) dp
+), segments AS (
+    SELECT activity_id,
+           ST_Distance(lag(pt) OVER w::geography, pt::geography) AS jump_m
+    FROM points WINDOW w AS (PARTITION BY activity_id, part ORDER BY i)
+), jumps AS (
+    SELECT activity_id, max(jump_m) AS max_jump_m
+    FROM segments GROUP BY activity_id
+)
+SELECT j.activity_id, m.external_id AS strava_external_id, a.name,
+       round(j.max_jump_m::numeric) AS max_jump_m
+FROM jumps j
+JOIN desirelines.activities a ON a.id = j.activity_id
+JOIN desirelines.activity_external_ids m
+    ON m.activity_id = a.id AND m.source = 'strava'
+ORDER BY j.max_jump_m DESC NULLS LAST, j.activity_id
+LIMIT 20;

@@ -1,16 +1,15 @@
-"""Compatibility stage of activity-ID cleanup (V0014).
+"""Historical compatibility (V0014) and final activity-ID cleanup (V0015).
 
 The migration must accept the deployed writer's tombstone SQL before the new
-image rolls out. The new writer must also work after the eventual final DDL.
+image rolls out. The compatibility writer must work after the real final migration.
 Schema changes below are transactional and rolled back by db_session.
 """
 
 from datetime import UTC, datetime
-from pathlib import Path
 
 import pytest
 from sqlalchemy import text
-from sqlalchemy.exc import IntegrityError, ProgrammingError
+from sqlalchemy.exc import DBAPIError, IntegrityError, ProgrammingError
 
 from stravapipe.adapters.postgres import SqlAlchemyActivityRepository
 from stravapipe.domain import StandardActivity
@@ -20,7 +19,19 @@ from stravapipe.ports.out.postgres import (
     DeleteResult,
     InsertResult,
 )
-from tests.integration.helpers import activity_id_for, upsert_legacy_tombstone
+from tests.integration.helpers import (
+    activity_id_for,
+    database_resource,
+    migrated_database,
+    upsert_legacy_tombstone,
+)
+
+
+@pytest.fixture(scope="module")
+def engine(db_url):
+    with migrated_database(db_url, 14) as historical:
+        yield historical
+
 
 _EXTERNAL_ID = 18_000_000_001
 
@@ -119,16 +130,13 @@ class TestTombstoneCompatibility:
             ._mapping
         )
 
-        # Resource roots differ between a normal checkout and Pants' sandbox.
-        relative = (
-            "schemas/database/migrations/V0014__activity_id_cleanup_compatibility.sql"
+        db_session.execute(
+            text(
+                database_resource(
+                    "migrations/V0014__activity_id_cleanup_compatibility.sql"
+                ).read_text()
+            )
         )
-        migration = next(
-            parent / relative
-            for parent in Path(__file__).resolve().parents
-            if (parent / relative).is_file()
-        )
-        db_session.execute(text(migration.read_text()))
 
         after = (
             db_session.execute(
@@ -148,17 +156,13 @@ class TestTombstoneCompatibility:
 class TestWriterWithFinalIdentitySchema:
     @pytest.fixture(autouse=True)
     def final_schema(self, db_session):
-        # Exercise the next release's DDL without shipping it before writer
-        # rollout. No fixture inserts bypass the production repository here.
+        # Run the real final migration, not a parallel test-only DDL sketch.
         db_session.execute(
-            text("""
-            ALTER TABLE desirelines.activities ALTER COLUMN id SET GENERATED ALWAYS;
-            DROP TRIGGER bridge_legacy_tombstone_id ON desirelines.deleted_activities;
-            DROP FUNCTION desirelines.bridge_legacy_tombstone_id();
-            ALTER TABLE desirelines.deleted_activities DROP COLUMN id;
-            ALTER TABLE desirelines.deleted_activities
-                ADD PRIMARY KEY USING INDEX deleted_activities_source_external_id_key;
-        """)
+            text(
+                database_resource(
+                    "migrations/V0015__activity_id_cleanup.sql"
+                ).read_text()
+            )
         )
 
     @pytest.mark.parametrize("write", ["insert", "upsert", "backfill"])
@@ -237,3 +241,179 @@ class TestWriterWithFinalIdentitySchema:
                         1000, 100, 100, 'strava')
             """)
             )
+
+
+class TestFinalMigration:
+    def test_preserves_existing_identity_and_tombstone_metadata(self, db_session):
+        repo = SqlAlchemyActivityRepository(db_session)
+        assert repo.insert(_activity(), 100) is InsertResult.INSERTED
+        internal_id = activity_id_for(db_session, _EXTERNAL_ID)
+        upsert_legacy_tombstone(db_session, _EXTERNAL_ID + 1, 200)
+        before = dict(
+            db_session.execute(
+                text("""
+            SELECT source, external_id, deleted_at, deletion_event_time,
+                   deletion_correlation_id FROM desirelines.deleted_activities
+            WHERE source = 'strava' AND external_id = :external_id
+        """),
+                {"external_id": str(_EXTERNAL_ID + 1)},
+            )
+            .one()
+            ._mapping
+        )
+
+        db_session.execute(
+            text(
+                database_resource(
+                    "migrations/V0015__activity_id_cleanup.sql"
+                ).read_text()
+            )
+        )
+
+        after = dict(
+            db_session.execute(
+                text("""
+            SELECT * FROM desirelines.deleted_activities
+            WHERE source = 'strava' AND external_id = :external_id
+        """),
+                {"external_id": str(_EXTERNAL_ID + 1)},
+            )
+            .one()
+            ._mapping
+        )
+        assert after == before
+        assert activity_id_for(db_session, _EXTERNAL_ID) == internal_id
+        assert (
+            db_session.execute(
+                text("""
+            SELECT last_event_time FROM desirelines.activities WHERE id = :id
+        """),
+                {"id": internal_id},
+            ).scalar_one()
+            == 100
+        )
+        assert db_session.execute(
+            text("""
+            SELECT to_regprocedure('desirelines.bridge_legacy_tombstone_id()'),
+                   to_regprocedure('desirelines.rekey_adopted_activities()')
+        """)
+        ).one() == (None, None)
+        assert (
+            db_session.execute(
+                text("""
+            SELECT pg_get_constraintdef(oid) FROM pg_constraint
+            WHERE conrelid = 'desirelines.deleted_activities'::regclass
+              AND contype = 'p'
+        """)
+            ).scalar_one()
+            == "PRIMARY KEY (source, external_id)"
+        )
+
+        # Equal external IDs from different sources and nonnumeric IDs no
+        # longer pass through a bigint bridge or collide on the legacy key.
+        db_session.execute(text("SET LOCAL ROLE desirelines_dml_grp"))
+        db_session.execute(
+            text("""
+            INSERT INTO desirelines.deleted_activities
+                (source, external_id, deletion_event_time)
+            VALUES ('other', :external_id, 300), ('other', 'uuid-example', 300)
+        """),
+            {"external_id": str(_EXTERNAL_ID + 1)},
+        )
+        assert repo.delete(_EXTERNAL_ID, 200) is DeleteResult.DELETED
+
+    def test_refuses_to_retire_the_helper_while_adopted_ids_remain(self, db_session):
+        db_session.execute(
+            text("""
+            INSERT INTO desirelines.activities
+                (id, user_id, type, sport, start_date_local, year, source,
+                 distance, moving_time, elapsed_time)
+            VALUES (:id, '999', 'Run', 'Run', '2026-10-10', 2026, 'strava', 1000, 100, 100)
+        """),
+            {"id": _EXTERNAL_ID},
+        )
+        db_session.execute(
+            text("""
+            INSERT INTO desirelines.activity_external_ids
+                (source, external_id, activity_id)
+            VALUES ('strava', :external_id, :id)
+        """),
+            {"id": _EXTERNAL_ID, "external_id": str(_EXTERNAL_ID)},
+        )
+        with (
+            pytest.raises(DBAPIError, match="requires zero adopted IDs"),
+            db_session.begin_nested(),
+        ):
+            db_session.execute(
+                text(
+                    database_resource(
+                        "migrations/V0015__activity_id_cleanup.sql"
+                    ).read_text()
+                )
+            )
+        assert db_session.execute(
+            text("""
+            SELECT to_regprocedure('desirelines.rekey_adopted_activities()') IS NOT NULL
+        """)
+        ).scalar_one()
+        assert (
+            db_session.execute(
+                text("""
+            SELECT attidentity FROM pg_attribute
+            WHERE attrelid = 'desirelines.activities'::regclass AND attname = 'id'
+        """)
+            ).scalar_one()
+            == "d"
+        )
+        assert (
+            db_session.execute(
+                text("""
+            SELECT id FROM desirelines.deleted_activities LIMIT 0
+        """)
+            ).all()
+            == []
+        )
+
+    def test_local_seed_allocates_mappings_once_under_final_identity(self, db_session):
+        db_session.execute(
+            text(
+                database_resource(
+                    "migrations/V0015__activity_id_cleanup.sql"
+                ).read_text()
+            )
+        )
+        seed = database_resource("local/R__01_seed_data.sql").read_text()
+        db_session.execute(text(seed))
+        rows = db_session.execute(
+            text("""
+            SELECT a.id, m.external_id FROM desirelines.activities a
+            JOIN desirelines.activity_external_ids m ON m.activity_id = a.id
+            WHERE a.user_id = '123456789' ORDER BY m.external_id
+        """)
+        ).all()
+        assert len(rows) == 1000
+        assert all(str(row.id) != row.external_id for row in rows)
+        assert {row.external_id for row in rows} == {
+            str(id_) for id_ in range(1130, 2130)
+        }
+        sequence = db_session.execute(
+            text("SELECT last_value FROM desirelines.activities_id_seq")
+        ).scalar_one()
+        db_session.execute(text(seed))
+        assert (
+            db_session.execute(
+                text("""
+            SELECT a.id, m.external_id FROM desirelines.activities a
+            JOIN desirelines.activity_external_ids m ON m.activity_id = a.id
+            WHERE a.user_id = '123456789' ORDER BY m.external_id
+        """)
+            ).all()
+            == rows
+        )
+        assert (
+            db_session.execute(
+                text("SELECT last_value FROM desirelines.activities_id_seq")
+            ).scalar_one()
+            == sequence
+        )
+        db_session.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))

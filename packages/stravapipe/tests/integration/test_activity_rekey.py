@@ -1,7 +1,7 @@
 """Integration tests for re-keying activities onto desirelines IDs (V0012).
 
 ``desirelines.rekey_adopted_activities()`` is what V0012 ran, and what renumbers
-any activity still keyed by its Strava ID ("adopted") later on. Each test loads
+stragglers before V0015 retired it. Tests use an isolated V0014 database. Each test loads
 legacy-shaped rows, as every activity was before V0012, and re-keys them.
 
 Each test first re-keys whatever is already adopted in the database (leftovers,
@@ -24,6 +24,14 @@ from stravapipe.ports.out.postgres import (
     InsertResult,
     MetadataUpdateResult,
 )
+from tests.integration.helpers import migrated_database
+
+
+@pytest.fixture(scope="module")
+def engine(db_url):
+    with migrated_database(db_url, 14) as historical:
+        yield historical
+
 
 # Strava-sized IDs, clear of the local seed and other fixtures. They run
 # opposite to the dates the tests give them, so ID order is never date order.
