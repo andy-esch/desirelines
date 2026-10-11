@@ -258,7 +258,7 @@ _ACTIVITY_BACKFILL_UPSERT_SQL: Final[str] = (
 # deletion_event_time; deleted_at and correlation_id only advance with it (a
 # stale re-delete must not overwrite the authoritative delete's metadata).
 # Tombstones are keyed by (source, external_id), independently of internal IDs.
-# V0014 bridges these inserts to the legacy id column during writer rollout.
+# V0014 bridges these inserts during rollout; V0015 removes that legacy bridge.
 # Everything runs in the caller's Unit of Work.
 _SELECT_ACTIVITY_FENCE_FOR_UPDATE_SQL: Final[str] = (
     "SELECT last_event_time FROM desirelines.activities "

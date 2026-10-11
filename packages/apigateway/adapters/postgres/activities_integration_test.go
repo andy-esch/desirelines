@@ -180,29 +180,29 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 		withTestTxRaw(t, pool, func(tx pgx.Tx, repo *postgres.ActivityRepository) {
 			seedTestData(t, tx)
 
-			// Renumber fixture 1001, as the re-key does; its
-			// mapping keeps the Strava ID. Fixture 1002 comes from a platform
+			// Give fixture 1001 a distinct external ID without changing its
+			// final-schema internal ID. Fixture 1002 comes from a platform
 			// without a link template.
-			strava, renumbered, unknown := fixtureID(1001), fixtureID(7), fixtureID(1002)
+			strava, mapped, unknown := fixtureID(7), fixtureID(1001), fixtureID(1002)
 			if _, err := tx.Exec(ctx,
-				`UPDATE desirelines.activities SET id = $1 WHERE id = $2`, renumbered, strava,
+				`UPDATE desirelines.activity_external_ids SET external_id = $1 WHERE source = 'strava' AND activity_id = $2`, strconv.FormatInt(strava, 10), mapped,
 			); err != nil {
-				t.Fatalf("renumber fixture 1001: %v", err)
+				t.Fatalf("change fixture 1001 source ID: %v", err)
 			}
 			if _, err := tx.Exec(ctx,
 				`UPDATE desirelines.activities SET source = 'garmin' WHERE id = $1`, unknown,
 			); err != nil {
 				t.Fatalf("re-source fixture 1002: %v", err)
 			}
-			tagActivityRegion(t, tx, renumbered, insertTestRegion(t, tx, "source-links", "county"))
+			tagActivityRegion(t, tx, mapped, insertTestRegion(t, tx, "source-links", "county"))
 			stravaPage := stravaActivityPage(strava)
 
-			activity, err := repo.GetActivityByID(ctx, "test-user", renumbered)
+			activity, err := repo.GetActivityByID(ctx, "test-user", mapped)
 			if err != nil || activity == nil {
-				t.Fatalf("GetActivityByID(renumbered) = %v, %v", activity, err)
+				t.Fatalf("GetActivityByID(mapped) = %v, %v", activity, err)
 			}
 			if activity.Source != "strava" || activity.SourceUrl != stravaPage {
-				t.Errorf("renumbered source link = (%q, %q), want (strava, %q)", activity.Source, activity.SourceUrl, stravaPage)
+				t.Errorf("mapped source link = (%q, %q), want (strava, %q)", activity.Source, activity.SourceUrl, stravaPage)
 			}
 			unlinked, err := repo.GetActivityByID(ctx, "test-user", unknown)
 			if err != nil || unlinked == nil {
@@ -220,8 +220,8 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			for _, a := range list.Activities {
 				links[a.Id] = a.SourceUrl
 			}
-			if link, ok := links[renumbered]; !ok || link != stravaPage {
-				t.Errorf("list link of renumbered = %q (listed: %t), want %q", link, ok, stravaPage)
+			if link, ok := links[mapped]; !ok || link != stravaPage {
+				t.Errorf("list link of mapped = %q (listed: %t), want %q", link, ok, stravaPage)
 			}
 			if link, ok := links[unknown]; !ok || link != "" {
 				t.Errorf("list link of unknown source = %q (listed: %t), want no link", link, ok)
@@ -231,9 +231,9 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 			if err != nil {
 				t.Fatalf("GetMapDataset failed: %v", err)
 			}
-			if len(mapActivities) != 1 || mapActivities[0].GetActivityId() != renumbered ||
+			if len(mapActivities) != 1 || mapActivities[0].GetActivityId() != mapped ||
 				mapActivities[0].GetSourceUrl() != stravaPage {
-				t.Errorf("map dataset = %v, want only activity %d linking to %q", mapActivities, renumbered, stravaPage)
+				t.Errorf("map dataset = %v, want only activity %d linking to %q", mapActivities, mapped, stravaPage)
 			}
 		})
 	})
@@ -656,7 +656,7 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 				INSERT INTO desirelines.activities (
 					id, user_id, name, type, sport, start_date_local, year,
 					distance, moving_time, elapsed_time, total_elevation_gain, source
-				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'strava')
+				) OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'strava')
 			`,
 				fixtureID(9001), "tz-user", "New Year's Eve Run", "Run", "Run",
 				lateNight, 2024,
@@ -874,7 +874,7 @@ func TestIntegration_AggregateActivities(t *testing.T) {
 					id, user_id, name, type, sport, start_date_local, year,
 					distance, moving_time, elapsed_time, total_elevation_gain,
 					trainer, manual, source
-				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'strava')
+				) OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'strava')
 			`, f.id, "agg-user", "Fixture", f.activityType, f.sport, f.start, f.start.Year(),
 				f.distance, f.movingTime, f.movingTime+100, float64(0), f.trainer, f.manual,
 			); err != nil {

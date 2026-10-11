@@ -35,7 +35,24 @@ An activity has two IDs, and each service logs the one it handles:
 
 Resolve one from the other through `desirelines.activity_external_ids`, using
 `source` with `external_id`. New activities receive sequence IDs, so do not
-infer an external ID from an activity ID.
+infer an external ID from an activity ID. For example, with the read-only
+connection (`just db-connect prod apigateway`):
+
+```sql
+-- From a desirelines activity ID to the platform key used by webhook logs.
+SELECT source, external_id
+FROM desirelines.activity_external_ids
+WHERE activity_id = 42;
+
+-- From a Strava URL/webhook to the internal ID used by API logs.
+SELECT activity_id
+FROM desirelines.activity_external_ids
+WHERE source = 'strava' AND external_id = '12345678';
+```
+
+After deletion the mapping is gone. Look up the deletion fence by the original
+`(source, external_id)` in `desirelines.deleted_activities`; that table has no
+internal activity ID or legacy Strava `id` column after V0015.
 
 Cloud Trace doesn't index by either directly, but spans carry them as attributes. Two ways to find the trace:
 
@@ -46,6 +63,11 @@ Cloud Trace doesn't index by either directly, but spans carry them as attributes
    resource.labels.service_name=~"desirelines-(dispatcher|postgres-writer|deletion-service)"
    jsonPayload.external_id="12345678"
    ```
+
+   For read API calls, use the internal-ID Trace attribute filter below.
+   Single-activity database-error logs currently spell that field
+   `jsonPayload.activityId`, while spans use `desirelines.activity_id`; healthy
+   API requests need not emit a per-activity application log.
 
    Click any matching log entry; the entry has a `trace` field. Click the trace icon to jump to Cloud Trace.
 

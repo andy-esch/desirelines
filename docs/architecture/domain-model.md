@@ -24,7 +24,7 @@ web (TypeScript) ── dashboard rendering
 
 ### Activity
 
-The central domain object. Represents a single Strava activity as it flows through the system.
+The central domain object. Represents one activity. Ingestion currently comes from Strava; persisted activity identity belongs to desirelines.
 
 | Stage | Package | Type | File |
 |-------|---------|------|------|
@@ -47,6 +47,31 @@ descriptor; and `activities.proto` owns read DTOs. The
 those boundaries with the detailed and summary Pydantic source models,
 PostgreSQL write mapping, live behavior, backfill behavior, and required
 historical-data decision.
+
+### Activity Identity
+
+`desirelines.activities.id` is an opaque bigint allocated from a desirelines
+identity sequence. API DTOs, route/region foreign keys, tiles, pagination,
+app links and the optional annotation `activity_id` reference this internal ID.
+`activities.source` identifies the platform the activity was ingested from.
+Annotations add `activity_id` on protobuf tag 10. Deprecated tag 6 keeps the
+legacy `strava_activity_id` name and external-ID meaning for compatibility;
+consumers preserve it without treating it as an internal ID.
+
+`desirelines.activity_external_ids` maps `(source, external_id)` to `activity_id`
+and carries the platform owner ID separately. Writers claim this mapping first,
+then insert the activity under its allocated ID with `OVERRIDING SYSTEM VALUE`;
+V0015 enforces `GENERATED ALWAYS`. Source URLs come from the API's mapped source
+link, never from the internal ID. The mapping permits several platform keys
+for an activity; cross-source matching/merging remains future work.
+
+`StandardActivity.id`, webhook `object_id`, and BigQuery archive/CDC `id` remain
+external Strava IDs. Dispatcher/writer telemetry calls them `external_id`; read
+API telemetry uses the internal `activity_id`. Their numeric ranges can overlap,
+so resolve through the mapping rather than comparing or guessing the IDs.
+Deletion removes the activity and its mappings; a `(source, external_id)`
+tombstone retains the deletion fence independently. Re-importing a deleted
+activity allocates a new internal ID; Neon restore preserves existing identity.
 
 ### Webhook Event
 

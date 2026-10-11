@@ -1,10 +1,59 @@
 """Database assertions and historical writer fixtures for external activity IDs."""
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
+from pathlib import Path
+from uuid import uuid4
 
-from sqlalchemy import text
-from sqlalchemy.engine import Connection
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.orm import Session
+
+
+def database_resource(relative: str) -> Path:
+    """Find real migration resources in a checkout or Pants' resource sandbox."""
+    for parent in Path(__file__).resolve().parents:
+        path = parent / "schemas/database" / relative
+        if path.is_file():
+            return path
+    raise FileNotFoundError(f"Missing database fixture resource: {relative}")
+
+
+@contextmanager
+def migrated_database(db_url: str, version: int) -> Iterator[Engine]:
+    """An isolated historical database; never downgrade the suite's database.
+
+    The integration login needs CREATEDB (CI and local PostGIS use a superuser).
+    Apply the real callback/migrations, and drop only our uniquely named database
+    even when initialization or a test fails. This also isolates committed races.
+    """
+    admin = create_engine(db_url, isolation_level="AUTOCOMMIT")
+    name = f"desirelines_history_{uuid4().hex}"
+    history = create_engine(admin.url.set(database=name))
+    created = False
+    try:
+        with admin.connect() as connection:
+            connection.exec_driver_sql(f'CREATE DATABASE "{name}"')
+            created = True
+        with history.begin() as connection:
+            connection.exec_driver_sql("CREATE EXTENSION postgis")
+            connection.execute(
+                text(database_resource("callbacks/beforeMigrate.sql").read_text())
+            )
+            migrations = database_resource("migrations/V0001__role_groups.sql").parent
+            for migration in sorted(migrations.glob("V*.sql")):
+                if int(migration.name.split("__")[0][1:]) <= version:
+                    connection.execute(text(migration.read_text()))
+        yield history
+    finally:
+        history.dispose()
+        try:
+            if created:
+                with admin.connect() as connection:
+                    connection.exec_driver_sql(f'DROP DATABASE "{name}" WITH (FORCE)')
+        finally:
+            admin.dispose()
 
 
 def upsert_legacy_tombstone(

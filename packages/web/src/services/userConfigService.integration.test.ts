@@ -170,6 +170,7 @@ describe("UserConfigService Integration Tests", () => {
             label: "Test event",
             description: "",
             stravaActivityId: "",
+            activityId: "",
             type: AnnotationType.ANNOTATION_TYPE_EVENT,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),

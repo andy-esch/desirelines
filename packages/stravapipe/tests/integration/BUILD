@@ -2,6 +2,8 @@ python_sources(
     resolve="stravapipe",
     dependencies=[
         "packages/stravapipe:deps#psycopg",
+        "schemas/database:migrations",
+        "schemas/database:callbacks",
     ],
 )
 
@@ -15,7 +17,7 @@ python_tests(
     ],
     overrides={
         "test_activity_id_cleanup.py": {
-            "dependencies": ["schemas/database:migrations"],
+            "dependencies": ["schemas/database:local_seeds"],
         },
     },
 )

@@ -115,13 +115,20 @@ export interface Annotation {
   endDate: string;
   label: string;
   description: string;
-  /** Optional link */
+  /**
+   * Legacy external Strava ID. Preserve its tag/name for existing consumers;
+   * never reinterpret it as a desirelines activity ID.
+   *
+   * @deprecated
+   */
   stravaActivityId: string;
   type: AnnotationType;
   /** RFC3339 timestamp */
   createdAt: string;
   /** RFC3339 timestamp */
   updatedAt: string;
+  /** Optional desirelines activity ID, not a source ID */
+  activityId: string;
 }
 
 /** User preferences (global, not year-specific) */
@@ -714,6 +721,7 @@ function createBaseAnnotation(): Annotation {
     type: 0,
     createdAt: "",
     updatedAt: "",
+    activityId: "",
   };
 }
 
@@ -745,6 +753,9 @@ export const Annotation: MessageFns<Annotation> = {
     }
     if (message.updatedAt !== "") {
       writer.uint32(74).string(message.updatedAt);
+    }
+    if (message.activityId !== "") {
+      writer.uint32(82).string(message.activityId);
     }
     return writer;
   },
@@ -832,6 +843,14 @@ export const Annotation: MessageFns<Annotation> = {
             }
 
             message.updatedAt = reader.string();
+            continue;
+          }
+          case 10: {
+            if (tag !== 82) {
+              break;
+            }
+
+            message.activityId = reader.string();
             continue;
           }
         }

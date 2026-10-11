@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { UserConfigService, parseConfigData } from "./userConfigService";
+import { Annotation } from "../types/generated/user_config";
 import type {
   UserConfig,
   GoalsForYear,
@@ -38,6 +39,30 @@ vi.mock("firebase/firestore", () => ({
   deleteDoc: vi.fn(),
   onSnapshot: vi.fn(),
 }));
+
+describe("annotation ID compatibility", () => {
+  it("decodes the original field 6 as an external Strava ID", () => {
+    // Original binary payload: field 6 contains the string "20540972440".
+    const legacyWire = Uint8Array.from([50, 11, 50, 48, 53, 52, 48, 57, 55, 50, 52, 52, 48]);
+    const annotation = Annotation.decode(legacyWire);
+
+    expect(annotation.stravaActivityId).toBe("20540972440");
+    expect(annotation.activityId).toBe("");
+    expect(Annotation.encode(annotation).finish()).toEqual(legacyWire);
+  });
+
+  it("encodes an internal ID on field 10 without filling the legacy field", () => {
+    const annotation = { ...Annotation.decode(new Uint8Array()), activityId: "1002601" };
+    // Field 10 contains "1002601"; field 6 remains unset.
+    const wire = Uint8Array.from([82, 7, 49, 48, 48, 50, 54, 48, 49]);
+
+    expect(Annotation.encode(annotation).finish()).toEqual(wire);
+    expect(Annotation.decode(wire)).toMatchObject({
+      activityId: "1002601",
+      stravaActivityId: "",
+    });
+  });
+});
 
 describe("UserConfigService", () => {
   let service: UserConfigService;
@@ -229,7 +254,8 @@ describe("UserConfigService", () => {
             endDate: "",
             label: "Test",
             description: "",
-            stravaActivityId: "",
+            stravaActivityId: "20540972440",
+            activityId: "1002601",
             type: 0,
             createdAt: "2025-01-01T00:00:00Z",
             updatedAt: "2025-01-01T00:00:00Z",
@@ -627,6 +653,7 @@ describe("parseConfigData", () => {
             label: "January",
             description: "",
             stravaActivityId: "",
+            activityId: "",
             type: 0,
             createdAt: "2025-01-01T00:00:00Z",
             updatedAt: "2025-01-01T00:00:00Z",
@@ -635,6 +662,34 @@ describe("parseConfigData", () => {
       };
       const result = parseConfigData("annotations", data);
       expect(result.ok).toBe(true);
+    });
+
+    it("preserves a legacy Strava ID without treating it as an internal ID", () => {
+      const result = parseConfigData("annotations", {
+        annotations: [{ id: "legacy", stravaActivityId: "20540972440" }],
+      });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect((result.data as AnnotationsForYear).annotations[0]).toMatchObject({
+          stravaActivityId: "20540972440",
+          activityId: "",
+        });
+      }
+    });
+
+    it("accepts an internal ID without requiring a legacy Strava ID", () => {
+      const result = parseConfigData("annotations", {
+        annotations: [{ id: "internal", activityId: "1002601" }],
+      });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect((result.data as AnnotationsForYear).annotations[0]).toMatchObject({
+          stravaActivityId: "",
+          activityId: "1002601",
+        });
+      }
     });
 
     it("rejects malformed annotation entries", () => {

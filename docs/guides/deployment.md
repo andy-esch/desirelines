@@ -129,7 +129,10 @@ just db-migrate dev       # Run migrations
 ```
 
 See [Database Migrations](../../schemas/database/README.md) for details and the
-[activity-ID allocation rollout checks](../../schemas/database/README.md#activity-id-allocation-rollout).
+[activity-ID allocation rollout checks](../../schemas/database/README.md#activity-id-allocation-rollout)
+(before V0015) and [compatibility/final cleanup rollout](../../schemas/database/README.md#activity-id-cleanup-rollout).
+V0015 requires the compatibility writer/backfill images to be serving and old
+executions drained before migration; older writer rollbacks become incompatible.
 
 ---
 

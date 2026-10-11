@@ -39,7 +39,7 @@ rule. `--help` lists everything.
 ## measure_route_quality.sql
 
 ```bash
-./scripts/database/connect.sh prod --apigateway < scripts/ops/routes/measure_route_quality.sql
+just db-connect prod apigateway < scripts/ops/routes/measure_route_quality.sql
 ```
 
 | Query | Reports | Read it as |
@@ -48,6 +48,10 @@ rule. `--help` lists everything.
 | Q2 | Routes with a vertex-to-vertex jump over 200/300/500/1000 m, split by whether the route traces longer than the odometer | `corroborated` is a real pause on full-length geometry; on trimmed geometry corroboration fails even for real pauses |
 | Q3 | Median vertex spacing and jump rate per route `created_at` date | Coarse spacing marks a summary-polyline cohort |
 | Q4 | Traced length ÷ recorded distance per route `created_at` date, and how many routes are stored as more than one leg | Near 1.0 is full-length; well below 1 is trimmed |
+| Q5 | Largest jumps with internal `activity_id` and mapped `strava_external_id` | Pass `strava_external_id` to `compare_route_sources.py`; rows without a Strava mapping are excluded |
+
+Q5 joins the Strava mapping explicitly. Numeric ID ranges can overlap, so never
+pass the internal `activity_id` to the Strava API.
 
 **Before/after check for a route refresh:** run it before and after, and compare
 Q2 (corroborated jumps should drop to zero once pauses are split) and Q4 (a
