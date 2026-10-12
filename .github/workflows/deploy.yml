@@ -4,9 +4,8 @@ on:
   push:
     branches:
       - main
-    paths-ignore:
-      - "**/README.md"
-      - "docs/**"
+    # Do not exclude README-only pushes: stravapipe COPYs its README.
+    # The versioned build input catalog filters individual images below.
 
 # Prevent concurrent builds
 concurrency:
@@ -20,19 +19,15 @@ jobs:
   # ===========================================================================
   # Job 0: Detect which service images actually need rebuilding
   # ===========================================================================
-  # Only the services whose source changed are rebuilt. An unchanged service is
-  # left alone: the deploy repo resolves its digest from the stable env tag (the
-  # currently-live image), so Terraform sees no change and creates no revision.
+  # Only services whose build inputs changed are rebuilt. The deploy repo can
+  # retain an unchanged service's declared digest, avoiding needless revisions.
   #
   # This job ALSO owns `git_sha` — deliberately decoupled from `build-images`,
   # which is skipped entirely when nothing changed. `trigger-deploy` reads git_sha
   # from here so a code-free deploy (e.g. terraform-only) still fires.
   #
-  # Filter fan-out (verified against the Dockerfiles, not assumed): the Go builds
-  # COPY only `packages/shared/` + their own dir, and generated proto / synced
-  # sport_types.json are committed INTO each service tree — so `schemas/**` needs no
-  # separate entry. Under-listing here silently ships stale code, so err toward
-  # rebuilding.
+  # Input policy lives in scripts/ci/image-build-inputs.json. Workflow or policy
+  # changes rebuild every image, including the first signed-provenance baseline.
   changes:
     name: Detect changed services
     runs-on: ubuntu-latest
@@ -40,67 +35,25 @@ jobs:
     permissions:
       contents: read
     outputs:
-      git_sha: ${{ steps.metadata.outputs.git_sha }}
+      git_sha: ${{ steps.set-matrix.outputs.git_sha }}
       matrix: ${{ steps.set-matrix.outputs.matrix }}
       any: ${{ steps.set-matrix.outputs.any }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
-        # Need the previous commit to diff a push. Squash-merges to main are a
-        # single commit (before = prior tip), so depth 2 suffices for the normal
-        # flow; dorny/paths-filter fetches more if a push spans additional commits.
+        # Compare the complete push, including multi-commit merges. Missing
+        # history fails validation rather than silently skipping image builds.
         with:
-          fetch-depth: 2
-
-      - name: Set deployment metadata
-        id: metadata
-        run: echo "git_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-
-      # Per-image filtering, not a blanket paths-ignore: a push that touches
-      # only terraform/, docs, or schemas rebuilds nothing, and a push that
-      # touches one service rebuilds only that service. Images are addressed by
-      # :latest and :<short-sha>, so skipping a build leaves the previous digest
-      # in place and the deploy repo keeps deploying it — correct, because
-      # nothing in that image changed.
-      #
-      # shared/ fans out to both Go services on purpose; it is compiled into
-      # each, so a shared change with no rebuild would ship stale binaries.
-      # Deleting a service's entry here silently stops publishing its image.
-      - name: Detect changed paths
-        id: filter
-        uses: dorny/paths-filter@v4
-        with:
-          filters: |
-            dispatcher:
-              - 'packages/dispatcher/**'
-              - 'packages/shared/**'
-            apigateway:
-              - 'packages/apigateway/**'
-              - 'packages/shared/**'
-            stravapipe:
-              - 'packages/stravapipe/**'
+          fetch-depth: 0
 
       - name: Build image matrix from changed services
         id: set-matrix
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
         run: |
-          INCLUDE="[]"
-          add() {
-            INCLUDE=$(echo "$INCLUDE" | jq -c \
-              --arg i "$1" --arg c "$2" --arg d "$3" \
-              '. += [{"image":$i,"context":$c,"dockerfile":$d}]')
-          }
-          [ "${{ steps.filter.outputs.dispatcher }}" = "true" ] && add dispatcher "." "packages/dispatcher/Dockerfile"
-          [ "${{ steps.filter.outputs.apigateway }}" = "true" ] && add apigateway "." "packages/apigateway/Dockerfile"
-          [ "${{ steps.filter.outputs.stravapipe }}" = "true" ] && add stravapipe "packages/stravapipe" "packages/stravapipe/Dockerfile"
-
-          echo "matrix={\"include\":$INCLUDE}" >> "$GITHUB_OUTPUT"
-          if [ "$INCLUDE" = "[]" ]; then
-            echo "any=false" >> "$GITHUB_OUTPUT"
-            echo "No service source changed — skipping all image builds."
-          else
-            echo "any=true" >> "$GITHUB_OUTPUT"
-            echo "Building: $INCLUDE"
-          fi
+          python3 scripts/ci/image_release.py matrix \
+            --before "$BEFORE" --after "$AFTER" --github-output "$GITHUB_OUTPUT"
 
   # ===========================================================================
   # Job 1: Build and Push Docker Images
@@ -121,10 +74,11 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
 
-    # Required for Workload Identity Federation
+    # Cloud authentication and GitHub-signed provenance; no GHCR package writes.
     permissions:
       contents: read
       id-token: write
+      attestations: write
 
     env:
       REGISTRY: us-central1-docker.pkg.dev
@@ -133,11 +87,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
-
-      - name: Set deployment metadata
-        id: metadata
-        run: |
-          echo "git_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
@@ -155,29 +104,54 @@ jobs:
         uses: docker/setup-buildx-action@v4
 
       - name: Build and push ${{ matrix.image }}
+        id: build
         uses: docker/build-push-action@v7
         with:
-          context: ${{ matrix.context }}
+          # BuildKit reads the exact committed source, ignoring checkout changes
+          # (including the credentials file created by Google authentication).
+          context: ${{ github.server_url }}/${{ github.repository }}.git#${{ needs.changes.outputs.git_sha }}${{ matrix.context_suffix }}
           file: ${{ matrix.dockerfile }}
           push: true
-          # Build tags only: :latest (moving) + :<git-sha> (immutable, what
-          # deploys pin to). Stable env tags `prod`/`dev` are NOT set here —
+          platforms: linux/amd64
+          provenance: mode=max
+          # Build tags: :latest + :<full-sha>. Tags can move; deployment pins the
+          # validated index digest. Stable env tags `prod`/`dev` are NOT set here —
           # they're stamped at deploy time by the desirelines-deploy repo and
           # are what the Artifact Registry cleanup policy protects from
           # age-based deletion (desirelines/terraform/environments/artifacts/
           # main.tf, keep-live-env-images).
           tags: |
             ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/${{ matrix.image }}:latest
-            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/${{ matrix.image }}:${{ steps.metadata.outputs.git_sha }}
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/${{ matrix.image }}:${{ needs.changes.outputs.git_sha }}
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.REPOSITORY }}/${{ matrix.image }}:buildcache
           cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.REPOSITORY }}/${{ matrix.image }}:buildcache,mode=max
+
+      - name: Validate pushed image digest
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/${{ matrix.image }}
+          COMMIT: ${{ needs.changes.outputs.git_sha }}
+          BUILD_DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          python3 scripts/ci/image_release.py validate-digest \
+            --image "$IMAGE" --commit "$COMMIT" --digest "$BUILD_DIGEST"
+
+      - name: Attest release image
+        uses: actions/attest@v4
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/${{ matrix.image }}
+          # Sign the OCI index returned by the push, never a platform child.
+          subject-digest: ${{ steps.build.outputs.digest }}
+          # Persist signed evidence in GitHub's attestation API. This avoids
+          # reliance on expiring workflow artifacts or registry referrer cleanup.
+          push-to-registry: false
+          create-storage-record: false
 
       - name: Notify Slack on failure
         if: failure()
         uses: ./.github/actions/notify-slack
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
-          headline: ":x: *Image build failed* — `${{ matrix.image }}` did not build, nothing was deployed."
+          headline: ":x: *Image release failed* — `${{ matrix.image }}` did not complete build, digest validation and attestation; deployment was not triggered."
           context: "commit `${{ github.sha }}`"
 
   # ===========================================================================
@@ -189,15 +163,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: [changes, build-images]
-    # Fire even when build-images was SKIPPED (no service changed) — the deploy repo
-    # resolves unbuilt services to their live digests. Suppress only on a real build
-    # FAILURE, or if `changes` itself failed (then git_sha/matrix are unavailable and
-    # we must not dispatch an empty deploy). `!cancelled()` is required or GitHub
-    # auto-skips this job whenever a needs job is skipped.
+    # Dispatch only after all selected images are validated and attested, or
+    # after a successful comparison selected no images. !cancelled() allows the
+    # latter through GitHub's implicit needs-success check.
     if: >-
       !cancelled()
       && needs.changes.result == 'success'
-      && needs.build-images.result != 'failure'
+      && (needs.build-images.result == 'success'
+          || (needs.build-images.result == 'skipped' && needs.changes.outputs.any == 'false'))
 
     steps:
       - name: Generate GitHub App token
@@ -268,9 +241,9 @@ jobs:
         # toward tagging.
         run: |
           if git diff --name-only HEAD~1 HEAD | grep -qE '^(terraform/modules/|schemas/)'; then
-            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "changed=true" >> "$GITHUB_OUTPUT"
           else
-            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "changed=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Compute and push next tf-N tag

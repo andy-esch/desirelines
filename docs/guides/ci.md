@@ -7,7 +7,7 @@ CI/CD workflows for Desirelines using GitHub Actions.
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
 | `ci.yml` | PR, push to main | Tests, lint, validate |
-| `deploy.yml` | Push to main | Build images, trigger deploy repo |
+| `deploy.yml` | Push to main | Build changed images, validate digests, sign provenance, trigger deploy repo |
 
 ## Concurrency
 
@@ -27,6 +27,23 @@ CI runs on every pull request and push to main via GitHub Actions (`.github/work
 
 **Branch Protection:** Tests must pass before merging to main. Deployment workflow does not re-run tests.
 
+## Release image workflow
+
+`deploy.yml` compares the complete push using
+`scripts/ci/image-build-inputs.json`. Changes to the build workflow or shared
+release policy rebuild all services; unrelated frontend/docs changes build none.
+The Python package README is an input, so README-only pushes are not excluded.
+
+Selected images build from Git at the full commit SHA. Each pushed index digest
+must match its full-SHA registry tag before `actions/attest` publishes signed
+provenance to GitHub. Deployment dispatch requires successful builds, validation
+and attestation for all selected services, or an explicitly empty build selection.
+The full candidate SHA is sent even when no images change.
+
+See [signed release image provenance](./deployment.md#signed-release-image-provenance)
+for the baseline and later deployment-verification rollout. PR tests exercise local
+contracts; the first successful main build is still needed to verify hosted signing.
+
 ## CI Workflow Jobs
 
 ### 1. Validation
@@ -45,6 +62,16 @@ pants tailor --check :: # Check BUILD files (~4 min)
 - `sport_types.json` is identical across `schemas/sports/`, `packages/stravapipe/`, and `packages/apigateway/`
 - Proto files pass buf lint rules
 - Pants BUILD files are up to date
+- GitHub workflows pass `actionlint` (including embedded shell checks)
+
+CI pins actionlint, with a Renovate custom manager for its `go install`
+version. For this workflow check alone, run `just workflow-lint` locally.
+
+Release tooling in `scripts/ci/` is also tested, linted and type-checked in the
+Python job. Its tests use temporary Git repositories and registry stubs, covering
+build input fan-out, missing history, full commit identity, digest mismatch and
+release workflow ordering. Run `just ci-test`, `just ci-lint` (requires
+`actionlint`) and `just ci-typecheck` locally. No images are built or pushed by these checks.
 
 **Fix if failing:**
 
@@ -79,7 +106,7 @@ pants check packages/stravapipe::
 
 **Cache:**
 
-- GitHub Actions cache via `pantsbuild/actions/init-pants@v10`
+- GitHub Actions cache via `pantsbuild/actions/init-pants`
 - Keyed by `packages/stravapipe/uv.lock` and `pants.toml`
 - 30-60% speedup on cached runs
 

@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "common_inputs": [
+    ".github/workflows/deploy.yml",
+    "scripts/ci",
+    ".dockerignore",
+    ".gitattributes",
+    ".gitmodules"
+  ],
+  "images": {
+    "dispatcher": {
+      "context": ".",
+      "dockerfile": "packages/dispatcher/Dockerfile",
+      "inputs": ["packages/dispatcher", "packages/shared"]
+    },
+    "apigateway": {
+      "context": ".",
+      "dockerfile": "packages/apigateway/Dockerfile",
+      "inputs": ["packages/apigateway", "packages/shared"]
+    },
+    "stravapipe": {
+      "context": "packages/stravapipe",
+      "dockerfile": "Dockerfile",
+      "inputs": ["packages/stravapipe"]
+    }
+  }
+}

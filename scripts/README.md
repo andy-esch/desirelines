@@ -6,6 +6,7 @@ Operational scripts for desirelines monorepo management, deployment, and data op
 
 ```
 scripts/
+├── ci/               # Release image inputs, validation and regression tests
 ├── database/         # Database connection/migration (PostgreSQL)
 ├── development/      # Local development tooling
 └── ops/              # Operational scripts (Setup, Deploy, Regions)
@@ -27,6 +28,19 @@ scripts/
 | Redrive a DLQ       | `just dlq-replay <service> <env> [--execute]` (see [Redriving a DLQ](../docs/runbooks/dlq-redrive.md))                                                                |
 
 ## By Directory
+
+### `ci/`
+
+- **`image-build-inputs.json`**: Conservative, versioned per-image Git input policy.
+- **`image_release.py`**: Select image builds across a push and validate the pushed
+  digest against its full-SHA registry tag. Requires Python stdlib and Git; digest
+  validation also requires authenticated `gcloud`.
+- **`test_image_release.py`**: Local selection, failure propagation and workflow
+  contract tests. Run `just ci-test`, `just ci-lint` and `just ci-typecheck`.
+
+Keep the catalog aligned with Dockerfile COPY inputs, build contexts, ignore
+rules and shared build tooling. A new input must trigger a rebuild; these
+conservative package comparisons may also rebuild for a package docs/test change.
 
 ### `ops/`
 

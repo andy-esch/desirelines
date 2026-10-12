@@ -98,6 +98,14 @@
   "customManagers": [
     {
       "customType": "regex",
+      "description": "Track the pinned actionlint binary installed by CI; github-actions does not extract versions from go install commands.",
+      "managerFilePatterns": ["/^\\.github/workflows/ci\\.yml$/"],
+      "matchStrings": ["go install github\\.com/rhysd/actionlint/cmd/actionlint@(?<currentValue>v[0-9.]+)"],
+      "depNameTemplate": "rhysd/actionlint",
+      "datasourceTemplate": "github-tags"
+    },
+    {
+      "customType": "regex",
       "description": "Track the CI Go patch pin. The github-actions manager cannot resolve setup-go's go-version from env.GO_VERSION.",
       "managerFilePatterns": ["/^\\.github/workflows/ci\\.yml$/"],
       "matchStrings": ["GO_VERSION:\\s*\"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""],

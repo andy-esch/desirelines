@@ -31,22 +31,27 @@ Terraform environments (`dev/`, `prod/`) live in the private deploy repo where s
 
 | Action | How |
 |--------|-----|
-| Deploy to dev | Merge PR to main (automatic: build → push → trigger deploy repo) |
+| Deploy to dev | Merge PR to main (automatic: build → push → validate → attest → trigger deploy repo) |
 | Deploy to prod | `workflow_dispatch` on `desirelines-deploy` → creates PR → review → merge → apply |
 
 ### What happens on merge to main
 
-1. `desirelines` CI builds Docker images and pushes to Artifact Registry
-2. `trigger-deploy` job sends `repository_dispatch` to `desirelines-deploy`
-3. Deploy repo resolves each image tag to its **immutable digest**, then auto-applies
-   terraform for dev and updates `.deployed/dev.json`
-4. Web frontend is built and deployed to Firebase Hosting
+1. `desirelines` compares versioned build inputs across the push and builds changed
+   images from the full source commit SHA, then pushes to Artifact Registry.
+2. Each build's OCI index digest must match its full-SHA registry tag. GitHub signs
+   provenance for that exact image name and digest; validation or signing failure
+   prevents deployment dispatch.
+3. `trigger-deploy` sends the full SHA to `desirelines-deploy`. A successful
+   comparison with no changed images still dispatches a configuration-only candidate.
+4. The deploy repo selects image digests, runs Flyway on normal tagged deploys and
+   auxiliary retry/forced redeploys, applies Terraform for dev, and updates its ledger.
+5. Web frontend is built and deployed to Firebase Hosting.
 
 See [ci.md](./ci.md) for workflow details.
 
 #### Why deploys reference image digests
 
-Cloud Run services are deployed by digest (`image@sha256:…`), not by tag. The images are
+Cloud Run services are deployed by digest (`image@sha256:…`). The images are
 tagged with the git SHA, so a tag-based reference **changes on every commit** — Terraform
 diffs the string and rolls a new revision for *every* service on *every* push, including
 services whose code did not change. Each of those is a real traffic-shifting rollout, so an
@@ -55,24 +60,46 @@ unchanged service carried full rollout risk for nothing.
 Referencing the digest makes Terraform's own diff the guard: identical bytes produce an
 identical reference, so there is no diff and no revision.
 
-Two details worth knowing:
+Both dev and prod commit per-service digests in `images.auto.tfvars`. Production's
+promotion PR exposes those digests for review. `deployment_version` records the
+desired application commit for observability and migration source selection; it
+does not prove that an image was built from that commit. The module also supports
+tag references when no digest is supplied, for bootstrap use.
 
-- **This is about deploy churn, not supply-chain immutability.** Cloud Run already resolves
-  a tag to a digest and pins each revision to it, so the running bytes were always fixed.
-  What was not fixed was Terraform's view of them.
-- **Digests are resolved from the registry**, via
-  `gcloud artifacts docker images describe … --format='value(image_summary.digest)'` — not
-  from `docker/build-push-action`'s `digest` output, which is unreliable under buildx with
-  GitHub Actions caching.
+The producer uses `docker/build-push-action`'s pushed digest output, checks it via
+`gcloud artifacts docker images describe … --format='value(image_summary.digest)'`,
+and signs that same digest. The deploy repo resolves candidate tags separately and
+can retain a declared digest for a service that was not rebuilt. Consumer-side
+signature and source-equivalence enforcement is a separate rollout step; the
+existing resolver does not yet prove that a carried-forward image is unchanged.
 
-`deployment_version` is unchanged and still carries the git SHA: it is the provenance record
-and is still used for Cloud Function source packages.
+### Signed release image provenance
 
-**dev and prod differ here, deliberately.** dev passes digests per-apply via `-var` (its
-tfvars is a record written *after* a successful apply). Prod's tfvars *is* the reviewed
-deployment request — `create-prod-pr` writes it, `plan-prod` plans it, and the merge applies
-exactly that — so prod will carry digests **in tfvars** rather than as an apply-time
-override. Prod is a separate, later change; today it still deploys by tag.
+`scripts/ci/image-build-inputs.json` is the versioned input catalog. Whole service
+trees are compared conservatively; shared Go changes rebuild both Go services.
+The build workflow, release tooling/catalog, optional root `.dockerignore` and
+Git attribute/submodule rules rebuild every image when changed. The Python README
+and committed generated files are covered. Unrelated frontend, root docs, schema-source and Terraform changes
+do not rebuild images; generated consumer files must be committed after schema changes.
+
+BuildKit reads an immutable Git context at the full SHA, with the Python context
+restricted to its package. Checkout mutations and local uncommitted files are not
+part of a hosted release build. The GitHub attestation binds the fully qualified
+image name and pushed OCI **index** digest to the source commit and
+`.github/workflows/deploy.yml` identity. A platform-specific child digest is a
+different subject. Full-SHA tags identify builds but remain mutable registry tags.
+
+Signed evidence is stored in GitHub's attestation API, independently of expiring
+build-record artifacts. This stage does not push attestation bundles to the registry
+or backfill signatures for old images. See the [GitHub attestation action](https://github.com/actions/attest)
+and [Buildx Git context documentation](https://github.com/docker/build-push-action#git-context).
+
+Before enabling deployment enforcement, merge this producer, verify a successful
+main build attests all three services, and promote an attested baseline through dev
+and prod using the normal deployment process. Later enforcement must authenticate
+the builder/source and compare build inputs to the desired candidate before
+Flyway; it must preserve reviewed production digests. A signature alone is not
+that full deployment policy.
 
 ---
 
@@ -82,15 +109,12 @@ override. Prod is a separate, later change; today it still deploys by tag.
 
 Merge to main triggers automatic dev deployment. No manual terraform needed.
 
-### Manual Deploy (from deploy repo)
+### Manual recovery
 
-For manual control, work from a cloned `desirelines-deploy`:
-
-```bash
-cd desirelines-deploy/environments/dev
-infisical run --env=dev --path=/ci/deploy -- terraform plan
-infisical run --env=dev --path=/ci/deploy -- terraform apply
-```
+Use the deploy repo's retry or forced-redeploy workflows for backend recovery.
+They require Flyway success for the selected candidate before Terraform apply.
+Local Terraform apply does not automatically run this gate; follow the deploy
+repo's recovery instructions and migration prerequisites before any local apply.
 
 ### Verify Deployment
 
@@ -149,16 +173,20 @@ See [strava-webhook.md](./strava-webhook.md) for OAuth2 setup.
 
 ## Rollback
 
+Find a previous image version:
+
 ```bash
-# Find previous version
 gcloud artifacts docker images list \
   us-central1-docker.pkg.dev/desirelines-artifacts/desirelines-services/dispatcher \
   --sort-by=~CREATE_TIME --limit=5
-
-# Deploy previous version via deploy repo:
-# Update deployment_version in desirelines-deploy/environments/dev/terraform.tfvars
-# Then terraform apply (or trigger via workflow_dispatch)
 ```
+
+Restore a coherent application commit and per-service digest map through the
+deploy repo's reviewed deployment/recovery flow. Changing `deployment_version`
+alone leaves committed digests pointing to the current images. Confirm schema
+compatibility first: older writer images are incompatible after V0015 cleanup.
+`just build-publish` makes local, unsigned images; use the hosted release workflow
+to produce signed release evidence.
 
 ---
 
@@ -169,7 +197,7 @@ gcloud artifacts docker images list \
 | `denied: Permission denied` | `gcloud auth configure-docker us-central1-docker.pkg.dev` |
 | `.env.*.local not found` | Create env file per `packages/web/README.md` |
 | Webhook not receiving events | Check OAuth2 - see [strava-webhook.md](./strava-webhook.md) |
-| `ModuleNotFoundError` | Rebuild: `just build-publish` then deploy via CI |
+| `ModuleNotFoundError` | Fix the committed build inputs and merge to main for a new signed release build |
 
 ### Check Service Health
 

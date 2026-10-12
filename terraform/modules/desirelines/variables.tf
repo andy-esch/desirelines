@@ -94,7 +94,7 @@ variable "enable_backfill_bigquery_writes" {
 
 # Deployment version tracking for code provenance and observability
 variable "deployment_version" {
-  description = "Version tag for all deployed code (Cloud Run images and Cloud Function source packages). Typically a git SHA for code provenance and observability (e.g., 'b30d6ea' or 'latest')"
+  description = "Desired application version for observability and tag-based Cloud Run image fallback. Hosted releases use a full git commit SHA; image_digests select the deployed bytes. This value alone does not verify image provenance."
   type        = string
   default     = "latest"
 
