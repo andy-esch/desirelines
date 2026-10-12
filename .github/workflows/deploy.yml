@@ -19,7 +19,8 @@ jobs:
   # ===========================================================================
   # Job 0: Detect which service images actually need rebuilding
   # ===========================================================================
-  # Only services whose build inputs changed are rebuilt. The deploy repo can
+  # Compare against the last successful release, so failed or replaced queued
+  # runs cannot strand a service change. The deploy repo can
   # retain an unchanged service's declared digest, avoiding needless revisions.
   #
   # This job ALSO owns `git_sha` — deliberately decoupled from `build-images`,
@@ -34,6 +35,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+      actions: read
     outputs:
       git_sha: ${{ steps.set-matrix.outputs.git_sha }}
       matrix: ${{ steps.set-matrix.outputs.matrix }}
@@ -41,7 +43,7 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
-        # Compare the complete push, including multi-commit merges. Missing
+        # Compare all changes since the release checkpoint. Missing
         # history fails validation rather than silently skipping image builds.
         with:
           fetch-depth: 0
@@ -49,11 +51,11 @@ jobs:
       - name: Build image matrix from changed services
         id: set-matrix
         env:
-          BEFORE: ${{ github.event.before }}
+          GH_TOKEN: ${{ github.token }}
           AFTER: ${{ github.sha }}
         run: |
           python3 scripts/ci/image_release.py matrix \
-            --before "$BEFORE" --after "$AFTER" --github-output "$GITHUB_OUTPUT"
+            --repository "$GITHUB_REPOSITORY" --after "$AFTER" --github-output "$GITHUB_OUTPUT"
 
   # ===========================================================================
   # Job 1: Build and Push Docker Images

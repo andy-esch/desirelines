@@ -32,9 +32,11 @@ scripts/
 ### `ci/`
 
 - **`image-build-inputs.json`**: Conservative, versioned per-image Git input policy.
-- **`image_release.py`**: Select image builds across a push and validate the pushed
-  digest against its full-SHA registry tag. Requires Python stdlib and Git; digest
-  validation also requires authenticated `gcloud`.
+- **`image_release.py`**: Select image builds since the last successful hosted release
+  (or an explicit `--before` for local Git comparisons) and validate the pushed
+  digest against its full-SHA registry tag. Requires Python stdlib and Git;
+  hosted checkpoint lookup also requires `gh` with read access to Actions history,
+  and digest validation requires authenticated `gcloud`.
 - **`test_image_release.py`**: Local selection, failure propagation and workflow
   contract tests. Run `just ci-test`, `just ci-lint` and `just ci-typecheck`.
 

@@ -36,7 +36,7 @@ Terraform environments (`dev/`, `prod/`) live in the private deploy repo where s
 
 ### What happens on merge to main
 
-1. `desirelines` compares versioned build inputs across the push and builds changed
+1. `desirelines` compares versioned build inputs since the last successful release and builds changed
    images from the full source commit SHA, then pushes to Artifact Registry.
 2. Each build's OCI index digest must match its full-SHA registry tag. GitHub signs
    provenance for that exact image name and digest; validation or signing failure
@@ -81,6 +81,15 @@ The build workflow, release tooling/catalog, optional root `.dockerignore` and
 Git attribute/submodule rules rebuild every image when changed. The Python README
 and committed generated files are covered. Unrelated frontend, root docs, schema-source and Terraform changes
 do not rebuild images; generated consumer files must be committed after schema changes.
+
+The comparison starts at the latest successful main push of `deploy.yml`, not
+the preceding push's commit. A failed build or a replaced queued run therefore
+keeps its service changes in the next selection, even if that next push only
+changes docs. No successful history means all services build; unavailable or
+malformed history, missing Git commits and diff errors stop selection and dispatch.
+The changes job uses a read-only Actions token to query this checkpoint. It
+records producer completion, not a successful deployment or authenticated image
+provenance; consumer verification is still required.
 
 BuildKit reads an immutable Git context at the full SHA, with the Python context
 restricted to its package. Checkout mutations and local uncommitted files are not

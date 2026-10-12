@@ -29,9 +29,12 @@ CI runs on every pull request and push to main via GitHub Actions (`.github/work
 
 ## Release image workflow
 
-`deploy.yml` compares the complete push using
+`deploy.yml` compares inputs since its last successful main push using
 `scripts/ci/image-build-inputs.json`. Changes to the build workflow or shared
-release policy rebuild all services; unrelated frontend/docs changes build none.
+release policy rebuild all services. Failed or replaced queued runs keep their
+changes in the next selection. Unrelated frontend/docs changes build none when
+there are no outstanding service changes. No successful history builds all
+services; a failed history lookup stops dispatch instead of assuming nothing changed.
 The Python package README is an input, so README-only pushes are not excluded.
 
 Selected images build from Git at the full commit SHA. Each pushed index digest
@@ -68,8 +71,8 @@ CI pins actionlint, with a Renovate custom manager for its `go install`
 version. For this workflow check alone, run `just workflow-lint` locally.
 
 Release tooling in `scripts/ci/` is also tested, linted and type-checked in the
-Python job. Its tests use temporary Git repositories and registry stubs, covering
-build input fan-out, missing history, full commit identity, digest mismatch and
+Python job. Its tests use temporary Git repositories and GitHub/registry stubs, covering
+build input fan-out, missed releases, missing history, full commit identity, digest mismatch and
 release workflow ordering. Run `just ci-test`, `just ci-lint` (requires
 `actionlint`) and `just ci-typecheck` locally. No images are built or pushed by these checks.
 
@@ -415,14 +418,15 @@ The `deploy.yml` workflow handles build and deploy triggering:
 
 | Trigger | Behavior |
 |---------|----------|
-| Push to main | Build images → push to Artifact Registry → trigger `desirelines-deploy` |
+| Push to main | Select images → build/push → validate/attest → trigger `desirelines-deploy` |
 
 **Steps:**
 
-1. Build Docker images with `docker/build-push-action` (matrix: dispatcher, apigateway, stravapipe)
-2. Push to Artifact Registry with registry-based layer caching
-3. Send `repository_dispatch` to `desirelines-deploy` via GitHub App token
-4. Deploy repo handles terraform apply, service verification, web deploy, and state tracking
+1. Compare catalog inputs since the last successful release; select changed services
+2. Build selected Docker images with `docker/build-push-action` from the full Git SHA and push to Artifact Registry with layer caching
+3. Validate each pushed OCI index digest against its full-SHA tag, then publish GitHub-signed provenance
+4. Send `repository_dispatch` with the full candidate SHA via GitHub App token after successful selected builds or an explicitly empty selection
+5. Deploy repo handles Terraform apply, service verification, web deploy, and state tracking; signed provenance enforcement is a later rollout step
 
 Terraform operations, drift detection, and deployment state tracking all live in the private `desirelines-deploy` repo.
 

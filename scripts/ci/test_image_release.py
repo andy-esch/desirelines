@@ -17,6 +17,21 @@ import pytest
 import yaml  # type: ignore[import-untyped]
 
 
+def successful_history(commit: str) -> dict[str, object]:
+    return {
+        "total_count": 1,
+        "workflow_runs": [
+            {
+                "head_sha": commit,
+                "head_branch": "main",
+                "event": "push",
+                "status": "completed",
+                "conclusion": "success",
+            }
+        ],
+    }
+
+
 class TestRelease:
     @pytest.fixture(autouse=True)
     def setup(self, tmp_path: Path) -> None:
@@ -54,6 +69,45 @@ class TestRelease:
         file = self.repo / path
         file.parent.mkdir(parents=True, exist_ok=True)
         file.write_text(contents)
+
+    def hosted_matrix(
+        self, target: str, history: object, *, api_status: int = 0
+    ) -> subprocess.CompletedProcess[str]:
+        tools = self.repo / "tools"
+        tools.mkdir(exist_ok=True)
+        response = tools / "history.json"
+        response.write_text(
+            history if isinstance(history, str) else json.dumps(history)
+        )
+        stub = tools / "gh"
+        stub.write_text(
+            f"#!/bin/sh\nexit {api_status}\n"
+            if api_status
+            else '#!/bin/sh\ncat "$RELEASE_TEST_HISTORY"\n'
+        )
+        stub.chmod(0o755)
+        return subprocess.run(
+            [
+                sys.executable,
+                release.__file__,
+                "matrix",
+                "--repository",
+                "owner/repository",
+                "--after",
+                target,
+                "--github-output",
+                str(self.repo / "outputs"),
+            ],
+            cwd=self.repo,
+            env={
+                **os.environ,
+                "PATH": f"{tools}:{os.environ.get('PATH', '')}",
+                "RELEASE_TEST_HISTORY": str(response),
+            },
+            capture_output=True,
+            text=True,
+            check=False,
+        )
 
     def test_service_inputs_and_shared_fanout(self) -> None:
         for path, expected in [
@@ -179,6 +233,60 @@ class TestRelease:
             assert result.returncode != 0
             assert not output.exists()
 
+    def test_docs_push_after_unpublished_service_change_rebuilds_service(self) -> None:
+        last_published = self.before
+        self.write("packages/stravapipe/src/writer.py")
+        missed = self.commit()  # Its build failed or never left the concurrency queue.
+        self.write("docs/release.md")
+        target = self.commit()
+        # Old filtering reproduces the gap: a successful empty selection.
+        assert release.changed_images(self.repo, missed, target, self.images) == []
+        result = self.hosted_matrix(target, successful_history(last_published))
+        assert result.returncode == 0, result.stderr
+        assert {entry["image"] for entry in json.loads(result.stdout)["include"]} == {
+            "stravapipe"
+        }
+        output = (self.repo / "outputs").read_text()
+        assert f"git_sha={target}\n" in output
+        assert "any=true\n" in output
+
+    def test_no_successful_history_builds_all_images(self) -> None:
+        result = self.hosted_matrix(
+            self.before, {"total_count": 0, "workflow_runs": []}
+        )
+        assert result.returncode == 0, result.stderr
+        assert {
+            entry["image"] for entry in json.loads(result.stdout)["include"]
+        } == self.all_images
+
+    def test_docs_after_successful_release_can_skip_builds(self) -> None:
+        self.write("docs/release.md")
+        target = self.commit()
+        result = self.hosted_matrix(target, successful_history(self.before))
+        assert result.returncode == 0, result.stderr
+        assert json.loads(result.stdout) == {"include": []}
+        assert "any=false\n" in (self.repo / "outputs").read_text()
+
+    @pytest.mark.parametrize(
+        ("history", "api_status"),
+        [
+            ({"total_count": 0, "workflow_runs": []}, 23),
+            ("not JSON", 0),
+            ({"total_count": 1, "workflow_runs": []}, 0),
+            (
+                successful_history("f" * 40),
+                0,
+            ),  # Missing local history cannot skip builds.
+        ],
+    )
+    def test_hosted_checkpoint_errors_publish_no_outputs(
+        self, history: object, api_status: int
+    ) -> None:
+        result = self.hosted_matrix(self.before, history, api_status=api_status)
+        assert result.returncode != 0
+        assert not (self.repo / "outputs").exists()
+        assert not result.stdout
+
     def test_catalog_rejects_pathspec_magic_and_uncovered_dockerfile(self) -> None:
         for path in ["../other", ":(exclude)packages", "/etc", "packages/*", "a\nb"]:
             with pytest.raises(ValueError, match="Invalid build input path"):
@@ -221,6 +329,77 @@ class TestRelease:
         catalog.write_text('{"schema_version": 2}')
         with pytest.raises(ValueError, match="Unsupported"):
             release.load_catalog(catalog)
+
+
+class TestCheckpoint:
+    def test_reads_only_successful_main_pushes(self) -> None:
+        with (
+            patch("ci.image_release.executable", return_value="/runner/gh"),
+            patch("ci.image_release.subprocess.run") as run,
+        ):
+            run.return_value.stdout = json.dumps(successful_history("a" * 40))
+            assert release.last_successful_release("owner/repository") == "a" * 40
+            assert run.call_args.args[0] == [
+                "/runner/gh",
+                "api",
+                "--method",
+                "GET",
+                "repos/owner/repository/actions/workflows/deploy.yml/runs",
+                "-f",
+                "branch=main",
+                "-f",
+                "event=push",
+                "-f",
+                "status=success",
+                "-f",
+                "per_page=1",
+            ]
+            assert run.call_args.kwargs["check"]
+
+    def test_wrong_workflow_run_identity_is_rejected(self) -> None:
+        for field, value in [
+            ("head_branch", "feature"),
+            ("event", "pull_request"),
+            ("status", "in_progress"),
+            ("conclusion", "failure"),
+            ("head_sha", "a" * 7),
+            ("head_sha", release.ZERO_SHA),
+            ("head_sha", None),
+        ]:
+            history = successful_history("a" * 40)
+            runs = history["workflow_runs"]
+            assert isinstance(runs, list)
+            runs[0][field] = value
+            with (
+                patch("ci.image_release.executable", return_value="/runner/gh"),
+                patch("ci.image_release.subprocess.run") as run,
+            ):
+                run.return_value.stdout = json.dumps(history)
+                with pytest.raises(
+                    ValueError, match="Invalid successful release checkpoint"
+                ):
+                    release.last_successful_release("owner/repository")
+
+    def test_malformed_history_and_repository_are_rejected(self) -> None:
+        for history in [[], {}, {"workflow_runs": None}, {"workflow_runs": []}]:
+            with (
+                patch("ci.image_release.executable", return_value="/runner/gh"),
+                patch("ci.image_release.subprocess.run") as run,
+            ):
+                run.return_value.stdout = json.dumps(history)
+                with pytest.raises(
+                    (TypeError, ValueError), match="release workflow history"
+                ):
+                    release.last_successful_release("owner/repository")
+        with patch("ci.image_release.subprocess.run") as run:
+            for repository in [
+                "repo",
+                "owner/repo/extra",
+                "owner/repo?event=pull_request",
+            ]:
+                with pytest.raises(ValueError, match="owner/repository"):
+                    release.last_successful_release(repository)
+            run.assert_not_called()
 
 
 class TestDigest:
@@ -312,6 +491,17 @@ class TestWorkflow:
     def setup(self) -> None:
         self.workflow = yaml.safe_load(Path(".github/workflows/deploy.yml").read_text())
         self.jobs = self.workflow["jobs"]
+
+    def test_selection_uses_release_history_with_read_only_token(self) -> None:
+        job = self.jobs["changes"]
+        step = next(step for step in job["steps"] if step.get("id") == "set-matrix")
+        assert job["permissions"] == {"contents": "read", "actions": "read"}
+        assert step["env"]["GH_TOKEN"] == "${{ github.token }}"
+        assert '--repository "$GITHUB_REPOSITORY"' in step["run"]
+        assert "--before" not in step["run"]
+        assert "github.event.before" not in json.dumps(job)
+        checkout = job["steps"][0]
+        assert checkout["with"]["fetch-depth"] == 0
 
     def test_build_attests_validated_digest_from_exact_source(self) -> None:
         build = self.jobs["build-images"]

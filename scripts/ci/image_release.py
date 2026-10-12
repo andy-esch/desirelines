@@ -109,6 +109,60 @@ def checked_commit(repo: Path, value: str) -> str:
     return resolved
 
 
+def last_successful_release(repository: str) -> str:
+    """Keep changes from failed/replaced runs in the next build selection.
+
+    This is a producer checkpoint, not an attestation or a deployed-version proof.
+    A whole-workflow success includes every selected build and its dispatch.
+    """
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
+        raise ValueError("Expected a GitHub owner/repository")
+    # Fixed read-only API endpoint; repository is validated, no shell is invoked.
+    result = subprocess.run(  # noqa: S603
+        [
+            executable("gh"),
+            "api",
+            "--method",
+            "GET",
+            f"repos/{repository}/actions/workflows/deploy.yml/runs",
+            "-f",
+            "branch=main",
+            "-f",
+            "event=push",
+            "-f",
+            "status=success",
+            "-f",
+            "per_page=1",
+        ],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    data = json.loads(result.stdout)
+    if not isinstance(data, dict) or not isinstance(data.get("workflow_runs"), list):
+        raise TypeError("Invalid release workflow history")
+    runs = data["workflow_runs"]
+    if not runs:
+        if data.get("total_count") != 0:
+            raise ValueError("Incomplete release workflow history")
+        # First release: build all services instead of trusting a push delta.
+        return ZERO_SHA
+    run = runs[0]
+    head_sha = run.get("head_sha") if isinstance(run, dict) else None
+    if (
+        not isinstance(run, dict)
+        or run.get("head_branch") != "main"
+        or run.get("event") != "push"
+        or run.get("status") != "completed"
+        or run.get("conclusion") != "success"
+        or not isinstance(head_sha, str)
+        or not FULL_SHA.fullmatch(head_sha)
+        or head_sha == ZERO_SHA
+    ):
+        raise ValueError("Invalid successful release checkpoint")
+    return head_sha
+
+
 def changed_images(
     repo: Path, before: str, after: str, images: list[ImageBuild]
 ) -> list[dict[str, str]]:
@@ -186,7 +240,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     matrix = commands.add_parser("matrix")
-    matrix.add_argument("--before", required=True)
+    baseline = matrix.add_mutually_exclusive_group(required=True)
+    baseline.add_argument("--before", help="Explicit baseline for local comparisons")
+    baseline.add_argument(
+        "--repository", help="GitHub repository for the hosted release checkpoint"
+    )
     matrix.add_argument("--after", required=True)
     matrix.add_argument("--github-output", type=Path)
     digest = commands.add_parser("validate-digest")
@@ -199,7 +257,12 @@ def main() -> int:
             validate_pushed_digest(args.image, args.commit, args.digest)
             print(f"Verified {args.image}@{args.digest}")
         else:
-            matrix_result = release_matrix(Path.cwd(), args.before, args.after)
+            before = (
+                args.before
+                if args.before is not None
+                else last_successful_release(args.repository)
+            )
+            matrix_result = release_matrix(Path.cwd(), before, args.after)
             matrix_json = json.dumps(matrix_result, separators=(",", ":"))
             any_images = bool(matrix_result["include"])
             if args.github_output:
