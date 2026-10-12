@@ -41,6 +41,24 @@ setup-secrets:
 
     echo "✅ Secrets synced successfully"
 
+# Release producer regression suite (temporary Git repos and registry stubs).
+ci-test:
+    pants test scripts/ci::
+
+# Check release scripts and GitHub workflow syntax without cloud access.
+ci-lint:
+    pants lint scripts/ci::
+    just workflow-lint
+
+workflow-lint:
+    actionlint .github/workflows/deploy.yml .github/workflows/ci.yml
+
+ci-typecheck:
+    pants check scripts/ci::
+
+ci-format:
+    pants fmt scripts/ci::
+
 # Auto-fix markdown formatting issues
 md-format:
     #!/usr/bin/env bash

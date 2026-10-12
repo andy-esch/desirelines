@@ -34,16 +34,16 @@ module "desirelines" {
 | ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.12 |
 | <a name="requirement_external"></a> [external](#requirement\_external) | ~> 2.3 |
-| <a name="requirement_google"></a> [google](#requirement\_google) | ~> 7.22 |
-| <a name="requirement_google-beta"></a> [google-beta](#requirement\_google-beta) | ~> 7.22 |
+| <a name="requirement_google"></a> [google](#requirement\_google) | ~> 8.0 |
+| <a name="requirement_google-beta"></a> [google-beta](#requirement\_google-beta) | ~> 8.0 |
 
 ## Providers
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_external"></a> [external](#provider\_external) | 2.4.1 |
-| <a name="provider_google"></a> [google](#provider\_google) | 7.44.0 |
-| <a name="provider_google-beta"></a> [google-beta](#provider\_google-beta) | 7.44.0 |
+| <a name="provider_external"></a> [external](#provider\_external) | 2.4.2 |
+| <a name="provider_google"></a> [google](#provider\_google) | 8.6.0 |
+| <a name="provider_google-beta"></a> [google-beta](#provider\_google-beta) | 8.6.0 |
 | <a name="provider_terraform"></a> [terraform](#provider\_terraform) | n/a |
 
 ## Resources
@@ -209,7 +209,7 @@ module "desirelines" {
 | <a name="input_api_gateway_allowed_origins"></a> [api\_gateway\_allowed\_origins](#input\_api\_gateway\_allowed\_origins) | Comma-separated list of allowed CORS origins for API Gateway | `string` | `""` | no |
 | <a name="input_app_config"></a> [app\_config](#input\_app\_config) | Application configuration values from Infisical | <pre>object({<br/>    log_level         = string<br/>    frontend_url      = optional(string, "")<br/>    auth_callback_url = optional(string, "")<br/>    # Positive-only API authorization cache. Short by design: this turns a map<br/>    # tile burst into one Firestore read while bounding allowlist revocation<br/>    # staleness. "0" disables it for incident diagnosis.<br/>    api_allowlist_cache_ttl = optional(string, "30s")<br/>    # Dispatcher Firestore-lookup cache TTLs (Go duration strings, e.g. "5m").<br/>    # "0" disables the respective cache — the incident kill switch for a suspected<br/>    # staleness bug, settable via GitOps with no code change.<br/>    dispatcher_allowlist_cache_ttl = optional(string, "5m")<br/>    dispatcher_token_cache_ttl     = optional(string, "5m")<br/>    # Best-effort publish of activity rows to the BigQuery CDC topic — the only<br/>    # path by which activity rows reach BigQuery — and the kill switch for it:<br/>    # set false to stop publishing in place during an incident (GitOps apply, no<br/>    # code change). Safe to stop, because nothing reads BigQuery; the cost is a<br/>    # stale activities_live. Named as the mitigation in<br/>    # docs/runbooks/activity-row-publish-failing.md and dlq-activity-rows.md.<br/>    #<br/>    # Default off so a new environment does not publish before its topic and<br/>    # subscription exist — which means an environment that never sets it true<br/>    # publishes nothing, silently. The publish cannot fail a webhook.<br/>    dispatcher_activity_row_publish_enabled = optional(bool, false)<br/>    # Wire format for activity rows: "json" or "proto". Drives the dispatcher's<br/>    # ACTIVITY_ROW_ENCODING, whether the topic carries a protobuf schema, and<br/>    # whether the subscription maps by topic or table schema — they must agree,<br/>    # so they read one value.<br/>    dispatcher_activity_row_encoding = optional(string, "json")<br/>  })</pre> | <pre>{<br/>  "log_level": "INFO"<br/>}</pre> | no |
 | <a name="input_bigquery_location"></a> [bigquery\_location](#input\_bigquery\_location) | BigQuery dataset location | `string` | `"US"` | no |
-| <a name="input_deployment_version"></a> [deployment\_version](#input\_deployment\_version) | Version tag for all deployed code (Cloud Run images and Cloud Function source packages). Typically a git SHA for code provenance and observability (e.g., 'b30d6ea' or 'latest') | `string` | `"latest"` | no |
+| <a name="input_deployment_version"></a> [deployment\_version](#input\_deployment\_version) | Desired application version for observability and tag-based Cloud Run image fallback. Hosted releases use a full git commit SHA; image\_digests select the deployed bytes. This value alone does not verify image provenance. | `string` | `"latest"` | no |
 | <a name="input_developer_email"></a> [developer\_email](#input\_developer\_email) | Email of the developer account for BigQuery console access (optional) | `string` | `null` | no |
 | <a name="input_enable_activity_row_publish_alert"></a> [enable\_activity\_row\_publish\_alert](#input\_enable\_activity\_row\_publish\_alert) | Gate for the activity-row publish-failure alert specifically. Separate from the dispatcher's publish behavior on purpose: the alert watches workload.googleapis.com/desirelines.io/bigquery/row\_publish, a counter that only exists in a project once the dispatcher has published a row THERE, so creating the policy where no row has ever been published fails the apply with a 404 on the metric type. dev receives no Strava webhooks, so it can never publish and the counter can never come into existence — meaning the alert can never be created there, and this must stay false in dev regardless of whether publishing is enabled. | `bool` | `false` | no |
 | <a name="input_enable_apis"></a> [enable\_apis](#input\_enable\_apis) | Whether to enable required GCP APIs | `bool` | `true` | no |
