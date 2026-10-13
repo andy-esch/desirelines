@@ -158,10 +158,12 @@ docker buildx imagetools inspect --raw "$IMAGE@$INDEX_DIGEST"
 ```
 
 A carried-forward image can have an older build source than the desired
-candidate. Compare that service's cataloged inputs between those full commits;
-successful signature verification or a failed candidate-tag lookup does not
-perform this comparison. Inspect the raw index's `linux/amd64` child digest for
-the live revision check below. An unsigned index can share that same child with
+candidate. Compare both `common_inputs` and the service's `inputs` in
+`scripts/ci/image-build-inputs.json` between those full commits, including the
+catalog and release-policy files themselves. A service-directory-only diff is
+insufficient. Successful signature verification or a failed candidate-tag lookup
+does not perform this comparison. Inspect the raw index's `linux/amd64` child
+digest for the live revision check below. An unsigned index can share that same child with
 a signed index, so verifying the child or a different parent is insufficient.
 
 ```bash
@@ -188,10 +190,14 @@ gcloud run jobs describe desirelines-backfill --project="$PROJECT" --region=us-c
   --format='yaml(spec.template.spec.template.spec.containers[0].image,status.conditions)'
 ```
 
-Successful deployments also move the stable `dev`/`prod` image tags to the
-selected digests for retention. These mutable tags are not signature subjects
-or evidence of a particular source commit. Inspect service logs and perform
-the release's application checks separately from provenance/readiness checks.
+Normal tagged dev deployments and prod applies attempt to move the stable
+`dev`/`prod` tags to the selected digests for retention. Stamping failures are
+warnings and do not fail the deployment; retry, forced redeploy and dev
+configuration-only applies currently skip stamping. Check the registry tags
+against the deployed map after recovery rather than assuming a successful run
+protected the images. These mutable tags do not authenticate a source commit.
+Inspect service logs and perform the release's application checks separately
+from provenance/readiness checks.
 
 ---
 
