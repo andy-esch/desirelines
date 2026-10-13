@@ -20,7 +20,7 @@ Deployment uses a **two-repo GitOps model**:
 
 | Repo | Role |
 |------|------|
-| `desirelines` (this repo, public) | Build Docker images, push to Artifact Registry, trigger deploy |
+| `desirelines` (this repo, public) | Build and push Docker images, validate digests, sign provenance, trigger deploy |
 | `desirelines-deploy` (private) | Terraform config, deployment workflows, state tracking |
 
 Terraform environments (`dev/`, `prod/`) live in the private deploy repo where sensitive values (project numbers, emails) can be committed safely.
@@ -57,8 +57,10 @@ diffs the string and rolls a new revision for *every* service on *every* push, i
 services whose code did not change. Each of those is a real traffic-shifting rollout, so an
 unchanged service carried full rollout risk for nothing.
 
-Referencing the digest makes Terraform's own diff the guard: identical bytes produce an
-identical reference, so there is no diff and no revision.
+Keeping an unchanged service's digest makes Terraform's own diff the guard: the
+reference stays identical, so there is no image diff and no new revision.
+Rebuilding can change the parent index's metadata even when the runtime image
+bytes are identical; equal platform images do not imply equal index digests.
 
 Both dev and prod commit per-service digests in `images.auto.tfvars`. Production's
 promotion PR exposes those digests for review. `deployment_version` records the
@@ -71,7 +73,8 @@ The producer uses `docker/build-push-action`'s pushed digest output, checks it v
 and signs that same digest. The deploy repo resolves candidate tags separately and
 can retain a declared digest for a service that was not rebuilt. Consumer-side
 signature and source-equivalence enforcement is a separate rollout step; the
-existing resolver does not yet prove that a carried-forward image is unchanged.
+existing resolver falls back to a declared digest on unavailable tag lookups,
+including registry errors. That fallback does not prove the service was unchanged.
 
 ### Signed release image provenance
 
@@ -103,12 +106,13 @@ build-record artifacts. This stage does not push attestation bundles to the regi
 or backfill signatures for old images. See the [GitHub attestation action](https://github.com/actions/attest)
 and [Buildx Git context documentation](https://github.com/docker/build-push-action#git-context).
 
-Before enabling deployment enforcement, merge this producer, verify a successful
-main build attests all three services, and promote an attested baseline through dev
-and prod using the normal deployment process. Later enforcement must authenticate
-the builder/source and compare build inputs to the desired candidate before
-Flyway; it must preserve reviewed production digests. A signature alone is not
-that full deployment policy.
+The hosted producer now issues signed release evidence, and the initial signed
+baseline has been verified in dev and prod through normal deployment and
+promotion. The deployment workflows do not yet enforce this policy: they must
+authenticate the builder/source and compare build inputs
+to the desired candidate before Flyway, while preserving reviewed production
+digests. A verified signature alone does not establish source-input equivalence,
+schema compatibility or application health.
 
 ---
 
@@ -127,10 +131,67 @@ repo's recovery instructions and migration prerequisites before any local apply.
 
 ### Verify Deployment
 
+Review the environment's committed `images.auto.tfvars`, desired
+`deployment_version`, successful deployment run and `.deployed/<env>.json`
+together. The ledger is the latest recorded result; check its status and the live
+resources rather than treating its version alone as proof of success.
+
+For each of `dispatcher`, `apigateway` and `stravapipe`, verify the **committed
+parent index**, with the full source SHA from its hosted build. Authenticate
+`gh` and configure Docker's registry credential helper first (see
+[troubleshooting](#troubleshooting)). Replace the two placeholders below:
+
 ```bash
-gcloud run services list --region=us-central1
-gcloud run services logs read desirelines-dispatcher --region=us-central1 --limit=20
+IMAGE=us-central1-docker.pkg.dev/desirelines-artifacts/desirelines-services/stravapipe
+INDEX_DIGEST='sha256:REVIEWED_INDEX_DIGEST'
+BUILD_SOURCE='FULL_40_CHARACTER_BUILD_SOURCE_SHA'
+
+gh attestation verify "oci://$IMAGE@$INDEX_DIGEST" \
+  --repo andy-esch/desirelines \
+  --cert-identity https://github.com/andy-esch/desirelines/.github/workflows/deploy.yml@refs/heads/main \
+  --cert-oidc-issuer https://token.actions.githubusercontent.com \
+  --source-ref refs/heads/main \
+  --source-digest "$BUILD_SOURCE" --signer-digest "$BUILD_SOURCE" \
+  --deny-self-hosted-runners --predicate-type https://slsa.dev/provenance/v1
+
+docker buildx imagetools inspect --raw "$IMAGE@$INDEX_DIGEST"
 ```
+
+A carried-forward image can have an older build source than the desired
+candidate. Compare that service's cataloged inputs between those full commits;
+successful signature verification or a failed candidate-tag lookup does not
+perform this comparison. Inspect the raw index's `linux/amd64` child digest for
+the live revision check below. An unsigned index can share that same child with
+a signed index, so verifying the child or a different parent is insufficient.
+
+```bash
+PROJECT=desirelines-prod # or desirelines-dev
+SERVICE=desirelines-postgres-writer
+
+gcloud run services describe "$SERVICE" --project="$PROJECT" --region=us-central1 \
+  --format='yaml(spec.template.spec.containers[0].image,status.latestCreatedRevisionName,status.latestReadyRevisionName,status.traffic,status.conditions)'
+REVISION=$(gcloud run services describe "$SERVICE" --project="$PROJECT" \
+  --region=us-central1 --format='value(status.latestReadyRevisionName)')
+gcloud run revisions describe "$REVISION" --project="$PROJECT" --region=us-central1 \
+  --format='value(status.imageDigest)'
+```
+
+The service template must reference the reviewed parent index; Cloud Run's
+revision digest can resolve to its platform child. Check that latest-created
+equals latest-ready, readiness is true, and the expected revision receives
+100% traffic. Repeat for API gateway, dispatcher, writer and deletion services;
+writer and deletion use `stravapipe`. Check the backfill job's configured
+`stravapipe` index and readiness too:
+
+```bash
+gcloud run jobs describe desirelines-backfill --project="$PROJECT" --region=us-central1 \
+  --format='yaml(spec.template.spec.template.spec.containers[0].image,status.conditions)'
+```
+
+Successful deployments also move the stable `dev`/`prod` image tags to the
+selected digests for retention. These mutable tags are not signature subjects
+or evidence of a particular source commit. Inspect service logs and perform
+the release's application checks separately from provenance/readiness checks.
 
 ---
 

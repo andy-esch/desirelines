@@ -44,8 +44,9 @@ and attestation for all selected services, or an explicitly empty build selectio
 The full candidate SHA is sent even when no images change.
 
 See [signed release image provenance](./deployment.md#signed-release-image-provenance)
-for the baseline and later deployment-verification rollout. PR tests exercise local
-contracts; the first successful main build is still needed to verify hosted signing.
+for the producer and pending deployment-verification policy. PR tests exercise
+local contracts; verify hosted issuance and the exact deployed subjects using
+the [deployment verification checks](./deployment.md#verify-deployment).
 
 ## CI Workflow Jobs
 
