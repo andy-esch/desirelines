@@ -82,7 +82,7 @@ indexes without resolving replacement tags.
 `scripts/ci/image-build-inputs.json` is the versioned input catalog. Whole service
 trees are compared conservatively; shared Go changes rebuild both Go services.
 The build workflow, release tooling/catalog, optional root `.dockerignore` and
-Git attribute/submodule rules rebuild every image when changed. The Python README
+Git attribute rules and `.gitmodules` metadata rebuild every image when changed. The Python README
 and committed generated files are covered. Unrelated frontend, root docs, schema-source and Terraform changes
 do not rebuild images; generated consumer files must be committed after schema changes.
 
@@ -114,7 +114,12 @@ repository identity and full build source from GitHub's verified signing
 certificate. The build source must be an ancestor of the desired main-lineage
 candidate. Raw Git tree entries for cataloged common/service inputs must match;
 changed inputs and catalog/workflow changes require a signed rebuild. Missing
-history or invalid evidence blocks verification until resolved. Candidate Git code is read as objects, never executed.
+history or invalid evidence blocks verification until resolved. Relative symlinks
+must point to direct tracked paths covered by the catalog, with parent traversal
+only at the start. Absolute/dangling links and linked ancestors are unsupported;
+gitlink build inputs fail closed because version 1 does not inspect submodule link
+topology. The producer enforces the same guards before selecting builds. Candidate
+Git code is read as objects, never executed.
 
 Short and full candidate SHAs resolve to one full commit used by verification,
 Flyway and Terraform. A present dev candidate tag must name a signed build at
