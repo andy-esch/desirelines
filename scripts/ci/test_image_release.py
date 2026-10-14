@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from dataclasses import replace
 import json
 import os
 from pathlib import Path
@@ -152,12 +153,100 @@ class TestRelease:
         assert self.changed(self.commit()) == {"dispatcher"}
         self.before = self.commit()
         dockerfile.unlink()
+        self.write("packages/dispatcher/other.Dockerfile", "FROM scratch\n")
         dockerfile.symlink_to("other.Dockerfile")
         assert self.changed(self.commit()) == {"dispatcher"}
         self.before = self.commit()
         dockerfile.unlink()
+        self.write("packages/dispatcher/changed.Dockerfile", "FROM scratch\n")
         dockerfile.symlink_to("changed.Dockerfile")
         assert self.changed(self.commit()) == {"dispatcher"}
+
+    @pytest.mark.parametrize("kind", ["file", "chain", "directory"])
+    def test_uncataloged_symlink_targets_fail_even_without_a_link_change(
+        self, kind: str
+    ) -> None:
+        self.write("module-manifests/dispatcher.mod", "module original\n")
+        service = self.repo / "packages/dispatcher"
+        if kind == "chain":
+            (service / "alias.mod").symlink_to("../../module-manifests/dispatcher.mod")
+            (service / "go.mod").symlink_to("alias.mod")
+        elif kind == "directory":
+            (service / "modules").symlink_to("../../module-manifests")
+        else:
+            (service / "go.mod").symlink_to("../../module-manifests/dispatcher.mod")
+        self.before = self.commit()
+        self.write("module-manifests/dispatcher.mod", "module changed\n")
+        after = self.commit()
+        with pytest.raises(
+            ValueError, match=r"symlink input .*outside cataloged inputs"
+        ):
+            self.changed(after)
+        with pytest.raises(
+            ValueError, match=r"symlink input .*outside cataloged inputs"
+        ):
+            release.changed_images(self.repo, release.ZERO_SHA, after, self.images)
+
+    def test_covered_symlink_targets_select_the_affected_image(self) -> None:
+        self.write("module-manifests/dispatcher.mod", "module original\n")
+        (self.repo / "packages/dispatcher/go.mod").symlink_to(
+            "../../module-manifests/dispatcher.mod"
+        )
+        self.images = [
+            replace(image, inputs=[*image.inputs, "module-manifests"])
+            if image.name == "dispatcher"
+            else image
+            for image in self.images
+        ]
+        self.before = self.commit()
+        self.write("docs/unrelated.md")
+        assert self.changed(self.commit()) == set()
+        self.write("module-manifests/dispatcher.mod", "module changed\n")
+        assert self.changed(self.commit()) == {"dispatcher"}
+
+    @pytest.mark.parametrize("target", ["missing.mod", "inner/../Dockerfile"])
+    def test_ambiguous_or_untracked_symlink_targets_are_unsupported(
+        self, target: str
+    ) -> None:
+        (self.repo / "packages/dispatcher/go.mod").symlink_to(target)
+        with pytest.raises(ValueError, match="direct tracked path"):
+            self.changed(self.commit())
+
+    def test_repairing_an_old_unsupported_symlink_can_build(self) -> None:
+        self.write("module-manifests/dispatcher.mod", "module original\n")
+        module = self.repo / "packages/dispatcher/go.mod"
+        module.symlink_to("../../module-manifests/dispatcher.mod")
+        self.before = self.commit()
+        module.unlink()
+        module.write_text("module original\n")
+        assert self.changed(self.commit()) == {"dispatcher"}
+
+    def test_opaque_gitlink_build_inputs_are_unsupported(self) -> None:
+        module = self.repo / "packages/dispatcher/vendor"
+        module.mkdir()
+        release.git(module, "init", "--quiet")
+        release.git(module, "config", "user.email", "test@example.invalid")
+        release.git(module, "config", "user.name", "Test")
+        release.git(
+            module,
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "--allow-empty",
+            "-m",
+            "fixture",
+        )
+        with pytest.raises(ValueError, match="Gitlink build inputs"):
+            self.changed(self.commit())
+
+    def test_absolute_symlink_input_is_unsupported(self) -> None:
+        (self.repo / "packages/dispatcher/go.mod").symlink_to(
+            "/packages/shared/shared.go"
+        )
+        with pytest.raises(
+            ValueError, match=r"symlink input .*outside cataloged inputs"
+        ):
+            self.changed(self.commit())
 
     def test_rename_across_services_and_multi_commit_push(self) -> None:
         self.write("packages/dispatcher/new.go")

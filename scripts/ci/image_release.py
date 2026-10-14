@@ -11,6 +11,7 @@ import argparse
 from dataclasses import dataclass
 import json
 from pathlib import Path, PurePosixPath
+import posixpath
 import re
 import shutil
 import subprocess
@@ -163,10 +164,54 @@ def last_successful_release(repository: str) -> str:
     return head_sha
 
 
+def check_link_inputs(repo: Path, commit: str, image: ImageBuild) -> None:
+    """Require covered tracked link targets; opaque submodule inputs are unsupported."""
+    entries = git(
+        repo, "--literal-pathspecs", "ls-tree", "-r", "-z", commit, "--", *image.inputs
+    ).stdout
+    for entry in entries.split("\0"):
+        if entry.startswith("160000 "):
+            raise ValueError(
+                "Gitlink build inputs require a supported submodule input policy"
+            )
+        if not entry.startswith("120000 blob "):
+            continue
+        header, file = entry.split("\t", 1)
+        target = git(repo, "cat-file", "blob", header.split()[2]).stdout
+        resolved = posixpath.normpath(posixpath.join(posixpath.dirname(file), target))
+        if (
+            not target
+            or posixpath.isabs(target)
+            or not any(
+                resolved == item or resolved.startswith(f"{item}/")
+                for item in image.inputs
+            )
+        ):
+            raise ValueError(
+                f"{image.name}: symlink input {file} targets outside cataloged inputs; "
+                "include its target in the build-input catalog"
+            )
+        parts = [part for part in target.split("/") if part and part != "."]
+        names = [index for index, part in enumerate(parts) if part != ".."]
+        if (
+            not names
+            or ".." in parts[names[0] :]
+            or not git(
+                repo, "--literal-pathspecs", "ls-tree", "-z", commit, "--", resolved
+            ).stdout
+        ):
+            raise ValueError(
+                f"{image.name}: symlink input {file} must target a direct tracked path "
+                "using only leading parent traversal"
+            )
+
+
 def changed_images(
     repo: Path, before: str, after: str, images: list[ImageBuild]
 ) -> list[dict[str, str]]:
     checked_commit(repo, after)
+    for image in images:
+        check_link_inputs(repo, after, image)
     if before == ZERO_SHA:
         return [image.matrix_entry() for image in images]
     checked_commit(repo, before)

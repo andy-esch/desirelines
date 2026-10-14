@@ -43,8 +43,9 @@ Terraform environments (`dev/`, `prod/`) live in the private deploy repo where s
    prevents deployment dispatch.
 3. `trigger-deploy` sends the full SHA to `desirelines-deploy`. A successful
    comparison with no changed images still dispatches a configuration-only candidate.
-4. The deploy repo selects image digests, runs Flyway on normal tagged deploys and
-   auxiliary retry/forced redeploys, applies Terraform for dev, and updates its ledger.
+4. The deploy repo verifies selected image provenance and source-input equivalence
+   before Flyway, then applies Terraform for dev and updates its ledger. Direct dev
+   configuration pushes verify the committed map and run Flyway too.
 5. Web frontend is built and deployed to Firebase Hosting.
 
 See [ci.md](./ci.md) for workflow details.
@@ -70,18 +71,18 @@ tag references when no digest is supplied, for bootstrap use.
 
 The producer uses `docker/build-push-action`'s pushed digest output, checks it via
 `gcloud artifacts docker images describe … --format='value(image_summary.digest)'`,
-and signs that same digest. The deploy repo resolves candidate tags separately and
-can retain a declared digest for a service that was not rebuilt. Consumer-side
-signature and source-equivalence enforcement is a separate rollout step; the
-existing resolver falls back to a declared digest on unavailable tag lookups,
-including registry errors. That fallback does not prove the service was unchanged.
+and signs that same digest. The deploy repo resolves full-SHA candidate tags
+separately. A successful empty lookup can retain a declared index only after
+signed evidence and source-input comparison prove the service was unchanged.
+Registry errors stop deployment. Production verifies the reviewed committed
+indexes without resolving replacement tags.
 
 ### Signed release image provenance
 
 `scripts/ci/image-build-inputs.json` is the versioned input catalog. Whole service
 trees are compared conservatively; shared Go changes rebuild both Go services.
 The build workflow, release tooling/catalog, optional root `.dockerignore` and
-Git attribute/submodule rules rebuild every image when changed. The Python README
+Git attribute rules and `.gitmodules` metadata rebuild every image when changed. The Python README
 and committed generated files are covered. Unrelated frontend, root docs, schema-source and Terraform changes
 do not rebuild images; generated consumer files must be committed after schema changes.
 
@@ -92,7 +93,7 @@ changes docs. No successful history means all services build; unavailable or
 malformed history, missing Git commits and diff errors stop selection and dispatch.
 The changes job uses a read-only Actions token to query this checkpoint. It
 records producer completion, not a successful deployment or authenticated image
-provenance; consumer verification is still required.
+provenance; the deployment verifier authenticates each selected image separately.
 
 BuildKit reads an immutable Git context at the full SHA, with the Python context
 restricted to its package. Checkout mutations and local uncommitted files are not
@@ -102,17 +103,37 @@ image name and pushed OCI **index** digest to the source commit and
 different subject. Full-SHA tags identify builds but remain mutable registry tags.
 
 Signed evidence is stored in GitHub's attestation API, independently of expiring
-build-record artifacts. This stage does not push attestation bundles to the registry
+build-record artifacts. The producer does not push attestation bundles to the registry
 or backfill signatures for old images. See the [GitHub attestation action](https://github.com/actions/attest)
 and [Buildx Git context documentation](https://github.com/docker/build-push-action#git-context).
 
-The hosted producer now issues signed release evidence, and the initial signed
-baseline has been verified in dev and prod through normal deployment and
-promotion. The deployment workflows do not yet enforce this policy: they must
-authenticate the builder/source and compare build inputs
-to the desired candidate before Flyway, while preserving reviewed production
-digests. A verified signature alone does not establish source-input equivalence,
-schema compatibility or application health.
+The deployment verifier enforces this policy before Flyway on normal dev
+(including direct configuration pushes), production plan/apply, retry and forced
+redeploy. It authenticates the exact index subject and hosted main workflow,
+repository identity and full build source from GitHub's verified signing
+certificate. The build source must be an ancestor of the desired main-lineage
+candidate. Raw Git tree entries for cataloged common/service inputs must match;
+changed inputs and catalog/workflow changes require a signed rebuild. Missing
+history or invalid evidence blocks verification until resolved. Relative symlinks
+must point to direct tracked paths covered by the catalog, with parent traversal
+only at the start. Absolute/dangling links and linked ancestors are unsupported;
+gitlink build inputs fail closed because version 1 does not inspect submodule link
+topology. The producer enforces the same guards before selecting builds. Candidate
+Git code is read as objects, never executed.
+
+Short and full candidate SHAs resolve to one full commit used by verification,
+Flyway and Terraform. A present dev candidate tag must name a signed build at
+that commit; an older declared index requires proven input equivalence. Prod
+retry defaults to the declared production candidate and preserves its reviewed
+map; an explicit different release requires a promotion PR. The gate emits a
+per-run report with selected indexes and authenticated build sources, then
+reauthenticates GitHub evidence on every run, including apply after PR review.
+It does not rely on expiring producer artifacts or a deployment ledger.
+
+The signed baseline has been verified in dev and prod. A verified signature and
+input match do not establish schema compatibility, application health or
+hermetic builds. Continue the live readiness/retention checks below. Unsigned
+manual images and tag-only bootstrap configurations cannot pass the hosted gate.
 
 ---
 

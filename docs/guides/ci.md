@@ -44,7 +44,7 @@ and attestation for all selected services, or an explicitly empty build selectio
 The full candidate SHA is sent even when no images change.
 
 See [signed release image provenance](./deployment.md#signed-release-image-provenance)
-for the producer and pending deployment-verification policy. PR tests exercise
+for the producer and enforced deployment-verification policy. PR tests exercise
 local contracts; verify hosted issuance and the exact deployed subjects using
 the [deployment verification checks](./deployment.md#verify-deployment).
 
@@ -427,7 +427,7 @@ The `deploy.yml` workflow handles build and deploy triggering:
 2. Build selected Docker images with `docker/build-push-action` from the full Git SHA and push to Artifact Registry with layer caching
 3. Validate each pushed OCI index digest against its full-SHA tag, then publish GitHub-signed provenance
 4. Send `repository_dispatch` with the full candidate SHA via GitHub App token after successful selected builds or an explicitly empty selection
-5. Deploy repo handles Terraform apply, service verification, web deploy, and state tracking; signed provenance enforcement is a later rollout step
+5. Deploy repo verifies selected indexes and signed build sources against the candidate's versioned inputs before Flyway and Terraform; it preserves reviewed production digests, then verifies services, deploys the frontend and tracks state
 
 Terraform operations, drift detection, and deployment state tracking all live in the private `desirelines-deploy` repo.
 
