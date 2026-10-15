@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -16,6 +17,62 @@ import (
 // workout, watersports, winter_sports, golf, racket_sports, team_sports,
 // skating, climbing, wheelchair, other
 const expectedSportCount = 17
+
+// Frozen before the registry reshape: expectations must not follow the new
+// registry automatically, or a changed mapping/metadata value would pass silently.
+func TestPublicConfigPreservesV1AndAllStravaMappings(t *testing.T) {
+	c, err := NewSportConfig("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	baseline, err := os.ReadFile("../../../schemas/sports/testdata/config-v1.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var want, got any
+	if err = json.Unmarshal(baseline, &want); err != nil {
+		t.Fatal(err)
+	}
+	if err = json.Unmarshal(c.APIJSON(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatal("public config changed from the frozen version-1.0 contract")
+	}
+	var legacy struct {
+		SportCategories map[string]struct {
+			StravaTypes []string `json:"stravaTypes"`
+		} `json:"sportCategories"`
+	}
+	if err = json.Unmarshal(baseline, &legacy); err != nil {
+		t.Fatal(err)
+	}
+	for category, metadata := range legacy.SportCategories {
+		if !reflect.DeepEqual(c.GetStravaTypes(category), metadata.StravaTypes) {
+			t.Errorf("changed query types for %s", category)
+		}
+		for _, sportType := range metadata.StravaTypes {
+			if got := c.GetCategoryForStravaType(sportType); got != category {
+				t.Errorf("%s: got %s, want %s", sportType, got, category)
+			}
+		}
+	}
+}
+
+func TestRegistryRejectsMissingOrUnsupportedVocabulary(t *testing.T) {
+	for _, mapping := range []string{`null`, `{}`, `{"strava.type":{"types":["Ride"]}}`, `{"strava.sport_type":{"types":["Ride"]},"intervals_icu.type":{"types":["Run"]}}`} {
+		t.Run(mapping, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "config.json")
+			data := `{"version":"2.0","sportCategories":{"cycling":{"displayName":"Cycling","primaryMetric":"distance_meters","metrics":["distance_meters"],"mappings":` + mapping + `}}}`
+			if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := NewSportConfig(path); err == nil {
+				t.Fatal("expected invalid mapping to fail at load")
+			}
+		})
+	}
+}
 
 func TestListSports(t *testing.T) {
 	config, err := LoadSportConfig("sport_types.json")
@@ -39,10 +96,9 @@ func TestListSports(t *testing.T) {
 	}
 }
 
-// TestExcludedTypesLoaded verifies that excluded_types are properly loaded from config.
-// Note: Go doesn't currently have a Matches() method like Python - excluded_types
-// are loaded but filtering is done at the Python pipeline level. This test ensures
-// the field is properly parsed for when/if Go needs to use it.
+// TestExcludedTypesLoaded verifies that vocabulary exclusions are loaded from config.
+// Go retains exclusions for the compatible public response; its query membership
+// continues to use the existing positive type lists.
 func TestExcludedTypesLoaded(t *testing.T) {
 	config, err := LoadSportConfig("sport_types.json")
 	if err != nil {
@@ -55,13 +111,13 @@ func TestExcludedTypesLoaded(t *testing.T) {
 		t.Fatal("Expected cycling category to exist")
 	}
 
-	if len(cycling.ExcludedTypes) != 2 {
-		t.Errorf("Expected cycling to have 2 excluded types, got %d", len(cycling.ExcludedTypes))
+	if len(cycling.Mappings[stravaSportTypeVocabulary].ExcludedTypes) != 2 {
+		t.Errorf("Expected cycling to have 2 excluded types, got %d", len(cycling.Mappings[stravaSportTypeVocabulary].ExcludedTypes))
 	}
 
 	// Verify specific excluded types
 	excludedMap := make(map[string]bool)
-	for _, et := range cycling.ExcludedTypes {
+	for _, et := range cycling.Mappings[stravaSportTypeVocabulary].ExcludedTypes {
 		excludedMap[et] = true
 	}
 
@@ -78,8 +134,8 @@ func TestExcludedTypesLoaded(t *testing.T) {
 		t.Fatal("Expected running category to exist")
 	}
 
-	if len(running.ExcludedTypes) != 0 {
-		t.Errorf("Expected running to have 0 excluded types, got %d", len(running.ExcludedTypes))
+	if len(running.Mappings[stravaSportTypeVocabulary].ExcludedTypes) != 0 {
+		t.Errorf("Expected running to have 0 excluded types, got %d", len(running.Mappings[stravaSportTypeVocabulary].ExcludedTypes))
 	}
 }
 
@@ -91,12 +147,16 @@ func TestUnsupportedVersionFails(t *testing.T) {
 		Version: "99.0",
 		SportCategories: map[string]SportCategory{
 			"cycling": {
-				DisplayName:   "Cycling",
-				StravaTypes:   []string{"Ride"},
-				PrimaryMetric: "distance_meters",
-				Metrics:       []string{"distance_meters"},
-				HasDistance:   true,
-				HasElevation:  true,
+				SportMetadata: SportMetadata{
+					DisplayName:   "Cycling",
+					PrimaryMetric: "distance_meters",
+					Metrics:       []string{"distance_meters"},
+					HasDistance:   true,
+					HasElevation:  true,
+				},
+				Mappings: map[string]SportTypeMapping{
+					stravaSportTypeVocabulary: {Types: []string{"Ride"}},
+				},
 			},
 		},
 	}
@@ -119,8 +179,8 @@ func TestInvalidSchemaFails(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "test.json")
 
-	// Missing required field: StravaTypes
-	invalidJSON := `{"version": "1.0", "sportCategories": {"cycling": {"displayName": "Cycling"}}}`
+	// Missing required field: mappings
+	invalidJSON := `{"version": "2.0", "sportCategories": {"cycling": {"displayName": "Cycling"}}}`
 	err := os.WriteFile(configPath, []byte(invalidJSON), 0o600)
 	if err != nil {
 		t.Fatalf("Failed to write test config: %v", err)
@@ -137,7 +197,7 @@ func TestWarnAtFractionOutOfRangeFails(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "test.json")
 
 	// dangerPace.warnAtFraction must be within [0, 1]; 1.5 is out of range.
-	invalidJSON := `{"version":"1.0","sportCategories":{"cycling":{"displayName":"Cycling","stravaTypes":["Ride"],"excludedTypes":[],"primaryMetric":"distance_meters","metrics":["distance_meters"],"hasDistance":true,"hasElevation":true,"dangerPace":{"valuePerDay":20,"unit":"miles","warnAtFraction":1.5}}}}`
+	invalidJSON := `{"version":"2.0","sportCategories":{"cycling":{"displayName":"Cycling","mappings":{"strava.sport_type":{"types":["Ride"],"excludedTypes":[]}},"primaryMetric":"distance_meters","metrics":["distance_meters"],"hasDistance":true,"hasElevation":true,"dangerPace":{"valuePerDay":20,"unit":"miles","warnAtFraction":1.5}}}}`
 	if err := os.WriteFile(configPath, []byte(invalidJSON), 0o600); err != nil {
 		t.Fatalf("Failed to write test config: %v", err)
 	}
@@ -250,15 +310,19 @@ func TestEmptyStravaTypesFails(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "test.json")
 
 	configData := SportConfigData{
-		Version: "1.0",
+		Version: "2.0",
 		SportCategories: map[string]SportCategory{
 			"cycling": {
-				DisplayName:   "Cycling",
-				StravaTypes:   []string{}, // Empty list should fail
-				PrimaryMetric: "distance_meters",
-				Metrics:       []string{"distance_meters"},
-				HasDistance:   true,
-				HasElevation:  true,
+				SportMetadata: SportMetadata{
+					DisplayName:   "Cycling",
+					PrimaryMetric: "distance_meters",
+					Metrics:       []string{"distance_meters"},
+					HasDistance:   true,
+					HasElevation:  true,
+				},
+				Mappings: map[string]SportTypeMapping{
+					stravaSportTypeVocabulary: {Types: []string{}},
+				},
 			},
 		},
 	}
@@ -284,23 +348,31 @@ func TestDuplicateStravaTypeAcrossCategoriesFails(t *testing.T) {
 	// "Ride" appears under two categories — must fail fast at load. Without
 	// the guard the reverseMap winner is map-iteration-order-random per process.
 	configData := SportConfigData{
-		Version: "1.0",
+		Version: "2.0",
 		SportCategories: map[string]SportCategory{
 			"cycling": {
-				DisplayName:   "Cycling",
-				StravaTypes:   []string{"Ride"},
-				PrimaryMetric: "distance_meters",
-				Metrics:       []string{"distance_meters"},
-				HasDistance:   true,
-				HasElevation:  true,
+				SportMetadata: SportMetadata{
+					DisplayName:   "Cycling",
+					PrimaryMetric: "distance_meters",
+					Metrics:       []string{"distance_meters"},
+					HasDistance:   true,
+					HasElevation:  true,
+				},
+				Mappings: map[string]SportTypeMapping{
+					stravaSportTypeVocabulary: {Types: []string{"Ride"}},
+				},
 			},
 			"ebike": {
-				DisplayName:   "E-Bike",
-				StravaTypes:   []string{"Ride"},
-				PrimaryMetric: "distance_meters",
-				Metrics:       []string{"distance_meters"},
-				HasDistance:   true,
-				HasElevation:  true,
+				SportMetadata: SportMetadata{
+					DisplayName:   "E-Bike",
+					PrimaryMetric: "distance_meters",
+					Metrics:       []string{"distance_meters"},
+					HasDistance:   true,
+					HasElevation:  true,
+				},
+				Mappings: map[string]SportTypeMapping{
+					stravaSportTypeVocabulary: {Types: []string{"Ride"}},
+				},
 			},
 		},
 	}

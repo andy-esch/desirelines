@@ -14,5 +14,6 @@ go_package(
     dependencies=[
         ":embedded_files",  # For go:embed compilation
         ":sport_types_json_file",  # For test runtime file access
+        "schemas/sports/testdata:v1_config_file",  # Frozen public contract
     ],
 )

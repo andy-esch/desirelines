@@ -4,13 +4,15 @@ from functools import lru_cache
 import json
 import logging
 from pathlib import Path
+from typing import Annotated, Final, Literal
 
 from pydantic import BaseModel, Field, ValidationError
 
 logger = logging.getLogger(__name__)
 
 # Update when code supports new versions
-SUPPORTED_CONFIG_VERSIONS = ["1.0"]
+SUPPORTED_CONFIG_VERSIONS = ["2.0"]
+STRAVA_SPORT_TYPE_VOCABULARY: Final = "strava.sport_type"
 
 # UNKNOWN_SPORT_CATEGORY is the fallback bucket returned by
 # SportConfig.categorize_activity for any Strava sport_type that has no
@@ -74,15 +76,25 @@ class GoalDefaultsModel(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class SportTypeMappingModel(BaseModel):
+    """Values in one input vocabulary; currently only Strava sport_type."""
+
+    types: list[Annotated[str, Field(min_length=1)]] = Field(min_length=1)
+    excluded_types: list[str] = Field(default=[], alias="excludedTypes")
+
+    model_config = {"populate_by_name": True}
+
+
 # Pydantic models for schema validation
 class SportCategoryModel(BaseModel):
     """Schema for sport category configuration."""
 
     display_name: str = Field(alias="displayName")
-    # Strava sport_type values (NOT the broad 'type' field).
-    # E.g., ["Yoga"] not ["Workout"]. See SportCategory docstring for details.
-    strava_types: list[str] = Field(alias="stravaTypes", min_length=1)
-    excluded_types: list[str] = Field(default=[], alias="excludedTypes")
+    # A mapping names the vocabulary, independently of retrieval/origin metadata.
+    # Add vocabulary support only with the integration that needs it.
+    mappings: dict[Literal["strava.sport_type"], SportTypeMappingModel] = Field(
+        min_length=1
+    )
     primary_metric: str = Field(alias="primaryMetric")
     metrics: list[str] = Field(min_length=1)
     has_distance: bool = Field(alias="hasDistance")
@@ -125,8 +137,9 @@ class SportCategory:
         # being caught by mypy.
         self.name = name
         self.display_name = config.display_name
-        self.strava_types = set(config.strava_types)
-        self.excluded_types = set(config.excluded_types)
+        mapping = config.mappings[STRAVA_SPORT_TYPE_VOCABULARY]
+        self.strava_types = set(mapping.types)
+        self.excluded_types = set(mapping.excluded_types)
         self.primary_metric = config.primary_metric
         self.metrics = config.metrics
         self.has_distance = config.has_distance

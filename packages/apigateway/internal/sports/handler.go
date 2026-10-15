@@ -2,7 +2,6 @@
 package sports
 
 import (
-	"encoding/json"
 	"log/slog"
 	"net/http"
 
@@ -25,28 +24,16 @@ func NewHandler(logger *slog.Logger, sportConfig *config.SportConfig) *Handler {
 	}
 }
 
-// HandleConfig serves the sport configuration JSON.
+// HandleConfig serves the compatible public sport configuration JSON.
 func (h *Handler) HandleConfig(w http.ResponseWriter, r *http.Request) {
-	// Get embedded sport config JSON
-	data := h.sportConfig.RawJSON()
+	// The loader projects the internal registry to the public version-1.0 shape.
+	data := h.sportConfig.APIJSON()
 	if len(data) == 0 {
-		h.logger.Error("Embedded sport config is empty")
+		h.logger.Error("Public sport config is empty")
 		apiErr := apierrors.NewAPIErrorWithLog(
 			http.StatusInternalServerError,
 			"Failed to load sport config",
-			"Embedded sport config is not available",
-		)
-		apierrors.WriteError(w, r, apiErr, h.logger)
-		return
-	}
-
-	// Validate it's valid JSON without unmarshaling
-	if !json.Valid(data) {
-		h.logger.Error("Embedded sport config is invalid JSON")
-		apiErr := apierrors.NewAPIErrorWithLog(
-			http.StatusInternalServerError,
-			"Invalid sport config",
-			"JSON validation failed",
+			"Public sport config is not available",
 		)
 		apierrors.WriteError(w, r, apiErr, h.logger)
 		return

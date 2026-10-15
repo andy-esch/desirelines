@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"testing"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/config"
@@ -13,25 +14,46 @@ import (
 
 // validConfigJSON is a minimal but realistic sport config matching the actual schema.
 const validConfigJSON = `{
-  "version": "1.0",
+  "version": "2.0",
   "sportCategories": {
     "cycling": {
       "displayName": "Cycling",
-      "stravaTypes": ["Ride", "VirtualRide"],
-      "excludedTypes": ["EBikeRide"],
       "primaryMetric": "distance_meters",
-      "metrics": ["distance_meters", "time_minutes"],
+      "metrics": [
+        "distance_meters",
+        "time_minutes"
+      ],
       "hasDistance": true,
-      "hasElevation": true
+      "hasElevation": true,
+      "mappings": {
+        "strava.sport_type": {
+          "types": [
+            "Ride",
+            "VirtualRide"
+          ],
+          "excludedTypes": [
+            "EBikeRide"
+          ]
+        }
+      }
     },
     "running": {
       "displayName": "Running",
-      "stravaTypes": ["Run"],
-      "excludedTypes": [],
       "primaryMetric": "distance_meters",
-      "metrics": ["distance_meters", "time_minutes"],
+      "metrics": [
+        "distance_meters",
+        "time_minutes"
+      ],
       "hasDistance": true,
-      "hasElevation": true
+      "hasElevation": true,
+      "mappings": {
+        "strava.sport_type": {
+          "types": [
+            "Run"
+          ],
+          "excludedTypes": []
+        }
+      }
     }
   }
 }`
@@ -85,14 +107,26 @@ func TestHandler_HandleConfig(t *testing.T) {
 		t.Errorf("Cache-Control = %q, want %q", cacheControl, "public, max-age=3600")
 	}
 
-	// Verify body
+	// Verify the version-1.0 projection, rather than exposing the v2 registry.
 	var respConfig struct {
-		Version string `json:"version"`
+		Version         string `json:"version"`
+		SportCategories map[string]struct {
+			StravaTypes   []string        `json:"stravaTypes"`
+			ExcludedTypes []string        `json:"excludedTypes"`
+			Mappings      json.RawMessage `json:"mappings"`
+		} `json:"sportCategories"`
 	}
 	if unmarshalErr := json.Unmarshal(w.Body.Bytes(), &respConfig); unmarshalErr != nil {
 		t.Fatalf("failed to unmarshal response: %v", unmarshalErr)
 	}
 	if respConfig.Version != "1.0" {
 		t.Errorf("version = %q, want %q", respConfig.Version, "1.0")
+	}
+	cycling := respConfig.SportCategories["cycling"]
+	if !slices.Equal(cycling.StravaTypes, []string{"Ride", "VirtualRide"}) || !slices.Equal(cycling.ExcludedTypes, []string{"EBikeRide"}) {
+		t.Errorf("lost legacy mapping lists: %+v", cycling)
+	}
+	if len(cycling.Mappings) != 0 {
+		t.Error("internal vocabulary mappings leaked into the public response")
 	}
 }

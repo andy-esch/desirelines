@@ -1,32 +1,42 @@
 # Sport Types Configuration
 
-`sport_types.json` defines the sports supported by the frontend and their metrics.
+`sport_types.json` defines Desirelines sport categories, their metrics and mappings
+from incoming classification vocabularies. Only Strava activities are supported.
 
 ## Purpose
 
 - Frontend uses this as the definitive list of supported sport categories
-- Maps Strava's `sport_type` values to app categories (e.g., "Run", "TrailRun", "VirtualRun" -> "running")
+- Maps the `strava.sport_type` vocabulary to app categories (e.g., "Run", "TrailRun", "VirtualRun" -> "running")
 - Defines which metrics are displayed per category (distance, elevation, time)
 
 ## Strava SportType
 
-Strava has ~50 sport types. See [Strava API SportType enum](https://developers.strava.com/docs/reference/#api-models-SportType).
+See the [Strava API SportType enum](https://developers.strava.com/docs/reference/#api-models-SportType)
+for the upstream vocabulary; `just check-upstream-sports` checks it for drift.
 
 The database stores Strava's `sport_type` as-is without validation. Filtering to supported types happens at the application layer using this config.
 
 ## Schema
 
-Keys are camelCase throughout — the Go loader (`packages/apigateway/config/sport_config.go`)
-binds them by `json:` tag and rejects snake_case. Metric *values* (`distance_meters`,
-`time_minutes`) are snake_case; only the keys are not.
+The internal registry uses version `2.0`. Property names are camelCase; category
+IDs and metric values retain their existing spelling. A mapping key such as
+`strava.sport_type` identifies the vocabulary of the field being interpreted.
+It is separate from the service used to retrieve an activity and its reported
+origin. Other vocabularies require explicit integration support when added;
+the loaders currently require exactly the Strava mapping for each category.
 
 ```json
 {
+  "version": "2.0",
   "sportCategories": {
     "<category_key>": {
       "displayName": "Human readable name",
-      "stravaTypes": ["StravaType1", "StravaType2"],
-      "excludedTypes": ["ExcludedType"],
+      "mappings": {
+        "strava.sport_type": {
+          "types": ["StravaType1", "StravaType2"],
+          "excludedTypes": ["ExcludedType"]
+        }
+      },
       "primaryMetric": "distance_meters|time_minutes",
       "metrics": ["distance_meters", "time_minutes", ...],
       "hasDistance": true|false,
@@ -69,12 +79,16 @@ hours for time sports). In `chartIntervals`, the final catch-all bucket omits
 
 ## Consumers
 
-This file is synced to three packages via `just sync-schemas`. Each consumer depends on different fields — don't remove a field without checking all three.
+`just sync-schemas` copies the registry to the Go and Python packages. The web
+reads a compatible projection from `/v1/sports/config`: version `1.0`, with
+`stravaTypes` and `excludedTypes` derived from `mappings["strava.sport_type"]`.
+Category metadata passes through unchanged. The internal registry is not served
+directly, so existing settings, map styles and cached clients keep their contract.
 
 | Field | apigateway (Go) | stravapipe (Python) | web (TypeScript) |
 |-------|-----------------|---------------------|-------------------|
-| `stravaTypes` | Builds reverse lookup map for categorization | Matches incoming activities via `matches()` | — |
-| `excludedTypes` | Loaded | Used in `matches()` filtering | — |
+| `mappings["strava.sport_type"].types` | Query filters, reverse categorization map; projects `stravaTypes` | Matches incoming activities via `matches()` | API `stravaTypes`: settings labels/search and map colors |
+| `mappings["strava.sport_type"].excludedTypes` | Projects `excludedTypes` | Used in `matches()` filtering | Retained in API contract |
 | `displayName` | Loaded | Loaded | Sport labels in UI |
 | `primaryMetric` | Loaded, passed through | Loaded | Metric selection |
 | `metrics` | Loaded | Loaded | Chart configuration |
@@ -84,6 +98,12 @@ This file is synced to three packages via `just sync-schemas`. Each consumer dep
 | `goalDefaults` | Loaded, passed through | Loaded, ignored | Per-sport goal tuning in `getMetricConfig` |
 
 **Note:** The backend packages (`apigateway`, `stravapipe`) are synced automatically via `just sync-sport-config`. The web app reads this config from the public `/sports/config` endpoint — there is no separate synced web fixture. The one remaining **manual-sync** surface is the demo data generator's `DEMO_SPORT_CONFIG` (`packages/web/src/constants/demoConfig.ts`), which still hard-codes per-sport metadata (Strava types, primary metric) and must be updated by hand when adding a sport.
+
+`testdata/config-v1.json` freezes the pre-v2 public config for compatibility tests.
+Go compares the entire projected response and every forward/reverse mapping to it;
+Python checks all type memberships/exclusions and TypeScript validates the shared
+public contract. Keep this fixture independent of schema sync. Intentional future
+category or metadata changes must explicitly update the compatibility expectation.
 
 ### Source files
 
@@ -98,9 +118,9 @@ prevent activities from silently disappearing or being miscategorized when
 that happens, the system has two layers of protection:
 
 1. **`other` fallback category** — Any `sport_type` not explicitly listed
-   in `stravaTypes` (or `excludedTypes`) lands in the `other` bucket so
+   in the Strava mapping's `types` lands in the `other` bucket so
    the user still sees the activity in the UI. The sentinel
-   `"__unmapped_sport_type__"` in `other.stravaTypes` is a placeholder that
+   `"__unmapped_sport_type__"` in `other.mappings["strava.sport_type"].types` is a placeholder that
    satisfies the `min=1` schema validator — real Strava webhooks never
    send that value; the category is populated by the fallback path.
 
@@ -127,7 +147,8 @@ that happens, the system has two layers of protection:
    surfaces any other drift you may not have been alerted about yet.
 
 3. Add the value to the most-appropriate category in
-   `schemas/sports/sport_types.json`. If genuinely none fit (e.g., a
+   `schemas/sports/sport_types.json`, under `mappings["strava.sport_type"].types`.
+   If none fit (e.g., a
    brand-new Strava niche we don't track), leaving it in `other` is fine.
 
 4. Sync and verify:

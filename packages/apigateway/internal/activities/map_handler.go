@@ -244,7 +244,7 @@ func (h *Handler) HandleMapTileJSON(w http.ResponseWriter, r *http.Request) {
 				Fields: map[string]string{
 					"activity_id": "Activity ID (opaque desirelines ID)",
 					"name":        "Activity name",
-					"sport":       "Raw Strava sport_type",
+					"sport":       "Stored sport in the strava.sport_type vocabulary",
 					"distance":    "Distance in meters",
 					"date":        "Local start date (YYYY-MM-DD)",
 				},
@@ -253,7 +253,7 @@ func (h *Handler) HandleMapTileJSON(w http.ResponseWriter, r *http.Request) {
 				ID: "route_points", MinZoom: repository.TileMinZoom, MaxZoom: repository.TileLineMinZoom - 1,
 				Fields: map[string]string{
 					"activity_count": "Activities in this grid cell",
-					"sport":          "Raw Strava sport_type",
+					"sport":          "Stored sport in the strava.sport_type vocabulary",
 				},
 			},
 		},

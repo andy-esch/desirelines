@@ -22,7 +22,8 @@ in "other" instead of their proper bucket.
    `just check-upstream-sports` (or the Strava swagger spec →
    <https://developers.strava.com/swagger/swagger.json> → `SportType`).
 2. Add the value to the most fitting category in
-   `schemas/sports/sport_types.json`. If none fits, leaving it in "other" is a
+   `schemas/sports/sport_types.json`, in the category's
+   `mappings["strava.sport_type"].types` list. If none fits, leaving it in "other" is a
    valid permanent state.
 3. Run `just sync-schemas && just verify-schemas` and open a PR.
 4. Once deployed, the alert auto-closes after 1h with no fresh firings.

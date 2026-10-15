@@ -2,6 +2,7 @@
 
 import json
 import logging
+from pathlib import Path
 
 import pytest
 
@@ -20,6 +21,61 @@ from stravapipe.config.sport_config import (
 # workout, watersports, winter_sports, golf, racket_sports, team_sports,
 # skating, climbing, wheelchair, other
 EXPECTED_SPORT_COUNT = 17
+
+
+def test_all_strava_mappings_match_frozen_v1_config():
+    """Every existing raw type keeps its category, including exclusions."""
+    relative = Path("schemas/sports/testdata/config-v1.json")
+    baseline_path = next(
+        parent / relative
+        for parent in Path(__file__).resolve().parents
+        if (parent / relative).exists()
+    )
+    baseline = json.loads(baseline_path.read_text())
+    config = load_sport_config()
+    assert set(config.list_sports()) == set(baseline["sportCategories"])
+    for name, previous in baseline["sportCategories"].items():
+        category = config.get_category(name)
+        assert category is not None
+        assert category.strava_types == set(previous["stravaTypes"])
+        assert category.excluded_types == set(previous["excludedTypes"])
+        for sport_type in previous["stravaTypes"]:
+            assert config.categorize_activity(sport_type) == name
+        for excluded in previous["excludedTypes"]:
+            assert category.matches(excluded) is False
+
+
+@pytest.mark.parametrize(
+    "mappings",
+    [
+        None,
+        {},
+        {"strava.type": {"types": ["Ride"]}},
+        {"strava.sport_type": {"types": [""]}},
+        {
+            "strava.sport_type": {"types": ["Ride"]},
+            "intervals_icu.type": {"types": ["Run"]},
+        },
+    ],
+)
+def test_missing_or_unsupported_vocabulary_fails(tmp_path, mappings):
+    config_data = {
+        "version": "2.0",
+        "sportCategories": {
+            "cycling": {
+                "displayName": "Cycling",
+                "mappings": mappings,
+                "primaryMetric": "distance_meters",
+                "metrics": ["distance_meters"],
+                "hasDistance": True,
+                "hasElevation": True,
+            }
+        },
+    }
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(config_data))
+    with pytest.raises(ValueError, match="Invalid sport config schema"):
+        SportConfig(config_path)
 
 
 def test_categorize_activities():
@@ -78,15 +134,19 @@ def test_unsupported_version_fails(tmp_path):
     """Test that unsupported config versions are rejected.
 
     This test verifies that SportConfig raises ValueError for unsupported versions,
-    consistent with Go's loadSportConfigInternal behavior.
+    consistent with Go's NewSportConfig behavior.
     """
     config_data = {
         "version": "99.0",
         "sportCategories": {
             "cycling": {
                 "displayName": "Cycling",
-                "stravaTypes": ["Ride"],
-                "excludedTypes": [],
+                "mappings": {
+                    "strava.sport_type": {
+                        "types": ["Ride"],
+                        "excludedTypes": [],
+                    }
+                },
                 "primaryMetric": "distance_meters",
                 "metrics": ["distance_meters"],
                 "hasDistance": True,
@@ -112,8 +172,12 @@ def test_unsupported_version_can_be_loaded_without_validation(tmp_path):
         "sportCategories": {
             "cycling": {
                 "displayName": "Cycling",
-                "stravaTypes": ["Ride"],
-                "excludedTypes": [],
+                "mappings": {
+                    "strava.sport_type": {
+                        "types": ["Ride"],
+                        "excludedTypes": [],
+                    }
+                },
                 "primaryMetric": "distance_meters",
                 "metrics": ["distance_meters"],
                 "hasDistance": True,
@@ -133,9 +197,9 @@ def test_unsupported_version_can_be_loaded_without_validation(tmp_path):
 
 def test_invalid_schema_fails(tmp_path):
     """Test that invalid config schemas are rejected."""
-    # Missing required field: stravaTypes
+    # Missing required field: mappings
     config_data = {
-        "version": "1.0",
+        "version": "2.0",
         "sportCategories": {"cycling": {"displayName": "Cycling"}},
     }
     config_path = tmp_path / "sport_types.json"
@@ -149,12 +213,16 @@ def test_invalid_schema_fails(tmp_path):
 def test_warn_at_fraction_out_of_range_fails(tmp_path):
     """dangerPace.warnAtFraction must be within [0, 1]."""
     config_data = {
-        "version": "1.0",
+        "version": "2.0",
         "sportCategories": {
             "cycling": {
                 "displayName": "Cycling",
-                "stravaTypes": ["Ride"],
-                "excludedTypes": [],
+                "mappings": {
+                    "strava.sport_type": {
+                        "types": ["Ride"],
+                        "excludedTypes": [],
+                    }
+                },
                 "primaryMetric": "distance_meters",
                 "metrics": ["distance_meters"],
                 "hasDistance": True,
@@ -178,12 +246,16 @@ def test_warn_at_fraction_out_of_range_fails(tmp_path):
 def test_empty_strava_types_fails(tmp_path):
     """Test that empty strava_types list is rejected."""
     config_data = {
-        "version": "1.0",
+        "version": "2.0",
         "sportCategories": {
             "cycling": {
                 "displayName": "Cycling",
-                "stravaTypes": [],  # Empty list should fail
-                "excludedTypes": [],
+                "mappings": {
+                    "strava.sport_type": {
+                        "types": [],  # Empty list should fail
+                        "excludedTypes": [],
+                    }
+                },
                 "primaryMetric": "distance_meters",
                 "metrics": ["distance_meters"],
                 "hasDistance": True,
@@ -202,12 +274,16 @@ def test_empty_strava_types_fails(tmp_path):
 def test_duplicate_strava_type_across_categories_fails(tmp_path):
     """A sport_type mapping to two categories is rejected at load time."""
     config_data = {
-        "version": "1.0",
+        "version": "2.0",
         "sportCategories": {
             "cycling": {
                 "displayName": "Cycling",
-                "stravaTypes": ["Ride"],
-                "excludedTypes": [],
+                "mappings": {
+                    "strava.sport_type": {
+                        "types": ["Ride"],
+                        "excludedTypes": [],
+                    }
+                },
                 "primaryMetric": "distance_meters",
                 "metrics": ["distance_meters"],
                 "hasDistance": True,
@@ -215,8 +291,12 @@ def test_duplicate_strava_type_across_categories_fails(tmp_path):
             },
             "ebike": {
                 "displayName": "E-Bike",
-                "stravaTypes": ["Ride"],  # duplicate across categories
-                "excludedTypes": [],
+                "mappings": {
+                    "strava.sport_type": {
+                        "types": ["Ride"],  # duplicate across categories
+                        "excludedTypes": [],
+                    }
+                },
                 "primaryMetric": "distance_meters",
                 "metrics": ["distance_meters"],
                 "hasDistance": True,

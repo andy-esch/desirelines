@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { z } from "zod";
 import { validateApiResponse, SportConfigResponseSchema } from "./contracts";
 import { logger } from "../lib/logger";
+import legacySportConfig from "../../../../schemas/sports/testdata/config-v1.json";
 
 describe("validateApiResponse", () => {
   let warnSpy: ReturnType<typeof vi.spyOn>;
@@ -42,6 +43,12 @@ describe("validateApiResponse", () => {
 });
 
 describe("SportConfigResponseSchema", () => {
+  it("accepts the frozen pre-registry-change public contract", () => {
+    // Go compares its real endpoint projection to this same frozen document.
+    // This check keeps that response usable by the existing TypeScript client.
+    expect(SportConfigResponseSchema.safeParse(legacySportConfig).success).toBe(true);
+  });
+
   it("accepts a minimal valid sport config", () => {
     const config = {
       version: "1.0",
