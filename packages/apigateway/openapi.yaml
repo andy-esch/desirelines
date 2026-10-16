@@ -7,6 +7,8 @@ info:
     ## Authentication
     All `/v1/activities` endpoints require Firebase authentication.
     Include `Authorization: Bearer <firebase-token>` header.
+    Verified users must also be allowlisted: access denial returns `403`,
+    and an unavailable authorization check returns `503`.
     Deployed `/ready` probes require a Google-signed service-account ID token
     instead; local development omits this readiness authentication check.
 
@@ -265,6 +267,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '503':
@@ -319,6 +323,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '503':
@@ -354,6 +360,8 @@ paths:
                     $ref: '#/components/schemas/RegionSummary'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '503':
@@ -431,6 +439,8 @@ paths:
                             type: string
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '503':
@@ -496,6 +506,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '503':
@@ -530,6 +542,8 @@ paths:
                       $ref: '#/components/schemas/MapActivity'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '503':
@@ -563,6 +577,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '429':
@@ -591,6 +607,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '503':
@@ -624,6 +642,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '503':
@@ -658,6 +678,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '503':
@@ -742,6 +764,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Authenticated user is not allowed to access the API
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
     TooManyRequests:
       description: Request rate limit exceeded
       headers:
@@ -761,7 +789,7 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
     ServiceUnavailable:
-      description: Database unavailable
+      description: Database or authorization service temporarily unavailable
       content:
         application/json:
           schema:
