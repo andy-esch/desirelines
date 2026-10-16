@@ -7,6 +7,15 @@ info:
     ## Authentication
     All `/v1/activities` endpoints require Firebase authentication.
     Include `Authorization: Bearer <firebase-token>` header.
+    Verified users must also be allowlisted: access denial returns `403`,
+    and an unavailable authorization check returns `503`.
+    Deployed `/ready` probes require a Google-signed service-account ID token
+    instead; local development omits this readiness authentication check.
+
+    ## Rate limiting
+    All operations can return `429` with the standard JSON error envelope and
+    a `Retry-After` header in seconds. OAuth routes have an additional stricter
+    limiter; vector tiles use a dedicated limiter instead of the global one.
 
     ## Pagination
     The `/v1/activities` list endpoint uses cursor-based pagination.
@@ -66,6 +75,9 @@ paths:
               schema:
                 type: string
               description: Absolute /auth/strava/start URL on the configured callback origin
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
   /auth/strava/start:
     get:
       tags: [Auth]
@@ -89,6 +101,9 @@ paths:
               schema:
                 type: string
               description: HttpOnly, SameSite=Lax __session cookie carrying the state token
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
   /auth/callback:
     get:
       tags: [Auth]
@@ -123,6 +138,9 @@ paths:
               schema:
                 type: string
               description: Frontend URL with token or error code
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
   /health:
     get:
       tags: [Health]
@@ -137,14 +155,23 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
   /ready:
     get:
       tags: [Health]
       summary: Readiness check
-      description: Returns 200 if the service is ready to serve traffic, including database connectivity. Returns 503 when the database is unreachable.
+      description: |
+        Returns 200 if the service is ready to serve traffic, including database
+        connectivity, or 503 when the database is unreachable. Deployed
+        environments require a Google-signed ID token for the configured
+        readiness service account and audience. Missing or rejected tokens
+        return 401 before the database is probed. Local development omits this
+        authentication check.
       operationId: getReady
-      security: []
+      security:
+        - googleOIDC: []
       responses:
         '200':
           description: Service is ready
@@ -152,6 +179,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '503':
           description: Service is not ready (e.g., database unreachable)
           content:
@@ -173,6 +204,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SportsConfig'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
   /v1/activities:
     get:
@@ -234,6 +267,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 
@@ -286,6 +323,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 
@@ -319,6 +360,10 @@ paths:
                     $ref: '#/components/schemas/RegionSummary'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 
@@ -394,6 +439,10 @@ paths:
                             type: string
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 
@@ -457,6 +506,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 
@@ -489,6 +542,10 @@ paths:
                       $ref: '#/components/schemas/MapActivity'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 
@@ -520,8 +577,12 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 
@@ -546,6 +607,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 
@@ -577,6 +642,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 
@@ -609,6 +678,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 
@@ -619,6 +692,15 @@ components:
       scheme: bearer
       bearerFormat: Firebase JWT
       description: Firebase ID token
+    googleOIDC:
+      type: http
+      scheme: bearer
+      bearerFormat: Google OIDC JWT
+      description: |
+        Google-signed ID token for the readiness probe's service account.
+        The audience must match READINESS_AUDIENCE and the immutable numeric
+        subject must match READINESS_CALLER_SUBJECT. Firebase ID tokens do not
+        authorize this endpoint. This check is omitted in local development.
 
   parameters:
     year:
@@ -672,6 +754,30 @@ components:
             $ref: '#/components/schemas/Error'
     Unauthorized:
       description: Missing or invalid authentication
+      headers:
+        WWW-Authenticate:
+          description: Bearer authentication challenge
+          schema:
+            type: string
+            enum: [Bearer]
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Authenticated user is not allowed to access the API
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    TooManyRequests:
+      description: Request rate limit exceeded
+      headers:
+        Retry-After:
+          description: Number of seconds to wait before retrying
+          schema:
+            type: integer
+            minimum: 1
       content:
         application/json:
           schema:
@@ -683,7 +789,7 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
     ServiceUnavailable:
-      description: Database unavailable
+      description: Database or authorization service temporarily unavailable
       content:
         application/json:
           schema:

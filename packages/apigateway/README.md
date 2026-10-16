@@ -23,6 +23,32 @@ go build ./cmd/apigateway
 
 See [`openapi.yaml`](./openapi.yaml) for the full API specification — endpoints, query parameters, request/response schemas, and status codes. This is the canonical contract, validated in CI.
 
+All documented operations can return a `429` JSON error with `Retry-After` in
+seconds. OAuth routes have an additional stricter rate limiter; vector tiles
+use a dedicated limiter. Deployed `/ready` probes require a Google-signed ID
+token for the configured service-account subject and audience; Firebase ID
+tokens do not authorize this probe. Local development omits readiness
+authentication. `/health` and `/v1/sports/config` remain public.
+Authenticated activity routes also check the user's allowlist access: denial
+returns `403`, and a failed authorization lookup returns `503`.
+
+### OpenAPI validation
+
+From the repository root, run the same check used by CI:
+
+```bash
+just openapi-lint --format=github-actions
+```
+
+The recommended Redocly rules remain enabled. The root
+[`.redocly.lint-ignore.yaml`](../../.redocly.lint-ignore.yaml) contains
+[location-specific exceptions](https://redocly.com/docs/cli/commands/lint#generate-ignore-file)
+for three OAuth operations whose normal success response is a browser redirect,
+the actual localhost development server, and missing license metadata while the
+repository/API has no declared license. Revisit the license exception when that
+policy is decided. Keep exceptions tied to these locations and reasons; fix
+inaccurate response/security definitions directly.
+
 ## Architecture
 
 This package follows **hexagonal architecture** (ports and adapters pattern):
@@ -178,6 +204,13 @@ GCP_PROJECT_ID=your-project-id     # Google Cloud project ID (or GOOGLE_CLOUD_PR
 # For local development with Firebase emulator:
 FIREBASE_AUTH_EMULATOR_HOST=localhost:9099
 
+# Operational readiness
+ENVIRONMENT=local                 # local (also the default), dev, or prod
+# Required in dev/prod; omitted in local development:
+# READINESS_AUDIENCE=https://desirelines.andyes.ch/api/ready  # Exact OIDC aud claim
+# READINESS_CALLER_SUBJECT=123456789012345678901  # Service account's immutable numeric ID
+# READINESS_TIMEOUT=10             # Per-attempt DB timeout in seconds (default: 10)
+
 # Strava OAuth (required for /auth/* endpoints)
 # Cloud Run: loaded from Infisical secret mounts
 # Local development: set as environment variables
@@ -209,10 +242,6 @@ go test ./... -cover
 - **Validation tests** (`handler_test.go`): Test `pkg/validate` functions directly
 - **Database tests** (`adapters/postgres/*_test.go`): Test PostgreSQL queries
 
-## OpenAPI Specification
-
-See `openapi.yaml` for the API specification.
-
 ## Deployment
 
 ### Build and Publish
@@ -226,16 +255,21 @@ just build-publish
 
 Deploy by merging to main (triggers CI → deploy repo), or manually from the `desirelines-deploy` repo.
 
-### Health Check
+### Liveness and readiness
 
-Cloud Run uses `/health` endpoint:
+Cloud Run uses `/health` for process liveness. It does not probe the database:
 
 ```json
 {
-  "status": "healthy",
-  "database": "healthy"
+  "status": "healthy"
 }
 ```
+
+The authenticated deployed `/ready` probe checks database connectivity. A healthy
+response includes `"database": "healthy"`; a failed check returns `503` with
+`"status": "unhealthy"` and `"database": "unhealthy"`. See the
+[readiness runbook](../../docs/runbooks/apigateway-readiness-failing.md) for
+operational checks. Local development omits the probe's OIDC authentication.
 
 ## Protobuf Types
 

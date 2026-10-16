@@ -1,0 +1,16 @@
+# Exceptions are limited to these document locations; all other recommended
+# checks remain enabled. See packages/apigateway/README.md for the policy.
+packages/apigateway/openapi.yaml:
+  # No repository/API license has been selected. Revisit when one is declared;
+  # do not invent license metadata solely to satisfy a documentation rule.
+  info-license:
+    - '#/info'
+  # This is the actual local development server, not a production placeholder.
+  no-server-example.com:
+    - '#/servers/1/url'
+  # OAuth succeeds by redirecting the browser; handler failures redirect too.
+  # Limiter failures remain documented 429 JSON responses.
+  operation-2xx-response:
+    - '#/paths/~1auth~1strava/get/responses'
+    - '#/paths/~1auth~1strava~1start/get/responses'
+    - '#/paths/~1auth~1callback/get/responses'
