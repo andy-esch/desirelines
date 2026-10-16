@@ -69,11 +69,11 @@ jobs:
           folder-path: '.'
           use-quiet-mode: 'yes'
 
-      - name: Validate OpenAPI spec
-        run: npx --yes @redocly/cli lint packages/apigateway/openapi.yaml --format=github-actions
-
       - name: Set up Just
         uses: extractions/setup-just@v4
+
+      - name: Validate OpenAPI spec
+        run: just openapi-lint --format=github-actions
 
       - name: Verify schemas are in sync
         run: just verify-schemas

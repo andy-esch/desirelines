@@ -1,3 +1,7 @@
+# Lint the HTTP API contract with location-specific Redocly exceptions
+openapi-lint +args='':
+    npx --yes @redocly/cli lint packages/apigateway/openapi.yaml {{args}}
+
 # Run Python tests (default: uv pytest, use --pants for Pants)
 py-test +args='':
     #!/usr/bin/env bash

@@ -23,6 +23,30 @@ go build ./cmd/apigateway
 
 See [`openapi.yaml`](./openapi.yaml) for the full API specification — endpoints, query parameters, request/response schemas, and status codes. This is the canonical contract, validated in CI.
 
+All documented operations can return a `429` JSON error with `Retry-After` in
+seconds. OAuth routes have an additional stricter rate limiter; vector tiles
+use a dedicated limiter. Deployed `/ready` probes require a Google-signed ID
+token for the configured service-account subject and audience; Firebase ID
+tokens do not authorize this probe. Local development omits readiness
+authentication. `/health` and `/v1/sports/config` remain public.
+
+### OpenAPI validation
+
+From the repository root, run the same check used by CI:
+
+```bash
+just openapi-lint --format=github-actions
+```
+
+The recommended Redocly rules remain enabled. The root
+[`.redocly.lint-ignore.yaml`](../../.redocly.lint-ignore.yaml) contains
+[location-specific exceptions](https://redocly.com/docs/cli/commands/lint#generate-ignore-file)
+for three OAuth operations whose normal success response is a browser redirect,
+the actual localhost development server, and missing license metadata while the
+repository/API has no declared license. Revisit the license exception when that
+policy is decided. Keep exceptions tied to these locations and reasons; fix
+inaccurate response/security definitions directly.
+
 ## Architecture
 
 This package follows **hexagonal architecture** (ports and adapters pattern):
@@ -208,10 +232,6 @@ go test ./... -cover
   - Tests route registration, validation, error handling, CORS
 - **Validation tests** (`handler_test.go`): Test `pkg/validate` functions directly
 - **Database tests** (`adapters/postgres/*_test.go`): Test PostgreSQL queries
-
-## OpenAPI Specification
-
-See `openapi.yaml` for the API specification.
 
 ## Deployment
 
