@@ -108,10 +108,11 @@ type DangerPace struct {
 // field is optional and inherits the base metric config when omitted. Loaded
 // and passed through verbatim; the apigateway does not interpret it.
 type GoalDefaults struct {
-	Increment      *float64        `json:"increment,omitempty"`
-	Rounding       *float64        `json:"rounding,omitempty"`
-	DefaultValue   *float64        `json:"defaultValue,omitempty"`
-	ChartIntervals []ChartInterval `json:"chartIntervals,omitempty"`
+	Increment    *float64 `json:"increment,omitempty"`
+	Rounding     *float64 `json:"rounding,omitempty"`
+	DefaultValue *float64 `json:"defaultValue,omitempty"`
+	// A present empty list overrides the frontend's inherited thresholds.
+	ChartIntervals *[]ChartInterval `json:"chartIntervals,omitempty"`
 }
 
 // ChartInterval is one Y-axis tick threshold. A nil Max marks the catch-all
@@ -254,10 +255,15 @@ func NewSportConfig(configPath string) (*SportConfig, error) {
 	for categoryName := range configData.SportCategories {
 		category := configData.SportCategories[categoryName]
 		mapping := category.Mappings[stravaSportTypeVocabulary]
+		// Exclusions are optional in the registry but always an array publicly.
+		excludedTypes := mapping.ExcludedTypes
+		if excludedTypes == nil {
+			excludedTypes = []string{}
+		}
 		response.SportCategories[categoryName] = sportCategoryResponse{
 			SportMetadata: category.SportMetadata,
 			StravaTypes:   mapping.Types,
-			ExcludedTypes: mapping.ExcludedTypes,
+			ExcludedTypes: excludedTypes,
 		}
 	}
 	apiJSON, err := json.Marshal(response)

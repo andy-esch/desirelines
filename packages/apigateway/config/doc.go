@@ -1,8 +1,8 @@
 // Package config provides application and sport category configuration for the API Gateway.
 //
-// The package manages a versioned JSON configuration that defines how Strava
-// activity types map to display categories (e.g., "Ride" and "VirtualRide"
-// both map to "cycling").
+// The package manages a versioned registry of Desirelines sport categories and
+// input vocabularies. Currently only Strava sport_type is supported (e.g., "Ride"
+// and "VirtualRide" both map to "cycling").
 //
 // # Loading Configuration
 //
@@ -15,7 +15,7 @@
 //
 // For testing, provide a path to a custom config file:
 //
-//	sportConfig, err := config.LoadSportConfig("testdata/custom_sports.json")
+//	sportConfig, err := config.NewSportConfig("testdata/custom_sports.json")
 //
 // # Using the Configuration
 //
@@ -32,23 +32,30 @@
 //
 // # Configuration Schema
 //
-// The JSON configuration has this structure:
+// The internal version-2.0 registry has this structure:
 //
 //	{
-//	  "version": "1.0",
-//	  "sport_categories": {
+//	  "version": "2.0",
+//	  "sportCategories": {
 //	    "cycling": {
-//	      "display_name": "Cycling",
-//	      "strava_types": ["Ride", "VirtualRide"],
-//	      "primary_metric": "distance",
-//	      "metrics": ["distance", "elevation", "time"],
-//	      "has_distance": true,
-//	      "has_elevation": true
+//	      "displayName": "Cycling",
+//	      "mappings": {
+//	        "strava.sport_type": {
+//	          "types": ["Ride", "VirtualRide"],
+//	          "excludedTypes": []
+//	        }
+//	      },
+//	      "primaryMetric": "distance_meters",
+//	      "metrics": ["distance_meters", "elevation_meters", "time_minutes"],
+//	      "hasDistance": true,
+//	      "hasElevation": true
 //	    }
 //	  }
 //	}
 //
 // See [SupportedConfigVersions] for supported schema versions.
+// [SportConfig.APIJSON] projects this registry to the public version-1.0
+// /v1/sports/config response, retaining stravaTypes and excludedTypes.
 //
 // # Thread Safety
 //

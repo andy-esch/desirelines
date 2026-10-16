@@ -84,6 +84,9 @@ reads a compatible projection from `/v1/sports/config`: version `1.0`, with
 `stravaTypes` and `excludedTypes` derived from `mappings["strava.sport_type"]`.
 Category metadata passes through unchanged. The internal registry is not served
 directly, so existing settings, map styles and cached clients keep their contract.
+An omitted mapping `excludedTypes` defaults to an empty array in the response.
+Optional metadata retains field presence, including an explicit empty
+`goalDefaults.chartIntervals` override.
 
 | Field | apigateway (Go) | stravapipe (Python) | web (TypeScript) |
 |-------|-----------------|---------------------|-------------------|
@@ -97,7 +100,7 @@ directly, so existing settings, map styles and cached clients keep their contrac
 | `dangerPace` | Loaded, passed through | Loaded, ignored | Danger-zone rendering in charts |
 | `goalDefaults` | Loaded, passed through | Loaded, ignored | Per-sport goal tuning in `getMetricConfig` |
 
-**Note:** The backend packages (`apigateway`, `stravapipe`) are synced automatically via `just sync-sport-config`. The web app reads this config from the public `/sports/config` endpoint — there is no separate synced web fixture. The one remaining **manual-sync** surface is the demo data generator's `DEMO_SPORT_CONFIG` (`packages/web/src/constants/demoConfig.ts`), which still hard-codes per-sport metadata (Strava types, primary metric) and must be updated by hand when adding a sport.
+**Note:** The backend packages (`apigateway`, `stravapipe`) are synced automatically via `just sync-sport-config`. The web app reads this config from the public `/v1/sports/config` endpoint — there is no separate synced web fixture. The one remaining **manual-sync** surface is the demo data generator's `DEMO_SPORT_CONFIG` (`packages/web/src/constants/demoConfig.ts`), which still hard-codes per-sport metadata (Strava types, primary metric) and must be updated by hand when adding a sport.
 
 `testdata/config-v1.json` freezes the pre-v2 public config for compatibility tests.
 Go compares the entire projected response and every forward/reverse mapping to it;

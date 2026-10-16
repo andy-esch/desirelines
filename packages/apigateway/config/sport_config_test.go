@@ -60,7 +60,14 @@ func TestPublicConfigPreservesV1AndAllStravaMappings(t *testing.T) {
 }
 
 func TestRegistryRejectsMissingOrUnsupportedVocabulary(t *testing.T) {
-	for _, mapping := range []string{`null`, `{}`, `{"strava.type":{"types":["Ride"]}}`, `{"strava.sport_type":{"types":["Ride"]},"intervals_icu.type":{"types":["Run"]}}`} {
+	for _, mapping := range []string{
+		`null`,
+		`{}`,
+		`{"strava.type":{"types":["Ride"]}}`,
+		`{"strava.sport_type":{"types":["Ride"]},"intervals_icu.type":{"types":["Run"]}}`,
+		`{"strava.sport_type":{"types":[]}}`,
+		`{"strava.sport_type":{"types":[""]}}`,
+	} {
 		t.Run(mapping, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "config.json")
 			data := `{"version":"2.0","sportCategories":{"cycling":{"displayName":"Cycling","primaryMetric":"distance_meters","metrics":["distance_meters"],"mappings":` + mapping + `}}}`
