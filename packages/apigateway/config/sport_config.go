@@ -13,7 +13,7 @@
 //     hidden dependencies in business logic.
 //
 // For testing:
-//   - Unit tests that need custom configs use loadSportConfigInternal() directly
+//   - Unit tests that need custom configs use NewSportConfig() directly
 //   - Handler tests create configs and inject them via constructors
 //   - The sync.Once doesn't affect test isolation because handlers use injected instances
 package config
@@ -57,24 +57,27 @@ const unknownSportLogEvent = "unknown_sport_type"
 //go:embed sport_types.json
 var embeddedSportConfig []byte
 
-// SportCategory defines a sport category and its mapping to Strava's data model.
-//
-// # Strava type vs sport_type
-//
-// Strava's API has two activity classification fields:
-//   - type: broad/deprecated category (e.g., "Workout" covers yoga, weight training, HIIT, etc.)
-//   - sport_type: specific activity kind (e.g., "Yoga", "WeightTraining", "HIIT")
-//
-// StravaTypes contains sport_type values (the specific ones), NOT type values.
-// The database stores both: column 'type' = Strava type, column 'sport' = Strava sport_type.
-// All filtering queries must use the 'sport' column to match against StravaTypes.
-type SportCategory struct {
-	DisplayName string `json:"displayName" validate:"required"`
-	// StravaTypes lists Strava sport_type values belonging to this category.
-	// Example: cycling = ["Ride", "VirtualRide", "GravelRide", "MountainBikeRide", ...]
-	// These match the DB 'sport' column, NOT the 'type' column.
-	StravaTypes   []string `json:"stravaTypes" validate:"required,min=1"`
+const stravaSportTypeVocabulary = "strava.sport_type"
+
+// SportTypeMapping associates values in one input vocabulary with a category.
+// Currently only Strava sport_type is supported. These specific values match
+// the database's 'sport' column, not its broad/deprecated Strava 'type' column.
+type SportTypeMapping struct {
+	Types         []string `json:"types" validate:"required,min=1,dive,required"`
 	ExcludedTypes []string `json:"excludedTypes"`
+}
+
+// SportCategory defines a Desirelines-owned category with vocabulary mappings.
+// Additional vocabularies require explicit loader/adapter support when added.
+type SportCategory struct {
+	SportMetadata
+	Mappings map[string]SportTypeMapping `json:"mappings" validate:"required,min=1,dive,keys,eq=strava.sport_type,endkeys"`
+}
+
+// SportMetadata is shared by the internal registry and public config response.
+// It describes the Desirelines category independently of incoming vocabularies.
+type SportMetadata struct {
+	DisplayName   string   `json:"displayName" validate:"required"`
 	PrimaryMetric string   `json:"primaryMetric" validate:"required"`
 	Metrics       []string `json:"metrics" validate:"required,min=1"`
 	HasDistance   bool     `json:"hasDistance"`
@@ -105,10 +108,11 @@ type DangerPace struct {
 // field is optional and inherits the base metric config when omitted. Loaded
 // and passed through verbatim; the apigateway does not interpret it.
 type GoalDefaults struct {
-	Increment      *float64        `json:"increment,omitempty"`
-	Rounding       *float64        `json:"rounding,omitempty"`
-	DefaultValue   *float64        `json:"defaultValue,omitempty"`
-	ChartIntervals []ChartInterval `json:"chartIntervals,omitempty"`
+	Increment    *float64 `json:"increment,omitempty"`
+	Rounding     *float64 `json:"rounding,omitempty"`
+	DefaultValue *float64 `json:"defaultValue,omitempty"`
+	// A present empty list overrides the frontend's inherited thresholds.
+	ChartIntervals *[]ChartInterval `json:"chartIntervals,omitempty"`
 }
 
 // ChartInterval is one Y-axis tick threshold. A nil Max marks the catch-all
@@ -126,15 +130,27 @@ type SportConfigData struct {
 	SportCategories map[string]SportCategory `json:"sportCategories" validate:"required,min=1,dive"`
 }
 
+// The public version-1.0 response remains stable while the internal registry
+// evolves. Web settings and map styles still consume stravaTypes/excludedTypes.
+type sportCategoryResponse struct {
+	SportMetadata
+	StravaTypes   []string `json:"stravaTypes"`
+	ExcludedTypes []string `json:"excludedTypes"`
+}
+
+type sportConfigResponse struct {
+	Version         string                           `json:"version"`
+	SportCategories map[string]sportCategoryResponse `json:"sportCategories"`
+}
+
 // SportConfig contains the data as a SportConfigData struct
 type SportConfig struct {
 	data SportConfigData
 	// reverseMap maps Strava sport_type values to category names.
 	// Built at load time for O(1) lookups. E.g., "Ride" → "cycling".
 	reverseMap map[string]string
-	// rawJSON stores the original JSON bytes used to create this config.
-	// Used for serving the config via API endpoint.
-	rawJSON []byte
+	// apiJSON caches the compatible public response, not the internal registry.
+	apiJSON []byte
 	// unknownSeen deduplicates the WARNING log emitted by
 	// GetCategoryForStravaType so a single unmapped sport_type doesn't spam
 	// logs across a request burst. Cleared with the process — Cloud Run
@@ -154,7 +170,7 @@ var (
 )
 
 // SupportedConfigVersions is a list of supported versions
-var SupportedConfigVersions = []string{"1.0"}
+var SupportedConfigVersions = []string{"2.0"}
 
 // LoadSportConfig loads available application SportConfig
 // Uses sync.Once to ensure it's only loaded once in production
@@ -219,7 +235,7 @@ func NewSportConfig(configPath string) (*SportConfig, error) {
 		// Index the map for just the slice we need rather than ranging the
 		// value: `k, v := range` would copy the whole SportCategory struct each
 		// iteration (gocritic rangeValCopy) now that it carries optional config.
-		stravaTypes := configData.SportCategories[categoryName].StravaTypes
+		stravaTypes := configData.SportCategories[categoryName].Mappings[stravaSportTypeVocabulary].Types
 		for _, stravaType := range stravaTypes {
 			if existing, dup := reverseMap[stravaType]; dup {
 				return nil, fmt.Errorf(
@@ -232,7 +248,29 @@ func NewSportConfig(configPath string) (*SportConfig, error) {
 		}
 	}
 
-	return &SportConfig{data: configData, reverseMap: reverseMap, rawJSON: data}, nil
+	response := sportConfigResponse{
+		Version:         "1.0",
+		SportCategories: make(map[string]sportCategoryResponse, len(configData.SportCategories)),
+	}
+	for categoryName := range configData.SportCategories {
+		category := configData.SportCategories[categoryName]
+		mapping := category.Mappings[stravaSportTypeVocabulary]
+		// Exclusions are optional in the registry but always an array publicly.
+		excludedTypes := mapping.ExcludedTypes
+		if excludedTypes == nil {
+			excludedTypes = []string{}
+		}
+		response.SportCategories[categoryName] = sportCategoryResponse{
+			SportMetadata: category.SportMetadata,
+			StravaTypes:   mapping.Types,
+			ExcludedTypes: excludedTypes,
+		}
+	}
+	apiJSON, err := json.Marshal(response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode public sport config: %w", err)
+	}
+	return &SportConfig{data: configData, reverseMap: reverseMap, apiJSON: apiJSON}, nil
 }
 
 // ListSports returns all available sports
@@ -252,7 +290,7 @@ func (c *SportConfig) GetStravaTypes(category string) []string {
 	if !ok {
 		return nil
 	}
-	return cat.StravaTypes
+	return cat.Mappings[stravaSportTypeVocabulary].Types
 }
 
 // GetCategoryForStravaType returns the category name for a Strava sport_type value.
@@ -283,8 +321,7 @@ func (c *SportConfig) GetCategoryForStravaType(stravaType string) string {
 	return UnknownSportCategory
 }
 
-// RawJSON returns the raw sport config JSON bytes.
-// Used for serving the config via API endpoint.
-func (c *SportConfig) RawJSON() []byte {
-	return c.rawJSON
+// APIJSON returns the cached version-1.0 public config response.
+func (c *SportConfig) APIJSON() []byte {
+	return c.apiJSON
 }

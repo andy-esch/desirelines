@@ -11,8 +11,8 @@ This script:
   1. Downloads Strava's Swagger spec from a configurable URL (default:
      https://developers.strava.com/swagger/swagger.json).
   2. Extracts the ``SportType`` enum values.
-  3. Compares them against the union of ``stravaTypes`` and
-     ``excludedTypes`` in ``schemas/sports/sport_types.json``.
+  3. Compares them against ``types`` and ``excludedTypes`` in each category's
+     ``mappings["strava.sport_type"]`` in the version-2.0 registry.
   4. Prints any sports that are in Strava but not in our registry.
 
 Exit codes:
@@ -102,18 +102,30 @@ def load_registry_types(registry_path: Path) -> set[str]:
     Includes ``excludedTypes`` so that e.g. ``EBikeRide`` (which lives under
     cycling's excluded list but is the primary type for the ebike category)
     is treated as "known", not flagged as missing. Strips the internal
-    sentinel value used to satisfy the ``stravaTypes min=1`` validator on
+    sentinel value used to satisfy the ``types min=1`` validator on
     the "other" catch-all category — that sentinel is never a real Strava
     sport_type.
     """
     with registry_path.open() as f:
         data = json.load(f)
 
+    if data["version"] != "2.0":
+        raise ValueError("expected internal sport registry version 2.0")
     seen: set[str] = set()
-    for category in data.get("sportCategories", {}).values():
-        for key in ("stravaTypes", "excludedTypes"):
-            for value in category.get(key, []):
-                seen.add(value)
+    categories = data["sportCategories"]
+    if not isinstance(categories, dict) or not categories:
+        raise ValueError("sportCategories must be a nonempty object")
+    for category in categories.values():
+        mapping = category["mappings"]["strava.sport_type"]
+        for key in ("types", "excludedTypes"):
+            values = mapping[key] if key == "types" else mapping.get(key, [])
+            if (
+                not isinstance(values, list)
+                or not all(isinstance(value, str) and value for value in values)
+                or (key == "types" and not values)
+            ):
+                raise ValueError(f"invalid strava.sport_type {key}")
+            seen.update(values)
     seen.discard("__unmapped_sport_type__")
     return seen
 
@@ -172,7 +184,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         local = load_registry_types(args.registry)
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError, KeyError, TypeError) as exc:
         print(f"ERROR: failed to read registry {args.registry}: {exc}", file=sys.stderr)
         return 2
 

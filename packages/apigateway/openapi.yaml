@@ -739,23 +739,86 @@ components:
 
     SportsConfig:
       type: object
-      description: Sport category configuration
-      additionalProperties:
-        $ref: '#/components/schemas/SportCategory'
+      description: >-
+        Compatible public sport configuration, projected from the internal
+        vocabulary-mapping registry. Its version is independent of the registry.
+      required: [version, sportCategories]
+      properties:
+        version:
+          type: string
+          enum: ['1.0']
+        sportCategories:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/SportCategory'
       example:
-        cycling:
-          displayName: Cycling
-          stravaTypes: [Ride, VirtualRide, EBikeRide]
+        version: '1.0'
+        sportCategories:
+          cycling:
+            displayName: Cycling
+            stravaTypes: [Ride, VirtualRide, GravelRide, MountainBikeRide, Handcycle, Velomobile]
+            excludedTypes: [EBikeRide, EMountainBikeRide]
+            primaryMetric: distance_meters
+            metrics: [distance_meters, time_minutes, elevation_meters, activities, activity_ids]
+            hasDistance: true
+            hasElevation: true
 
     SportCategory:
       type: object
+      required: [displayName, stravaTypes, excludedTypes, primaryMetric, metrics, hasDistance, hasElevation]
       properties:
         displayName:
           type: string
         stravaTypes:
           type: array
+          description: Values derived from the registry's strava.sport_type mapping.
           items:
             type: string
+        excludedTypes:
+          type: array
+          items:
+            type: string
+        primaryMetric:
+          type: string
+        metrics:
+          type: array
+          items:
+            type: string
+        hasDistance:
+          type: boolean
+        hasElevation:
+          type: boolean
+        dangerPace:
+          type: object
+          required: [valuePerDay, unit]
+          properties:
+            valuePerDay:
+              type: number
+            unit:
+              type: string
+            warnAtFraction:
+              type: number
+              minimum: 0
+              maximum: 1
+        goalDefaults:
+          type: object
+          properties:
+            increment:
+              type: number
+            rounding:
+              type: number
+            defaultValue:
+              type: number
+            chartIntervals:
+              type: array
+              items:
+                type: object
+                required: [interval]
+                properties:
+                  max:
+                    type: number
+                  interval:
+                    type: number
 
     Activity:
       type: object

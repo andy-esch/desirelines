@@ -90,7 +90,13 @@ Represents a notification from Strava about an activity change.
 
 ### Sport Configuration
 
-Maps Strava activity types (e.g., `Ride`, `Run`) to application sport categories (e.g., `cycling`, `running`). Source of truth: `schemas/sports/sport_types.json`.
+Desirelines owns sport categories (e.g., `cycling`, `running`) and their metric
+metadata. The version-2.0 registry maps the `strava.sport_type` vocabulary (e.g.,
+`Ride`, `Run`) through each category's `mappings` entry. Source of truth:
+`schemas/sports/sport_types.json`. Only Strava is supported; a vocabulary names
+the classification field, independently of retrieval service or activity origin.
+Stored `sport`/`type` values are unchanged. The public `/v1/sports/config` response
+retains version `1.0`, deriving `stravaTypes` and `excludedTypes` from that mapping.
 
 | Stage | Package | Type | File |
 |-------|---------|------|------|
