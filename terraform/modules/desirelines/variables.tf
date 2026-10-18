@@ -104,6 +104,20 @@ variable "deployment_version" {
   }
 }
 
+# Persist this with the environment's declared configuration. A transient value
+# would cause the next normal apply to remove the label and roll another revision.
+variable "backend_redeploy_token" {
+  description = "Persistent rollout token for dispatcher, API gateway and postgres-writer revision templates. Change it to roll those three services in place without replacing them; retain it on subsequent applies. Empty adds no rollout label."
+  type        = string
+  default     = ""
+  nullable    = false
+
+  validation {
+    condition     = var.backend_redeploy_token == "" || can(regex("^[a-z0-9][a-z0-9_-]{0,62}$", var.backend_redeploy_token))
+    error_message = "backend_redeploy_token must be empty or a lowercase label value of 1-63 letters, digits, underscores or hyphens, starting with a letter or digit."
+  }
+}
+
 # Per-service image digests — the images this environment actually runs.
 #
 # WHY THIS EXISTS: `deployment_version` is a git SHA, so a tag reference changes on every

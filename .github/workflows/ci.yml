@@ -670,6 +670,10 @@ jobs:
           terraform init -backend=false
           terraform validate
 
+      - name: Test module rollout contract without cloud credentials
+        working-directory: terraform/modules/desirelines
+        run: terraform test
+
       - name: Setup TFLint
         uses: terraform-linters/setup-tflint@v6
         with:
