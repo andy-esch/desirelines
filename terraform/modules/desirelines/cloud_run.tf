@@ -5,6 +5,12 @@
 locals {
   image_base_url = var.external_artifact_registry
 
+  # A changed revision label rolls fresh instances without deleting the service.
+  # Keep this opt-in token separate from image identity and service-wide labels.
+  backend_revision_labels = var.backend_redeploy_token == "" ? null : {
+    "desirelines-redeploy" = var.backend_redeploy_token
+  }
+
   # Image reference per service, by immutable digest.
   #
   # A digest reference is byte-identical across commits that did not change the image, so
@@ -67,9 +73,12 @@ resource "google_cloud_run_v2_service" "dispatcher" {
   location = var.gcp_region
   ingress  = "INGRESS_TRAFFIC_ALL" # Required for Strava webhooks
 
+  deletion_protection = true
+
   labels = local.common_labels
 
   template {
+    labels          = local.backend_revision_labels
     service_account = google_service_account.dispatcher.email
 
     scaling {
@@ -251,9 +260,12 @@ resource "google_cloud_run_v2_service" "api_gateway" {
   location = var.gcp_region
   ingress  = "INGRESS_TRAFFIC_ALL" # Required: Firebase Hosting rewrites are external traffic — ingress lockdown requires GCLB
 
+  deletion_protection = true
+
   labels = local.common_labels
 
   template {
+    labels          = local.backend_revision_labels
     service_account = google_service_account.api_gateway.email
 
     scaling {
@@ -419,9 +431,12 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
   location = var.gcp_region
   ingress  = "INGRESS_TRAFFIC_INTERNAL_ONLY" # Only Eventarc can call this
 
+  deletion_protection = true
+
   labels = local.common_labels
 
   template {
+    labels          = local.backend_revision_labels
     service_account = google_service_account.postgres_writer.email
 
     scaling {

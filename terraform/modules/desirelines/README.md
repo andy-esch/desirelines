@@ -20,12 +20,40 @@ This module is referenced by the private `desirelines-deploy` repo via git tags:
 module "desirelines" {
   source = "git::https://github.com/andy-esch/desirelines.git//terraform/modules/desirelines?ref=tf-N"
 
-  gcp_project_id     = var.gcp_project_id
-  gcp_project_number = var.gcp_project_number
-  environment        = "dev"
-  infisical_project_id = var.infisical_project_id
+  gcp_project_id                                        = var.gcp_project_id
+  gcp_project_number                                    = var.gcp_project_number
+  environment                                           = "dev"
+  infisical_project_id                                  = var.infisical_project_id
+  external_artifact_registry                            = var.external_artifact_registry
+  dispatcher_webhook_callback_capability_secret_version = var.dispatcher_webhook_callback_capability_secret_version
 }
 ```
+
+## Same-image backend rollouts
+
+Set `backend_redeploy_token` to a new lowercase label value to create fresh
+revisions of dispatcher, API gateway and postgres-writer with their existing
+declared image digests. The token changes only those three revision templates;
+it does not replace services or disable their deletion protection. Deletion
+service, backfill and data resources do not receive the token. Empty (the
+default) adds no rollout label, so existing module callers retain their behavior.
+
+Persist the token in the environment's Terraform configuration and retain it on
+normal deployments. Passing a one-off value and then removing it would roll
+another revision on the next apply. Do not derive it from `timestamp()` or the
+application version: it changes only when an operator requests a fresh rollout.
+This input is a module capability; callers must still enforce their provenance,
+migration, serialization, readiness and result-publication gates.
+
+[Cloud Run revisions](https://docs.cloud.google.com/run/docs/managing/revisions)
+are immutable snapshots of the revision template. The Google provider updates
+the template in place; its [deletion protection](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/cloud_run_v2_service)
+guards service destruction, including Terraform `-replace`. A fresh revision
+does not guarantee that startup or application health checks pass.
+
+Run `just tf-test` for the module contract tests. Cloud/image operations are
+mocked with real provider schemas; these checks do not establish hosted rollout,
+service-identity or health evidence.
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
@@ -208,6 +236,7 @@ module "desirelines" {
 | <a name="input_infisical_project_id"></a> [infisical\_project\_id](#input\_infisical\_project\_id) | Infisical Project ID (used as suffix for integration Service Account) | `string` | n/a | yes |
 | <a name="input_api_gateway_allowed_origins"></a> [api\_gateway\_allowed\_origins](#input\_api\_gateway\_allowed\_origins) | Comma-separated list of allowed CORS origins for API Gateway | `string` | `""` | no |
 | <a name="input_app_config"></a> [app\_config](#input\_app\_config) | Application configuration values from Infisical | <pre>object({<br/>    log_level         = string<br/>    frontend_url      = optional(string, "")<br/>    auth_callback_url = optional(string, "")<br/>    # Positive-only API authorization cache. Short by design: this turns a map<br/>    # tile burst into one Firestore read while bounding allowlist revocation<br/>    # staleness. "0" disables it for incident diagnosis.<br/>    api_allowlist_cache_ttl = optional(string, "30s")<br/>    # Dispatcher Firestore-lookup cache TTLs (Go duration strings, e.g. "5m").<br/>    # "0" disables the respective cache — the incident kill switch for a suspected<br/>    # staleness bug, settable via GitOps with no code change.<br/>    dispatcher_allowlist_cache_ttl = optional(string, "5m")<br/>    dispatcher_token_cache_ttl     = optional(string, "5m")<br/>    # Best-effort publish of activity rows to the BigQuery CDC topic — the only<br/>    # path by which activity rows reach BigQuery — and the kill switch for it:<br/>    # set false to stop publishing in place during an incident (GitOps apply, no<br/>    # code change). Safe to stop, because nothing reads BigQuery; the cost is a<br/>    # stale activities_live. Named as the mitigation in<br/>    # docs/runbooks/activity-row-publish-failing.md and dlq-activity-rows.md.<br/>    #<br/>    # Default off so a new environment does not publish before its topic and<br/>    # subscription exist — which means an environment that never sets it true<br/>    # publishes nothing, silently. The publish cannot fail a webhook.<br/>    dispatcher_activity_row_publish_enabled = optional(bool, false)<br/>    # Wire format for activity rows: "json" or "proto". Drives the dispatcher's<br/>    # ACTIVITY_ROW_ENCODING, whether the topic carries a protobuf schema, and<br/>    # whether the subscription maps by topic or table schema — they must agree,<br/>    # so they read one value.<br/>    dispatcher_activity_row_encoding = optional(string, "json")<br/>  })</pre> | <pre>{<br/>  "log_level": "INFO"<br/>}</pre> | no |
+| <a name="input_backend_redeploy_token"></a> [backend\_redeploy\_token](#input\_backend\_redeploy\_token) | Persistent rollout token for dispatcher, API gateway and postgres-writer revision templates. Change it to roll those three services in place without replacing them; retain it on subsequent applies. Empty adds no rollout label. | `string` | `""` | no |
 | <a name="input_bigquery_location"></a> [bigquery\_location](#input\_bigquery\_location) | BigQuery dataset location | `string` | `"US"` | no |
 | <a name="input_deployment_version"></a> [deployment\_version](#input\_deployment\_version) | Desired application version for observability and tag-based Cloud Run image fallback. Hosted releases use a full git commit SHA; image\_digests select the deployed bytes. This value alone does not verify image provenance. | `string` | `"latest"` | no |
 | <a name="input_developer_email"></a> [developer\_email](#input\_developer\_email) | Email of the developer account for BigQuery console access (optional) | `string` | `null` | no |
