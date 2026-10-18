@@ -16,6 +16,11 @@ tf-validate-all:
     (cd terraform/modules/github-actions-wif && terraform init -backend=false && terraform validate)
     @echo "✅ All Terraform configurations are valid!"
 
+# Test the application module with mocked cloud/image lookups (no credentials)
+tf-test:
+    terraform -chdir=terraform/modules/desirelines init -backend=false -lockfile=readonly
+    terraform -chdir=terraform/modules/desirelines test
+
 # Lint Terraform files with TFLint
 tf-lint:
     @echo "🔍 Linting Terraform files..."
