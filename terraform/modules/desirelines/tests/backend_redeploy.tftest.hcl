@@ -48,6 +48,22 @@ run "default_adds_no_rollout_label" {
   }
 }
 
+run "explicit_null_uses_empty_default" {
+  command = plan
+  variables {
+    backend_redeploy_token = null
+  }
+
+  assert {
+    condition = var.backend_redeploy_token == "" && alltrue([
+      length(coalesce(google_cloud_run_v2_service.dispatcher.template[0].labels, {})) == 0,
+      length(coalesce(google_cloud_run_v2_service.api_gateway.template[0].labels, {})) == 0,
+      length(coalesce(google_cloud_run_v2_service.postgres_writer.template[0].labels, {})) == 0,
+    ])
+    error_message = "Forwarding an optional null token must use the empty default without adding any rollout labels."
+  }
+}
+
 run "dev_rollout_uses_only_three_revision_templates" {
   command = plan
   variables {

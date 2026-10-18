@@ -37,6 +37,7 @@ declared image digests. The token changes only those three revision templates;
 it does not replace services or disable their deletion protection. Deletion
 service, backfill and data resources do not receive the token. Empty (the
 default) adds no rollout label, so existing module callers retain their behavior.
+An explicit `null` uses that empty default as well.
 
 Persist the token in the environment's Terraform configuration and retain it on
 normal deployments. Passing a one-off value and then removing it would roll
