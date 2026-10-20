@@ -11,7 +11,12 @@ just dlq-replay postgres-writer prod            # show what would replay
 just dlq-replay postgres-writer prod --execute  # replay it
 ```
 
-Services: `postgres-writer`, `deletion-service`, `activity-rows`.
+The script accepts `postgres-writer`, `deletion-service` and `activity-rows`,
+but its current shell-string publish path does **not** preserve arbitrary binary
+payloads: command substitution loses NUL bytes and trailing newlines. **Do not
+use it for protobuf activity rows on a BINARY topic.** Preserve those DLQ
+messages for a byte-preserving replay procedure; a dry run is not evidence that
+the execute path is safe. The commands above are for JSON event envelopes.
 
 ## Before you replay
 

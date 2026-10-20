@@ -38,7 +38,10 @@ gcloud pubsub subscriptions pull desirelines-activity-rows-dlq-monitoring-<env> 
 covers the other half — rows that never left the dispatcher. This alert only
 sees rows BigQuery received and refused.
 
-**Redrive**: once the schema mismatch is resolved, replay with `just dlq-replay
-activity-rows <env>` (dry run) then `--execute`. See
-[Redriving a DLQ](dlq-redrive.md). Nothing reads this table, so draining without
-replay is also defensible here — unlike the other two DLQs.
+**Redrive**: preserve messages and resolve the schema mismatch first. The current
+`dlq-replay` script passes decoded payloads through a shell string and does not
+preserve binary protobuf; **do not execute it for the BINARY activity-row
+topic**. See [Redriving a DLQ](dlq-redrive.md) and
+[Activity-row schema changes](activity-row-schema-changes.md). Draining without
+replay discards archival changes permanently and requires an explicit owner
+decision; it is not recovery.

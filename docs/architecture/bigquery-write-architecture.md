@@ -67,9 +67,11 @@ PostgreSQL, then cut over and retire the old path.
   non-atomic archive-then-delete problem disappears rather than being worked
   around.
 - **Ordering + deletes are native**, not emulated in SQL.
-- **Schema drift closes**: the topic schema *is* the table schema, so a field
-  can't be present in one and missing from the other (the create/update
-  subscription workflow rejects incompatible schemas outright).
+- **Schema compatibility is checked**: both schemas derive from the same source,
+  and Pub/Sub rejects incompatible subscription configurations. Propagation is
+  eventual; with `drop_unknown_fields`, a field missing from the table can be
+  dropped until the schemas synchronize. Metadata convergence alone is not
+  delivery proof.
 - **Failure handling is built in**: failed writes are negatively acknowledged and
   retried with backoff, and a dead-letter topic captures messages that can't be
   written (with a `…DeliveryErrorMessage` attribute).
@@ -188,11 +190,20 @@ originally guessed wrong.
   update events for title, type and privacy changes only. A photo, description
   or gear change with no accompanying edit of those three produces no event, so
   it does not reach `activities_live` until some later event for that activity.
-- **Schema changes need the topic schema replaced, not revised.** Pub/Sub
-  rejects an incompatible schema revision in either direction — adding a
-  required field and removing one alike — so the schema resource carries a
-  digest of its definition in its name and a changed definition becomes a new
-  schema at revision 1.
+- **Topic schema revisions must remain compatible.** The existing schema name
+  retains its historical `693d93a6` suffix as a stable identity; it no longer
+  changes with the generated definition. The Terraform provider commits
+  compatible definition changes as revisions and retains the earlier revisions.
+  Pub/Sub supports adding/removing optional protobuf fields, but rejects changes
+  to existing fields and additions/removals of other fields. Incompatible
+  changes require a separate migration. Terraform blocks schema destruction
+  during planning and through its stored deletion policy.
+- **Schema retention is deliberate.** BigQuery subscriptions need the revision
+  that validated each queued message. No automatic schema/revision pruning is
+  configured; reaching Pub/Sub's 20-revision limit stops a further update for
+  review. Comments in the generated definition can also consume a revision.
+  Rollback, retirement prerequisites and owner-run verification are described in
+  [Activity-row schema changes](../runbooks/activity-row-schema-changes.md).
 - **Field completeness** is bounded by what the producer holds — the same
   constraint the retired `bq-inserter` had: detailed-only fields depend on the
   enrichment fetch.
