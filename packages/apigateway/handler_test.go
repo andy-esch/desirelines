@@ -1381,13 +1381,15 @@ func TestValidateDateRange(t *testing.T) {
 	})
 }
 
-// TestOpenAPISchemaFieldsMatchProtoJSON guards the response-field half of the
-// spec contract. TestRoutesMatchOpenAPISpec above compares paths and methods
-// only, so nothing caught openapi.yaml documenting snake_case field names for
-// years while the gateway marshals with protojson (UseProtoNames: false) and
-// emits camelCase — a client generated from the spec looked for fields the API
-// never returns. This asserts every documented property of a protobuf-backed
-// schema is a real protojson field name.
+// TestOpenAPISchemaFieldsMatchProtoJSON checks the response-field half of the
+// spec contract; TestRoutesMatchOpenAPISpec above covers paths and methods. The
+// gateway marshals with protojson (UseProtoNames: false), so for each
+// protobuf-backed schema:
+//   - every documented or required property is a real protojson field name;
+//   - every protojson field is documented, so a new proto field fails here
+//     until the spec describes it;
+//   - no proto3 optional field is required, because protojson omits it when
+//     unset.
 //
 // Only schemas served through respondProtobuf belong here. Responses built from
 // hand-written Go structs (RegionSummary, HealthResponse, Error, SportCategory)
@@ -1449,6 +1451,16 @@ func TestOpenAPISchemaFieldsMatchProtoJSON(t *testing.T) {
 			for _, req := range schema.Required {
 				if !wire[req] {
 					t.Errorf("schema marks %q required, but it is not a protojson field name", req)
+				}
+			}
+			for i := range fields.Len() {
+				field := fields.Get(i)
+				name := field.JSONName()
+				if _, documented := schema.Properties[name]; !documented {
+					t.Errorf("protojson emits %q, which the schema does not document", name)
+				}
+				if field.HasOptionalKeyword() && slices.Contains(schema.Required, name) {
+					t.Errorf("schema marks %q required, but it is a proto3 optional field that protojson omits when unset", name)
 				}
 			}
 		})
