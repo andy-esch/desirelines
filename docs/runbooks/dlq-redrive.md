@@ -3,20 +3,17 @@
 Replaying dead-lettered messages back onto the topic they came from, so the
 service that failed them gets another delivery.
 
-`scripts/ops/dlq-replay.sh` does the pull → republish → ack cycle. Dry run by
-default; `--execute` prompts for confirmation:
+[The replay script](../../scripts/ops/dlq-replay.sh) does the pull → republish →
+ack cycle. Dry run by default; `--execute` prompts for confirmation:
 
 ```bash
 just dlq-replay postgres-writer prod            # show what would replay
 just dlq-replay postgres-writer prod --execute  # replay it
 ```
 
-The script accepts `postgres-writer`, `deletion-service` and `activity-rows`,
-but its current shell-string publish path does **not** preserve arbitrary binary
-payloads: command substitution loses NUL bytes and trailing newlines. **Do not
-use it for protobuf activity rows on a BINARY topic.** Preserve those DLQ
-messages for a byte-preserving replay procedure; a dry run is not evidence that
-the execute path is safe. The commands above are for JSON event envelopes.
+**BINARY activity rows: do not execute this script.** Its shell publish path
+loses NUL bytes and trailing newlines. Preserve those messages until replay
+preserves bytes. The commands above are for JSON event envelopes.
 
 ## Before you replay
 

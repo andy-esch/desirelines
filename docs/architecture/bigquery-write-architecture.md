@@ -190,20 +190,12 @@ originally guessed wrong.
   update events for title, type and privacy changes only. A photo, description
   or gear change with no accompanying edit of those three produces no event, so
   it does not reach `activities_live` until some later event for that activity.
-- **Topic schema revisions must remain compatible.** The existing schema name
-  retains its historical `693d93a6` suffix as a stable identity; it no longer
-  changes with the generated definition. The Terraform provider commits
-  compatible definition changes as revisions and retains the earlier revisions.
-  Pub/Sub supports adding/removing optional protobuf fields, but rejects changes
-  to existing fields and additions/removals of other fields. Incompatible
-  changes require a separate migration. Terraform blocks schema destruction
-  during planning and through its stored deletion policy.
-- **Schema retention is deliberate.** BigQuery subscriptions need the revision
-  that validated each queued message. No automatic schema/revision pruning is
-  configured; reaching Pub/Sub's 20-revision limit stops a further update for
-  review. Comments in the generated definition can also consume a revision.
-  Rollback, retirement prerequisites and owner-run verification are described in
-  [Activity-row schema changes](../runbooks/activity-row-schema-changes.md).
+- **Schema evolution retains history.** The
+  [Terraform schema resource](../../terraform/modules/desirelines/bigquery_subscription.tf)
+  (`google_pubsub_schema.activity_rows`) uses a stable identity, compatible
+  revisions and deletion protection. The
+  [runbook](../runbooks/activity-row-schema-changes.md) defines compatibility,
+  revision capacity, rollback, retirement and delivery checks.
 - **Field completeness** is bounded by what the producer holds — the same
   constraint the retired `bq-inserter` had: detailed-only fields depend on the
   enrichment fetch.

@@ -1,5 +1,5 @@
-# Plan-only contract checks; live revision retention and CDC delivery require
-# the owner-run adoption and isolated delivery checks in the schema runbook.
+# Contracts for bigquery_subscription.tf: google_pubsub_schema.activity_rows.
+# Live proof: docs/runbooks/activity-row-schema-changes.md#verify-delivery-and-rollback
 mock_provider "google" {}
 mock_provider "google-beta" {}
 mock_provider "external" {

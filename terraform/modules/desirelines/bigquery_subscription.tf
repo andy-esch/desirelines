@@ -55,25 +55,15 @@
 locals {
   activity_rows_proto_path = "${path.module}/../../../schemas/proto/desirelines/bigquery/cdc/v1/bq_activity_rows.proto"
 
-  # Preserve the name already deployed in dev/prod. This historical digest is
-  # now a stable identity, NOT a fingerprint to regenerate after schema edits.
-  # Compatible definition changes must commit revisions on this same schema
-  # so queued messages keep the schema/revision that validated them.
+  # Preserve the deployed name. This historical digest is a stable identity,
+  # not a fingerprint to regenerate when the definition changes.
   activity_rows_schema_suffix = "693d93a6"
 }
 
-# The provider commits definition updates as revisions. Keep prior revisions:
-# deleting one can prevent queued messages from reaching the BigQuery
-# subscription. Pub/Sub accepts only compatible revisions (for protobuf,
-# adding/removing optional fields; existing fields cannot change). An
-# incompatible edit needs a separate migration, never automatic replacement.
-#
-# Keep both protections: prevent_destroy rejects replacement during planning;
-# deletion_policy persists in state and also blocks destruction if the resource
-# is later removed from configuration. Neither prevents out-of-band API deletes
-# or deletion of individual revisions. At the 20-revision limit, stop for an
-# explicit retention/rollback review; do not prune automatically. See
-# docs/runbooks/activity-row-schema-changes.md.
+# Compatible updates commit revisions; retain history for queued messages.
+# Protect plans and stored state; direct API/revision deletion is not covered.
+# Policy and operator checks: docs/runbooks/activity-row-schema-changes.md
+# Contract tests: tests/activity_rows_schema.tftest.hcl
 resource "google_pubsub_schema" "activity_rows" {
   name            = "${var.project_name}-activity-rows-${var.environment}-${local.activity_rows_schema_suffix}"
   type            = "PROTOCOL_BUFFER"
