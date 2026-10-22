@@ -6,7 +6,6 @@ import (
 
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/server"
 	"github.com/andy-esch/desirelines/packages/apigateway/types/generated"
-	"github.com/andy-esch/desirelines/packages/shared/apierrors"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
@@ -27,8 +26,7 @@ func (h *Handler) respondProtobuf(w http.ResponseWriter, r *http.Request, msg pr
 	data, err := protoMarshaler.Marshal(msg)
 	if err != nil {
 		h.logger.Error("Error marshaling protobuf response", "error", err)
-		apiErr := apierrors.NewAPIError(http.StatusInternalServerError, "Internal server error")
-		apierrors.WriteError(w, r, apiErr, h.logger)
+		h.writeError(w, r, http.StatusInternalServerError, errMsgInternalServerError)
 		return
 	}
 
@@ -111,7 +109,6 @@ func (h *Handler) mergeMultiSportMetrics(byStravaType map[string]*generated.Spor
 			mergePtrField(&existing.Timeseries[i].Distance, entry.Distance)
 			mergePtrField(&existing.Timeseries[i].Elevation, entry.Elevation)
 			mergePtrField(&existing.Timeseries[i].Time, entry.Time)
-			// nil-safe: previously dropped the count when one side was nil.
 			mergePtrField(&existing.Timeseries[i].Activities, entry.Activities)
 		}
 	}
@@ -148,9 +145,9 @@ func (h *Handler) mergeMultiSportDailySummary(byStravaType map[string]*generated
 	return result
 }
 
-// mergePtrField adds source into *target, allocating if *target is nil.
-// Unlike a both-non-nil guard, this keeps the value when exactly one side is
-// set (existing nil + incoming non-nil would otherwise be silently dropped).
+// mergePtrField adds source into *target, allocating if *target is nil. A nil
+// side counts as absent, so a value present on only one side is kept rather
+// than dropped.
 func mergePtrField[T int32 | float64](target **T, source *T) {
 	if source == nil {
 		return

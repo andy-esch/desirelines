@@ -5,7 +5,7 @@
  * It sets up jest-dom matchers for better DOM assertions.
  */
 
-import "@testing-library/jest-dom";
+import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 
 // --- jsdom polyfills for Base UI (Floating UI / pointer) components ---
@@ -89,7 +89,9 @@ class LocalStorageMock {
   }
 }
 
-globalThis.localStorage = new LocalStorageMock();
+// Vitest 5 exposes jsdom's localStorage as a getter-only global, so a plain
+// assignment throws; stubGlobal redefines the property instead.
+vi.stubGlobal("localStorage", new LocalStorageMock());
 
 // Clear localStorage before each test
 beforeEach(() => {

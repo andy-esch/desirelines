@@ -1,4 +1,6 @@
-import type { ThemeMap } from "./registry";
+// Explicit `.ts` extension: vite.config.ts loads this module through registry.ts, and
+// Vite's native config loader requires one.
+import type { ThemeMap } from "./registry.ts";
 
 /**
  * Base-map recolors for the retro themes, used as their theme entries' `map` field. Both
