@@ -295,7 +295,7 @@ jobs:
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.14.0
+          version: v2.15.0
           working-directory: packages/${{ matrix.package }}
           args: --timeout=5m
 

@@ -55,8 +55,8 @@ func TestPublisher_CloseDrainsInflightPublish(t *testing.T) {
 	select {
 	case err := <-closeErr:
 		t.Fatalf("Close returned before in-flight Publish drained: err=%v", err)
-	case <-publishErr:
-		t.Fatal("Publish completed before we issued a server response — test setup invariant violated")
+	case err := <-publishErr:
+		t.Fatalf("Publish completed before we issued a server response — test setup invariant violated: err=%v", err)
 	case <-time.After(50 * time.Millisecond):
 	}
 
