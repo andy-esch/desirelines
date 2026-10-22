@@ -1620,8 +1620,8 @@ func TestIsStravaCallSuccessful(t *testing.T) {
 		{"backoff interrupted, 429 cause", fmt.Errorf("strava backoff interrupted: %w (cause: %w)", context.DeadlineExceeded, &rateLimitError{retryAfter: time.Second}), true},
 		// ...while a truncated 5xx is still a real Strava failure.
 		{"backoff interrupted, 5xx cause", fmt.Errorf("strava backoff interrupted: %w (cause: %w)", context.DeadlineExceeded, &stravaAPIError{statusCode: 503}), false},
-		// Generic Firestore fault on the in-breaker token write-back / re-read
-		// (M1) — Firestore's health, not Strava's; must not trip the breaker.
+		// Generic Firestore fault on the in-breaker token write-back or re-read:
+		// Firestore's health, not Strava's, so it must not trip the breaker.
 		{"token store unavailable (sentinel)", errTokenStoreUnavailable, true},
 		{"token store unavailable (write-back shape)", fmt.Errorf("%w: write-back tokens for athlete %d: %w", errTokenStoreUnavailable, int64(1), errors.New("firestore: Unavailable")), true},
 		// The conflict-reread shape wrapping a deleted-doc still surfaces
@@ -1696,10 +1696,10 @@ func TestCircuitBreaker_RecoversAfterTimeout(t *testing.T) {
 // TestCircuitBreaker_TokenEndpoint5xxCountsAsFailure verifies that a
 // proactive-refresh failure caused by Strava's /oauth/token endpoint
 // returning 5xx is NOT swallowed by the ErrStravaAuth wrap and DOES
-// drive the breaker toward open. Regression guard for the bug gemini
-// flagged: wrapping transient token-refresh failures as ErrStravaAuth
-// hides the failure from the breaker (excluded by isStravaCallSuccessful)
-// and risks misclassifying a Strava outage as a per-user auth issue.
+// drive the breaker toward open. Wrapping transient token-refresh failures
+// as ErrStravaAuth would hide them from the breaker (excluded by
+// isStravaCallSuccessful) and misclassify a Strava outage as a per-user auth
+// issue.
 func TestCircuitBreaker_TokenEndpoint5xxCountsAsFailure(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == testTokenPath {
