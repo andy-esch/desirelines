@@ -42,7 +42,7 @@
       "mode": "NULLABLE",
       "name": "name",
       "type": "STRING",
-      "description": "Activity name/title"
+      "description": "Activity title supplied by Strava"
     },
     {
       "mode": "NULLABLE",

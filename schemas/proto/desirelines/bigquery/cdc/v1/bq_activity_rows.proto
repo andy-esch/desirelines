@@ -248,7 +248,7 @@ message ActivityRow {
   optional int64 upload_id = 3;
   // Athlete information
   optional Athlete athlete = 4;
-  // Activity name/title
+  // Activity title supplied by Strava
   optional string name = 5;
   // Activity distance in meters
   optional double distance = 6;
