@@ -31,7 +31,7 @@ import (
 //
 // Example setup:
 //
-//	make start-frontend  # Starts postgres and runs migrations
+//	just start-frontend  # Starts postgres and runs migrations
 //	export POSTGRES_CONNECTION_STRING="postgresql://desirelines:local_dev_password@localhost:15430/desirelines_local?application_name=integration-test"
 //	go test -tags=integration -v ./adapters/postgres/...
 func TestIntegration_ActivityRepository(t *testing.T) {

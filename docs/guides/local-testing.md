@@ -164,11 +164,34 @@ just web-test                # Frontend only
 # Python integration tests (require services running)
 cd packages/stravapipe
 uv run pytest tests/integration/ -v
-
-# Go integration tests
-cd packages/apigateway
-go test -tags=integration ./...
 ```
+
+Go integration tests sit behind the `integration` build tag in two suites with
+different dependencies. Start the local stack, then run each suite against its
+own service:
+
+```bash
+just start-frontend   # Postgres with migrations on :15430, Firestore emulator on :8089
+
+# PostgreSQL suite (API gateway)
+cd packages/apigateway
+POSTGRES_CONNECTION_STRING="postgresql://<user>:<password>@localhost:15430/<db>?application_name=integration-test" \
+  go test -tags=integration ./adapters/postgres/...
+
+# Firestore suites (API gateway, dispatcher, shared allowlist)
+export FIRESTORE_EMULATOR_HOST=localhost:8089
+(cd packages/apigateway && go test -tags=integration ./adapters/firestore/...)
+(cd packages/dispatcher && go test -tags=integration ./adapters/firestore/...)
+(cd packages/shared && go test -tags=integration ./allowlist/...)
+```
+
+The Postgres user, password and database are the `POSTGRES_*_LOCAL` values in
+`.env.local`. A suite whose service is not configured skips: without
+`POSTGRES_CONNECTION_STRING` the PostgreSQL tests skip, and without
+`FIRESTORE_EMULATOR_HOST` the Firestore tests skip before creating a client
+(they fail instead when `CI=true`). So a broad `go test -tags=integration ./...`
+never reaches a real Google Cloud project with your Application Default
+Credentials.
 
 ## Troubleshooting
 
