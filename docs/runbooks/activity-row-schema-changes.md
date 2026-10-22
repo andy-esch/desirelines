@@ -5,7 +5,9 @@ Implementation: [schema, topic and retention settings](../../terraform/modules/d
 `google_bigquery_table.activities_live`).
 [Contract tests](../../terraform/modules/desirelines/tests/activity_rows_schema.tftest.hcl)
 check schema/table identity, key, definition, deletion policy and the open BINARY
-revision range.
+revision range. [Provider lifecycle tests](../../scripts/ci/activity_table_lifecycle.py)
+plan description updates and reject destructive table changes using synthetic
+state, without cloud access. Run both with `just tf-test`.
 
 ## Policy
 
@@ -41,9 +43,10 @@ gcloud pubsub schemas describe "$schema" --project="$project" --format=json
 gcloud pubsub schemas list-revisions "$schema" --project="$project" --format=json
 ```
 
-Adopt in dev, then prod, before definition edits. The saved plan should change
-only deletion policy in place; schema identity, definition, topic binding and
-revision list must stay unchanged. Confirm `PREVENT` in applied Terraform state
+For initial schema-retention adoption, use dev then prod before definition
+edits. The schema's saved-plan change should be only deletion policy in place;
+schema identity, definition, topic binding and revision list must stay unchanged.
+Confirm `PREVENT` in applied Terraform state
 privately; it is not an API property. Do not publish full plan/state files.
 
 ## Edit, roll back or retire
@@ -59,7 +62,10 @@ a successful metadata check is insufficient. See
 
 Restore a previous compatible definition on the same
 schema to roll back; this consumes another revision. Review older-module
-reverts: hash-based names can request replacement.
+reverts: hash-based Pub/Sub names can request replacement, and the old table's
+`replace_triggered_by` restores replacement on later schema edits. An unchanged
+schema may produce only marker recreation; that does not make later edits safe.
+Keep table protection and the saved-plan guard when choosing a rollback.
 
 **Retain revisions by default; no automatic pruning.** Before deletion, the
 infrastructure owner must account for all producers/consumers, backlog, the

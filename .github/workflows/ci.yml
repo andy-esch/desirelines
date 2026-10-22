@@ -656,6 +656,8 @@ jobs:
         uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: ${{ steps.tf-version.outputs.version }}
+          # Lifecycle tests expect some plans to fail; avoid wrapper error annotations.
+          terraform_wrapper: false
 
       - name: Validate all environments
         run: |
@@ -678,6 +680,9 @@ jobs:
       - name: Test module rollout contract without cloud credentials
         working-directory: terraform/modules/desirelines
         run: terraform test
+
+      - name: Test activity table lifecycle without cloud access
+        run: python3 scripts/ci/activity_table_lifecycle.py
 
       - name: Setup TFLint
         uses: terraform-linters/setup-tflint@v6

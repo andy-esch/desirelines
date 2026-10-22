@@ -35,18 +35,9 @@
 # `_CHANGE_SEQUENCE_NUMBER` for ordering) is applied as an upsert or delete
 # rather than appended.
 #
-# ---- Smoke test (run after apply; needs a dev project) ------------------------
-#   T="$(terraform output -raw activity_rows_topic)"      # or the literal name
-#   # UPSERT a row (JSON must match the activities schema + carry _CHANGE_TYPE):
-#   gcloud pubsub topics publish "$T" --message='{"id":999000001,"user_id":"1",
-#     "name":"smoke","type":"Run","sport_type":"Run","start_date":"2026-01-01T00:00:00Z",
-#     "start_date_local":"2026-01-01T00:00:00Z","distance":1000.0,"moving_time":600,
-#     "elapsed_time":600,"_CHANGE_TYPE":"UPSERT","_CHANGE_SEQUENCE_NUMBER":"01/00000001"}'
-#   # ...confirm one row, then DELETE it, then publish two out-of-order
-#   # _CHANGE_SEQUENCE_NUMBER values and confirm the newest wins:
-#   bq query --use_legacy_sql=false 'SELECT id,name FROM `<dataset>.activities_live` WHERE id=999000001'
-# Record: the exact _CHANGE_TYPE/_CHANGE_SEQUENCE_NUMBER placement + format, and
-# that photos.urls (JSON) accepts null/omitted (never ""), for the producer task.
+# Delivery/rollback and description-edit checks:
+# docs/runbooks/activity-row-schema-changes.md. Use the deployed encoding;
+# a schema-bound BINARY topic rejects JSON smoke messages.
 # ==============================================================================
 
 # ---- Topic schema, bound only when the producer speaks protobuf ---------------
