@@ -71,8 +71,9 @@ func runHelper(tb *fakeTB, fn func(testing.TB)) (returned bool) {
 func withoutEmulator(t *testing.T, ci string) {
 	t.Helper()
 	adc := filepath.Join(t.TempDir(), "adc.json")
-	creds := `{"type":"authorized_user","client_id":"id","client_secret":"secret","refresh_token":"token"}`
-	if err := os.WriteFile(adc, []byte(creds), 0o600); err != nil {
+	// Fake but well-formed: the SDK accepts it without a network call.
+	content := `{"type":"authorized_user","client_id":"id","client_secret":"fake","refresh_token":"fake"}`
+	if err := os.WriteFile(adc, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", adc)
