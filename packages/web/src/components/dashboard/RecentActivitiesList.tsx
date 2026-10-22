@@ -8,7 +8,7 @@ import Loader from "../Loader";
 import { ErrorState } from "../ErrorState";
 import { MapPinIcon } from "../ui/MapPinIcon";
 import { sourceHref } from "../../utils/activitySource";
-import type { TimeRange } from "../../utils/dataNormalization";
+import type { DashboardTimeRange } from "../../utils/timeRange";
 import { convertDistance, formatDistance, formatImpactPct } from "../../utils/units";
 import { MissingValue } from "../theme/MissingValue";
 
@@ -97,7 +97,7 @@ function getImpactStyle(
 }
 
 interface RecentActivitiesListProps {
-  timeRange: TimeRange;
+  timeRange: DashboardTimeRange;
   /** Rows per page until the panel's height is measured. */
   pageSize?: number;
   className?: string;

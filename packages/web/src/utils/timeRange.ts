@@ -26,6 +26,18 @@ export function coerceTimeRange(value: unknown, fallback: TimeRange): TimeRange 
 }
 
 /**
+ * The dashboard's presets: every range except "all", because the dashboard always shows
+ * a bounded window. Its windows come from `getTimeRangeCutoff` in `chartUtils`, not
+ * `calculateDateRange` below.
+ */
+export type DashboardTimeRange = Exclude<TimeRange, "all">;
+
+export const DASHBOARD_TIME_RANGE_OPTIONS = TIME_RANGE_OPTIONS.filter(
+  (option): option is (typeof TIME_RANGE_OPTIONS)[number] & { value: DashboardTimeRange } =>
+    option.value !== "all"
+);
+
+/**
  * Resolve a range preset to an inclusive local-date window (`all` = unbounded).
  *
  * Uses the local-date helpers from dateUtils (not `.toISOString()`, which

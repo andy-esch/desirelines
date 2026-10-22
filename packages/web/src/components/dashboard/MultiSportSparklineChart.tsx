@@ -11,7 +11,7 @@ import { SkeletonRegion, SparklineSkeleton } from "../Skeleton";
 import { ErrorState } from "../ErrorState";
 import { useMultiSportChartData } from "../../hooks/useMultiSportChartData";
 import type { TuningParams } from "../../utils/demoDataGenerator";
-import type { TimeRange } from "../../utils/dataNormalization";
+import type { DashboardTimeRange } from "../../utils/timeRange";
 import { MissingValue } from "../theme/MissingValue";
 import { Panel } from "../theme/Panel";
 import { useThemeDateFormat } from "../theme/useThemeDateFormat";
@@ -19,7 +19,7 @@ import ChartTooltipFrame from "../charts/ChartTooltipFrame";
 import { cn } from "@/lib/utils";
 
 interface MultiSportSparklineChartProps {
-  timeRange: TimeRange;
+  timeRange: DashboardTimeRange;
   className?: string | undefined;
   tuningParams?: TuningParams | undefined;
 }

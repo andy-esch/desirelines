@@ -290,28 +290,28 @@ describe("chartUtils", () => {
     const refDate = new Date("2026-01-15T12:00:00");
 
     it("calculates 2 weeks cutoff correctly", () => {
-      const cutoff = getTimeRangeCutoff(refDate, "2weeks");
+      const cutoff = getTimeRangeCutoff(refDate, "2w");
       expect(cutoff.getFullYear()).toBe(2026);
       expect(cutoff.getMonth()).toBe(0); // January
       expect(cutoff.getDate()).toBe(1); // 15 - 14 = 1
     });
 
     it("calculates 4 weeks cutoff correctly", () => {
-      const cutoff = getTimeRangeCutoff(refDate, "4weeks");
+      const cutoff = getTimeRangeCutoff(refDate, "4w");
       expect(cutoff.getFullYear()).toBe(2025);
       expect(cutoff.getMonth()).toBe(11); // December
       expect(cutoff.getDate()).toBe(18); // 15 - 28 = -13, wraps to Dec 18
     });
 
     it("calculates 2 months cutoff correctly", () => {
-      const cutoff = getTimeRangeCutoff(refDate, "2months");
+      const cutoff = getTimeRangeCutoff(refDate, "2m");
       expect(cutoff.getFullYear()).toBe(2025);
       expect(cutoff.getMonth()).toBe(10); // November (Jan - 2 = Nov)
       expect(cutoff.getDate()).toBe(15); // Same day of month
     });
 
     it("calculates 6 months cutoff correctly", () => {
-      const cutoff = getTimeRangeCutoff(refDate, "6months");
+      const cutoff = getTimeRangeCutoff(refDate, "6m");
       expect(cutoff.getFullYear()).toBe(2025);
       expect(cutoff.getMonth()).toBe(6); // July (Jan - 6 = July)
       expect(cutoff.getDate()).toBe(15); // Same day of month
@@ -332,7 +332,7 @@ describe("chartUtils", () => {
       const originalDate = new Date("2026-01-15T12:00:00");
       const originalTime = originalDate.getTime();
 
-      getTimeRangeCutoff(originalDate, "2weeks");
+      getTimeRangeCutoff(originalDate, "2w");
 
       // Original date should be unchanged
       expect(originalDate.getTime()).toBe(originalTime);
@@ -341,7 +341,7 @@ describe("chartUtils", () => {
     it("handles year boundary for 2 weeks", () => {
       // Jan 5 - 14 days should go to December
       const nearYearStart = new Date("2026-01-05T12:00:00");
-      const cutoff = getTimeRangeCutoff(nearYearStart, "2weeks");
+      const cutoff = getTimeRangeCutoff(nearYearStart, "2w");
 
       expect(cutoff.getFullYear()).toBe(2025);
       expect(cutoff.getMonth()).toBe(11); // December
@@ -351,7 +351,7 @@ describe("chartUtils", () => {
     it("handles month boundary for 2 months", () => {
       // March 31 - 2 months should handle Feb having fewer days
       const endOfMarch = new Date("2026-03-31T12:00:00");
-      const cutoff = getTimeRangeCutoff(endOfMarch, "2months");
+      const cutoff = getTimeRangeCutoff(endOfMarch, "2m");
 
       // JavaScript Date handles this by rolling to next month
       // Mar 31 - 2 months = Jan 31
@@ -503,11 +503,11 @@ describe("chartUtils", () => {
   describe("getDateRangeFromTimeRange", () => {
     it("runs from the range's cutoff to today, as local dates", () => {
       const now = new Date("2026-01-15T12:00:00");
-      expect(getDateRangeFromTimeRange("2weeks", now)).toEqual({
+      expect(getDateRangeFromTimeRange("2w", now)).toEqual({
         from: "2026-01-01",
         to: "2026-01-15",
       });
-      expect(getDateRangeFromTimeRange("4weeks", now)).toEqual({
+      expect(getDateRangeFromTimeRange("4w", now)).toEqual({
         from: "2025-12-18",
         to: "2026-01-15",
       });

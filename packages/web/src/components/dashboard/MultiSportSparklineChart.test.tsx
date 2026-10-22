@@ -108,7 +108,7 @@ describe("MultiSportSparklineChart", () => {
         mockDailySportDataReturn({ data: emptyDailySportData, isLoading: true })
       );
 
-      await renderWithRouter(<MultiSportSparklineChart timeRange="2weeks" />);
+      await renderWithRouter(<MultiSportSparklineChart timeRange="2w" />);
 
       // Skeleton container has role="status" for accessibility
       expect(screen.getByRole("status")).toBeInTheDocument();
@@ -122,7 +122,7 @@ describe("MultiSportSparklineChart", () => {
         mockDailySportDataReturn({ data: emptyDailySportData, error: new Error("Failed to fetch") })
       );
 
-      await renderWithRouter(<MultiSportSparklineChart timeRange="2weeks" />);
+      await renderWithRouter(<MultiSportSparklineChart timeRange="2w" />);
 
       expect(screen.getByRole("alert")).toHaveTextContent("Error loading chart data");
     });
@@ -132,7 +132,7 @@ describe("MultiSportSparklineChart", () => {
       mockUseDailySportData.mockReturnValue(
         mockDailySportDataReturn({ data: emptyDailySportData, error: new Error("timeout"), retry })
       );
-      await renderWithRouter(<MultiSportSparklineChart timeRange="2weeks" />);
+      await renderWithRouter(<MultiSportSparklineChart timeRange="2w" />);
 
       await userEvent.click(screen.getByRole("button", { name: "Retry" }));
       expect(retry).toHaveBeenCalledOnce();
@@ -170,14 +170,14 @@ describe("MultiSportSparklineChart", () => {
     });
 
     it("renders sparklines for each sport", async () => {
-      await renderWithRouter(<MultiSportSparklineChart timeRange="2weeks" />);
+      await renderWithRouter(<MultiSportSparklineChart timeRange="2w" />);
 
       expect(screen.getByTestId("responsive-container")).toBeInTheDocument();
       expect(screen.getAllByTestId("chart-line")).toHaveLength(3);
     });
 
     it("draws each sport's line over a casing in the theme's casing color", async () => {
-      await renderWithRouter(<MultiSportSparklineChart timeRange="2weeks" />);
+      await renderWithRouter(<MultiSportSparklineChart timeRange="2w" />);
 
       const marks = screen.getAllByTestId(/^chart-(casing|line)$/);
       expect(marks.map((m) => m.dataset.testid)).toEqual([
@@ -187,7 +187,7 @@ describe("MultiSportSparklineChart", () => {
     });
 
     it("renders sport labels as links to year with most recent activity", async () => {
-      await renderWithRouter(<MultiSportSparklineChart timeRange="2weeks" />);
+      await renderWithRouter(<MultiSportSparklineChart timeRange="2w" />);
 
       expect(screen.getByRole("link", { name: "Cycling" })).toHaveAttribute(
         "href",
@@ -227,7 +227,7 @@ describe("MultiSportSparklineChart", () => {
 
     it("formats each sport's value for its primary metric", async () => {
       hover.date = today;
-      await renderWithRouter(<MultiSportSparklineChart timeRange="2weeks" />);
+      await renderWithRouter(<MultiSportSparklineChart timeRange="2w" />);
 
       // 20 km is 12.4 mi: one decimal from ten up, two below.
       expect(valueFor("Cycling")).toHaveTextContent("12.4 mi");
@@ -240,7 +240,7 @@ describe("MultiSportSparklineChart", () => {
         getUserSettings({ distanceUnit: "kilometers" } as Preferences)
       );
       hover.date = today;
-      await renderWithRouter(<MultiSportSparklineChart timeRange="2weeks" />);
+      await renderWithRouter(<MultiSportSparklineChart timeRange="2w" />);
 
       expect(valueFor("Cycling")).toHaveTextContent("20.0 km");
       expect(valueFor("Running")).toHaveTextContent("5.00 km");
@@ -279,14 +279,14 @@ describe("MultiSportSparklineChart", () => {
         retry: vi.fn(),
       });
       hover.date = today;
-      await renderWithRouter(<MultiSportSparklineChart timeRange="2weeks" />);
+      await renderWithRouter(<MultiSportSparklineChart timeRange="2w" />);
 
       expect(valueFor("Climbing")).toHaveTextContent("2 sessions");
     });
 
     it("marks a quiet day's value as missing for every sport", async () => {
       hover.date = yesterday;
-      await renderWithRouter(<MultiSportSparklineChart timeRange="2weeks" />);
+      await renderWithRouter(<MultiSportSparklineChart timeRange="2w" />);
 
       for (const name of ["Cycling", "Running", "Yoga"]) {
         expect(valueFor(name)).toHaveTextContent("none");

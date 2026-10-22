@@ -58,7 +58,7 @@ describe("RecentActivitiesList missing values", () => {
       retry: vi.fn(),
     });
 
-    render(<RecentActivitiesList timeRange="4weeks" pageSize={5} />);
+    render(<RecentActivitiesList timeRange="4w" pageSize={5} />);
 
     // No distance, and no goal to take a share of, so both cells are missing values.
     const dashes = screen.getAllByText("—");
@@ -80,7 +80,7 @@ describe("RecentActivitiesList source links", () => {
       loadMore: vi.fn(),
       retry: vi.fn(),
     });
-    render(<RecentActivitiesList timeRange="4weeks" pageSize={5} />);
+    render(<RecentActivitiesList timeRange="4w" pageSize={5} />);
   }
 
   it("links the name to the URL the API supplies", () => {
@@ -129,7 +129,7 @@ describe("RecentActivitiesList Impact column", () => {
       loadMore: vi.fn(),
       retry: vi.fn(),
     });
-    render(<RecentActivitiesList timeRange="4weeks" pageSize={5} />);
+    render(<RecentActivitiesList timeRange="4w" pageSize={5} />);
   }
 
   afterEach(() => vi.mocked(useDashboardGoalData).mockReset());
@@ -183,7 +183,7 @@ describe("RecentActivitiesList pagination", () => {
       retry: vi.fn(),
     }));
 
-    render(<RecentActivitiesList timeRange="4weeks" pageSize={2} />);
+    render(<RecentActivitiesList timeRange="4w" pageSize={2} />);
 
     // pageSize 2 with 2 activities => one local page, so page 0 is the boundary.
     expect(screen.getByText("1/+")).toBeInTheDocument();
@@ -208,12 +208,12 @@ describe("RecentActivitiesList pagination", () => {
       retry: vi.fn(),
     }));
 
-    const { rerender } = render(<RecentActivitiesList timeRange="4weeks" pageSize={1} />);
+    const { rerender } = render(<RecentActivitiesList timeRange="4w" pageSize={1} />);
     fireEvent.click(screen.getByLabelText("Older activities"));
 
     // hasMore is true but loadMore never resolves and isLoadingMore stays false,
     // so the advance is not protected and the clamp reels it back in.
-    rerender(<RecentActivitiesList timeRange="4weeks" pageSize={1} />);
+    rerender(<RecentActivitiesList timeRange="4w" pageSize={1} />);
     expect(screen.getByText("1/+")).toBeInTheDocument();
   });
 
@@ -231,7 +231,7 @@ describe("RecentActivitiesList pagination", () => {
 
     render(
       <ThemeStructureProvider structure={structure}>
-        <RecentActivitiesList timeRange="2weeks" pageSize={5} />
+        <RecentActivitiesList timeRange="2w" pageSize={5} />
       </ThemeStructureProvider>
     );
 
@@ -253,7 +253,7 @@ describe("RecentActivitiesList error", () => {
       retry,
     });
 
-    const { container } = render(<RecentActivitiesList timeRange="4weeks" pageSize={5} />);
+    const { container } = render(<RecentActivitiesList timeRange="4w" pageSize={5} />);
 
     expect(screen.getByRole("alert")).toHaveTextContent(
       /Error loading activities.*Network request failed/
