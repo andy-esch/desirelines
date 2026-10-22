@@ -598,8 +598,8 @@ func (s *conflictTokenStore) GetTokens(_ context.Context, _ int64) (*stravatoken
 	return s.winnerTokens, nil
 }
 
-func (s *conflictTokenStore) WriteTokensIfUnmodified(_ context.Context, _ int64, _ *stravatoken.Data, _ time.Time) error {
-	return ports.ErrTokenConflict
+func (s *conflictTokenStore) WriteTokensIfUnmodified(_ context.Context, _ int64, _ *stravatoken.Data, _ time.Time) (time.Time, error) {
+	return time.Time{}, ports.ErrTokenConflict
 }
 
 func (s *conflictTokenStore) DeleteTokens(_ context.Context, _ int64) error {
@@ -1049,6 +1049,77 @@ func TestFetchActivity_ProactiveRefreshOnExpiry(t *testing.T) {
 	span := spanByName(t, sr, "strava.refresh_token")
 	if got := spanAttrString(span, "strava.refresh_reason"); got != refreshReasonProactiveExpiry {
 		t.Errorf("strava.refresh_reason = %q, want %q", got, refreshReasonProactiveExpiry)
+	}
+}
+
+// A proactive refresh followed by a reactive-401 refresh in one request must
+// persist both. The second write bases on the version the first one stored; if
+// the refreshed tokens came back without it, the store would report a conflict,
+// the client would fall back to the first refresh's (already rejected) tokens,
+// and the second refresh's rotated refresh token would be lost.
+func TestFetchActivity_ReactiveRefreshAfterProactiveRefreshPersists(t *testing.T) {
+	var tokenCalls atomic.Int32
+	var secondRefreshToken atomic.Value
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case testTokenPath:
+			call := tokenCalls.Add(1)
+			if err := r.ParseForm(); err != nil {
+				t.Errorf("parse token form: %v", err)
+			}
+			prefix := "proactive"
+			if call == 2 {
+				secondRefreshToken.Store(r.PostForm.Get("refresh_token"))
+				prefix = "reactive"
+			}
+			if err := json.NewEncoder(w).Encode(map[string]any{
+				"access_token": prefix + "-access", "refresh_token": prefix + "-refresh", "expires_at": futureExpiry(),
+			}); err != nil {
+				t.Errorf("failed to encode response: %v", err)
+			}
+		case testActivityPath:
+			// The proactively refreshed token was revoked before nominal expiry.
+			if r.Header.Get("Authorization") != "Bearer reactive-access" {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			if _, err := w.Write([]byte(`{"id":12345}`)); err != nil {
+				t.Errorf("failed to write response: %v", err)
+			}
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	tokenStore := &portstest.MockTokenStore{
+		Versioned: true,
+		Tokens: map[int64]*stravatoken.Data{
+			testOwnerID: {AccessToken: "stale-access", RefreshToken: "stale-refresh", ExpiresAt: pastExpiry()},
+		},
+	}
+	client := newTestClient(server, tokenStore)
+
+	body, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+	if err != nil {
+		t.Fatalf("FetchActivity() error = %v", err)
+	}
+	if string(body) != `{"id":12345}` {
+		t.Errorf("body = %s, want {\"id\":12345}", string(body))
+	}
+	if n := tokenCalls.Load(); n != 2 {
+		t.Fatalf("token endpoint called %d times, want 2 (proactive, then reactive)", n)
+	}
+	if got := secondRefreshToken.Load(); got != "proactive-refresh" {
+		t.Errorf("reactive refresh sent refresh_token %v, want the proactively rotated proactive-refresh", got)
+	}
+	stored, err := tokenStore.GetTokens(context.Background(), testOwnerID)
+	if err != nil {
+		t.Fatalf("GetTokens() error = %v", err)
+	}
+	if stored.AccessToken != "reactive-access" || stored.RefreshToken != "reactive-refresh" {
+		t.Errorf("stored tokens = %s/%s, want reactive-access/reactive-refresh (the reactive refresh was not persisted)",
+			stored.AccessToken, stored.RefreshToken)
 	}
 }
 
@@ -1796,11 +1867,11 @@ func (s *flakyWriteTokenStore) GetTokens(_ context.Context, _ int64) (*stravatok
 	return s.tokens, nil
 }
 
-func (s *flakyWriteTokenStore) WriteTokensIfUnmodified(_ context.Context, _ int64, _ *stravatoken.Data, _ time.Time) error {
+func (s *flakyWriteTokenStore) WriteTokensIfUnmodified(_ context.Context, _ int64, _ *stravatoken.Data, _ time.Time) (time.Time, error) {
 	if s.writeCount.Add(1) <= s.failWrites {
-		return errors.New("firestore unavailable")
+		return time.Time{}, errors.New("firestore unavailable")
 	}
-	return nil
+	return time.Unix(1, 0), nil
 }
 
 func (s *flakyWriteTokenStore) DeleteTokens(_ context.Context, _ int64) error { return nil }
@@ -2127,8 +2198,8 @@ func (s *staleGrantTokenStore) GetTokens(context.Context, int64) (*stravatoken.D
 	return s.stale, nil
 }
 
-func (s *staleGrantTokenStore) WriteTokensIfUnmodified(context.Context, int64, *stravatoken.Data, time.Time) error {
-	return errors.New("unexpected token write")
+func (s *staleGrantTokenStore) WriteTokensIfUnmodified(context.Context, int64, *stravatoken.Data, time.Time) (time.Time, error) {
+	return time.Time{}, errors.New("unexpected token write")
 }
 
 func (s *staleGrantTokenStore) DeleteTokens(context.Context, int64) error { return nil }

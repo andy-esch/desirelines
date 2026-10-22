@@ -98,7 +98,8 @@ func TestTokenStore_WriteIfUnmodifiedAndRead(t *testing.T) {
 		ExpiresAt:    time.Now().Add(6 * time.Hour).Unix(),
 	}
 
-	if err := store.WriteTokensIfUnmodified(ctx, athleteID, refreshed, seedTime); err != nil {
+	version, err := store.WriteTokensIfUnmodified(ctx, athleteID, refreshed, seedTime)
+	if err != nil {
 		t.Fatalf("WriteTokensIfUnmodified() error = %v", err)
 	}
 
@@ -113,8 +114,21 @@ func TestTokenStore_WriteIfUnmodifiedAndRead(t *testing.T) {
 	if got.RefreshToken != refreshed.RefreshToken {
 		t.Errorf("RefreshToken = %s, want %s", got.RefreshToken, refreshed.RefreshToken)
 	}
-	if got.LastRefreshed.IsZero() {
-		t.Error("LastRefreshed should be set after WriteTokensIfUnmodified")
+	// The returned version must be exactly what Firestore stored, so a second
+	// write in the same request can base on it. Firestore (and the emulator)
+	// keeps microseconds; on Linux, where time.Now carries nanoseconds, an
+	// untruncated version fails this check. macOS clocks are microsecond-grained,
+	// so there it passes either way.
+	if version.IsZero() || !got.LastRefreshed.Equal(version) {
+		t.Fatalf("returned version = %v, stored LastRefreshed = %v; want equal and non-zero", version, got.LastRefreshed)
+	}
+	again := &stravatoken.Data{
+		AccessToken:  "second-access",
+		RefreshToken: "second-refresh",
+		ExpiresAt:    time.Now().Add(6 * time.Hour).Unix(),
+	}
+	if _, err := store.WriteTokensIfUnmodified(ctx, athleteID, again, version); err != nil {
+		t.Fatalf("second write based on the returned version: %v", err)
 	}
 }
 
@@ -146,7 +160,7 @@ func TestTokenStore_WriteIfUnmodified_PreservesOAuthFields(t *testing.T) {
 		// simulating what the dispatcher passes after a Strava token refresh.
 	}
 
-	if err := store.WriteTokensIfUnmodified(ctx, athleteID, refreshed, seedTime); err != nil {
+	if _, err := store.WriteTokensIfUnmodified(ctx, athleteID, refreshed, seedTime); err != nil {
 		t.Fatalf("WriteTokensIfUnmodified() error = %v", err)
 	}
 
@@ -190,7 +204,7 @@ func TestTokenStore_WriteTokensIfUnmodified_NotFoundReturnsErrTokenNotFound(t *t
 	athleteID := int64(33333)
 	// No seedTokens — doc doesn't exist, simulating the racing delete.
 
-	err := store.WriteTokensIfUnmodified(ctx, athleteID, &stravatoken.Data{
+	_, err := store.WriteTokensIfUnmodified(ctx, athleteID, &stravatoken.Data{
 		AccessToken:   "new-access",
 		RefreshToken:  "new-refresh",
 		ExpiresAt:     time.Now().Add(6 * time.Hour).Unix(),
@@ -260,7 +274,7 @@ func TestTokenStore_WriteIfUnmodified_Conflict(t *testing.T) {
 		ExpiresAt:    time.Now().Add(6 * time.Hour).Unix(),
 	}
 
-	err := store.WriteTokensIfUnmodified(ctx, athleteID, refreshed, staleTime)
+	_, err := store.WriteTokensIfUnmodified(ctx, athleteID, refreshed, staleTime)
 	if err == nil {
 		t.Fatal("expected ErrTokenConflict for stale version stamp")
 	}

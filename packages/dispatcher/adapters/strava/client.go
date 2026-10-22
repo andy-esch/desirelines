@@ -108,7 +108,7 @@ const (
 	// Combined with retry: breaker wraps retry, so the breaker counts
 	// exhausted operations (not individual HTTP failures), per Microsoft's
 	// "Combining the Circuit Breaker pattern with the Retry pattern"
-	// guidance and the audit's 2026-05-28-arch-failure-modes M1 follow-up.
+	// guidance.
 	// 5 consecutive operations failing is a strong signal Strava itself
 	// is down; 30s open-state gives the dependency time to recover before
 	// half-open probes.
@@ -464,12 +464,7 @@ func (c *Client) doVerifyCurrentAthlete(ctx context.Context, ownerID int64, acce
 	if err != nil {
 		return wrapHTTPErr(ctx, err, "athlete request failed")
 	}
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			c.logger.Error("Failed to close response body",
-				"correlation_id", gcplog.CorrelationIDFromContext(ctx), "error", closeErr)
-		}
-	}()
+	defer c.closeResponseBody(ctx, resp.Body)
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxTokenResponseBytes))
 	if err != nil {
@@ -608,12 +603,7 @@ func (c *Client) doFetchActivity(ctx context.Context, activityID int64, accessTo
 	if err != nil {
 		return nil, wrapHTTPErr(ctx, err, "http request failed")
 	}
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			c.logger.Error("Failed to close response body",
-				"correlation_id", gcplog.CorrelationIDFromContext(ctx), "error", closeErr)
-		}
-	}()
+	defer c.closeResponseBody(ctx, resp.Body)
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxActivityResponseBytes))
 	if err != nil {
@@ -634,12 +624,6 @@ func (c *Client) doFetchActivity(ctx context.Context, activityID int64, accessTo
 	}
 }
 
-// refreshAndPersist refreshes Strava tokens and writes them back to the TokenStore
-// using optimistic concurrency. If another goroutine refreshed tokens concurrently,
-// the conflict is detected and the winner's tokens are used instead.
-//
-// Returns error if either the refresh or the write-back fails — callers must not
-// proceed with stale tokens if write-back fails.
 // refreshAndPersist serializes refreshes per athlete, then delegates to
 // refreshAndPersistOnce.
 //
@@ -685,6 +669,15 @@ func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *s
 	return refreshed, nil
 }
 
+// refreshAndPersistOnce refreshes Strava tokens and writes them back to the
+// TokenStore using optimistic concurrency. If another goroutine refreshed the
+// tokens concurrently, the conflict is detected and the winner's tokens are used
+// instead. The returned tokens carry the version that was persisted, so a later
+// write of them (a reactive refresh after a proactive one in the same request)
+// bases on it.
+//
+// Returns an error if either the refresh or the write-back fails; callers must
+// not proceed with stale tokens if write-back fails.
 func (c *Client) refreshAndPersistOnce(ctx context.Context, ownerID int64, tokens *stravatoken.Data, reason string) (_ *stravatoken.Data, err error) {
 	ctx, spanDone := otel.StartSpan(ctx, c.tracer, "strava.refresh_token",
 		attribute.Int64("strava.owner_id", ownerID),
@@ -710,7 +703,7 @@ func (c *Client) refreshAndPersistOnce(ctx context.Context, ownerID int64, token
 			}
 
 			// Optimistic write: only succeeds if no concurrent refresh happened.
-			writeErr := c.persistRefreshedTokens(ctx, ownerID, newTokens, versionBefore)
+			persisted, writeErr := c.persistRefreshedTokens(ctx, ownerID, newTokens, versionBefore)
 			if writeErr != nil {
 				if errors.Is(writeErr, ports.ErrTokenConflict) {
 					// Another goroutine won the race. Re-read their tokens.
@@ -746,15 +739,16 @@ func (c *Client) refreshAndPersistOnce(ctx context.Context, ownerID int64, token
 				// This is the expensive failure: Strava minted new tokens and we
 				// could not store them, so if Strava rotated the refresh token
 				// the stored one is now dead and the grant needs re-linking. Mark
-				// it distinctly — without this it is indistinguishable in Cloud
-				// Trace from a benign transient read fault, which is why the
-				// original audit could not tell how often it fires.
+				// it distinctly so Cloud Trace can tell it apart from a benign
+				// transient read fault and show how often it fires.
 				trace.SpanFromContext(ctx).SetAttributes(attribute.Bool("strava.token_writeback_lost", true))
 				c.logger.Error("Refreshed Strava tokens could not be persisted; the grant may need re-linking",
 					"correlation_id", cid, "owner_id", ownerID, "error", writeErr)
 				err = fmt.Errorf("%w: write-back tokens for athlete %d: %w", errTokenStoreUnavailable, ownerID, writeErr)
 				return nil, err
 			}
+
+			newTokens.LastRefreshed = persisted
 
 			if newTokens.ExpiresAt == 0 {
 				// Without an expiry, refresh-ahead treats the token as
@@ -773,8 +767,8 @@ func (c *Client) refreshAndPersistOnce(ctx context.Context, ownerID int64, token
 		// rejected; retrying with the same token cannot recover. Surface
 		// immediately rather than burning a backoff and a second call.
 		// strava.refresh_rejected makes this branch filterable in Cloud Trace
-		// without log-mining (mirrors strava.token_conflict and the audit's
-		// recommendation for the M1 rate-limit case).
+		// without log-mining, like strava.token_conflict and
+		// strava.rate_limited.
 		if errors.Is(err, errRefreshTokenRejected) {
 			trace.SpanFromContext(ctx).SetAttributes(attribute.Bool("strava.refresh_rejected", true))
 			// The tokens we read are known-bad: Strava rejected the refresh token.
@@ -824,22 +818,25 @@ func (c *Client) refreshAndPersistOnce(ctx context.Context, ownerID int64, token
 //
 // ErrTokenConflict and ErrTokenNotFound are terminal by design: both mean the
 // world changed underneath us, and repeating the write cannot fix either.
+//
+// Returns the version the store persisted.
 func (c *Client) persistRefreshedTokens(
 	ctx context.Context,
 	ownerID int64,
 	newTokens *stravatoken.Data,
 	versionBefore time.Time,
-) error {
+) (time.Time, error) {
 	var writeErr error
 	for attempt := range tokenRetryAttempts {
-		writeErr = c.tokenStore.WriteTokensIfUnmodified(ctx, ownerID, newTokens, versionBefore)
+		var persisted time.Time
+		persisted, writeErr = c.tokenStore.WriteTokensIfUnmodified(ctx, ownerID, newTokens, versionBefore)
 		if writeErr == nil {
-			return nil
+			return persisted, nil
 		}
 		if errors.Is(writeErr, ports.ErrTokenConflict) || errors.Is(writeErr, ports.ErrTokenNotFound) {
 			// %w, not a bare return: the caller branches on both sentinels with
 			// errors.Is, so the chain has to survive the wrap.
-			return fmt.Errorf("write tokens: %w", writeErr)
+			return time.Time{}, fmt.Errorf("write tokens: %w", writeErr)
 		}
 		if attempt < tokenRetryAttempts-1 {
 			backoff := min(tokenRetryBackoff*time.Duration(1<<attempt), maxRetryBackoff)
@@ -852,12 +849,21 @@ func (c *Client) persistRefreshedTokens(
 			)
 			select {
 			case <-ctx.Done():
-				return fmt.Errorf("token write-back interrupted: %w (cause: %w)", ctx.Err(), writeErr)
+				return time.Time{}, fmt.Errorf("token write-back interrupted: %w (cause: %w)", ctx.Err(), writeErr)
 			case <-time.After(backoff):
 			}
 		}
 	}
-	return fmt.Errorf("write tokens after %d attempts: %w", tokenRetryAttempts, writeErr)
+	return time.Time{}, fmt.Errorf("write tokens after %d attempts: %w", tokenRetryAttempts, writeErr)
+}
+
+// closeResponseBody closes an HTTP response body, logging a failure rather than
+// returning it: by then the body has been read and the outcome decided.
+func (c *Client) closeResponseBody(ctx context.Context, body io.Closer) {
+	if err := body.Close(); err != nil {
+		c.logger.Error("Failed to close response body",
+			"correlation_id", gcplog.CorrelationIDFromContext(ctx), "error", err)
+	}
 }
 
 // doRefreshToken performs a single token refresh request and returns the new tokens.
@@ -879,12 +885,7 @@ func (c *Client) doRefreshToken(ctx context.Context, refreshToken string) (*stra
 	if err != nil {
 		return nil, wrapHTTPErr(ctx, err, "token request failed")
 	}
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			c.logger.Error("Failed to close response body",
-				"correlation_id", gcplog.CorrelationIDFromContext(ctx), "error", closeErr)
-		}
-	}()
+	defer c.closeResponseBody(ctx, resp.Body)
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxTokenResponseBytes))
 	if err != nil {
