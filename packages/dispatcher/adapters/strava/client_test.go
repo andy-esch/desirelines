@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -1879,6 +1880,53 @@ func (s *flakyWriteTokenStore) DeleteTokens(_ context.Context, _ int64) error { 
 // Firestore fault must still land the tokens, because the alternative is
 // discarding a refresh token Strava may have just rotated, which bricks the
 // grant.
+// A write-back retry cut short by the caller's context returns no version and
+// both causes, and does not attempt the write again.
+func TestPersistRefreshedTokens_CancelledDuringBackoff(t *testing.T) {
+	store := &flakyWriteTokenStore{failWrites: tokenRetryAttempts}
+	server := httptest.NewServer(http.NotFoundHandler())
+	defer server.Close()
+	client := newTestClient(server, store)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	version, err := client.persistRefreshedTokens(ctx, testOwnerID, &stravatoken.Data{AccessToken: "a"}, time.Time{})
+
+	if !errors.Is(err, context.Canceled) || !strings.Contains(err.Error(), "firestore unavailable") {
+		t.Errorf("error = %v, want context.Canceled wrapping the write failure", err)
+	}
+	if !version.IsZero() {
+		t.Errorf("version = %v, want zero on failure", version)
+	}
+	if got := store.writeCount.Load(); got != 1 {
+		t.Errorf("writes = %d, want 1 (no retry after cancellation)", got)
+	}
+}
+
+type failingCloser struct{ err error }
+
+func (f failingCloser) Close() error { return f.err }
+
+// A failed body close is logged, not returned: the response was already read.
+func TestCloseResponseBody_LogsOnlyFailures(t *testing.T) {
+	logger, logs := gcplog.NewCaptureLogger()
+	client := &Client{logger: logger}
+
+	client.closeResponseBody(context.Background(), failingCloser{})
+	if got := logs.Logs(); len(got) != 0 {
+		t.Fatalf("logs after a clean close = %v, want none", got)
+	}
+
+	client.closeResponseBody(context.Background(), failingCloser{err: errors.New("connection reset")})
+	got := logs.Logs()
+	if len(got) != 1 || got[0].Level != slog.LevelError || got[0].Message != "Failed to close response body" {
+		t.Fatalf("logs = %+v, want one error-level close failure", got)
+	}
+	if fmt.Sprint(got[0].Attrs["error"]) != "connection reset" {
+		t.Errorf("logged error = %v, want connection reset", got[0].Attrs["error"])
+	}
+}
+
 func TestFetchActivity_WriteBackRetriedAfterTransientFault(t *testing.T) {
 	var activityServed atomic.Bool
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -4,6 +4,7 @@ package firestore
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -50,7 +51,7 @@ func TestTokenStore_GetTokens_NotFound(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for non-existent athlete")
 	}
-	if err != ports.ErrTokenNotFound {
+	if !errors.Is(err, ports.ErrTokenNotFound) {
 		t.Errorf("expected ErrTokenNotFound, got %v", err)
 	}
 }
@@ -108,8 +109,27 @@ func TestTokenStore_WriteIfUnmodifiedAndRead(t *testing.T) {
 		RefreshToken: "second-refresh",
 		ExpiresAt:    time.Now().Add(6 * time.Hour).Unix(),
 	}
-	if _, err := store.WriteTokensIfUnmodified(ctx, athleteID, again, version); err != nil {
-		t.Fatalf("second write based on the returned version: %v", err)
+	if _, writeErr := store.WriteTokensIfUnmodified(ctx, athleteID, again, version); writeErr != nil {
+		t.Fatalf("second write based on the returned version: %v", writeErr)
+	}
+}
+
+// A write that fails for any other reason returns a wrapped error and no version.
+func TestTokenStore_WriteIfUnmodified_FailureReturnsNoVersion(t *testing.T) {
+	store := newTestStore(t)
+	athleteID := int64(55555)
+	seedTime := time.Now().Add(-1 * time.Hour).Truncate(time.Millisecond)
+	seedTokens(t, store, athleteID, &stravatoken.Data{AccessToken: "access", LastRefreshed: seedTime})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	version, err := store.WriteTokensIfUnmodified(ctx, athleteID, &stravatoken.Data{AccessToken: "new"}, seedTime)
+
+	if err == nil || errors.Is(err, ports.ErrTokenConflict) || errors.Is(err, ports.ErrTokenNotFound) {
+		t.Fatalf("error = %v, want a non-sentinel failure", err)
+	}
+	if !version.IsZero() {
+		t.Errorf("version = %v, want zero on failure", version)
 	}
 }
 
@@ -194,7 +214,7 @@ func TestTokenStore_WriteTokensIfUnmodified_NotFoundReturnsErrTokenNotFound(t *t
 	if err == nil {
 		t.Fatal("expected error writing to non-existent doc")
 	}
-	if err != ports.ErrTokenNotFound {
+	if !errors.Is(err, ports.ErrTokenNotFound) {
 		t.Errorf("expected ErrTokenNotFound, got %v", err)
 	}
 }
@@ -218,7 +238,7 @@ func TestTokenStore_DeleteTokens(t *testing.T) {
 
 	// Verify tokens are gone.
 	_, err := store.GetTokens(ctx, athleteID)
-	if err != ports.ErrTokenNotFound {
+	if !errors.Is(err, ports.ErrTokenNotFound) {
 		t.Errorf("expected ErrTokenNotFound after delete, got %v", err)
 	}
 }
@@ -259,7 +279,7 @@ func TestTokenStore_WriteIfUnmodified_Conflict(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected ErrTokenConflict for stale version stamp")
 	}
-	if err != ports.ErrTokenConflict {
+	if !errors.Is(err, ports.ErrTokenConflict) {
 		t.Errorf("expected ErrTokenConflict, got %v", err)
 	}
 

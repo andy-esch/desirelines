@@ -272,17 +272,20 @@ type MockTokenStore struct {
 	GetErr error
 	// WriteErr is returned by WriteTokensIfUnmodified. Set during test setup.
 	WriteErr error
-	// WrittenTokens tracks tokens written by WriteTokensIfUnmodified.
+	// WrittenTokens records a copy of the tokens passed to each
+	// WriteTokensIfUnmodified call, keyed by athlete.
 	WrittenTokens map[int64]*stravatoken.Data
 	// Versioned makes WriteTokensIfUnmodified enforce optimistic concurrency
-	// like the real store: a missing entry returns ErrTokenNotFound, an
+	// like the real store: a missing entry returns ErrTokenNotFound, and an
 	// expected version that differs from Tokens[athleteID].LastRefreshed
-	// returns ErrTokenConflict, and a successful write replaces the entry with
-	// the written tokens stamped with a new version, which it returns. Off by
+	// returns ErrTokenConflict. A successful write updates only the refreshed
+	// fields (access token, refresh token, expiry) and stamps a new version,
+	// which it returns. Versions strictly increase and never repeat a stored
+	// one, so a writer holding an old version always conflicts. Off by
 	// default: writes are only recorded, and the returned version is zero.
 	Versioned bool
-	// versionedWrites orders the versions stamped by Versioned writes.
-	versionedWrites int64
+	// lastVersion is the most recent version a Versioned write stamped.
+	lastVersion time.Time
 	// DeleteErr is returned by DeleteTokens. Set during test setup.
 	DeleteErr error
 	// DeleteRemoves makes a successful DeleteTokens actually drop the entry from
@@ -325,16 +328,27 @@ func (m *MockTokenStore) WriteTokensIfUnmodified(_ context.Context, athleteID in
 		if !current.LastRefreshed.Equal(expectedLastRefreshed) {
 			return time.Time{}, ports.ErrTokenConflict
 		}
-		m.versionedWrites++
-		persisted = time.Unix(m.versionedWrites, 0).UTC()
-		stored := *tokens
+		next := m.lastVersion
+		if next.IsZero() {
+			next = time.Unix(0, 0).UTC()
+		}
+		if current.LastRefreshed.After(next) {
+			next = current.LastRefreshed
+		}
+		persisted = next.Add(time.Second)
+		m.lastVersion = persisted
+		stored := *current
+		stored.AccessToken = tokens.AccessToken
+		stored.RefreshToken = tokens.RefreshToken
+		stored.ExpiresAt = tokens.ExpiresAt
 		stored.LastRefreshed = persisted
 		m.Tokens[athleteID] = &stored
 	}
 	if m.WrittenTokens == nil {
 		m.WrittenTokens = make(map[int64]*stravatoken.Data)
 	}
-	m.WrittenTokens[athleteID] = tokens
+	written := *tokens
+	m.WrittenTokens[athleteID] = &written
 	return persisted, nil
 }
 
