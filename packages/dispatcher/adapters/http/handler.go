@@ -136,8 +136,10 @@ const (
 	rowErrorPanic = "panic"
 )
 
-// Outcomes of the deauth cleanup path (label values for the deauth_cleanup
-// counter). Every confirmed-or-rejected athlete-deauth event records exactly one.
+// Outcomes of the deauth path (label values for the deauth_cleanup counter).
+// Every detected athlete deauthorization records exactly one of the first six;
+// deauthUnrecognizedAuthorized is recorded at detection instead, for an update
+// that might be a deauthorization the detector does not recognize.
 const (
 	// deauthDeleted / deauthDeleteFailed: a confirmed deauth whose token deletion
 	// succeeded / failed. deauthDeleteFailed is a privacy signal — see
@@ -159,6 +161,11 @@ const (
 	// deauthUnconfirmedError: Strava could not be reached to confirm; the event
 	// was neither deleted nor rejected — returned 500 so Strava redelivers.
 	deauthUnconfirmedError = "unconfirmed_error"
+	// deauthUnrecognizedAuthorized: an athlete update carried an `authorized`
+	// value that is neither recognizably true nor false. It is acknowledged
+	// without confirmation or cleanup, so a sustained nonzero rate means Strava
+	// may be sending a revocation in an encoding classifyAuthorizedUpdate misses.
+	deauthUnrecognizedAuthorized = "unrecognized_authorized"
 )
 
 // Internal constants for recurring strings
@@ -242,8 +249,9 @@ type HandlerConfig struct {
 	// Optional; nil disables the metric.
 	EventAgeHistogram metric.Float64Histogram
 	OwnerCheckCounter metric.Int64Counter
-	// DeauthCleanupCounter records whether a deauthorized athlete's tokens were
-	// actually deleted. Optional; nil disables the metric.
+	// DeauthCleanupCounter records the outcome of each athlete deauthorization,
+	// from detection through confirmation, handoff and token deletion (see
+	// recordDeauthCleanup). Optional; nil disables the metric.
 	DeauthCleanupCounter metric.Int64Counter
 	HTTPHistogram        metric.Float64Histogram
 	// CallbackCapabilityCounter records accepted and rejected callback outcomes.
@@ -817,14 +825,16 @@ func (h *Handler) recordOwnerCheck(ctx context.Context, webhook *generated.Webho
 
 // recordDeauthCleanup increments the deauth-cleanup counter labeled by outcome
 // (deleted / delete_failed / publish_failed / rejected_forged /
-// unconfirmed_no_tokens / unconfirmed_error). No-op when no counter is configured.
+// unconfirmed_no_tokens / unconfirmed_error / unrecognized_authorized). No-op
+// when no counter is configured.
 //
 // delete_failed is a privacy signal, not just an error: a deauthorized athlete
-// whose tokens survive is data we were asked to stop holding. It used to be
-// visible only as a Warn string, so "how often does cleanup fail?" could only be
-// answered by log-mining — which is why there was no alert on it. rejected_forged
-// is the counter the forged-deauth defense drives: a sustained nonzero rate means
+// whose tokens survive is data we were asked to stop holding, so it needs a
+// metric an alert can watch rather than a log line. rejected_forged is the
+// counter the forged-deauth defense drives: a sustained nonzero rate means
 // something is posting deauth events for athletes whose grants are still live.
+// unrecognized_authorized makes the detector's blind spot visible: an update it
+// could not classify, which might be a revocation it missed.
 func (h *Handler) recordDeauthCleanup(ctx context.Context, outcome string) {
 	if h.deauthCleanupCounter == nil {
 		return
@@ -1182,6 +1192,65 @@ func (h *Handler) recordRowPublish(ctx context.Context, webhook *generated.Webho
 	)
 }
 
+// authorizedUpdate classifies the `authorized` entry of an athlete update.
+type authorizedUpdate int
+
+const (
+	// authorizedAbsent: no `authorized` key, so the update is about something else.
+	authorizedAbsent authorizedUpdate = iota
+	// authorizedGranted: a recognizably true value.
+	authorizedGranted
+	// authorizedRevoked: a recognizably false value, i.e. a deauthorization.
+	authorizedRevoked
+	// authorizedUnrecognized: an `authorized` key whose value is neither.
+	authorizedUnrecognized
+)
+
+// classifyAuthorizedUpdate reads Strava's deauthorization signal from an
+// athlete-update `updates` map, matching the key and value case-insensitively
+// and ignoring surrounding whitespace. If several keys spell `authorized`, a
+// revocation wins and an unrecognized value beats a granted one, so the result
+// does not depend on map iteration order.
+//
+// The tolerance is deliberate and the asymmetry is the reason. Deauth cleanup is
+// gated on verifyDeauthorization, which confirms with Strava that the grant is
+// actually revoked before anything is deleted, so a false positive here costs
+// one refused confirmation and nothing else. A false negative means retaining
+// credentials a user revoked, which is a privacy failure and breaches the
+// 48-hour deletion requirement in the Strava API Agreement (S5.4). Match
+// loosely; let the grant check be the authority.
+//
+// Strava documents only `{"authorized": "false"}`, but the bare boolean
+// `{"authorized": false}` is already known to ship, so the documented form is
+// demonstrably not the only one. Numeric 0 is accepted for the same reason: it is
+// unambiguous for a key named `authorized`, and costs nothing if it never arrives.
+// Any other value is unrecognized, which the caller counts so a new encoding
+// shows up as a metric instead of being acknowledged in silence.
+func classifyAuthorizedUpdate(updates map[string]any) authorizedUpdate {
+	result := authorizedAbsent
+	for key, raw := range updates {
+		if !strings.EqualFold(strings.TrimSpace(key), "authorized") {
+			continue
+		}
+		val, valid := webhookproto.CoerceToString(raw)
+		if !valid {
+			result = authorizedUnrecognized
+			continue
+		}
+		switch strings.ToLower(strings.TrimSpace(val)) {
+		case "false", "0":
+			return authorizedRevoked
+		case "true", "1":
+			if result == authorizedAbsent {
+				result = authorizedGranted
+			}
+		default:
+			result = authorizedUnrecognized
+		}
+	}
+	return result
+}
+
 // handleAthleteEvent processes athlete-type webhook events.
 //
 // Per Strava webhook docs (https://developers.strava.com/docs/webhooks/),
@@ -1204,39 +1273,6 @@ func (h *Handler) recordRowPublish(ctx context.Context, webhook *generated.Webho
 // confirms. Gating on IsAllowed here would strand that data. This is an
 // intentional design decision (see TestHandler_OwnerCheck_DeauthBypassesAllowlist),
 // not a missing guard; please don't "mirror the activity-path gate" here.
-// isDeauthorizingUpdate reports whether an athlete-update `updates` map carries
-// Strava's deauthorization signal, matching the key and value case-insensitively
-// and ignoring surrounding whitespace.
-//
-// The tolerance is deliberate and the asymmetry is the reason. Since deauth
-// cleanup became gated on verifyDeauthorization — which confirms with Strava that
-// the grant is actually revoked before anything is deleted — a false positive
-// here costs one refused confirmation and nothing else. A false negative means
-// retaining credentials a user revoked, which is a privacy failure and breaches
-// the 48-hour deletion requirement in the Strava API Agreement (S5.4). Match
-// loosely; let the grant check be the authority.
-//
-// Strava documents only `{"authorized": "false"}`, but the bare boolean
-// `{"authorized": false}` is already known to ship, so the documented form is
-// demonstrably not the only one. Numeric 0 is accepted for the same reason: it is
-// unambiguous for a key named `authorized`, and costs nothing if it never arrives.
-func isDeauthorizingUpdate(updates map[string]any) bool {
-	for key, raw := range updates {
-		if !strings.EqualFold(strings.TrimSpace(key), "authorized") {
-			continue
-		}
-		val, valid := webhookproto.CoerceToString(raw)
-		if !valid {
-			continue
-		}
-		switch strings.ToLower(strings.TrimSpace(val)) {
-		case "false", "0":
-			return true
-		}
-	}
-	return false
-}
-
 func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter, r *http.Request, webhook *generated.WebhookEvent, body []byte) {
 	correlationID := gcplog.CorrelationIDFromContext(ctx)
 
@@ -1245,10 +1281,10 @@ func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter,
 	case generated.AspectType_ASPECT_TYPE_DELETE:
 		isDeauth = true
 	case generated.AspectType_ASPECT_TYPE_UPDATE:
-		// The proto parser only handles activity updates, so inspect the raw JSON to
-		// detect the athlete deauthorization update. Decode `updates` as RawMessage and
-		// coerce so a bare boolean ({"authorized":false}) is detected too, not dropped
-		// as a failed string unmarshal (which would leak the athlete's tokens).
+		// The proto parser only handles activity updates, so inspect the raw JSON
+		// for the deauthorization signal. Decoding `updates` into map[string]any
+		// keeps a bare boolean ({"authorized":false}) that a string unmarshal would
+		// reject, which would leak the athlete's tokens.
 		var payload struct {
 			Updates map[string]any `json:"updates"`
 		}
@@ -1258,8 +1294,20 @@ func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter,
 				"error", err,
 				"owner_id", webhook.OwnerId,
 			)
-		} else if isDeauthorizingUpdate(payload.Updates) {
+			break
+		}
+		switch classifyAuthorizedUpdate(payload.Updates) {
+		case authorizedRevoked:
 			isDeauth = true
+		case authorizedUnrecognized:
+			h.recordDeauthCleanup(ctx, deauthUnrecognizedAuthorized)
+			h.logger.Warn("Athlete update has an unrecognized authorized value; not treated as a deauthorization",
+				"correlation_id", correlationID,
+				"owner_id", webhook.OwnerId,
+				"updates", payload.Updates,
+			)
+		case authorizedAbsent, authorizedGranted:
+			// Not a deauthorization; acknowledged below.
 		}
 	default:
 		// Non-deauth athlete events (e.g., create) are acknowledged.

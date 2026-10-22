@@ -664,10 +664,10 @@ paths:
       responses:
         '200':
           description: >-
-            Daily summaries keyed by date. The shape depends on which sport
-            parameter was used: `sport` (singular) returns one sport's
-            `DailySummary`; `sports` (plural) returns `AllSportsDailySummary`,
-            keyed by category.
+            Daily summaries. The shape depends on which sport parameter was
+            used: `sport` (singular) returns one sport's `DailySummary`, whose
+            `daily` map is keyed by date; `sports` (plural) returns
+            `AllSportsDailySummary`, keyed by category.
           content:
             application/json:
               schema:
@@ -1279,9 +1279,14 @@ components:
 
     DailySummary:
       type: object
-      description: Daily summaries keyed by date (YYYY-MM-DD)
-      additionalProperties:
-        $ref: '#/components/schemas/DailyActivity'
+      description: One sport's daily summaries.
+      required: [daily]
+      properties:
+        daily:
+          type: object
+          description: Daily activity keyed by date (YYYY-MM-DD). Empty when the period has none.
+          additionalProperties:
+            $ref: '#/components/schemas/DailyActivity'
 
     DailyActivity:
       type: object

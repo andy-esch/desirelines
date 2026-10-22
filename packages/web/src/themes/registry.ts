@@ -15,10 +15,11 @@
  * token value or a field on this entry.
  *
  * This module is also imported by `vite.config.ts` to generate the first-paint script,
- * so it must stay free of browser globals and CSS imports.
+ * so it must stay free of browser globals and CSS imports, and its relative imports
+ * need explicit `.ts` extensions for Vite's native config loader.
  */
 
-import { RETRO_BASE_MAPS } from "./baseMaps";
+import { RETRO_BASE_MAPS } from "./baseMaps.ts";
 
 export type ThemeScheme = "dark" | "light";
 

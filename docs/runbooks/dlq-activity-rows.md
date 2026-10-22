@@ -28,9 +28,9 @@ gcloud pubsub subscriptions pull desirelines-activity-rows-dlq-monitoring-<env> 
 **Quick mitigations**:
 
 - The error attribute usually names the offending column outright.
-- Schema lives in `schemas/bigquery/activities_full.json`; the live table's
-  relaxed derivation is in
-  `terraform/modules/desirelines/bigquery_subscription.tf`.
+- Edit the [source schema](../../schemas/bigquery/activities_full.json); its
+  [generator](../../schemas/bigquery/generate_proto.py) derives the relaxed live
+  schema used by [Terraform](../../terraform/modules/desirelines/bigquery_subscription.tf).
 - Kill switch: set `dispatcher_activity_row_publish_enabled = false` and
   redeploy. Nothing reads the table, so stopping is always safe.
 
@@ -38,7 +38,7 @@ gcloud pubsub subscriptions pull desirelines-activity-rows-dlq-monitoring-<env> 
 covers the other half — rows that never left the dispatcher. This alert only
 sees rows BigQuery received and refused.
 
-**Redrive**: once the schema mismatch is resolved, replay with `just dlq-replay
-activity-rows <env>` (dry run) then `--execute`. See
-[Redriving a DLQ](dlq-redrive.md). Nothing reads this table, so draining without
-replay is also defensible here — unlike the other two DLQs.
+**Redrive**: preserve messages and fix the mismatch first. **Do not execute
+`dlq-replay` for BINARY activity rows**; see the [transport restriction](dlq-redrive.md).
+Use the [schema runbook](activity-row-schema-changes.md) for changes. Draining
+without replay permanently discards archival changes and needs an owner decision.

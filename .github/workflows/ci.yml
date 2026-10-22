@@ -25,7 +25,7 @@ env:
   # images in the service Dockerfiles. Note `[golangci-lint] version` is
   # coupled too — golangci-lint only supports Go versions <= the one it was
   # built with, so bumping this without bumping that panics the linter.
-  GO_VERSION: "1.26.9"
+  GO_VERSION: "1.26.10"
 
   # Test environment variables (needed for Python tests)
   GCP_PROJECT_ID: "test-project"
@@ -295,7 +295,7 @@ jobs:
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.14.0
+          version: v2.15.0
           working-directory: packages/${{ matrix.package }}
           args: --timeout=5m
 
@@ -329,9 +329,14 @@ jobs:
       # so an advisory in a module we require but never call does not fail the
       # build. That keeps it low-noise; it also means a refactor can turn a
       # previously-silent advisory into a failure, which is the intended signal.
+      #
+      # The tool is pinned so a govulncheck release cannot change the gate
+      # without a reviewed bump (Renovate tracks the pin). The advisory
+      # database is still fetched live, so new vulnerabilities show up as
+      # soon as they are published.
       - name: Check for known Go vulnerabilities (govulncheck)
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
+          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
           cd packages/${{ matrix.package }}
           govulncheck ./...
 

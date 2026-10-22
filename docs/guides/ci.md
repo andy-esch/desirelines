@@ -135,7 +135,9 @@ just go-vulncheck # Reachable vulnerabilities, including the Go standard library
 4. `gofmt -l .` (format verification)
 5. `govulncheck ./...` (reachable dependency and standard-library vulnerabilities)
 
-Install `govulncheck` with `go install golang.org/x/vuln/cmd/govulncheck@latest`.
+CI pins `govulncheck` to an exact version in `.github/workflows/ci.yml`, and a
+Renovate custom manager keeps that pin current. Install the same version locally
+with `go install golang.org/x/vuln/cmd/govulncheck@<version>`.
 For a local scan that matches CI, set `GOTOOLCHAIN` to `go` followed by the exact
 `GO_VERSION` in `.github/workflows/ci.yml`. A newer local toolchain can hide
 standard-library vulnerabilities in the version CI and the Docker builders use.
