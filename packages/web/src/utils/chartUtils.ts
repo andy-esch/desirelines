@@ -124,9 +124,10 @@ export function toDailyArray(
 /**
  * Get the cutoff date for a dashboard time range.
  *
- * Months here are calendar months ("2m" from 15 March starts 15 January). The
- * Activities group's `calculateDateRange` uses fixed 60- and 180-day windows instead, so
- * the two views' "2M" and "6M" can differ by a few days.
+ * Months are counted with `Date.setMonth`: "2m" from 15 March starts 15 January, and
+ * past a short month's end the date rolls forward ("2m" from 31 August starts 1 July).
+ * The Activities group's `calculateDateRange` uses fixed 60- and 180-day windows
+ * instead, so the two views' "2M" and "6M" can differ by a few days.
  *
  * @param now - Reference date (typically today)
  * @param timeRange - Time range specifier
@@ -164,11 +165,6 @@ export function getTimeRangeCutoff(now: Date, timeRange: DashboardTimeRange): Da
       cutoff.setDate(1);
       cutoff.setHours(0, 0, 0, 0);
       break;
-    default: {
-      // A new preset must choose its window here rather than fall through to "now".
-      const unhandled: never = timeRange;
-      throw new Error(`Unhandled dashboard time range: ${String(unhandled)}`);
-    }
   }
 
   return cutoff;

@@ -66,6 +66,15 @@ describe("TimeRangeSelector", () => {
     });
   });
 
+  it("keeps the current range when the selected one is clicked again", () => {
+    const onChange = vi.fn();
+    render(<TimeRangeSelector value="4w" onChange={onChange} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "4W" }));
+
+    expect(onChange).toHaveBeenCalledWith("4w");
+  });
+
   it("has accessible group role", () => {
     const onChange = vi.fn();
     render(<TimeRangeSelector value="2w" onChange={onChange} />);

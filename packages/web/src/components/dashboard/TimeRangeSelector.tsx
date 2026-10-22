@@ -1,4 +1,8 @@
-import { DASHBOARD_TIME_RANGE_OPTIONS, type DashboardTimeRange } from "../../utils/timeRange";
+import {
+  DASHBOARD_TIME_RANGE_OPTIONS,
+  isDashboardTimeRange,
+  type DashboardTimeRange,
+} from "../../utils/timeRange";
 import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
 
 interface TimeRangeSelectorProps {
@@ -11,7 +15,7 @@ export default function TimeRangeSelector({ value, onChange }: TimeRangeSelector
     <ToggleGroup
       value={[value]}
       // Clicking the selected range would deselect it; a range is always selected.
-      onValueChange={(values) => onChange((values[0] as DashboardTimeRange | undefined) ?? value)}
+      onValueChange={([next]) => onChange(isDashboardTimeRange(next) ? next : value)}
       aria-label="Time range selector"
       className="p-0.5"
     >

@@ -1,8 +1,9 @@
 /**
- * Shared time-range presets for the Activities-group views (`/activities`,
- * `/charts`). The `?range=` URL param carries one of these keys; each maps to a
- * `{ from, to }` local-date window for the activities list API. Extracted so the
- * table and the charts derive identical windows from the same param.
+ * Shared time-range presets. The Activities-group views (`/activities`, `/charts`)
+ * carry one in the `?range=` URL param and map it to a `{ from, to }` local-date
+ * window with `calculateDateRange`, so the table and the charts derive identical
+ * windows. The dashboard uses a subset of the same keys and labels
+ * (`DashboardTimeRange`) with its own windows.
  */
 import { toLocalDateString, addDays, getTodayLocalMidnight } from "./dateUtils";
 
@@ -26,15 +27,24 @@ export function coerceTimeRange(value: unknown, fallback: TimeRange): TimeRange 
 }
 
 /**
- * The dashboard's presets: every range except "all", because the dashboard always shows
- * a bounded window. Its windows come from `getTimeRangeCutoff` in `chartUtils`, not
- * `calculateDateRange` below.
+ * The dashboard's presets, the one list that defines them: every range except "all",
+ * because the dashboard always shows a bounded window. A new range reaches the
+ * dashboard only by being added here. Its windows come from `getTimeRangeCutoff` in
+ * `chartUtils`, not `calculateDateRange` below.
  */
-export type DashboardTimeRange = Exclude<TimeRange, "all">;
+const DASHBOARD_RANGES = ["2w", "4w", "2m", "6m", "ytd"] as const satisfies readonly TimeRange[];
 
+export type DashboardTimeRange = (typeof DASHBOARD_RANGES)[number];
+
+/** Narrow a raw value, such as a toggle group's selection, to a dashboard preset. */
+export function isDashboardTimeRange(value: unknown): value is DashboardTimeRange {
+  return (DASHBOARD_RANGES as readonly unknown[]).includes(value);
+}
+
+/** The dashboard's presets in the shared display order, with their labels. */
 export const DASHBOARD_TIME_RANGE_OPTIONS = TIME_RANGE_OPTIONS.filter(
   (option): option is (typeof TIME_RANGE_OPTIONS)[number] & { value: DashboardTimeRange } =>
-    option.value !== "all"
+    isDashboardTimeRange(option.value)
 );
 
 /**
