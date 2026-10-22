@@ -111,6 +111,14 @@
     },
     {
       "customType": "regex",
+      "description": "Track the pinned govulncheck CI installs for the Go vulnerability gate; github-actions does not extract versions from go install commands.",
+      "managerFilePatterns": ["/^\\.github/workflows/ci\\.yml$/"],
+      "matchStrings": ["go install golang\\.org/x/vuln/cmd/govulncheck@(?<currentValue>v[0-9.]+)"],
+      "depNameTemplate": "golang.org/x/vuln",
+      "datasourceTemplate": "go"
+    },
+    {
+      "customType": "regex",
       "description": "Track the CI Go patch pin. The github-actions manager cannot resolve setup-go's go-version from env.GO_VERSION.",
       "managerFilePatterns": ["/^\\.github/workflows/ci\\.yml$/"],
       "matchStrings": ["GO_VERSION:\\s*\"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""],

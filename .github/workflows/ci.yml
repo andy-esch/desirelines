@@ -329,9 +329,14 @@ jobs:
       # so an advisory in a module we require but never call does not fail the
       # build. That keeps it low-noise; it also means a refactor can turn a
       # previously-silent advisory into a failure, which is the intended signal.
+      #
+      # The tool is pinned so a govulncheck release cannot change the gate
+      # without a reviewed bump (Renovate tracks the pin). The advisory
+      # database is still fetched live, so new vulnerabilities show up as
+      # soon as they are published.
       - name: Check for known Go vulnerabilities (govulncheck)
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
+          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
           cd packages/${{ matrix.package }}
           govulncheck ./...
 

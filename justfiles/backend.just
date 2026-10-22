@@ -122,8 +122,8 @@ golangci-hashes version:
     done
 
 # Workspace members — keep in sync with `go.work`'s `use (...)` block.
-# Consumed by go-tidy-{check,fix}; single source of truth so a new
-# member only needs to be added in one place per task.
+# Every go-* recipe reads this list, so a new member only needs adding
+# here (and to the CI go-quality matrix).
 go_workspace_members := "packages/apigateway packages/dispatcher packages/shared"
 
 # Run Go tests (default: go test, use --pants for Pants)
@@ -132,16 +132,16 @@ go-test +args='':
     set -euo pipefail
     if [[ " {{args}} " == *" --pants "* ]]; then
         echo "👖 Running Go tests with Pants..."
-        pants test packages/dispatcher:: packages/apigateway:: packages/shared::
+        targets=()
+        for pkg in {{go_workspace_members}}; do targets+=("$pkg::"); done
+        pants test "${targets[@]}"
     else
         echo "🐹 Running Go tests with native go (fast)..."
-        echo "   Testing dispatcher..."
-        # Execute in a subshell (...) to isolate directory changes
-        (cd packages/dispatcher && go test -v ./... {{args}})
-        echo "   Testing apigateway..."
-        (cd packages/apigateway && go test -v ./... {{args}})
-        echo "   Testing shared..."
-        (cd packages/shared && go test -v ./... {{args}})
+        for pkg in {{go_workspace_members}}; do
+            echo "   Testing ${pkg#packages/}..."
+            # Execute in a subshell (...) to isolate directory changes
+            (cd "$pkg" && go test -v ./... {{args}})
+        done
     fi
 
 # Scan each Go module for reachable vulnerabilities, matching the CI gate.
@@ -161,10 +161,14 @@ go-lint +args='':
     set -euo pipefail
     if [[ " {{args}} " == *" --pants "* ]]; then
         echo "👖 Linting Go with Pants..."
-        pants lint packages/dispatcher:: packages/apigateway:: packages/shared::
+        targets=()
+        for pkg in {{go_workspace_members}}; do targets+=("$pkg::"); done
+        pants lint "${targets[@]}"
     else
         echo "🐹 Linting Go with golangci-lint (fast)..."
-        golangci-lint run ./packages/dispatcher/... ./packages/apigateway/... ./packages/shared/... {{args}}
+        paths=()
+        for pkg in {{go_workspace_members}}; do paths+=("./$pkg/..."); done
+        golangci-lint run "${paths[@]}" {{args}}
         just go-lintpub
     fi
 
@@ -182,8 +186,8 @@ go-lintpub:
     echo "🔎 Running trace-propagation analyzer (lintpub)..."
     lintpub_bin="$(mktemp -d)/lintpub"
     (cd packages/shared && go build -o "$lintpub_bin" ./cmd/lintpub)
-    for pkg in dispatcher apigateway shared; do
-        (cd "packages/$pkg" && "$lintpub_bin" ./...)
+    for pkg in {{go_workspace_members}}; do
+        (cd "$pkg" && "$lintpub_bin" ./...)
     done
 
 # Verify all Go module files in the workspace are tidy. Fails if any
@@ -241,13 +245,22 @@ go-tidy-check:
 go-tidy-fix:
     #!/usr/bin/env bash
     set -euo pipefail
+    tidy_members() {
+        for pkg in {{go_workspace_members}}; do
+            echo "   → $pkg"
+            (cd "$pkg" && go mod tidy)
+        done
+    }
     echo "🐹 Tidying every Go workspace member..."
-    for pkg in {{go_workspace_members}}; do
-        echo "   → $pkg"
-        (cd "$pkg" && go mod tidy)
-    done
+    tidy_members
     echo "🐹 Syncing go workspace..."
     go work sync
+    # `go work sync` can raise a member's requirements without adding the
+    # matching go.sum entries, which leaves that member failing the
+    # `go mod tidy -diff` half of go-tidy-check. Tidy again so one run is
+    # enough.
+    echo "🐹 Re-tidying after the sync..."
+    tidy_members
     echo "✓ Done. Review with 'git diff' and commit."
 
 # Format Go code (default: go fmt, use --pants for Pants)
@@ -256,13 +269,15 @@ go-format +args='':
     set -euo pipefail
     if [[ " {{args}} " == *" --pants "* ]]; then
         echo "👖 Formatting Go with Pants..."
-        pants fmt packages/dispatcher:: packages/apigateway:: packages/shared::
+        targets=()
+        for pkg in {{go_workspace_members}}; do targets+=("$pkg::"); done
+        pants fmt "${targets[@]}"
     else
         echo "🐹 Formatting Go with native go fmt (fast)..."
-        # Execute in a subshell (...) to isolate directory changes
-        (cd packages/dispatcher && go fmt ./...)
-        (cd packages/apigateway && go fmt ./...)
-        (cd packages/shared && go fmt ./...)
+        for pkg in {{go_workspace_members}}; do
+            # Execute in a subshell (...) to isolate directory changes
+            (cd "$pkg" && go fmt ./...)
+        done
     fi
 
 # Generate the BQ activities .proto file from the BigQuery JSON schema.
