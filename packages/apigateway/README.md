@@ -49,6 +49,13 @@ repository/API has no declared license. Revisit the license exception when that
 policy is decided. Keep exceptions tied to these locations and reasons; fix
 inaccurate response/security definitions directly.
 
+`just go-test` also checks the spec against the code. `TestRoutesMatchOpenAPISpec`
+compares documented paths and methods with the router. `TestOpenAPISchemaFieldsMatchProtoJSON`
+compares each protobuf-backed response schema with the message's protojson field
+names in both directions, and rejects a proto3 `optional` field listed as
+`required`. Adding a field to a response message therefore means documenting it
+in `openapi.yaml` too.
+
 ## Architecture
 
 This package follows **hexagonal architecture** (ports and adapters pattern):

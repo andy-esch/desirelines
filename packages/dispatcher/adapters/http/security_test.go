@@ -15,6 +15,8 @@ import (
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports/portstest"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
 
 // Security invariants for the public, unauthenticated webhook endpoint.
@@ -42,6 +44,7 @@ type securityRig struct {
 	primary *portstest.MockPublisher
 	strava  *portstest.MockStravaClient
 	allow   *portstest.MockAllowlist
+	metrics *sdkmetric.ManualReader
 }
 
 func newSecurityRig(t *testing.T, allowed bool) *securityRig {
@@ -54,15 +57,46 @@ func newSecurityRig(t *testing.T, allowed bool) *securityRig {
 			FetchResult:  []byte(`{"id":1}`),
 			VerifyStatus: ports.GrantActive,
 		},
-		allow: &portstest.MockAllowlist{Allowed: allowed},
+		allow:   &portstest.MockAllowlist{Allowed: allowed},
+		metrics: sdkmetric.NewManualReader(),
+	}
+	deauthCounter, err := sdkmetric.NewMeterProvider(sdkmetric.WithReader(rig.metrics)).
+		Meter("test").Int64Counter("desirelines.io/webhook/deauth_cleanup")
+	if err != nil {
+		t.Fatalf("create deauth_cleanup counter: %v", err)
 	}
 	h := NewHandler(rig.primary, rig.deauth,
 		&portstest.MockSecretProvider{VerifyToken: "correct-verify-token", SubscriptionID: testSubscriptionID},
 		rig.strava, rig.tokens, rig.allow, gcplog.NewNoOpLogger(), &HandlerConfig{
 			WebhookCallbackCapability: testWebhookCapability,
+			DeauthCleanupCounter:      deauthCounter,
 		})
 	rig.router = h.RegisterRoutes()
 	return rig
+}
+
+// deauthOutcomes returns the deauth_cleanup counts recorded so far, by outcome.
+func (r *securityRig) deauthOutcomes(t *testing.T) map[string]int64 {
+	t.Helper()
+	var rm metricdata.ResourceMetrics
+	if err := r.metrics.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("collect metrics: %v", err)
+	}
+	out := map[string]int64{}
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			if m.Name != "desirelines.io/webhook/deauth_cleanup" || !ok {
+				continue
+			}
+			for _, dp := range sum.DataPoints {
+				if outcome, exists := dp.Attributes.Value("outcome"); exists {
+					out[outcome.AsString()] += dp.Value
+				}
+			}
+		}
+	}
+	return out
 }
 
 func (r *securityRig) post(body string) *httptest.ResponseRecorder {
@@ -537,17 +571,13 @@ func TestSecurity_SubscriptionIDEnumerationRequiresCallbackCapability(t *testing
 // Strava encodes with different casing is silently acknowledged and the
 // athlete's tokens are retained.
 //
-// CoerceToString normalizes JSON *types* (string, bool, number) but neither the
-// `updates` map key nor the value is case-folded, so {"Authorized":"false"} and
-// {"authorized":"False"} both read as "not a deauthorization". Strava documents
-// only the lowercase string form, so this is latent rather than active — but the
-// bare-boolean variant already proved the documented form is not the only one
-// shipped, and the failure mode here is retaining credentials the user revoked,
-// against the 48-hour deletion requirement in the Strava API Agreement.
+// Strava documents only the lowercase string form {"authorized":"false"}, but the
+// bare boolean already proved it is not the only form shipped. A missed
+// revocation retains credentials the user revoked, against the 48-hour deletion
+// requirement in the Strava API Agreement, so detection folds the key's and the
+// value's case and whitespace and accepts the unambiguous spellings.
 func TestSecurity_DeauthDetectionToleratesSpellingVariants(t *testing.T) {
-	// Every one of these means "the athlete revoked the grant". Each was a
-	// silent miss before 2026-08-17: the event was acked 200, nothing was
-	// counted, and the revoked athlete's tokens stayed in Firestore.
+	// Every one of these means "the athlete revoked the grant".
 	cases := []struct{ name, updates string }{
 		{"documented form", `{"authorized":"false"}`},
 		{"bare boolean", `{"authorized":false}`},
@@ -557,6 +587,7 @@ func TestSecurity_DeauthDetectionToleratesSpellingVariants(t *testing.T) {
 		{"uppercase value", `{"authorized":"FALSE"}`},
 		{"padded value", `{"authorized":" false "}`},
 		{"numeric zero", `{"authorized":0}`},
+		{"revocation beside an unrecognized spelling", `{"authorized":"false","Authorized":"maybe"}`},
 	}
 
 	for _, tc := range cases {
@@ -582,14 +613,17 @@ func TestSecurity_DeauthDetectionToleratesSpellingVariants(t *testing.T) {
 			if got := rig.tokens.DeletedCount(); got != 1 {
 				t.Errorf("DeleteTokens calls = %d, want 1 — revoked credentials were retained", got)
 			}
+			if got := rig.deauthOutcomes(t); got[deauthDeleted] != 1 || got[deauthUnrecognizedAuthorized] != 0 {
+				t.Errorf("deauth_cleanup outcomes = %v, want only %s=1", got, deauthDeleted)
+			}
 		})
 	}
 }
 
-// TestSecurity_DeauthDetectionIgnoresNonRevocations is the other side of the
-// tolerance added above: matching loosely must not turn an ordinary athlete
-// update into a deletion. The grant check would refuse these anyway, but the
-// detector should not be asking it in the first place.
+// TestSecurity_DeauthDetectionIgnoresNonRevocations is the other side of that
+// tolerance: matching loosely must not turn an ordinary athlete update into a
+// deletion. The grant check would refuse these anyway, but the detector should
+// not be asking it in the first place, nor counting them as unrecognized.
 func TestSecurity_DeauthDetectionIgnoresNonRevocations(t *testing.T) {
 	cases := []struct{ name, updates string }{
 		{"still authorized", `{"authorized":"true"}`},
@@ -598,7 +632,6 @@ func TestSecurity_DeauthDetectionIgnoresNonRevocations(t *testing.T) {
 		{"unrelated key", `{"weight":"75.0"}`},
 		{"key that merely contains authorized", `{"deauthorized_at":"false"}`},
 		{"empty updates", `{}`},
-		{"nested object value", `{"authorized":{"nested":false}}`},
 	}
 
 	for _, tc := range cases {
@@ -618,6 +651,49 @@ func TestSecurity_DeauthDetectionIgnoresNonRevocations(t *testing.T) {
 			}
 			if got := rig.tokens.DeletedCount(); got != 0 {
 				t.Errorf("DeleteTokens calls = %d, want 0", got)
+			}
+			if got := rig.deauthOutcomes(t); len(got) != 0 {
+				t.Errorf("deauth_cleanup outcomes = %v, want none", got)
+			}
+		})
+	}
+}
+
+// An `authorized` value the detector cannot classify might be a revocation in a
+// new encoding. It is still not acted on (the grant is not even checked), but it
+// must be counted, so the miss shows up as a metric rather than silence.
+func TestSecurity_DeauthDetectionCountsUnrecognizedValues(t *testing.T) {
+	cases := []struct{ name, updates string }{
+		{"unknown word", `{"authorized":"revoked"}`},
+		{"empty string", `{"authorized":""}`},
+		{"other number", `{"authorized":2}`},
+		{"null", `{"authorized":null}`},
+		{"nested object", `{"authorized":{"nested":false}}`},
+		{"array", `{"authorized":[false]}`},
+		{"granted beside an unrecognized spelling", `{"authorized":"true","Authorized":"maybe"}`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rig := newSecurityRig(t, true)
+			rig.strava.VerifyStatus = ports.GrantRevoked
+
+			w := rig.post(fmt.Sprintf(
+				`{"aspect_type":"update","object_type":"athlete","object_id":1,"owner_id":%d,"event_time":1,"subscription_id":%d,"updates":%s}`,
+				victimOwnerID, testSubscriptionID, tc.updates))
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200", w.Code)
+			}
+			if got := rig.strava.VerifyCalledCount(); got != 0 {
+				t.Errorf("VerifyGrant calls = %d, want 0", got)
+			}
+			if got := len(rig.deauth.Published) + rig.tokens.DeletedCount(); got != 0 {
+				t.Errorf("deauth publishes + DeleteTokens calls = %d, want 0", got)
+			}
+			got := rig.deauthOutcomes(t)
+			if len(got) != 1 || got[deauthUnrecognizedAuthorized] != 1 {
+				t.Errorf("deauth_cleanup outcomes = %v, want only %s=1", got, deauthUnrecognizedAuthorized)
 			}
 		})
 	}
