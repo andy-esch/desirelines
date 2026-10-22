@@ -168,15 +168,15 @@ uv run pytest tests/integration/ -v
 
 Go integration tests sit behind the `integration` build tag in two suites with
 different dependencies. Start the local stack, then run each suite against its
-own service:
+own service, from the repository root:
 
 ```bash
 just start-frontend   # Postgres with migrations on :15430, Firestore emulator on :8089
 
 # PostgreSQL suite (API gateway)
-cd packages/apigateway
-POSTGRES_CONNECTION_STRING="postgresql://<user>:<password>@localhost:15430/<db>?application_name=integration-test" \
-  go test -tags=integration ./adapters/postgres/...
+(cd packages/apigateway &&
+  POSTGRES_CONNECTION_STRING="postgresql://<user>:<password>@localhost:15430/<db>?application_name=integration-test" \
+  go test -tags=integration ./adapters/postgres/...)
 
 # Firestore suites (API gateway, dispatcher, shared allowlist)
 export FIRESTORE_EMULATOR_HOST=localhost:8089
@@ -189,9 +189,11 @@ The Postgres user, password and database are the `POSTGRES_*_LOCAL` values in
 `.env.local`. A suite whose service is not configured skips: without
 `POSTGRES_CONNECTION_STRING` the PostgreSQL tests skip, and without
 `FIRESTORE_EMULATOR_HOST` the Firestore tests skip before creating a client
-(they fail instead when `CI=true`). So a broad `go test -tags=integration ./...`
-never reaches a real Google Cloud project with your Application Default
-Credentials.
+(they fail instead when `CI=true`). The Firestore suites get their client from
+`firestoretest.NewClient` in `packages/shared`, which also sends no
+credentials, so a broad `go test -tags=integration ./...` cannot reach a real
+Google Cloud project with your Application Default Credentials. New Firestore
+integration tests should get their client the same way.
 
 ## Troubleshooting
 

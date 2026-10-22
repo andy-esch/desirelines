@@ -4,6 +4,8 @@ package firestore
 
 import (
 	"context"
+	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -28,10 +30,21 @@ func newTestAuthStore(t *testing.T) *AuthStore {
 	return NewAuthStore(client, gcplog.NewNoOpLogger())
 }
 
+// athleteIDs makes each call to newAthleteID distinct within a run.
+var athleteIDs atomic.Int64
+
+// newAthleteID returns an athlete ID, as the number and the document key, that
+// no earlier run used, so the tests can rerun against a long-lived emulator
+// without reading a previous run's documents.
+func newAthleteID() (int64, string) {
+	id := time.Now().UnixNano() + athleteIDs.Add(1)
+	return id, strconv.FormatInt(id, 10)
+}
+
 func TestAuthStore_WriteAuthData_HappyPath(t *testing.T) {
 	store := newTestAuthStore(t)
 	ctx := context.Background()
-	athleteID := "222222"
+	stravaID, athleteID := newAthleteID()
 
 	now := time.Now().Truncate(time.Millisecond)
 	tokens := &stravatoken.Data{
@@ -43,7 +56,7 @@ func TestAuthStore_WriteAuthData_HappyPath(t *testing.T) {
 		LastRefreshed: now,
 	}
 	profile := &auth.AthleteProfile{
-		StravaAthleteID: 222222,
+		StravaAthleteID: stravaID,
 		FirstName:       "Test",
 		LastName:        "User",
 		ProfileURL:      "https://example.com/avatar.jpg",
@@ -104,12 +117,12 @@ func TestAuthStore_WriteAuthData_HappyPath(t *testing.T) {
 func TestAuthStore_WriteAuthData_PreservesCreatedAt(t *testing.T) {
 	store := newTestAuthStore(t)
 	ctx := context.Background()
-	athleteID := "333333"
+	stravaID, athleteID := newAthleteID()
 
 	// First login
 	originalCreatedAt := time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC)
 	firstProfile := &auth.AthleteProfile{
-		StravaAthleteID: 333333,
+		StravaAthleteID: stravaID,
 		FirstName:       "First",
 		LastName:        "Login",
 		CreatedAt:       originalCreatedAt,
@@ -127,7 +140,7 @@ func TestAuthStore_WriteAuthData_PreservesCreatedAt(t *testing.T) {
 
 	// Re-login with updated profile but different CreatedAt
 	reloginProfile := &auth.AthleteProfile{
-		StravaAthleteID: 333333,
+		StravaAthleteID: stravaID,
 		FirstName:       "Updated",
 		LastName:        "Name",
 		ProfileURL:      "https://example.com/new-avatar.jpg",
@@ -182,12 +195,12 @@ func TestAuthStore_WriteAuthData_PreservesCreatedAt(t *testing.T) {
 func TestAuthStore_WriteAuthData_FirstLogin(t *testing.T) {
 	store := newTestAuthStore(t)
 	ctx := context.Background()
-	athleteID := "444444"
+	stravaID, athleteID := newAthleteID()
 
 	// First login — no existing profile, CreatedAt should be used as-is
 	createdAt := time.Date(2026, 2, 20, 14, 0, 0, 0, time.UTC)
 	profile := &auth.AthleteProfile{
-		StravaAthleteID: 444444,
+		StravaAthleteID: stravaID,
 		FirstName:       "New",
 		LastName:        "User",
 		CreatedAt:       createdAt,
