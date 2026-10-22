@@ -93,6 +93,11 @@
       "description": "Keep every Flyway pin in one PR. The schemas/database/Dockerfile tag and the `docker run` tag in ci.yml's migration step must move together, and both must stay in step with the deploy repo's flyway-migrate action — a migration verified in CI by one Flyway version but applied to prod by another is the drift the pin exists to prevent. Must stay after the group-by-manager rule to win under last-rule-wins.",
       "matchDepNames": ["flyway/flyway"],
       "groupName": "flyway"
+    },
+    {
+      "description": "Hold sqlalchemy below 2.1 until opentelemetry-instrumentation-sqlalchemy supports it. The instrumentor refuses sqlalchemy>=2.1.0 and only logs an error, so DB spans disappear without a failure; tests/unit/shared/test_instrumentation.py fails if the cap is lifted early. Remove this rule together with the cap in packages/stravapipe/pyproject.toml.",
+      "matchDepNames": ["sqlalchemy"],
+      "allowedVersions": "<2.1"
     }
   ],
   "customManagers": [
