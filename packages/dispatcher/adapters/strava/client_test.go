@@ -1259,10 +1259,10 @@ func TestJitterBackoff(t *testing.T) {
 	})
 }
 
-// TestCircuitBreaker_EmitsStateChangeMetric pins the alerting signal added for
-// audit 2026-08-19-dispatcher L1: before it, OnStateChange only called
-// logger.Warn, so an open breaker was discoverable solely by reading logs after
-// the fact and could never fire an alert.
+// TestCircuitBreaker_EmitsStateChangeMetric pins the breaker's alerting signal:
+// a state change must reach a metric, not only a log line, or an open breaker
+// is discoverable solely by reading logs after the fact and can never fire an
+// alert.
 //
 // The from/to pair is asserted, not just `to`: distinguishing a genuine recovery
 // (half-open -> closed) from a flap (open -> half-open -> open) needs both.
@@ -1460,10 +1460,9 @@ func TestCircuitBreaker_404DoesNotCount(t *testing.T) {
 // A request cut short by the caller's budget/deadline (the shared
 // handleEventDeadline exhausted upstream — e.g. by a slow token read — before
 // the Strava HTTP call) must be breaker-neutral: it is not evidence Strava is
-// down. Regression guard for H1 (audit 2026-06-03-dispatcher): before the fix,
-// the bare ctx.Err() reached the breaker as a Strava failure and 5 of them
-// would trip it. handleEventDeadline == httpClientTimeout == 10s, so budget
-// exhaustion is realistic, not "orders of magnitude" away.
+// down. A bare ctx.Err() reaching the breaker would count as a Strava failure,
+// and 5 of them would trip it. handleEventDeadline == httpClientTimeout == 10s,
+// so budget exhaustion is realistic, not "orders of magnitude" away.
 func TestFetchActivity_CallerBudgetExhausted_DoesNotTripBreaker(t *testing.T) {
 	// The expired context makes http.Client.Do fail before the server is hit,
 	// so this handler should never run; the assertions below don't depend on it.
@@ -1497,9 +1496,8 @@ func TestFetchActivity_CallerBudgetExhausted_DoesNotTripBreaker(t *testing.T) {
 	}
 }
 
-// A generic/transient Firestore fault on the in-breaker token write-back (M1)
-// must be breaker-neutral — it reflects Firestore's health, not Strava's.
-// Regression guard for M1 (audit 2026-06-03-dispatcher).
+// A generic/transient Firestore fault on the in-breaker token write-back must
+// be breaker-neutral: it reflects Firestore's health, not Strava's.
 func TestFetchActivity_FirestoreWriteBackFault_DoesNotTripBreaker(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -1546,9 +1544,9 @@ func TestFetchActivity_FirestoreWriteBackFault_DoesNotTripBreaker(t *testing.T) 
 }
 
 // The caller's budget can expire during the response *body read*, not just the
-// Do() handshake. That must stay breaker-neutral too. Regression guard for the
-// CI review on the H1 fix: server flushes headers (so Do() returns), then hangs
-// the body until the caller cancels mid-read.
+// Do() handshake. That must stay breaker-neutral too: the server flushes
+// headers (so Do() returns), then hangs the body until the caller cancels
+// mid-read.
 func TestFetchActivity_BudgetCutDuringBodyRead_IsBreakerNeutral(t *testing.T) {
 	bodyPhase := make(chan struct{}, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1876,12 +1874,11 @@ func (s *flakyWriteTokenStore) WriteTokensIfUnmodified(_ context.Context, _ int6
 
 func (s *flakyWriteTokenStore) DeleteTokens(_ context.Context, _ int64) error { return nil }
 
-// TestFetchActivity_WriteBackRetriedAfterTransientFault pins the retry added for
-// audit 2026-07-22-dispatcher M1. A refresh that succeeds upstream but whose
-// persist hits one transient Firestore fault must still land the tokens, because
-// the alternative is discarding a refresh token Strava may have just rotated —
-// which bricks the grant. Before the retry, this scenario returned an error and
-// dropped the new tokens on the floor.
+// TestFetchActivity_WriteBackRetriedAfterTransientFault pins the write-back
+// retry. A refresh that succeeds upstream but whose persist hits one transient
+// Firestore fault must still land the tokens, because the alternative is
+// discarding a refresh token Strava may have just rotated, which bricks the
+// grant.
 func TestFetchActivity_WriteBackRetriedAfterTransientFault(t *testing.T) {
 	var activityServed atomic.Bool
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1927,7 +1924,7 @@ func TestFetchActivity_WriteBackRetriedAfterTransientFault(t *testing.T) {
 }
 
 // TestRefreshAndPersist_ConcurrentRefreshesCollapseToOneCall pins the
-// singleflight serialization added for audit 2026-07-29-dispatcher M1.
+// per-athlete singleflight serialization of token refreshes.
 //
 // The optimistic write-back guards the write, not the call: without this, two
 // webhooks for one athlete could both POST the same refresh_token to Strava
