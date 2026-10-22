@@ -1,9 +1,11 @@
 # Activity-row schema changes
 
 Implementation: [schema, topic and retention settings](../../terraform/modules/desirelines/bigquery_subscription.tf)
-(`google_pubsub_schema.activity_rows`, `google_pubsub_topic.activity_rows`).
+(`google_pubsub_schema.activity_rows`, `google_pubsub_topic.activity_rows`,
+`google_bigquery_table.activities_live`).
 [Contract tests](../../terraform/modules/desirelines/tests/activity_rows_schema.tftest.hcl)
-check identity, definition, deletion policy and the open BINARY revision range.
+check schema/table identity, key, definition, deletion policy and the open BINARY
+revision range.
 
 ## Policy
 
@@ -16,6 +18,11 @@ check identity, definition, deletion policy and the open BINARY revision range.
   permits adding/removing optional protobuf fields, not editing existing fields
   or adding/removing required/repeated fields. BigQuery and deployment policy
   impose separate constraints. Incompatible edits require a migration.
+- Update the table in place. `prevent_destroy` blocks destructive table plans
+  in dev/prod; prod also keeps stored `deletion_protection`. Removing the resource
+  block removes the plan guard; neither protection blocks direct API deletion.
+  The deployment repository's `.github/scripts/bigquery-schema-guard.js` checks
+  the saved plan and live convergence. Rejected edits require a migration.
 - Reserve a rollback slot: stop ordinary edits at 19 revisions (API limit: 20).
   Comments can consume a revision too. Quota rejection occurs at apply, not plan.
 
@@ -45,6 +52,11 @@ Edit [the source schema](../../schemas/bigquery/activities_full.json), run
 `just generate-bq-proto` and `just verify-schemas`, and preserve
 [field numbers](../../schemas/bigquery/cdc_field_numbers.json). Require an
 in-place schema update and preserve table/topic/subscription identities.
+For new fields, require a canary containing their actual values before enabling
+producer writes. Schema propagation can drop fields with `drop_unknown_fields`;
+a successful metadata check is insufficient. See
+[Google's synchronization caveat](https://docs.cloud.google.com/pubsub/docs/create-bigquery-subscription#use_topic_schema).
+
 Restore a previous compatible definition on the same
 schema to roll back; this consumes another revision. Review older-module
 reverts: hash-based names can request replacement.
@@ -72,3 +84,18 @@ Use owner-approved disposable dev resources, separate from the live CDC path:
    Record results before removing disposable resources.
 
 Local plans do not prove delivery; record the live observations.
+
+## Verify a description-only table edit
+
+Before an owner-run dev deployment, record the table's creation identity,
+primary key, clustering and synthetic sentinel values. Make a description-only
+edit in `activities_full.json` and regenerate. Review the actual saved plan:
+the table updates in place, the topic schema commits a compatible revision,
+and topic/subscription identities stay unchanged. The initial module adoption
+also removes the obsolete `terraform_data.activities_live_schema` state marker;
+that marker owns no cloud object.
+
+After apply, require live metadata convergence, unchanged table creation identity
+and sentinel values, and CDC UPSERT/DELETE ordering. Record the observations;
+a local plan does not close this checkpoint. Preserve retained schema revisions
+when reverting the description.

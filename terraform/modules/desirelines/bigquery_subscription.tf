@@ -181,51 +181,14 @@ resource "google_pubsub_subscription" "activity_rows_dlq_monitoring" {
 # key is not a compatible Pub/Sub revision and needs a separate migration; do
 # not replace the schema or topic to bypass that constraint.
 #
-# The replace trigger below covers the table half of that. BigQuery silently
-# declines some in-place schema edits — relaxing a key column among them — and a
-# declined edit is not an apply error, so the drift would otherwise persist
-# until the subscription failed to bind. Deploys apply on merge, so there is no
-# reliable moment to drop the table by hand.
+# The relaxed schema is generated from activities_full.json; edit the source,
+# not activities_live.json. See schemas/bigquery/generate_proto.py.
 #
-# REMOVE the trigger before this table carries data anything reads. Recreating
-# on every schema change is only acceptable while the table is a rebuildable
-# projection of the event stream.
-#
-# The relaxed schema is generated rather than transformed here: the nesting is
-# three deep, HCL cannot recurse, and merge() would attach a null `fields` key
-# to every scalar. See schemas/bigquery/generate_proto.py.
-# Tracks the schema file so a change to it forces the table to be recreated
-# rather than updated in place. BigQuery accepts most schema edits in place but
-# refuses some — notably relaxing a key column — and a declined edit is not an
-# apply error, so the drift would otherwise persist silently.
-# Both this and the topic schema above are generated from activities_full.json.
-# The topic schema now retains its identity and compatible revisions, but this
-# legacy trigger still requests table replacement for any table-schema edit.
-# Deployment policy rejects that replacement; remove the trigger only as part
-# of the separately verified table-preservation change.
-resource "terraform_data" "activities_live_schema" {
-  input = filesha256("${path.module}/../../../schemas/bigquery/activities_live.json")
-}
-
-# deletion_protection is deliberately false in every environment, including prod.
-#
-# This table was created as a throwaway prototype target and kept that setting
-# when it became the live BigQuery table. It is defensible but no longer
-# obviously right: it now holds the only live BigQuery activity data. Two things
-# argue for leaving it off — nothing reads BigQuery, so losing the table costs
-# analysis history rather than product behavior; and a column retype requires
-# recreating the table (BigQuery cannot change a column's type in place), which
-# protection turns into a two-apply flag dance. See schemas/bigquery/README.md.
-#
-# Protected in prod anyway, matching how the retired `activities` table was
-# treated: this now holds the only live BigQuery activity data, and the history
-# it accumulates is not reconstructible — no code path can replay activities into
-# BigQuery, so a destroy is permanent. Left unprotected in dev, which is where
-# any recreate should be rehearsed.
-#
-# The cost is real: retyping a column in prod means flipping this to false in one
-# apply before the recreate in the next. Accept that trade when it comes up
-# rather than leaving the data unprotected against it.
+# Apply supported schema edits in place. Do not recreate this archival table on
+# a schema-file hash change: its accumulated history cannot be reconstructed.
+# Deployment policy checks the saved plan, then verifies live schema/key/identity
+# convergence before publishing success. Unsupported changes need a migration.
+# Procedure and protection limits: docs/runbooks/activity-row-schema-changes.md.
 resource "google_bigquery_table" "activities_live" {
   dataset_id          = google_bigquery_dataset.activities_dataset.dataset_id
   table_id            = "activities_live"
@@ -248,7 +211,9 @@ resource "google_bigquery_table" "activities_live" {
   clustering = ["id"]
 
   lifecycle {
-    replace_triggered_by = [terraform_data.activities_live_schema]
+    # Reject destructive plans in both environments. Production also retains
+    # the provider's stored deletion_protection guard above.
+    prevent_destroy = true
   }
 }
 

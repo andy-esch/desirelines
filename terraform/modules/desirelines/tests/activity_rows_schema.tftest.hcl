@@ -1,4 +1,4 @@
-# Contracts for bigquery_subscription.tf: google_pubsub_schema.activity_rows.
+# Schema/topic/table contracts for bigquery_subscription.tf.
 # Live proof: docs/runbooks/activity-row-schema-changes.md#verify-delivery-and-rollback
 mock_provider "google" {}
 mock_provider "google-beta" {}
@@ -44,6 +44,18 @@ run "dev_preserves_deployed_schema" {
 
   assert {
     condition = (
+      google_bigquery_table.activities_live.dataset_id == "desirelines" &&
+      google_bigquery_table.activities_live.table_id == "activities_live" &&
+      google_bigquery_table.activities_live.schema == jsonencode(jsondecode(file("../../../schemas/bigquery/activities_live.json")).schema) &&
+      google_bigquery_table.activities_live.clustering == tolist(["id"]) &&
+      google_bigquery_table.activities_live.table_constraints[0].primary_key[0].columns == tolist(["id"]) &&
+      !google_bigquery_table.activities_live.deletion_protection
+    )
+    error_message = "Dev must preserve the existing table address, source schema, CDC key and clustering without changing its stored deletion policy."
+  }
+
+  assert {
+    condition = (
       google_pubsub_topic.activity_rows.schema_settings[0].encoding == "BINARY" &&
       coalesce(google_pubsub_topic.activity_rows.schema_settings[0].first_revision_id, "unbounded") == "unbounded" &&
       coalesce(google_pubsub_topic.activity_rows.schema_settings[0].last_revision_id, "unbounded") == "unbounded"
@@ -64,5 +76,16 @@ run "prod_preserves_deployed_schema" {
       google_pubsub_schema.activity_rows.deletion_policy == "PREVENT"
     )
     error_message = "Production must preserve its deployed schema identity and prevent deletion."
+  }
+
+  assert {
+    condition = (
+      google_bigquery_table.activities_live.dataset_id == "desirelines" &&
+      google_bigquery_table.activities_live.table_id == "activities_live" &&
+      google_bigquery_table.activities_live.deletion_protection &&
+      google_bigquery_table.activities_live.clustering == tolist(["id"]) &&
+      google_bigquery_table.activities_live.table_constraints[0].primary_key[0].columns == tolist(["id"])
+    )
+    error_message = "Production must preserve table identity, CDC key, clustering and stored deletion protection."
   }
 }
