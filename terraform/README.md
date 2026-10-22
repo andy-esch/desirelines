@@ -19,36 +19,11 @@ This repo contains **modules** and the **artifacts** environment only. Deploymen
 - **Google Cloud SDK** authenticated
 - **pre-commit** installed (for validation hooks)
 
-## Directory Structure
-
-```
-terraform/
-├── .terraform-version      # Pinned version
-├── .tflint.hcl             # TFLint configuration (Google ruleset)
-├── .terraform-docs.yml     # terraform-docs configuration
-├── environments/
-│   └── artifacts/          # Shared artifact registry (desirelines-artifacts project)
-└── modules/
-    ├── desirelines/        # Main infrastructure module
-    └── github-actions-wif/ # Workload Identity Federation
-```
-
 ## Module Development
 
-Modules in this repo are referenced by the deploy repo via git tags:
-
-```hcl
-module "desirelines" {
-  source = "git::https://github.com/andy-esch/desirelines.git//terraform/modules/desirelines?ref=tf-1"
-}
-```
-
-When making module changes:
-
-1. Make changes to `terraform/modules/`
-2. Merge to main
-3. The [release workflow](../.github/workflows/deploy.yml) publishes the next `tf-N` tag for module or schema changes
-4. Deploy repo updates module refs (manually or via Renovate)
+Merge changes to `terraform/modules/` or `schemas/` into main. The
+[release workflow](../.github/workflows/deploy.yml) publishes the next `tf-N` tag;
+the deploy repository updates its module pins manually or through Renovate.
 
 ## Artifacts Environment
 
@@ -78,10 +53,9 @@ just tf-lint           # Lint with TFLint (Google ruleset)
 just tf-docs           # Regenerate module documentation
 ```
 
-`tf-test` uses mocked module tests plus [real-provider plans](../scripts/ci/activity_table_lifecycle.py)
-against synthetic state. It checks description updates and destruction protection
-in dev/prod without refreshing or applying cloud resources. It does not replace
-the [live table-preservation checkpoint](../docs/runbooks/activity-row-schema-changes.md#verify-a-description-only-table-edit).
+`tf-test` runs mocked contracts and [provider lifecycle plans](../scripts/ci/activity_table_lifecycle.py)
+using synthetic state. Live validation follows the
+[table-preservation checkpoint](../docs/runbooks/activity-row-schema-changes.md#verify-a-description-only-table-edit).
 
 ## Security
 

@@ -11,13 +11,13 @@ import os
 from pathlib import Path
 import re
 import shutil
+from string import Template
 import subprocess
 import tempfile
 from typing import Any
-import uuid
 
-TABLE = "google_bigquery_table.activities_live"
-PROJECT = "desirelines-test"
+TABLE_ADDRESS = "google_bigquery_table.activities_live"
+FIXTURE = Path(__file__).with_name("fixtures") / "activity_table_lifecycle.tf.tftpl"
 
 
 def declaration(
@@ -36,40 +36,36 @@ def declaration(
 
 def synthetic_state(document: dict[str, Any]) -> dict[str, Any]:
     """Use provider-planned attributes, never live state or an apply."""
-    versions = {
-        r["address"]: r["schema_version"]
-        for r in document["planned_values"]["root_module"]["resources"]
-    }
     resources = []
-    for resource in document["resource_changes"]:
-        attributes = resource["change"]["after"]
+    for resource in document["planned_values"]["root_module"]["resources"]:
+        attributes = resource["values"]
         if resource["type"] == "terraform_data":
             value = attributes["input"]
             attributes = {
-                "id": str(uuid.uuid4()),
+                "id": "offline-test",
                 "input": {"type": "string", "value": value},
                 "output": {"type": "string", "value": value},
                 "triggers_replace": None,
             }
-            provider = 'provider["terraform.io/builtin/terraform"]'
         else:
-            attributes["id"] = f"projects/{PROJECT}/datasets/desirelines" + (
-                "/tables/activities_live" if resource["address"] == TABLE else ""
+            attributes["id"] = (
+                f"projects/{attributes['project']}/datasets/{attributes['dataset_id']}"
             )
+            if resource["type"] == "google_bigquery_table":
+                attributes["id"] += f"/tables/{attributes['table_id']}"
             if "effective_labels" in attributes:
                 attributes["effective_labels"] = (
                     attributes.get("terraform_labels") or attributes["labels"]
                 )
-            provider = 'provider["registry.terraform.io/hashicorp/google"]'
         resources.append(
             {
                 "mode": "managed",
                 "type": resource["type"],
                 "name": resource["name"],
-                "provider": provider,
+                "provider": f'provider["{resource["provider_name"]}"]',
                 "instances": [
                     {
-                        "schema_version": versions[resource["address"]],
+                        "schema_version": resource["schema_version"],
                         "attributes": attributes,
                     }
                 ],
@@ -78,7 +74,7 @@ def synthetic_state(document: dict[str, Any]) -> dict[str, Any]:
     return {
         "version": 4,
         "serial": 1,
-        "lineage": str(uuid.uuid4()),
+        "lineage": "activity-table-lifecycle",
         "outputs": {},
         "resources": resources,
     }
@@ -86,11 +82,11 @@ def synthetic_state(document: dict[str, Any]) -> dict[str, Any]:
 
 def assert_table_change(document: dict[str, Any], action: str) -> None:
     changes = document["resource_changes"]
-    table_change = next(r["change"] for r in changes if r["address"] == TABLE)
+    table_change = next(r["change"] for r in changes if r["address"] == TABLE_ADDRESS)
     if table_change["actions"] != [action]:
         raise AssertionError(f"Expected {action}, got {table_change['actions']}")
     changed = {r["address"] for r in changes if r["change"]["actions"] != ["no-op"]}
-    if changed != ({TABLE} if action == "update" else set()):
+    if changed != ({TABLE_ADDRESS} if action == "update" else set()):
         raise AssertionError(f"Unexpected changed resources: {changed}")
     for attribute in (
         "id",
@@ -105,10 +101,10 @@ def assert_table_change(document: dict[str, Any], action: str) -> None:
             raise AssertionError(f"Table {attribute} changed")
 
 
-def module_inputs(module: Path) -> tuple[str, str, str]:
-    """Copy the table configuration and its locked Google provider constraint."""
+def render_fixture(module: Path) -> tuple[str, str]:
+    """Render the fixture with the actual table and locked provider constraint."""
     source = (module / "bigquery_subscription.tf").read_text()
-    table = declaration(source, "google_bigquery_table", "activities_live")
+    table = declaration(source, *TABLE_ADDRESS.split("."))
     # If a replacement trigger is reintroduced, include its real declaration so
     # a description edit exercises that dependency rather than ignoring it.
     marker = declaration(
@@ -124,7 +120,11 @@ def module_inputs(module: Path) -> tuple[str, str, str]:
     constraint_match = re.search(r'constraints\s*=\s*"([^"]+)"', lock)
     if constraint_match is None:
         raise AssertionError("Expected a Google provider version constraint")
-    return marker + "\n" + table, lock, constraint_match.group(1)
+    configuration = Template(FIXTURE.read_text()).substitute(
+        provider_constraint=constraint_match.group(1),
+        table_resources=marker + "\n" + table,
+    )
+    return configuration, lock
 
 
 def exercise_plans(
@@ -148,7 +148,7 @@ def exercise_plans(
     schema.write_text(json.dumps(retyped))
     plan(blocked=True)
     schema.write_text(json.dumps(original))
-    plan(f"-replace={TABLE}", blocked=True)
+    plan(f"-replace={TABLE_ADDRESS}", blocked=True)
     plan("-destroy", blocked=True)
 
 
@@ -160,7 +160,7 @@ def check_lifecycle(repository: Path) -> None:
     plugins = module / ".terraform/providers"
     if not plugins.is_dir():
         raise RuntimeError("Initialize terraform/modules/desirelines first")
-    table, lock, constraint = module_inputs(module)
+    configuration, lock = render_fixture(module)
     original = json.loads(
         (repository / "schemas/bigquery/activities_live.json").read_text()
     )
@@ -173,28 +173,7 @@ def check_lifecycle(repository: Path) -> None:
         schema.parent.mkdir(parents=True)
         schema.write_text(json.dumps(original))
         (root / ".terraform.lock.hcl").write_text(lock + "\n")
-        (root / "main.tf").write_text(
-            """terraform {
-  required_providers {
-    google = {
-      source = "hashicorp/google"
-      version = "__GOOGLE_CONSTRAINT__"
-    }
-  }
-}
-provider "google" {
-  project = "desirelines-test"
-  access_token = "offline-plan-only"
-}
-variable "environment" { default = "dev" }
-locals { common_labels = { environment = var.environment } }
-resource "google_bigquery_dataset" "activities_dataset" {
-  dataset_id = "desirelines"
-  location = "US"
-}
-""".replace("__GOOGLE_CONSTRAINT__", constraint)
-            + table
-        )
+        (root / "main.tf").write_text(configuration)
         environment = dict(
             os.environ,
             TF_DATA_DIR=str(root / ".terraform"),
@@ -217,7 +196,7 @@ resource "google_bigquery_dataset" "activities_dataset" {
                 if (
                     not result.returncode
                     or "prevent_destroy" not in output
-                    or TABLE not in output
+                    or TABLE_ADDRESS not in output
                 ):
                     raise AssertionError(
                         f"Expected table destruction to be blocked:\n{output}"
@@ -226,6 +205,7 @@ resource "google_bigquery_dataset" "activities_dataset" {
                 raise AssertionError(output)
             return result.stdout
 
+        run("fmt", "-check", "-diff")
         run(
             "init",
             "-input=false",

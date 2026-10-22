@@ -1,0 +1,24 @@
+# Offline context; table_resources is copied from the application module.
+terraform {
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "${provider_constraint}"
+    }
+  }
+}
+
+provider "google" {
+  project      = "desirelines-test"
+  access_token = "offline-plan-only"
+}
+
+variable "environment" { default = "dev" }
+locals { common_labels = { environment = var.environment } }
+
+resource "google_bigquery_dataset" "activities_dataset" {
+  dataset_id = "desirelines"
+  location   = "US"
+}
+
+${table_resources}

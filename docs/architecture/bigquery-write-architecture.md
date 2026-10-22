@@ -196,13 +196,10 @@ originally guessed wrong.
   revisions and deletion protection. The
   [runbook](../runbooks/activity-row-schema-changes.md) defines compatibility,
   revision capacity, rollback, retirement and delivery checks.
-- **Table history is preserved during schema edits.**
-  `google_bigquery_table.activities_live` updates supported schema changes in
-  place, without a file-hash replacement trigger. `prevent_destroy` rejects
-  destructive plans in dev and prod; prod also retains stored
-  `deletion_protection`. The deployment guard checks the saved plan and live
-  convergence; rejected changes require an explicit migration. Direct API
-  deletion remains outside these Terraform protections.
+- **Table schema updates run in place.** `activities_live` has `prevent_destroy`
+  in dev/prod and stored `deletion_protection` in prod. See the
+  [schema runbook](../runbooks/activity-row-schema-changes.md) for deployment
+  guards, protection limits and live verification.
 - **Field completeness** is bounded by what the producer holds — the same
   constraint the retired `bq-inserter` had: detailed-only fields depend on the
   enrichment fetch.
