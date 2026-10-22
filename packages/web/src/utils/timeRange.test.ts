@@ -1,5 +1,10 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { calculateDateRange, coerceTimeRange } from "./timeRange";
+import {
+  calculateDateRange,
+  coerceTimeRange,
+  DASHBOARD_TIME_RANGE_OPTIONS,
+  isDashboardTimeRange,
+} from "./timeRange";
 
 // Independent local-date oracle (plain Date, not the dateUtils helpers the function
 // uses) so we aren't testing the implementation against itself.
@@ -16,6 +21,30 @@ describe("coerceTimeRange", () => {
     expect(coerceTimeRange("bogus", "ytd")).toBe("ytd");
     expect(coerceTimeRange(undefined, "4w")).toBe("4w");
     expect(coerceTimeRange(42, "2w")).toBe("2w");
+  });
+});
+
+describe("isDashboardTimeRange", () => {
+  it("accepts every bounded preset", () => {
+    for (const range of ["2w", "4w", "2m", "6m", "ytd"]) {
+      expect(isDashboardTimeRange(range)).toBe(true);
+    }
+  });
+
+  it("rejects 'all', unknown values and non-strings", () => {
+    for (const value of ["all", "1y", "2weeks", "", undefined, null, 14]) {
+      expect(isDashboardTimeRange(value)).toBe(false);
+    }
+  });
+
+  it("drives the dashboard options, in the shared order and with the shared labels", () => {
+    expect(DASHBOARD_TIME_RANGE_OPTIONS.map((option) => [option.value, option.short])).toEqual([
+      ["2w", "2W"],
+      ["4w", "4W"],
+      ["2m", "2M"],
+      ["6m", "6M"],
+      ["ytd", "YTD"],
+    ]);
   });
 });
 

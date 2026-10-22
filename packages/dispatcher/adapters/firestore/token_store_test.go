@@ -4,46 +4,28 @@ package firestore
 
 import (
 	"context"
-	"os"
+	"errors"
 	"testing"
 	"time"
 
-	"cloud.google.com/go/firestore"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
+	"github.com/andy-esch/desirelines/packages/shared/firestoretest"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/andy-esch/desirelines/packages/shared/otel"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 )
 
-// Integration tests require:
-// - FIRESTORE_EMULATOR_HOST set (e.g., "localhost:8080")
-// - GCP_PROJECT_ID set (any value works with emulator)
-// - FIRESTORE_DATABASE set (any value works with emulator)
+// Integration tests need the Firestore emulator: set FIRESTORE_EMULATOR_HOST
+// (e.g., "localhost:8080"). GCP_PROJECT_ID and FIRESTORE_DATABASE are optional.
+// firestoretest.NewClient skips the tests without it (fails them in CI) before
+// any client exists, so they can never reach a real project.
 //
 // Run with: go test -tags=integration ./adapters/firestore/
 
 func newTestStore(t *testing.T) *TokenStore {
 	t.Helper()
 
-	projectID := os.Getenv("GCP_PROJECT_ID")
-	if projectID == "" {
-		projectID = "test-project"
-	}
-	database := os.Getenv("FIRESTORE_DATABASE")
-	if database == "" {
-		database = "test-db"
-	}
-
-	ctx := context.Background()
-	client, err := firestore.NewClientWithDatabase(ctx, projectID, database)
-	if err != nil {
-		t.Fatalf("failed to create Firestore client: %v", err)
-	}
-	t.Cleanup(func() {
-		if closeErr := client.Close(); closeErr != nil {
-			t.Errorf("failed to close Firestore client: %v", closeErr)
-		}
-	})
+	client := firestoretest.NewClient(t)
 
 	noopProviders := otel.NoopProviders()
 	noopHist, _ := noopProviders.Meter.Float64Histogram("test") //nolint:errcheck // no-op meter never fails
@@ -69,7 +51,7 @@ func TestTokenStore_GetTokens_NotFound(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for non-existent athlete")
 	}
-	if err != ports.ErrTokenNotFound {
+	if !errors.Is(err, ports.ErrTokenNotFound) {
 		t.Errorf("expected ErrTokenNotFound, got %v", err)
 	}
 }
@@ -98,7 +80,8 @@ func TestTokenStore_WriteIfUnmodifiedAndRead(t *testing.T) {
 		ExpiresAt:    time.Now().Add(6 * time.Hour).Unix(),
 	}
 
-	if err := store.WriteTokensIfUnmodified(ctx, athleteID, refreshed, seedTime); err != nil {
+	version, err := store.WriteTokensIfUnmodified(ctx, athleteID, refreshed, seedTime)
+	if err != nil {
 		t.Fatalf("WriteTokensIfUnmodified() error = %v", err)
 	}
 
@@ -113,8 +96,40 @@ func TestTokenStore_WriteIfUnmodifiedAndRead(t *testing.T) {
 	if got.RefreshToken != refreshed.RefreshToken {
 		t.Errorf("RefreshToken = %s, want %s", got.RefreshToken, refreshed.RefreshToken)
 	}
-	if got.LastRefreshed.IsZero() {
-		t.Error("LastRefreshed should be set after WriteTokensIfUnmodified")
+	// The returned version must be exactly what Firestore stored, so a second
+	// write in the same request can base on it. Firestore (and the emulator)
+	// keeps microseconds; on Linux, where time.Now carries nanoseconds, an
+	// untruncated version fails this check. macOS clocks are microsecond-grained,
+	// so there it passes either way.
+	if version.IsZero() || !got.LastRefreshed.Equal(version) {
+		t.Fatalf("returned version = %v, stored LastRefreshed = %v; want equal and non-zero", version, got.LastRefreshed)
+	}
+	again := &stravatoken.Data{
+		AccessToken:  "second-access",
+		RefreshToken: "second-refresh",
+		ExpiresAt:    time.Now().Add(6 * time.Hour).Unix(),
+	}
+	if _, writeErr := store.WriteTokensIfUnmodified(ctx, athleteID, again, version); writeErr != nil {
+		t.Fatalf("second write based on the returned version: %v", writeErr)
+	}
+}
+
+// A write that fails for any other reason returns a wrapped error and no version.
+func TestTokenStore_WriteIfUnmodified_FailureReturnsNoVersion(t *testing.T) {
+	store := newTestStore(t)
+	athleteID := int64(55555)
+	seedTime := time.Now().Add(-1 * time.Hour).Truncate(time.Millisecond)
+	seedTokens(t, store, athleteID, &stravatoken.Data{AccessToken: "access", LastRefreshed: seedTime})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	version, err := store.WriteTokensIfUnmodified(ctx, athleteID, &stravatoken.Data{AccessToken: "new"}, seedTime)
+
+	if err == nil || errors.Is(err, ports.ErrTokenConflict) || errors.Is(err, ports.ErrTokenNotFound) {
+		t.Fatalf("error = %v, want a non-sentinel failure", err)
+	}
+	if !version.IsZero() {
+		t.Errorf("version = %v, want zero on failure", version)
 	}
 }
 
@@ -146,7 +161,7 @@ func TestTokenStore_WriteIfUnmodified_PreservesOAuthFields(t *testing.T) {
 		// simulating what the dispatcher passes after a Strava token refresh.
 	}
 
-	if err := store.WriteTokensIfUnmodified(ctx, athleteID, refreshed, seedTime); err != nil {
+	if _, err := store.WriteTokensIfUnmodified(ctx, athleteID, refreshed, seedTime); err != nil {
 		t.Fatalf("WriteTokensIfUnmodified() error = %v", err)
 	}
 
@@ -190,7 +205,7 @@ func TestTokenStore_WriteTokensIfUnmodified_NotFoundReturnsErrTokenNotFound(t *t
 	athleteID := int64(33333)
 	// No seedTokens — doc doesn't exist, simulating the racing delete.
 
-	err := store.WriteTokensIfUnmodified(ctx, athleteID, &stravatoken.Data{
+	_, err := store.WriteTokensIfUnmodified(ctx, athleteID, &stravatoken.Data{
 		AccessToken:   "new-access",
 		RefreshToken:  "new-refresh",
 		ExpiresAt:     time.Now().Add(6 * time.Hour).Unix(),
@@ -199,7 +214,7 @@ func TestTokenStore_WriteTokensIfUnmodified_NotFoundReturnsErrTokenNotFound(t *t
 	if err == nil {
 		t.Fatal("expected error writing to non-existent doc")
 	}
-	if err != ports.ErrTokenNotFound {
+	if !errors.Is(err, ports.ErrTokenNotFound) {
 		t.Errorf("expected ErrTokenNotFound, got %v", err)
 	}
 }
@@ -223,7 +238,7 @@ func TestTokenStore_DeleteTokens(t *testing.T) {
 
 	// Verify tokens are gone.
 	_, err := store.GetTokens(ctx, athleteID)
-	if err != ports.ErrTokenNotFound {
+	if !errors.Is(err, ports.ErrTokenNotFound) {
 		t.Errorf("expected ErrTokenNotFound after delete, got %v", err)
 	}
 }
@@ -260,11 +275,11 @@ func TestTokenStore_WriteIfUnmodified_Conflict(t *testing.T) {
 		ExpiresAt:    time.Now().Add(6 * time.Hour).Unix(),
 	}
 
-	err := store.WriteTokensIfUnmodified(ctx, athleteID, refreshed, staleTime)
+	_, err := store.WriteTokensIfUnmodified(ctx, athleteID, refreshed, staleTime)
 	if err == nil {
 		t.Fatal("expected ErrTokenConflict for stale version stamp")
 	}
-	if err != ports.ErrTokenConflict {
+	if !errors.Is(err, ports.ErrTokenConflict) {
 		t.Errorf("expected ErrTokenConflict, got %v", err)
 	}
 

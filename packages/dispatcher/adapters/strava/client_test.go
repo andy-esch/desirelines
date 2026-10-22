@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -598,8 +599,8 @@ func (s *conflictTokenStore) GetTokens(_ context.Context, _ int64) (*stravatoken
 	return s.winnerTokens, nil
 }
 
-func (s *conflictTokenStore) WriteTokensIfUnmodified(_ context.Context, _ int64, _ *stravatoken.Data, _ time.Time) error {
-	return ports.ErrTokenConflict
+func (s *conflictTokenStore) WriteTokensIfUnmodified(_ context.Context, _ int64, _ *stravatoken.Data, _ time.Time) (time.Time, error) {
+	return time.Time{}, ports.ErrTokenConflict
 }
 
 func (s *conflictTokenStore) DeleteTokens(_ context.Context, _ int64) error {
@@ -1052,6 +1053,77 @@ func TestFetchActivity_ProactiveRefreshOnExpiry(t *testing.T) {
 	}
 }
 
+// A proactive refresh followed by a reactive-401 refresh in one request must
+// persist both. The second write bases on the version the first one stored; if
+// the refreshed tokens came back without it, the store would report a conflict,
+// the client would fall back to the first refresh's (already rejected) tokens,
+// and the second refresh's rotated refresh token would be lost.
+func TestFetchActivity_ReactiveRefreshAfterProactiveRefreshPersists(t *testing.T) {
+	var tokenCalls atomic.Int32
+	var secondRefreshToken atomic.Value
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case testTokenPath:
+			call := tokenCalls.Add(1)
+			if err := r.ParseForm(); err != nil {
+				t.Errorf("parse token form: %v", err)
+			}
+			prefix := "proactive"
+			if call == 2 {
+				secondRefreshToken.Store(r.PostForm.Get("refresh_token"))
+				prefix = "reactive"
+			}
+			if err := json.NewEncoder(w).Encode(map[string]any{
+				"access_token": prefix + "-access", "refresh_token": prefix + "-refresh", "expires_at": futureExpiry(),
+			}); err != nil {
+				t.Errorf("failed to encode response: %v", err)
+			}
+		case testActivityPath:
+			// The proactively refreshed token was revoked before nominal expiry.
+			if r.Header.Get("Authorization") != "Bearer reactive-access" {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			if _, err := w.Write([]byte(`{"id":12345}`)); err != nil {
+				t.Errorf("failed to write response: %v", err)
+			}
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	tokenStore := &portstest.MockTokenStore{
+		Versioned: true,
+		Tokens: map[int64]*stravatoken.Data{
+			testOwnerID: {AccessToken: "stale-access", RefreshToken: "stale-refresh", ExpiresAt: pastExpiry()},
+		},
+	}
+	client := newTestClient(server, tokenStore)
+
+	body, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+	if err != nil {
+		t.Fatalf("FetchActivity() error = %v", err)
+	}
+	if string(body) != `{"id":12345}` {
+		t.Errorf("body = %s, want {\"id\":12345}", string(body))
+	}
+	if n := tokenCalls.Load(); n != 2 {
+		t.Fatalf("token endpoint called %d times, want 2 (proactive, then reactive)", n)
+	}
+	if got := secondRefreshToken.Load(); got != "proactive-refresh" {
+		t.Errorf("reactive refresh sent refresh_token %v, want the proactively rotated proactive-refresh", got)
+	}
+	stored, err := tokenStore.GetTokens(context.Background(), testOwnerID)
+	if err != nil {
+		t.Fatalf("GetTokens() error = %v", err)
+	}
+	if stored.AccessToken != "reactive-access" || stored.RefreshToken != "reactive-refresh" {
+		t.Errorf("stored tokens = %s/%s, want reactive-access/reactive-refresh (the reactive refresh was not persisted)",
+			stored.AccessToken, stored.RefreshToken)
+	}
+}
+
 // TestFetchActivity_EmptyTokenRefreshReason: the no-stored-token path
 // stamps strava.refresh_reason=empty_token.
 func TestFetchActivity_EmptyTokenRefreshReason(t *testing.T) {
@@ -1188,10 +1260,10 @@ func TestJitterBackoff(t *testing.T) {
 	})
 }
 
-// TestCircuitBreaker_EmitsStateChangeMetric pins the alerting signal added for
-// audit 2026-08-19-dispatcher L1: before it, OnStateChange only called
-// logger.Warn, so an open breaker was discoverable solely by reading logs after
-// the fact and could never fire an alert.
+// TestCircuitBreaker_EmitsStateChangeMetric pins the breaker's alerting signal:
+// a state change must reach a metric, not only a log line, or an open breaker
+// is discoverable solely by reading logs after the fact and can never fire an
+// alert.
 //
 // The from/to pair is asserted, not just `to`: distinguishing a genuine recovery
 // (half-open -> closed) from a flap (open -> half-open -> open) needs both.
@@ -1389,10 +1461,9 @@ func TestCircuitBreaker_404DoesNotCount(t *testing.T) {
 // A request cut short by the caller's budget/deadline (the shared
 // handleEventDeadline exhausted upstream — e.g. by a slow token read — before
 // the Strava HTTP call) must be breaker-neutral: it is not evidence Strava is
-// down. Regression guard for H1 (audit 2026-06-03-dispatcher): before the fix,
-// the bare ctx.Err() reached the breaker as a Strava failure and 5 of them
-// would trip it. handleEventDeadline == httpClientTimeout == 10s, so budget
-// exhaustion is realistic, not "orders of magnitude" away.
+// down. A bare ctx.Err() reaching the breaker would count as a Strava failure,
+// and 5 of them would trip it. handleEventDeadline == httpClientTimeout == 10s,
+// so budget exhaustion is realistic, not "orders of magnitude" away.
 func TestFetchActivity_CallerBudgetExhausted_DoesNotTripBreaker(t *testing.T) {
 	// The expired context makes http.Client.Do fail before the server is hit,
 	// so this handler should never run; the assertions below don't depend on it.
@@ -1426,9 +1497,8 @@ func TestFetchActivity_CallerBudgetExhausted_DoesNotTripBreaker(t *testing.T) {
 	}
 }
 
-// A generic/transient Firestore fault on the in-breaker token write-back (M1)
-// must be breaker-neutral — it reflects Firestore's health, not Strava's.
-// Regression guard for M1 (audit 2026-06-03-dispatcher).
+// A generic/transient Firestore fault on the in-breaker token write-back must
+// be breaker-neutral: it reflects Firestore's health, not Strava's.
 func TestFetchActivity_FirestoreWriteBackFault_DoesNotTripBreaker(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -1475,9 +1545,9 @@ func TestFetchActivity_FirestoreWriteBackFault_DoesNotTripBreaker(t *testing.T) 
 }
 
 // The caller's budget can expire during the response *body read*, not just the
-// Do() handshake. That must stay breaker-neutral too. Regression guard for the
-// CI review on the H1 fix: server flushes headers (so Do() returns), then hangs
-// the body until the caller cancels mid-read.
+// Do() handshake. That must stay breaker-neutral too: the server flushes
+// headers (so Do() returns), then hangs the body until the caller cancels
+// mid-read.
 func TestFetchActivity_BudgetCutDuringBodyRead_IsBreakerNeutral(t *testing.T) {
 	bodyPhase := make(chan struct{}, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1550,8 +1620,8 @@ func TestIsStravaCallSuccessful(t *testing.T) {
 		{"backoff interrupted, 429 cause", fmt.Errorf("strava backoff interrupted: %w (cause: %w)", context.DeadlineExceeded, &rateLimitError{retryAfter: time.Second}), true},
 		// ...while a truncated 5xx is still a real Strava failure.
 		{"backoff interrupted, 5xx cause", fmt.Errorf("strava backoff interrupted: %w (cause: %w)", context.DeadlineExceeded, &stravaAPIError{statusCode: 503}), false},
-		// Generic Firestore fault on the in-breaker token write-back / re-read
-		// (M1) — Firestore's health, not Strava's; must not trip the breaker.
+		// Generic Firestore fault on the in-breaker token write-back or re-read:
+		// Firestore's health, not Strava's, so it must not trip the breaker.
 		{"token store unavailable (sentinel)", errTokenStoreUnavailable, true},
 		{"token store unavailable (write-back shape)", fmt.Errorf("%w: write-back tokens for athlete %d: %w", errTokenStoreUnavailable, int64(1), errors.New("firestore: Unavailable")), true},
 		// The conflict-reread shape wrapping a deleted-doc still surfaces
@@ -1626,10 +1696,10 @@ func TestCircuitBreaker_RecoversAfterTimeout(t *testing.T) {
 // TestCircuitBreaker_TokenEndpoint5xxCountsAsFailure verifies that a
 // proactive-refresh failure caused by Strava's /oauth/token endpoint
 // returning 5xx is NOT swallowed by the ErrStravaAuth wrap and DOES
-// drive the breaker toward open. Regression guard for the bug gemini
-// flagged: wrapping transient token-refresh failures as ErrStravaAuth
-// hides the failure from the breaker (excluded by isStravaCallSuccessful)
-// and risks misclassifying a Strava outage as a per-user auth issue.
+// drive the breaker toward open. Wrapping transient token-refresh failures
+// as ErrStravaAuth would hide them from the breaker (excluded by
+// isStravaCallSuccessful) and misclassify a Strava outage as a per-user auth
+// issue.
 func TestCircuitBreaker_TokenEndpoint5xxCountsAsFailure(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == testTokenPath {
@@ -1796,21 +1866,67 @@ func (s *flakyWriteTokenStore) GetTokens(_ context.Context, _ int64) (*stravatok
 	return s.tokens, nil
 }
 
-func (s *flakyWriteTokenStore) WriteTokensIfUnmodified(_ context.Context, _ int64, _ *stravatoken.Data, _ time.Time) error {
+func (s *flakyWriteTokenStore) WriteTokensIfUnmodified(_ context.Context, _ int64, _ *stravatoken.Data, _ time.Time) (time.Time, error) {
 	if s.writeCount.Add(1) <= s.failWrites {
-		return errors.New("firestore unavailable")
+		return time.Time{}, errors.New("firestore unavailable")
 	}
-	return nil
+	return time.Unix(1, 0), nil
 }
 
 func (s *flakyWriteTokenStore) DeleteTokens(_ context.Context, _ int64) error { return nil }
 
-// TestFetchActivity_WriteBackRetriedAfterTransientFault pins the retry added for
-// audit 2026-07-22-dispatcher M1. A refresh that succeeds upstream but whose
-// persist hits one transient Firestore fault must still land the tokens, because
-// the alternative is discarding a refresh token Strava may have just rotated —
-// which bricks the grant. Before the retry, this scenario returned an error and
-// dropped the new tokens on the floor.
+// TestFetchActivity_WriteBackRetriedAfterTransientFault pins the write-back
+// retry. A refresh that succeeds upstream but whose persist hits one transient
+// Firestore fault must still land the tokens, because the alternative is
+// discarding a refresh token Strava may have just rotated, which bricks the
+// grant.
+// A write-back retry cut short by the caller's context returns no version and
+// both causes, and does not attempt the write again.
+func TestPersistRefreshedTokens_CancelledDuringBackoff(t *testing.T) {
+	store := &flakyWriteTokenStore{failWrites: tokenRetryAttempts}
+	server := httptest.NewServer(http.NotFoundHandler())
+	defer server.Close()
+	client := newTestClient(server, store)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	version, err := client.persistRefreshedTokens(ctx, testOwnerID, &stravatoken.Data{AccessToken: "a"}, time.Time{})
+
+	if !errors.Is(err, context.Canceled) || !strings.Contains(err.Error(), "firestore unavailable") {
+		t.Errorf("error = %v, want context.Canceled wrapping the write failure", err)
+	}
+	if !version.IsZero() {
+		t.Errorf("version = %v, want zero on failure", version)
+	}
+	if got := store.writeCount.Load(); got != 1 {
+		t.Errorf("writes = %d, want 1 (no retry after cancellation)", got)
+	}
+}
+
+type failingCloser struct{ err error }
+
+func (f failingCloser) Close() error { return f.err }
+
+// A failed body close is logged, not returned: the response was already read.
+func TestCloseResponseBody_LogsOnlyFailures(t *testing.T) {
+	logger, logs := gcplog.NewCaptureLogger()
+	client := &Client{logger: logger}
+
+	client.closeResponseBody(context.Background(), failingCloser{})
+	if got := logs.Logs(); len(got) != 0 {
+		t.Fatalf("logs after a clean close = %v, want none", got)
+	}
+
+	client.closeResponseBody(context.Background(), failingCloser{err: errors.New("connection reset")})
+	got := logs.Logs()
+	if len(got) != 1 || got[0].Level != slog.LevelError || got[0].Message != "Failed to close response body" {
+		t.Fatalf("logs = %+v, want one error-level close failure", got)
+	}
+	if fmt.Sprint(got[0].Attrs["error"]) != "connection reset" {
+		t.Errorf("logged error = %v, want connection reset", got[0].Attrs["error"])
+	}
+}
+
 func TestFetchActivity_WriteBackRetriedAfterTransientFault(t *testing.T) {
 	var activityServed atomic.Bool
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1856,7 +1972,7 @@ func TestFetchActivity_WriteBackRetriedAfterTransientFault(t *testing.T) {
 }
 
 // TestRefreshAndPersist_ConcurrentRefreshesCollapseToOneCall pins the
-// singleflight serialization added for audit 2026-07-29-dispatcher M1.
+// per-athlete singleflight serialization of token refreshes.
 //
 // The optimistic write-back guards the write, not the call: without this, two
 // webhooks for one athlete could both POST the same refresh_token to Strava
@@ -2127,8 +2243,8 @@ func (s *staleGrantTokenStore) GetTokens(context.Context, int64) (*stravatoken.D
 	return s.stale, nil
 }
 
-func (s *staleGrantTokenStore) WriteTokensIfUnmodified(context.Context, int64, *stravatoken.Data, time.Time) error {
-	return errors.New("unexpected token write")
+func (s *staleGrantTokenStore) WriteTokensIfUnmodified(context.Context, int64, *stravatoken.Data, time.Time) (time.Time, error) {
+	return time.Time{}, errors.New("unexpected token write")
 }
 
 func (s *staleGrantTokenStore) DeleteTokens(context.Context, int64) error { return nil }

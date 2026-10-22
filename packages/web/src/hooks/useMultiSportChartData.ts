@@ -3,7 +3,7 @@ import { useDailySportData } from "../hooks/useDailySportData";
 import { useVisibleSports } from "../hooks/useVisibleSports";
 import { useSportConfig } from "../hooks/useSportConfig";
 import { useUnitSettings } from "../hooks/usePreferences";
-import type { TimeRange } from "../utils/dataNormalization";
+import type { DashboardTimeRange } from "../utils/timeRange";
 import type { TuningParams } from "../utils/demoDataGenerator";
 import { filterValidSports } from "../utils/sportConfig";
 import { getDateRangeFromTimeRange } from "../utils/chartUtils";
@@ -33,7 +33,7 @@ function getActivityPageSize(sportCount: number): number {
  * Note: Manual memoization (useCallback/useMemo) is omitted as the
  * React Compiler handles reference stability automatically.
  */
-export function useMultiSportChartData(timeRange: TimeRange, tuningParams?: TuningParams) {
+export function useMultiSportChartData(timeRange: DashboardTimeRange, tuningParams?: TuningParams) {
   const currentYear = useCurrentYear();
 
   // Get visible sports, sport config, and user preferences

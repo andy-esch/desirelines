@@ -4,53 +4,47 @@ package firestore
 
 import (
 	"context"
-	"os"
+	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	"cloud.google.com/go/firestore"
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/auth"
+	"github.com/andy-esch/desirelines/packages/shared/firestoretest"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 )
 
-// Integration tests require:
-// - FIRESTORE_EMULATOR_HOST set (e.g., "localhost:8080")
-// - GCP_PROJECT_ID set (any value works with emulator)
-// - FIRESTORE_DATABASE set (any value works with emulator)
+// Integration tests need the Firestore emulator: set FIRESTORE_EMULATOR_HOST
+// (e.g., "localhost:8080"). GCP_PROJECT_ID and FIRESTORE_DATABASE are optional.
+// firestoretest.NewClient skips the tests without it (fails them in CI) before
+// any client exists, so they can never reach a real project.
 //
 // Run with: go test -tags=integration ./adapters/firestore/
 
 func newTestAuthStore(t *testing.T) *AuthStore {
 	t.Helper()
 
-	projectID := os.Getenv("GCP_PROJECT_ID")
-	if projectID == "" {
-		projectID = "test-project"
-	}
-	database := os.Getenv("FIRESTORE_DATABASE")
-	if database == "" {
-		database = "test-db"
-	}
-
-	ctx := context.Background()
-	client, err := firestore.NewClientWithDatabase(ctx, projectID, database)
-	if err != nil {
-		t.Fatalf("failed to create Firestore client: %v", err)
-	}
-	t.Cleanup(func() {
-		if closeErr := client.Close(); closeErr != nil {
-			t.Errorf("failed to close Firestore client: %v", closeErr)
-		}
-	})
+	client := firestoretest.NewClient(t)
 
 	return NewAuthStore(client, gcplog.NewNoOpLogger())
+}
+
+// athleteIDs makes each call to newAthleteID distinct within a run.
+var athleteIDs atomic.Int64
+
+// newAthleteID returns an athlete ID, as the number and the document key, that
+// no earlier run used, so the tests can rerun against a long-lived emulator
+// without reading a previous run's documents.
+func newAthleteID() (int64, string) {
+	id := time.Now().UnixNano() + athleteIDs.Add(1)
+	return id, strconv.FormatInt(id, 10)
 }
 
 func TestAuthStore_WriteAuthData_HappyPath(t *testing.T) {
 	store := newTestAuthStore(t)
 	ctx := context.Background()
-	athleteID := "222222"
+	stravaID, athleteID := newAthleteID()
 
 	now := time.Now().Truncate(time.Millisecond)
 	tokens := &stravatoken.Data{
@@ -62,7 +56,7 @@ func TestAuthStore_WriteAuthData_HappyPath(t *testing.T) {
 		LastRefreshed: now,
 	}
 	profile := &auth.AthleteProfile{
-		StravaAthleteID: 222222,
+		StravaAthleteID: stravaID,
 		FirstName:       "Test",
 		LastName:        "User",
 		ProfileURL:      "https://example.com/avatar.jpg",
@@ -123,12 +117,12 @@ func TestAuthStore_WriteAuthData_HappyPath(t *testing.T) {
 func TestAuthStore_WriteAuthData_PreservesCreatedAt(t *testing.T) {
 	store := newTestAuthStore(t)
 	ctx := context.Background()
-	athleteID := "333333"
+	stravaID, athleteID := newAthleteID()
 
 	// First login
 	originalCreatedAt := time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC)
 	firstProfile := &auth.AthleteProfile{
-		StravaAthleteID: 333333,
+		StravaAthleteID: stravaID,
 		FirstName:       "First",
 		LastName:        "Login",
 		CreatedAt:       originalCreatedAt,
@@ -146,7 +140,7 @@ func TestAuthStore_WriteAuthData_PreservesCreatedAt(t *testing.T) {
 
 	// Re-login with updated profile but different CreatedAt
 	reloginProfile := &auth.AthleteProfile{
-		StravaAthleteID: 333333,
+		StravaAthleteID: stravaID,
 		FirstName:       "Updated",
 		LastName:        "Name",
 		ProfileURL:      "https://example.com/new-avatar.jpg",
@@ -201,12 +195,12 @@ func TestAuthStore_WriteAuthData_PreservesCreatedAt(t *testing.T) {
 func TestAuthStore_WriteAuthData_FirstLogin(t *testing.T) {
 	store := newTestAuthStore(t)
 	ctx := context.Background()
-	athleteID := "444444"
+	stravaID, athleteID := newAthleteID()
 
 	// First login — no existing profile, CreatedAt should be used as-is
 	createdAt := time.Date(2026, 2, 20, 14, 0, 0, 0, time.UTC)
 	profile := &auth.AthleteProfile{
-		StravaAthleteID: 444444,
+		StravaAthleteID: stravaID,
 		FirstName:       "New",
 		LastName:        "User",
 		CreatedAt:       createdAt,

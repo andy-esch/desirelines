@@ -124,7 +124,7 @@ func (s *TokenStore) GetTokens(ctx context.Context, athleteID int64) (*stravatok
 //   - ErrTokenNotFound — the tokens were deleted mid-refresh (deauth race).
 //   - transient failure — the write may or may not have landed. Unknown state is
 //     a reason to forget, not to keep.
-func (s *TokenStore) WriteTokensIfUnmodified(ctx context.Context, athleteID int64, tokens *stravatoken.Data, expectedLastRefreshed time.Time) error {
+func (s *TokenStore) WriteTokensIfUnmodified(ctx context.Context, athleteID int64, tokens *stravatoken.Data, expectedLastRefreshed time.Time) (time.Time, error) {
 	defer s.cache.Invalidate(athleteID)
 	//nolint:wrapcheck // Transparent decorator — see the note on the type.
 	return s.inner.WriteTokensIfUnmodified(ctx, athleteID, tokens, expectedLastRefreshed)

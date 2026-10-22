@@ -8,6 +8,7 @@ Shared Go packages for the desirelines monorepo.
 |---------|-------------|
 | [allowlist](./allowlist/) | Shared interfaces + Firestore-backed implementation for athlete-allowlist enforcement across services |
 | [apierrors](./apierrors/) | Standardized API error types and HTTP response writing, decoupled from any router or logging framework |
+| [firestoretest](./firestoretest/) | Test support: a Firestore client for integration tests that skips (fails in CI) unless the emulator is configured, so tests never reach a real project |
 | [gcplog](./gcplog/) | Structured `slog` logging that emits JSON for GCP Cloud Logging (severity, timestamps, source locations) |
 | [otel](./otel/) | OpenTelemetry metrics and tracing setup for GCP |
 | [ratelimit](./ratelimit/) | Per-IP HTTP rate-limiting middleware (token bucket) for single-instance Cloud Run services |

@@ -54,16 +54,18 @@ func (s *countingStore) GetTokens(_ context.Context, athleteID int64) (*stravato
 	return &cp, nil
 }
 
-func (s *countingStore) WriteTokensIfUnmodified(_ context.Context, athleteID int64, tokens *stravatoken.Data, _ time.Time) error {
+func (s *countingStore) WriteTokensIfUnmodified(_ context.Context, athleteID int64, tokens *stravatoken.Data, _ time.Time) (time.Time, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.writeCalls++
 	if s.writeErr != nil {
-		return s.writeErr
+		return time.Time{}, s.writeErr
 	}
+	version := time.Unix(int64(s.writeCalls), 0).UTC()
 	cp := *tokens
+	cp.LastRefreshed = version
 	s.tokens[athleteID] = &cp
-	return nil
+	return version, nil
 }
 
 func (s *countingStore) DeleteTokens(_ context.Context, athleteID int64) error {
@@ -165,7 +167,8 @@ func TestWriteInvalidatesSoNextReadSeesNewTokens(t *testing.T) {
 	if _, err := s.GetTokens(ctx, 1); err != nil { // populate the cache
 		t.Fatalf("GetTokens: %v", err)
 	}
-	if err := s.WriteTokensIfUnmodified(ctx, 1, tokenData("new-access"), time.Time{}); err != nil {
+	version, err := s.WriteTokensIfUnmodified(ctx, 1, tokenData("new-access"), time.Time{})
+	if err != nil {
 		t.Fatalf("WriteTokensIfUnmodified: %v", err)
 	}
 
@@ -175,6 +178,10 @@ func TestWriteInvalidatesSoNextReadSeesNewTokens(t *testing.T) {
 	}
 	if got.AccessToken != "new-access" {
 		t.Errorf("token = %q, want new-access — the write did not invalidate the cache", got.AccessToken)
+	}
+	// The decorator hands back the inner store's version unchanged.
+	if !got.LastRefreshed.Equal(version) {
+		t.Errorf("returned version = %v, stored LastRefreshed = %v; want them equal", version, got.LastRefreshed)
 	}
 }
 
@@ -197,7 +204,7 @@ func TestWriteConflictInvalidatesSoTheConflictRereadFindsTheWinner(t *testing.T)
 	inner.mu.Unlock()
 	inner.setTokenDirectly(tokenData("winner"))
 
-	err := s.WriteTokensIfUnmodified(ctx, 1, tokenData("mine-refreshed"), time.Time{})
+	_, err := s.WriteTokensIfUnmodified(ctx, 1, tokenData("mine-refreshed"), time.Time{})
 	if !errors.Is(err, ports.ErrTokenConflict) {
 		t.Fatalf("WriteTokensIfUnmodified error = %v, want ErrTokenConflict", err)
 	}
@@ -226,7 +233,7 @@ func TestTransientWriteFailureStillInvalidates(t *testing.T) {
 	inner.mu.Lock()
 	inner.writeErr = errors.New("firestore unavailable")
 	inner.mu.Unlock()
-	if err := s.WriteTokensIfUnmodified(ctx, 1, tokenData("attempted"), time.Time{}); err == nil {
+	if _, err := s.WriteTokensIfUnmodified(ctx, 1, tokenData("attempted"), time.Time{}); err == nil {
 		t.Fatal("expected the write error to propagate")
 	}
 
@@ -328,7 +335,7 @@ func TestWritesAndDeletesAlwaysReachTheInnerStore(t *testing.T) {
 	ctx := context.Background()
 
 	// The cache must never absorb a mutation — it is a read cache only.
-	if err := s.WriteTokensIfUnmodified(ctx, 1, tokenData("x"), time.Time{}); err != nil {
+	if _, err := s.WriteTokensIfUnmodified(ctx, 1, tokenData("x"), time.Time{}); err != nil {
 		t.Fatalf("WriteTokensIfUnmodified: %v", err)
 	}
 	if err := s.DeleteTokens(ctx, 1); err != nil {

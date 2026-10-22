@@ -10,7 +10,7 @@ import DashboardSkeleton from "../components/skeletons/DashboardSkeleton";
 import { CardErrorBoundary } from "../components/dashboard/CardErrorBoundary";
 import { PageLayout } from "../components/layout/PageLayout";
 import type { TuningParams } from "../utils/demoDataGenerator";
-import type { TimeRange } from "../utils/dataNormalization";
+import type { DashboardTimeRange } from "../utils/timeRange";
 import { DemoBanner } from "../components/DemoBanner";
 import { Section } from "../components/theme/Section";
 import DashboardHero from "../components/dashboard/DashboardHero";
@@ -37,7 +37,7 @@ const DASHBOARD_DEMO_TUNING: TuningParams = {
 
 export default function Dashboard() {
   const { user, loading } = useAuth();
-  const [timeRange, setTimeRange] = useState<TimeRange>("2weeks");
+  const [timeRange, setTimeRange] = useState<DashboardTimeRange>("2w");
 
   if (loading) {
     return (

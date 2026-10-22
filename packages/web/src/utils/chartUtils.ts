@@ -6,7 +6,7 @@
  */
 
 import type { ReactNode } from "react";
-import type { TimeRange } from "./dataNormalization";
+import type { DashboardTimeRange } from "./timeRange";
 import type { DailyActivity, SportConfig } from "../api/activities";
 import type { DailySportData } from "../hooks/useDailySportData";
 import type { ChartDataPoint } from "../types/chartData";
@@ -122,7 +122,12 @@ export function toDailyArray(
 }
 
 /**
- * Get the cutoff date for a time range.
+ * Get the cutoff date for a dashboard time range.
+ *
+ * Months are counted with `Date.setMonth`: "2m" from 15 March starts 15 January, and
+ * past a short month's end the date rolls forward ("2m" from 31 August starts 1 July).
+ * The Activities group's `calculateDateRange` uses fixed 60- and 180-day windows
+ * instead, so the two views' "2M" and "6M" can differ by a few days.
  *
  * @param now - Reference date (typically today)
  * @param timeRange - Time range specifier
@@ -132,27 +137,27 @@ export function toDailyArray(
  * ```ts
  * const now = new Date("2026-01-15");
  *
- * getTimeRangeCutoff(now, "2weeks");
+ * getTimeRangeCutoff(now, "2w");
  * // Returns Date for 2026-01-01
  *
  * getTimeRangeCutoff(now, "ytd");
  * // Returns Date for 2026-01-01 00:00:00
  * ```
  */
-export function getTimeRangeCutoff(now: Date, timeRange: TimeRange): Date {
+export function getTimeRangeCutoff(now: Date, timeRange: DashboardTimeRange): Date {
   const cutoff = new Date(now);
 
   switch (timeRange) {
-    case "2weeks":
+    case "2w":
       cutoff.setDate(now.getDate() - 14);
       break;
-    case "4weeks":
+    case "4w":
       cutoff.setDate(now.getDate() - 28);
       break;
-    case "2months":
+    case "2m":
       cutoff.setMonth(now.getMonth() - 2);
       break;
-    case "6months":
+    case "6m":
       cutoff.setMonth(now.getMonth() - 6);
       break;
     case "ytd":
@@ -170,7 +175,7 @@ export function getTimeRangeCutoff(now: Date, timeRange: TimeRange): Date {
  * today: what the sparkline and the recent activities list each fetch.
  */
 export function getDateRangeFromTimeRange(
-  timeRange: TimeRange,
+  timeRange: DashboardTimeRange,
   now: Date = new Date()
 ): { from: string; to: string } {
   return {

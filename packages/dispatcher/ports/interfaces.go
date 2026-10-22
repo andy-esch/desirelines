@@ -63,9 +63,11 @@ type SecretProvider interface {
 type TokenStore interface {
 	GetTokens(ctx context.Context, athleteID int64) (*stravatoken.Data, error)
 	// WriteTokensIfUnmodified atomically writes tokens only if last_refreshed
-	// matches expectedLastRefreshed. Returns ErrTokenConflict if another
-	// goroutine has already refreshed the tokens (optimistic concurrency).
-	WriteTokensIfUnmodified(ctx context.Context, athleteID int64, tokens *stravatoken.Data, expectedLastRefreshed time.Time) error
+	// matches expectedLastRefreshed, and returns the last_refreshed it stored:
+	// the version a later write of these tokens must pass. Returns
+	// ErrTokenConflict if another goroutine has already refreshed the tokens
+	// (optimistic concurrency).
+	WriteTokensIfUnmodified(ctx context.Context, athleteID int64, tokens *stravatoken.Data, expectedLastRefreshed time.Time) (time.Time, error)
 	// DeleteTokens removes all stored tokens for the given athlete.
 	// Returns nil if the tokens do not exist (idempotent).
 	DeleteTokens(ctx context.Context, athleteID int64) error

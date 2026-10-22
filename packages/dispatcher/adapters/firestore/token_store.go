@@ -96,9 +96,10 @@ func (s *TokenStore) GetTokens(ctx context.Context, athleteID int64) (_ *stravat
 }
 
 // WriteTokensIfUnmodified atomically writes tokens only if last_refreshed matches
-// the expected value (optimistic concurrency). Returns ports.ErrTokenConflict if
-// another goroutine has already refreshed the tokens since they were read.
-func (s *TokenStore) WriteTokensIfUnmodified(ctx context.Context, athleteID int64, tokens *stravatoken.Data, expectedLastRefreshed time.Time) (err error) {
+// the expected value (optimistic concurrency), and returns the last_refreshed it
+// wrote. Returns ports.ErrTokenConflict if another goroutine has already
+// refreshed the tokens since they were read.
+func (s *TokenStore) WriteTokensIfUnmodified(ctx context.Context, athleteID int64, tokens *stravatoken.Data, expectedLastRefreshed time.Time) (_ time.Time, err error) {
 	ctx, spanDone := otel.StartSpan(ctx, s.tracer, "firestore.write_tokens",
 		attribute.Int64("athlete_id", athleteID),
 		attribute.String("db.system", dbSystem))
@@ -107,8 +108,11 @@ func (s *TokenStore) WriteTokensIfUnmodified(ctx context.Context, athleteID int6
 	done := otel.RecordDuration(ctx, s.histogram, attribute.String("operation", "write_tokens"))
 	ref := s.tokensRef(athleteID)
 
-	// Capture timestamp before the transaction so retries use a consistent value.
-	now := time.Now()
+	// Capture the new version before the transaction so retries write one value.
+	// Firestore stores timestamps to the microsecond, rounding down, so truncate
+	// now: the returned version must equal what a later read decodes, or the
+	// caller's next conditional write would conflict with its own.
+	now := time.Now().Truncate(time.Microsecond)
 
 	err = s.client.RunTransaction(ctx, func(_ context.Context, tx *firestore.Transaction) error {
 		snap, getErr := tx.Get(ref)
@@ -146,14 +150,14 @@ func (s *TokenStore) WriteTokensIfUnmodified(ctx context.Context, athleteID int6
 		// Return the bare sentinels so callers classify via errors.Is; this
 		// also keeps wrapcheck satisfied (the wrapped path is the fallback).
 		if errors.Is(err, ports.ErrTokenConflict) {
-			return ports.ErrTokenConflict
+			return time.Time{}, ports.ErrTokenConflict
 		}
 		if errors.Is(err, ports.ErrTokenNotFound) {
-			return ports.ErrTokenNotFound
+			return time.Time{}, ports.ErrTokenNotFound
 		}
-		return fmt.Errorf("write tokens for athlete %d: %w", athleteID, err)
+		return time.Time{}, fmt.Errorf("write tokens for athlete %d: %w", athleteID, err)
 	}
-	return nil
+	return now, nil
 }
 
 // DeleteTokens removes all stored tokens for the given athlete.

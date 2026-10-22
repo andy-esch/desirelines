@@ -272,8 +272,20 @@ type MockTokenStore struct {
 	GetErr error
 	// WriteErr is returned by WriteTokensIfUnmodified. Set during test setup.
 	WriteErr error
-	// WrittenTokens tracks tokens written by WriteTokensIfUnmodified.
+	// WrittenTokens records a copy of the tokens passed to each
+	// WriteTokensIfUnmodified call, keyed by athlete.
 	WrittenTokens map[int64]*stravatoken.Data
+	// Versioned makes WriteTokensIfUnmodified enforce optimistic concurrency
+	// like the real store: a missing entry returns ErrTokenNotFound, and an
+	// expected version that differs from Tokens[athleteID].LastRefreshed
+	// returns ErrTokenConflict. A successful write updates only the refreshed
+	// fields (access token, refresh token, expiry) and stamps a new version,
+	// which it returns. Versions strictly increase and never repeat a stored
+	// one, so a writer holding an old version always conflicts. Off by
+	// default: writes are only recorded, and the returned version is zero.
+	Versioned bool
+	// lastVersion is the most recent version a Versioned write stamped.
+	lastVersion time.Time
 	// DeleteErr is returned by DeleteTokens. Set during test setup.
 	DeleteErr error
 	// DeleteRemoves makes a successful DeleteTokens actually drop the entry from
@@ -299,18 +311,45 @@ func (m *MockTokenStore) GetTokens(_ context.Context, athleteID int64) (*stravat
 	return tokens, nil
 }
 
-// WriteTokensIfUnmodified implements the TokenStore interface with optimistic concurrency.
-func (m *MockTokenStore) WriteTokensIfUnmodified(_ context.Context, athleteID int64, tokens *stravatoken.Data, _ time.Time) error {
+// WriteTokensIfUnmodified implements the TokenStore interface. It checks the
+// expected version only when Versioned is set.
+func (m *MockTokenStore) WriteTokensIfUnmodified(_ context.Context, athleteID int64, tokens *stravatoken.Data, expectedLastRefreshed time.Time) (time.Time, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.WriteErr != nil {
-		return m.WriteErr
+		return time.Time{}, m.WriteErr
+	}
+	var persisted time.Time
+	if m.Versioned {
+		current, ok := m.Tokens[athleteID]
+		if !ok {
+			return time.Time{}, ports.ErrTokenNotFound
+		}
+		if !current.LastRefreshed.Equal(expectedLastRefreshed) {
+			return time.Time{}, ports.ErrTokenConflict
+		}
+		next := m.lastVersion
+		if next.IsZero() {
+			next = time.Unix(0, 0).UTC()
+		}
+		if current.LastRefreshed.After(next) {
+			next = current.LastRefreshed
+		}
+		persisted = next.Add(time.Second)
+		m.lastVersion = persisted
+		stored := *current
+		stored.AccessToken = tokens.AccessToken
+		stored.RefreshToken = tokens.RefreshToken
+		stored.ExpiresAt = tokens.ExpiresAt
+		stored.LastRefreshed = persisted
+		m.Tokens[athleteID] = &stored
 	}
 	if m.WrittenTokens == nil {
 		m.WrittenTokens = make(map[int64]*stravatoken.Data)
 	}
-	m.WrittenTokens[athleteID] = tokens
-	return nil
+	written := *tokens
+	m.WrittenTokens[athleteID] = &written
+	return persisted, nil
 }
 
 // DeleteTokens implements the TokenStore interface.
