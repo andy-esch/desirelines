@@ -8,7 +8,7 @@
  * Use `npm run test:integration` which starts emulators automatically.
  */
 
-import "@testing-library/jest-dom";
+import "@testing-library/jest-dom/vitest";
 import { initializeApp, getApps, deleteApp } from "firebase/app";
 import { getAuth, connectAuthEmulator } from "firebase/auth";
 import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
