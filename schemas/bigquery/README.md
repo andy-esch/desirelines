@@ -58,9 +58,10 @@ Fields follow [BigQuery schema format](https://cloud.google.com/bigquery/docs/sc
 `generate_proto.py` also converts `activities_full.json` to
 `schemas/proto/desirelines/bigquery/v1/bq_activities.proto` (run via
 `just sync-schemas`). Every non-repeated field gets `optional` in the
-generated proto regardless of BQ `mode` — per BQ Storage Write API
-guidance, BQ enforces `REQUIRED` server-side at insert time. So a
-`REQUIRED ↔ NULLABLE` change in JSON does not regenerate the proto.
+Storage Write profile regardless of BQ `mode` — BQ enforces `REQUIRED`
+server-side at insert time. The separate CDC profile keeps primary-key `id`
+required and relaxes other non-repeated fields. A mode edit is still a table
+schema change even when the generated protobuf wire fields stay unchanged.
 
 Any activity-field change must also update the
 [persisted activity compatibility contract](../activities/). That contract
@@ -69,68 +70,33 @@ field, whether summary serialization excludes it, and what historical-data
 action is required. It does not replace this JSON schema as the BigQuery
 source of truth.
 
-## REQUIRED vs NULLABLE — gotchas
+## Changing the live schema
 
-- Default to `NULLABLE` unless the field really is always present.
-  Metrics that don't apply to every activity (`distance`,
-  `total_elevation_gain`, `average_speed`, `max_speed`) **must** be
-  NULLABLE: yoga / weight-training / indoor activities legitimately
-  lack them, and `REQUIRED` rejects those inserts.
-- BigQuery **cannot** change a column's mode in place. Once a table is
-  created with `REQUIRED`, the only path to `NULLABLE` is a
-  table-recreate (procedure below).
-- Adding a new `NULLABLE` column to an existing table *is* in-place
-  compatible (`bq update --schema`). Adding `REQUIRED` is not.
+Edit `activities_full.json`, regenerate, and follow the
+[activity-row schema runbook](../../docs/runbooks/activity-row-schema-changes.md).
+Terraform updates `activities_live` in place. `prevent_destroy` rejects
+replacement/destruction plans in both environments; prod also retains the
+provider's stored `deletion_protection`. These do not block direct API deletion,
+and `prevent_destroy` does not survive removal of its resource block.
 
-## Changing REQUIRED → NULLABLE on a deployed table
+BigQuery capability and the deployment allowlist are separate:
 
-After merging the JSON change, run this against the live dataset. Nothing in the
-pipeline holds DDL rights by design, so this is a human-operator step.
+| Change | BigQuery capability | Normal deployment policy |
+| --- | --- | --- |
+| Field description | In place | Allowed, including nested fields |
+| Add NULLABLE/REPEATED field | In place | Allowed by table guard; topic compatibility and field-readiness checks still apply |
+| REQUIRED → NULLABLE | In place for non-key columns | Allowed for non-key fields; `id` stays REQUIRED |
+| Change type | Some conversions support SQL DDL | Rejected; explicit migration |
+| Drop/rename field or tighten its mode | Some support SQL DDL; others require rewriting data | Rejected; explicit migration |
 
-**Pausing writes is different now.** This procedure was written when a Cloud Run
-service wrote the table and could be scaled to zero. `activities_live` is written
-by a Pub/Sub BigQuery subscription, which has no instance count — to stop writes
-you have to detach the subscription (the topic retains messages for its retention
-window) and recreate it afterwards, which for a Terraform-managed subscription
-means a module change and a deploy. Weigh that against simply letting writes
-dead-letter during a short swap and replaying them.
+See Google's [schema modification reference](https://docs.cloud.google.com/bigquery/docs/managing-table-schemas)
+and [primary-key constraints](https://docs.cloud.google.com/bigquery/docs/primary-foreign-keys).
+The CDC key `id` stays REQUIRED INTEGER; default other fields to NULLABLE.
+New fields need a canary proving their values reach BigQuery before producer
+activation: metadata convergence alone does not prove field preservation.
 
-**On `deletion_protection`.** `activities_live` carries it in prod. That flag is a
-Terraform-side guard only — it does **not** stop the `bq rm` below, so this
-procedure works as written. It does two other things worth knowing: a
-Terraform-driven removal of the table fails until the flag is flipped to `false`
-in a *preceding* apply, and recreating the table out-of-band leaves Terraform
-managing an object it did not create — re-run a plan afterwards and confirm it
-reports no changes before walking away.
-
-```bash
-export PROJECT=<gcp-project-id>
-export DATASET=<bq-dataset>
-export TABLE=activities_live
-export SCHEMA=schemas/bigquery/activities_live.json
-
-# 1. Create the new table with the corrected schema
-bq mk --table --schema "$SCHEMA" "${PROJECT}:${DATASET}.${TABLE}_new"
-
-# 2. Copy the data over
-bq query --use_legacy_sql=false --destination_table \
-  "${PROJECT}:${DATASET}.${TABLE}_new" --replace \
-  "SELECT * FROM \`${PROJECT}.${DATASET}.${TABLE}\`"
-
-# 3. Verify row counts match — STOP if they don't
-bq query --use_legacy_sql=false --format=csv \
-  "SELECT
-     (SELECT COUNT(*) FROM \`${PROJECT}.${DATASET}.${TABLE}\`)     AS old_rows,
-     (SELECT COUNT(*) FROM \`${PROJECT}.${DATASET}.${TABLE}_new\`) AS new_rows"
-
-# 4. Atomic swap. Stop writes first if the table is one the CDC subscription
-#    writes (see the note above on detaching the subscription).
-bq rm -f -t "${PROJECT}:${DATASET}.${TABLE}"
-bq cp -f "${PROJECT}:${DATASET}.${TABLE}_new" "${PROJECT}:${DATASET}.${TABLE}"
-bq rm -f -t "${PROJECT}:${DATASET}.${TABLE}_new"
-```
-
-If anything looks wrong before the rm/cp swap, the `_new` table holds
-the migrated data — no recovery needed. After the swap, recover via
-`bq cp "${PROJECT}:${DATASET}.${TABLE}@-3600000"` (1h time-travel
-snapshot) if you need to roll back.
+There is no automatic table swap or history rebuild. The deployment repository's
+`.github/scripts/bigquery-schema-guard.js` checks the saved plan and then live
+metadata against it. API-supported SQL operations can still be outside this
+bounded allowlist. Plan an explicit migration for rejected changes; do not bypass
+the guards or delete the table to make an ordinary deploy proceed.

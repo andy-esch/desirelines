@@ -196,6 +196,10 @@ originally guessed wrong.
   revisions and deletion protection. The
   [runbook](../runbooks/activity-row-schema-changes.md) defines compatibility,
   revision capacity, rollback, retirement and delivery checks.
+- **Table schema updates run in place.** `activities_live` has `prevent_destroy`
+  in dev/prod and stored `deletion_protection` in prod. See the
+  [schema runbook](../runbooks/activity-row-schema-changes.md) for deployment
+  guards, protection limits and live verification.
 - **Field completeness** is bounded by what the producer holds — the same
   constraint the retired `bq-inserter` had: detailed-only fields depend on the
   enrichment fetch.

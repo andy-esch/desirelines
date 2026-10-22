@@ -15,39 +15,15 @@ This repo contains **modules** and the **artifacts** environment only. Deploymen
 ## Prerequisites
 
 - **Terraform** (version pinned in `.terraform-version`)
+- **Python 3** for the cloud-free table lifecycle tests
 - **Google Cloud SDK** authenticated
 - **pre-commit** installed (for validation hooks)
 
-## Directory Structure
-
-```
-terraform/
-├── .terraform-version      # Pinned version
-├── .tflint.hcl             # TFLint configuration (Google ruleset)
-├── .terraform-docs.yml     # terraform-docs configuration
-├── environments/
-│   └── artifacts/          # Shared artifact registry (desirelines-artifacts project)
-└── modules/
-    ├── desirelines/        # Main infrastructure module
-    └── github-actions-wif/ # Workload Identity Federation
-```
-
 ## Module Development
 
-Modules in this repo are referenced by the deploy repo via git tags:
-
-```hcl
-module "desirelines" {
-  source = "git::https://github.com/andy-esch/desirelines.git//terraform/modules/desirelines?ref=tf-1"
-}
-```
-
-When making module changes:
-
-1. Make changes to `terraform/modules/`
-2. Merge to main
-3. Tag with next `tf-N` integer (e.g., `git tag tf-2 && git push origin tf-2`)
-4. Deploy repo updates module refs (manually or via Renovate)
+Merge changes to `terraform/modules/` or `schemas/` into main. The
+[release workflow](../.github/workflows/deploy.yml) publishes the next `tf-N` tag;
+the deploy repository updates its module pins manually or through Renovate.
 
 ## Artifacts Environment
 
@@ -62,7 +38,7 @@ terraform apply
 
 ## CI/CD
 
-- **CI validation**: `terraform fmt -check`, `terraform validate`, TFLint, and terraform-docs checks on PRs
+- **CI validation**: formatting, validation, module/lifecycle tests, TFLint and terraform-docs checks on PRs
 - **Deployment**: Handled by `desirelines-deploy` repo
 
 See [docs/guides/ci.md](../docs/guides/ci.md) for details.
@@ -72,9 +48,14 @@ See [docs/guides/ci.md](../docs/guides/ci.md) for details.
 ```bash
 just tf-fmt            # Format all .tf files
 just tf-validate-all   # Validate all environments and modules
+just tf-test           # Test contracts and table lifecycle without cloud credentials
 just tf-lint           # Lint with TFLint (Google ruleset)
 just tf-docs           # Regenerate module documentation
 ```
+
+`tf-test` runs mocked contracts and [provider lifecycle plans](../scripts/ci/activity_table_lifecycle.py)
+using synthetic state. Live validation follows the
+[table-preservation checkpoint](../docs/runbooks/activity-row-schema-changes.md#verify-a-description-only-table-edit).
 
 ## Security
 

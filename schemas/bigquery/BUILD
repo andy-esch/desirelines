@@ -2,7 +2,8 @@
 #
 # `activities_full.json` is the source of truth for the activities
 # table's column structure. Consumed by:
-#   - terraform/modules/desirelines/main.tf (table creation)
+#   - generated activities_live.json, consumed by
+#     terraform/modules/desirelines/bigquery_subscription.tf
 #   - schemas/bigquery/generate_proto.py (BQ → proto codegen)
 #   - tests in packages/stravapipe/tests/unit/adapters/gcp that
 #     verify schema parity / round-trip serialization

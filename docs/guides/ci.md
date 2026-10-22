@@ -193,6 +193,7 @@ Validates Terraform configuration for modules and the artifacts environment (the
 ```bash
 # Run locally
 just tf-validate-all
+just tf-test
 ```
 
 **Checks performed:**
@@ -200,6 +201,7 @@ just tf-validate-all
 - `terraform fmt -check` - Format validation
 - `terraform init -backend=false` - Configuration loading
 - `terraform validate` - Syntax and consistency
+- `just tf-test` - Mocked module contracts and [cloud-free table lifecycle plans](../../scripts/ci/activity_table_lifecycle.py)
 - TFLint - Google Cloud ruleset linting
 - `terraform-docs --output-check` - Module README docs are up to date
 

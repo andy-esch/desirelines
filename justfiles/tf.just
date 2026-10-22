@@ -16,10 +16,11 @@ tf-validate-all:
     (cd terraform/modules/github-actions-wif && terraform init -backend=false && terraform validate)
     @echo "✅ All Terraform configurations are valid!"
 
-# Test the application module with mocked cloud/image lookups (no credentials)
+# Test module contracts and table lifecycle plans without cloud credentials
 tf-test:
     terraform -chdir=terraform/modules/desirelines init -backend=false -lockfile=readonly
     terraform -chdir=terraform/modules/desirelines test
+    python3 scripts/ci/activity_table_lifecycle.py
 
 # Lint Terraform files with TFLint
 tf-lint:

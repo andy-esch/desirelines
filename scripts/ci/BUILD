@@ -1,4 +1,13 @@
-python_sources()
+python_sources(
+    overrides={
+        "activity_table_lifecycle.py": {"dependencies": [":table-lifecycle-fixture"]},
+    },
+)
+
+resources(
+    name="table-lifecycle-fixture",
+    sources=["fixtures/activity_table_lifecycle.tf.tftpl"],
+)
 
 resources(
     name="inputs",

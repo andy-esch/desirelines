@@ -229,8 +229,8 @@ jobs:
         # desirelines module reads two generated files from OUTSIDE its own tree
         # (see bigquery_subscription.tf):
         #   - schemas/proto/desirelines/bigquery/cdc/v1/bq_activity_rows.proto
-        #     — the Pub/Sub topic schema definition, and the input to the
-        #     filesha256 digest carried in the schema resource's NAME
+        #     — the Pub/Sub topic schema definition; compatible changes commit
+        #     revisions under its stable name
         #   - schemas/bigquery/activities_live.json — the activities_live table
         #     schema
         # A change to either alters what the module deploys. Matching only
