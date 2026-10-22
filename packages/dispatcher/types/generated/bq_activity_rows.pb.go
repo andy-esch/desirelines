@@ -52,7 +52,7 @@ type ActivityRow struct {
 	UploadId *int64 `protobuf:"varint,3,opt,name=upload_id,json=uploadId" json:"upload_id,omitempty"`
 	// Athlete information
 	Athlete *ActivityRow_Athlete `protobuf:"bytes,4,opt,name=athlete" json:"athlete,omitempty"`
-	// Activity name/title
+	// Activity title supplied by Strava
 	Name *string `protobuf:"bytes,5,opt,name=name" json:"name,omitempty"`
 	// Activity distance in meters
 	Distance *float64 `protobuf:"fixed64,6,opt,name=distance" json:"distance,omitempty"`
