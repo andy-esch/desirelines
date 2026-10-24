@@ -19,8 +19,13 @@ export default function TimeRangeSelector({ value, onChange }: TimeRangeSelector
       aria-label="Time range selector"
       className="p-0.5"
     >
-      {DASHBOARD_TIME_RANGE_OPTIONS.map(({ value: rangeValue, short }) => (
-        <ToggleGroupItem key={rangeValue} value={rangeValue} className="px-2 py-0.5 text-xs">
+      {DASHBOARD_TIME_RANGE_OPTIONS.map(({ value: rangeValue, label, short }) => (
+        <ToggleGroupItem
+          key={rangeValue}
+          value={rangeValue}
+          aria-label={label}
+          className="px-2 py-0.5 text-xs"
+        >
           {short}
         </ToggleGroupItem>
       ))}

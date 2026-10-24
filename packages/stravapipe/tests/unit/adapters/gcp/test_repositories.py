@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from datetime import UTC, datetime
 import json
 from pathlib import Path
@@ -12,6 +13,7 @@ from stravapipe.domain import (
     SummaryMap,
     SummaryStravaActivity,
 )
+from stravapipe.shared.tracing import db_attributes
 from tests.unit.mocks.bigquery_client_wrapper import MockBigQueryClientWrapper
 
 
@@ -173,6 +175,30 @@ class TestActivitiesWriterBatch:
         write_activities_repo._storage_writer.write_activities_batch.assert_called_once_with(
             [activity2]
         )
+
+    def test_each_step_opens_its_span_with_the_shared_db_attributes(
+        self, write_activities_repo, activity2, monkeypatch
+    ):
+        spans = []
+
+        @contextmanager
+        def record_span(_tracer, name, attributes=None, _parent_context=None):
+            spans.append((name, attributes))
+            yield
+
+        monkeypatch.setattr(
+            "stravapipe.adapters.gcp._bigquery.record_span", record_span
+        )
+        write_activities_repo.write_activities_batch([activity2])
+
+        def attributes(verb):
+            return db_attributes("bigquery", "test-dataset", verb, {"batch_size": 1})
+
+        assert spans == [
+            ("bigquery.write_batch_to_staging", attributes("INSERT")),
+            ("bigquery.merge_batch_from_staging", attributes("MERGE")),
+            ("bigquery.cleanup_staging", attributes("DELETE")),
+        ]
 
     def test_batch_passes_summary_activity_to_storage_writer(
         self, write_activities_repo, summary_activity

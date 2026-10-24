@@ -177,9 +177,8 @@ class TestRetryOnFailure:
         early and earn another 429. The jitter is therefore additive — a floor of
         ``retry_after`` with a bounded spread above it.
 
-        Regression for audit 2026-07-30-stravapipe L1: this path previously slept
-        exactly ``Retry-After``, so every rate-limited worker woke on the same
-        instant and re-tripped the limit together.
+        Sleeping exactly ``Retry-After`` would wake every rate-limited worker on
+        the same instant, and they would re-trip the limit together.
         """
         retry_after = 30
         observed: list[float] = []

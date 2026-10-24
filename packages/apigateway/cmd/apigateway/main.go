@@ -361,9 +361,8 @@ func initDependencies(ctx context.Context, cfg *config.Config, log *slog.Logger,
 	// moderate sustained rate still bounds scripted abuse of the DB-backed
 	// ST_AsMVT query. Keyed per-IP today (one user ≈ one IP); the keying shape is
 	// unchanged when multi-user lands (swap the key source, not the policy).
-	// Decision (see planning task): rate-limit rather than HTTP-cache for now — the
-	// /v1 group sets NoCacheHeaders, so tile caching warrants its own deliberate
-	// pass later; this fix is purely the limiter mismatch.
+	// Rate-limit rather than HTTP-cache for now: the /v1 group sets
+	// NoCacheHeaders, so tile caching warrants its own deliberate pass.
 	deps.tileRateLimiter = ratelimit.New(ctx, &ratelimit.Config{
 		Rate:  30,  // sustained tiles/sec per IP — far above human pan/zoom
 		Burst: 150, // absorbs a full zoomed-out viewport's tile fan-out

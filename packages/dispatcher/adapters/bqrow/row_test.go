@@ -219,8 +219,8 @@ func TestUpsert_NormalizesWorkoutType(t *testing.T) {
 
 // A primary photo with no usable urls keeps its record and omits `urls`.
 // The column is NULLABLE on activities_live, so preserving the record costs
-// nothing and retains id/media_type/source/unique_id, which the previous
-// drop-the-whole-record behavior discarded (audit 2026-08-05-dispatcher L1).
+// nothing and retains id/media_type/source/unique_id, which dropping the whole
+// record would lose.
 // "already-null primary" is the one case that still yields no record — there
 // was nothing to preserve.
 func TestUpsert_PhotoPrimaryURLs(t *testing.T) {

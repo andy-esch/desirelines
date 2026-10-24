@@ -8,17 +8,18 @@ describe("TimeRangeSelector", () => {
     const onChange = vi.fn();
     render(<TimeRangeSelector value="2w" onChange={onChange} />);
 
-    expect(screen.getByRole("button", { name: "2W" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "4W" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "2M" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "6M" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "YTD" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "2 Weeks" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "4 Weeks" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "2 Months" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "6 Months" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Year to Date" })).toBeInTheDocument();
   });
 
   it("offers the shared presets in order, without All", () => {
     render(<TimeRangeSelector value="2w" onChange={vi.fn()} />);
 
     // The dashboard always shows a bounded window, so it leaves out "All".
+    // The buttons show the short form and are named by the full label.
     expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual([
       "2W",
       "4W",
@@ -32,8 +33,8 @@ describe("TimeRangeSelector", () => {
     const onChange = vi.fn();
     render(<TimeRangeSelector value="4w" onChange={onChange} />);
 
-    const selectedBtn = screen.getByRole("button", { name: "4W" });
-    const unselectedBtn = screen.getByRole("button", { name: "2W" });
+    const selectedBtn = screen.getByRole("button", { name: "4 Weeks" });
+    const unselectedBtn = screen.getByRole("button", { name: "2 Weeks" });
 
     expect(selectedBtn).toHaveAttribute("aria-pressed", "true");
     expect(unselectedBtn).toHaveAttribute("aria-pressed", "false");
@@ -43,7 +44,7 @@ describe("TimeRangeSelector", () => {
     const onChange = vi.fn();
     render(<TimeRangeSelector value="2w" onChange={onChange} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "6M" }));
+    fireEvent.click(screen.getByRole("button", { name: "6 Months" }));
 
     expect(onChange).toHaveBeenCalledWith("6m");
   });
@@ -53,11 +54,11 @@ describe("TimeRangeSelector", () => {
     render(<TimeRangeSelector value="ytd" onChange={onChange} />);
 
     const options: [string, DashboardTimeRange][] = [
-      ["2W", "2w"],
-      ["4W", "4w"],
-      ["2M", "2m"],
-      ["6M", "6m"],
-      ["YTD", "ytd"],
+      ["2 Weeks", "2w"],
+      ["4 Weeks", "4w"],
+      ["2 Months", "2m"],
+      ["6 Months", "6m"],
+      ["Year to Date", "ytd"],
     ];
 
     options.forEach(([label, expectedValue]) => {
@@ -70,7 +71,7 @@ describe("TimeRangeSelector", () => {
     const onChange = vi.fn();
     render(<TimeRangeSelector value="4w" onChange={onChange} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "4W" }));
+    fireEvent.click(screen.getByRole("button", { name: "4 Weeks" }));
 
     expect(onChange).toHaveBeenCalledWith("4w");
   });

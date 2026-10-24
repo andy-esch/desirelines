@@ -27,7 +27,7 @@
       "groupName": "all non-major ({{manager}})"
     },
     {
-      "description": "Gate major version bumps behind the Dependency Dashboard for human review (audit finding I-7). automerge is already false by default; requiring approval prevents automatic branch creation and CI runs.",
+      "description": "Gate major version bumps behind the Dependency Dashboard for human review. automerge is already false by default; requiring approval prevents automatic branch creation and CI runs.",
       "matchUpdateTypes": ["major"],
       "dependencyDashboardApproval": true,
       "labels": ["requires-review"]

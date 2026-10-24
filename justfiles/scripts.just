@@ -53,6 +53,20 @@ ci-lint:
 workflow-lint:
     actionlint .github/workflows/deploy.yml .github/workflows/ci.yml
 
+# Fail on comments or config that cite private planning records: dated audit
+# names, finding codes, or task references. Say what the code guards against
+# instead. `.tskflwctl.toml` names the planning repo on purpose so the tooling
+# can find it. The bracketed space keeps the pattern from matching itself.
+planning-refs-check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    pattern='audit 20[0-9]{2}-[0-9]{2}-[0-9]{2}|20[0-9]{2}-[0-9]{2}-[0-9]{2}-[a-z][a-z-]*:[hmlsi][0-9]+|audit finding [a-z]-[0-9]+|planning[ ]task'
+    if git grep -n -i -E "$pattern" -- . ':!.tskflwctl.toml'; then
+        echo "❌ Private planning references found above. Describe the behavior instead."
+        exit 1
+    fi
+    echo "✅ No private planning references"
+
 ci-typecheck:
     pants check scripts/ci::
 

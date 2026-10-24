@@ -228,9 +228,8 @@ describe("Dashboard", () => {
 
     it("renders time range selector", async () => {
       await renderWithRouter(<Dashboard />);
-      // Time range selector is now part of the Dashboard
-      expect(screen.getByRole("button", { name: "2W" })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "YTD" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "2 Weeks" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Year to Date" })).toBeInTheDocument();
     });
   });
 });

@@ -816,7 +816,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
     def update_metadata(
         self, external_id: int, updates: dict[str, Any], event_time: int | None
     ) -> MetadataUpdateResult:
-        """Update only metadata fields (name, type, sport).
+        """Update only metadata fields (name, type).
 
         Builds a dynamic UPDATE from whitelisted keys (SQL-injection safe) and
         fences it on ``last_event_time`` like ``upsert``. ``event_time`` advances

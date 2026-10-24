@@ -40,7 +40,9 @@ For fully offline authenticated development using Firebase Emulators:
    cd packages/web && npm run dev
    ```
 
-   Emulators are enabled by default in `.env.development` (`VITE_USE_FIREBASE_EMULATORS=true`).
+   `.env.development` turns the emulators on (`VITE_USE_FIREBASE_EMULATORS=true`) and
+   points the Firebase config at their project, `desirelines-local`, so no
+   `.env.development.local` is needed for this mode.
 
 Console should show:
 
@@ -66,21 +68,23 @@ No local backend setup needed.
 
 ## Environment Configuration
 
-Create `packages/web/.env.development.local` (gitignored) with your Firebase credentials:
+`packages/web/.env.development` holds the defaults for the emulator mode above.
+To override them, create `packages/web/.env.development.local` (gitignored):
 
 ```bash
-# Firebase config (required for auth against real Firebase — not needed for emulators)
+# Use a real Firebase project instead of the emulators
+VITE_USE_FIREBASE_EMULATORS=false
 VITE_FIREBASE_API_KEY=your-api-key
 VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
 VITE_FIREBASE_PROJECT_ID=your-project-id
 
 # Optional: Override API Gateway URL (defaults to http://localhost:8084/api)
 VITE_API_GATEWAY_URL=http://localhost:8084/api
-
-# Firebase emulators are enabled by default in .env.development.
-# Set to false here to use real Firebase instead:
-# VITE_USE_FIREBASE_EMULATORS=false
 ```
+
+With the emulators off, the app refuses to start on the emulator project and says
+which values to set. Any invalid configuration shows a "Configuration Error" page
+naming the variables at fault.
 
 ## Service URLs
 

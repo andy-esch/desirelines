@@ -137,9 +137,6 @@ describe("useSportData", () => {
     // "Request will proceed without auth token and likely receive 401" when there
     // is no user, so firing here could only ever 401. Unauthenticated visitors are
     // served by the separate /demo/$sport routes instead.
-    //
-    // This previously asserted the opposite — that the call *was* made — which
-    // encoded the bug rather than the intent (audit 2026-07-18-frontend-refinements H1).
     vi.spyOn(useAuthModule, "useAuth").mockReturnValue({
       user: null,
       loading: false,

@@ -137,6 +137,9 @@ jobs:
       - name: Validate GitHub workflows
         run: just workflow-lint
 
+      - name: Check for private planning references
+        run: just planning-refs-check
+
       # Catches Renovate / hand-tidy drift across workspace members
       # (each `go.mod`+`go.sum` and `go.work.sum`) at PR time. If this
       # fails, the contributor should run `just go-tidy-fix` and commit

@@ -117,6 +117,31 @@ describe("config", () => {
 
       expect(config.emulators.authHost).toBe("192.168.1.100");
     });
+
+    it("accepts the local emulator project while the emulators are on", () => {
+      vi.stubEnv("VITE_USE_FIREBASE_EMULATORS", "true");
+      vi.stubEnv("VITE_FIREBASE_PROJECT_ID", "desirelines-local");
+
+      expect(loadConfig().firebase.projectId).toBe("desirelines-local");
+    });
+
+    it("rejects the local emulator project once the emulators are off", () => {
+      vi.stubEnv("VITE_USE_FIREBASE_EMULATORS", "false");
+      vi.stubEnv("VITE_FIREBASE_PROJECT_ID", "desirelines-local");
+
+      expect(() => loadConfig()).toThrow(/exists only in the local emulators/);
+    });
+  });
+
+  describe("validation errors", () => {
+    it("names the environment variable behind each missing value", () => {
+      vi.stubEnv("VITE_FIREBASE_API_KEY", "");
+      vi.stubEnv("VITE_FIREBASE_PROJECT_ID", "");
+
+      expect(() => loadConfig()).toThrow(
+        /VITE_FIREBASE_API_KEY \(firebase\.apiKey\): Firebase API Key is required[\s\S]*VITE_FIREBASE_PROJECT_ID \(firebase\.projectId\)/
+      );
+    });
   });
 
   // ---------------------------------------------------------------------------
