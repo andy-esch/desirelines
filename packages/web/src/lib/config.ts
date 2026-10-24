@@ -138,6 +138,26 @@ export type AppConfig = z.infer<typeof AppConfigSchema>;
 // ============================================================================
 
 /**
+ * The Firebase project the local emulators run (`.firebaserc`, the emulator
+ * container's `--project`). `.env.development` defaults to it, so it must never
+ * reach real Firebase.
+ */
+const LOCAL_EMULATOR_PROJECT_ID = "desirelines-local";
+
+/** The environment variable behind each validated field, for error messages. */
+const ENV_VAR_FOR_PATH: Record<string, string> = {
+  apiGatewayUrl: "VITE_API_GATEWAY_URL",
+  mapboxToken: "VITE_MAPBOX_TOKEN",
+  "firebase.apiKey": "VITE_FIREBASE_API_KEY",
+  "firebase.authDomain": "VITE_FIREBASE_AUTH_DOMAIN",
+  "firebase.projectId": "VITE_FIREBASE_PROJECT_ID",
+  "firebase.storageBucket": "VITE_FIREBASE_STORAGE_BUCKET",
+  "firebase.messagingSenderId": "VITE_FIREBASE_MESSAGING_SENDER_ID",
+  "firebase.appId": "VITE_FIREBASE_APP_ID",
+  "firebase.measurementId": "VITE_FIREBASE_MEASUREMENT_ID",
+};
+
+/**
  * Loads and validates application configuration from environment variables.
  *
  * @throws {Error} If configuration is invalid with detailed error messages
@@ -186,6 +206,19 @@ export function loadConfig(): AppConfig {
       );
     }
 
+    // With the emulators off, the emulator project would send sign-in to real
+    // Firebase, which fails later with a far less helpful error.
+    if (
+      !validated.emulators.enabled &&
+      validated.firebase.projectId === LOCAL_EMULATOR_PROJECT_ID
+    ) {
+      throw new Error(
+        `Firebase project "${LOCAL_EMULATOR_PROJECT_ID}" exists only in the local emulators, ` +
+          `but VITE_USE_FIREBASE_EMULATORS is not "true". Set real VITE_FIREBASE_* values ` +
+          `in .env.development.local, or turn the emulators back on.`
+      );
+    }
+
     // Additional validation: Check for placeholder values
     const placeholderPatterns = ["YOUR_", "YOUR-", "XXXXX", "TODO", "REPLACE", "CHANGEME"];
 
@@ -209,7 +242,8 @@ export function loadConfig(): AppConfig {
       const issues = error.issues
         .map((issue) => {
           const path = issue.path.join(".");
-          return `  • ${path}: ${issue.message}`;
+          const envVar = ENV_VAR_FOR_PATH[path];
+          return `  • ${envVar ? `${envVar} (${path})` : path}: ${issue.message}`;
         })
         .join("\n");
 
