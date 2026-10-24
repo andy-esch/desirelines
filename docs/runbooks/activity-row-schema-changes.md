@@ -60,8 +60,9 @@ Keep table protection and the saved-plan guard when rolling back.
 account for producers/consumers, backlog,
 [topic/subscription/DLQ retention](../../terraform/modules/desirelines/bigquery_subscription.tf),
 snapshots, replay and rollback. Age or the current binding alone is insufficient;
-a saved definition cannot restore a deleted revision ID. Respect the
-[binary DLQ replay restriction](dlq-redrive.md).
+a saved definition cannot restore a deleted revision ID. The
+[DLQ replay procedure](dlq-redrive.md) preserves BINARY bytes but republishes
+under the topic's current compatible revisions; it does not bypass validation.
 
 ## Verify delivery and rollback
 

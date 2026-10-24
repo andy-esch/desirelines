@@ -21,8 +21,7 @@ gcloud pubsub subscriptions pull desirelines-activity-rows-dlq-monitoring-<env> 
 
 1. A REQUIRED column the message does not supply. A CDC delete carries only the
    primary key, so any REQUIRED column beyond `id` rejects every delete.
-2. A value whose JSON type does not match its column type (e.g. a number
-   arriving for a STRING column).
+2. A protobuf field whose type does not match its BigQuery column type.
 3. Strava sending a field shape the mapping does not normalize.
 
 **Quick mitigations**:
@@ -38,7 +37,15 @@ gcloud pubsub subscriptions pull desirelines-activity-rows-dlq-monitoring-<env> 
 covers the other half — rows that never left the dispatcher. This alert only
 sees rows BigQuery received and refused.
 
-**Redrive**: preserve messages and fix the mismatch first. **Do not execute
-`dlq-replay` for BINARY activity rows**; see the [transport restriction](dlq-redrive.md).
-Use the [schema runbook](activity-row-schema-changes.md) for changes. Draining
-without replay permanently discards archival changes and needs an owner decision.
+**Redrive**: preserve messages and fix the mismatch first. Use the
+[schema runbook](activity-row-schema-changes.md) for changes, then follow the
+[replay procedure](dlq-redrive.md):
+
+```bash
+just dlq-replay activity-rows dev            # dry run; substitute prod as needed
+just dlq-replay activity-rows dev --execute  # after agreeing on a replay window
+```
+
+The replay preserves BINARY payloads and CDC sequence numbers; Pub/Sub validates
+them against the topic's current compatible revisions. Draining without replay
+permanently discards archival changes and needs an owner decision.
