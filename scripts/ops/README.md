@@ -16,7 +16,7 @@ Operational scripts for setup, deployment, data management, and webhook administ
 | Script | Purpose |
 |--------|---------|
 | `webhook-management.sh` | Manage Strava webhook subscriptions (create, view, delete) |
-| `dlq-replay.sh` | Replay dead-lettered messages onto their source topic |
+| `dlq-replay.sh` / `dlq_replay.py` | Replay JSON or BINARY dead-lettered messages onto their source topic |
 | `count-unstamped-goals.py` | Read-only: count stored goal sections without the canonical-units stamp (`storageVersion: 2`) |
 | `_gcp_env.sh` | Sourced helper: environment/project guards and destructive-action confirmation |
 
