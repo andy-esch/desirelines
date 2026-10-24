@@ -280,8 +280,7 @@ class StravaTokenManager:
         with self._lock:
             if self._current_access_token is None:
                 logger.info("No access token provided, refreshing...")
-                refreshed = self._token_repo.refresh()
-                self._current_access_token = refreshed.access_token
+                return self._refresh_locked()
             return self._current_access_token
 
     def refresh(self) -> str:
@@ -294,9 +293,13 @@ class StravaTokenManager:
         """
         with self._lock:
             logger.info("Refreshing Strava access token...")
-            refreshed = self._token_repo.refresh()
-            self._current_access_token = refreshed.access_token
-            return self._current_access_token
+            return self._refresh_locked()
+
+    def _refresh_locked(self) -> str:
+        """Refresh and store the access token. The caller must hold ``self._lock``."""
+        refreshed = self._token_repo.refresh()
+        self._current_access_token = refreshed.access_token
+        return refreshed.access_token
 
 
 # =============================================================================

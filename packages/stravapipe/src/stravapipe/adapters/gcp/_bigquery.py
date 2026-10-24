@@ -1,5 +1,7 @@
 """BigQuery adapters for reading and writing Strava activities."""
 
+from contextlib import AbstractContextManager
+
 from google.cloud.bigquery import ArrayQueryParameter
 from opentelemetry.metrics import Histogram
 from opentelemetry.trace import Tracer
@@ -201,16 +203,7 @@ class ActivitiesWriter:
         ``_cleanup_staging`` runs without retries.
         """
         with (
-            record_span(
-                self._tracer,
-                "bigquery.write_batch_to_staging",
-                db_attributes(
-                    "bigquery",
-                    self._dataset_name,
-                    "INSERT",
-                    {"batch_size": len(activities)},
-                ),
-            ),
+            self._bq_span("bigquery.write_batch_to_staging", "INSERT", len(activities)),
             record_duration(self._histogram, {"operation": "write_batch_to_staging"}),
         ):
             self._storage_writer.write_activities_batch(activities)
@@ -219,15 +212,8 @@ class ActivitiesWriter:
         """Execute MERGE operation for multiple activities at once"""
         merge_query, query_params = self._build_batch_merge_query(activity_ids)
         with (
-            record_span(
-                self._tracer,
-                "bigquery.merge_batch_from_staging",
-                db_attributes(
-                    "bigquery",
-                    self._dataset_name,
-                    "MERGE",
-                    {"batch_size": len(activity_ids)},
-                ),
+            self._bq_span(
+                "bigquery.merge_batch_from_staging", "MERGE", len(activity_ids)
             ),
             record_duration(self._histogram, {"operation": "merge_batch_from_staging"}),
         ):
@@ -249,17 +235,25 @@ class ActivitiesWriter:
         WHERE id IN UNNEST(@activity_ids)
         """  # noqa: S608 -- table names from config constants; ids bound via @activity_ids
         query_params = [ArrayQueryParameter("activity_ids", "INT64", activity_ids)]
-        with record_span(
-            self._tracer,
-            "bigquery.cleanup_staging",
-            db_attributes(
-                "bigquery",
-                self._dataset_name,
-                "DELETE",
-                {"batch_size": len(activity_ids)},
-            ),
-        ):
+        with self._bq_span("bigquery.cleanup_staging", "DELETE", len(activity_ids)):
             self._client.execute_dml_query(delete_query, query_params)
+
+    def _bq_span(
+        self, name: str, verb: str, batch_size: int
+    ) -> AbstractContextManager[None]:
+        """Open a BigQuery span with this writer's shared ``db.*`` attributes.
+
+        Every BigQuery call here tags its span with ``db.system=bigquery``, this
+        writer's dataset and the batch size, varying only the span name and SQL
+        verb (like ``_pg_span`` in ``postgres_writer_app.py``).
+        """
+        return record_span(
+            self._tracer,
+            name,
+            db_attributes(
+                "bigquery", self._dataset_name, verb, {"batch_size": batch_size}
+            ),
+        )
 
     def _build_batch_merge_query(
         self, activity_ids: list[int]
