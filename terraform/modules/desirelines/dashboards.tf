@@ -20,7 +20,6 @@
 #   - Otherwise omit, OR keep only with an explicit `label` saying what it is
 #     (e.g. "informational" / "planned, not yet deployed"). A bare threshold
 #     with no paired SLO/alert misleads more than it informs.
-# See audit 2026-05-29-terraform-ci (M3) for the prior drift incident.
 # ============================================================================
 
 resource "google_monitoring_dashboard" "desirelines_observability" {

@@ -297,8 +297,7 @@ describe("auth-init re-arming (request interceptor)", () => {
   // left a resolved-false promise in the closure for the lifetime of the tab, so
   // every later request skipped token injection, took a 401, and paid a
   // refresh+retry round trip. The 401 interceptor kept it correct, which is why it
-  // stayed invisible. Found independently by two audits a week apart
-  // (2026-08-17-web:M1 and 2026-08-24-web:M1).
+  // stayed invisible.
   it("recovers on a later request after the first auth-init throws", async () => {
     vi.mocked(mockAuthService.waitForAuthReady)
       .mockRejectedValueOnce(new Error("firebase hiccup"))

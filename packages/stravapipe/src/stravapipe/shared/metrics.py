@@ -134,9 +134,8 @@ def build_gcp_resource(service_name: str) -> Resource:
 
     Detects GCP environment attributes and merges an explicit ``service.name``
     that wins on conflict (see ``_merge_service_name``). Shared by
-    ``setup_metrics`` here and ``setup_tracing`` in tracing.py so the resource
-    is identical across providers — they drifted once
-    (audit 2026-06-04-stravapipe M1).
+    ``setup_metrics`` here and ``setup_tracing`` in tracing.py so both
+    providers report the same resource.
 
     The GCP detector import is deferred to keep the dependency optional; an
     ImportError propagates to the caller's setup ``try/except`` → no-op provider.

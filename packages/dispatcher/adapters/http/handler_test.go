@@ -1851,7 +1851,6 @@ func TestHandler_WebhookValidationSpans(t *testing.T) {
 // TestHandler_SubscriptionMismatchSpanCarriesAthleteID verifies that
 // `stampWebhookIDsOnSpan` runs before the subscription-id authorization
 // check, so 401 traces remain correlatable by athlete in Cloud Trace.
-// Regression guard for L2 (audit 2026-05-27-dispatcher).
 func TestHandler_SubscriptionMismatchSpanCarriesAthleteID(t *testing.T) {
 	sr := tracetest.NewSpanRecorder()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))

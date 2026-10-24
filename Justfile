@@ -26,7 +26,7 @@ help:
 test: py-test go-test web-test
 
 # Run all linters (Ruff, golangci-lint, ESLint, knip, buf, shellcheck)
-lint: py-lint go-lint web-lint web-knip proto-lint sh-lint
+lint: py-lint go-lint web-lint web-knip proto-lint sh-lint planning-refs-check
 
 # Format all code (Ruff, go fmt, Prettier, buf, terraform fmt)
 format: py-format go-format web-format proto-fmt tf-fmt sh-format

@@ -67,10 +67,9 @@ class TestContentTypeGate:
     """The accepted content types must match what the parser implements.
 
     Only binary-mode CloudEvents are parsed (metadata in ce-* headers). Structured
-    mode — everything inside a JSON body under ``application/cloudevents+json`` —
-    used to be accepted here, cleared the gate, and then failed further down with
-    a 400 about missing ce-* headers. That reads as a malformed request rather
-    than an unsupported format. Audit 2026-08-06-stravapipe L1.
+    mode (everything inside a JSON body under ``application/cloudevents+json``)
+    must be refused at the gate as an unsupported format: past the gate it fails
+    with a 400 about missing ce-* headers, which reads as a malformed request.
     """
 
     def test_binary_mode_is_accepted(self, app):
