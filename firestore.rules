@@ -13,12 +13,6 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // // Helper function for development mode (allows unauthenticated access to 'default' user)
-    // // TODO: Remove this before production deployment
-    // function isDefaultUserDev(userId) {
-    //   return userId == 'default';
-    // }
-
     // Allowlist collection — backend-only (Admin SDK bypasses rules)
     // Documents keyed by Strava athlete ID. Only the API gateway writes/reads
     // these during OAuth callback. No client-side access needed.
@@ -29,16 +23,17 @@ service cloud.firestore {
     // Users collection
     match /users/{userId} {
 
-      // Profile data - read by owner only
+      // Provider metadata is server-owned; only the owner may read it.
       match /profile/{document=**} {
         allow read: if isOwner(userId);
-        allow write: if isOwner(userId);
+        allow write: if false;
       }
 
-      // Private data - read/write by owner only
-      match /private/{document=**} {
+      // The web profile listener needs this one document. Credentials and all
+      // other private documents fall through to Firestore's default denial.
+      match /private/profile {
         allow read: if isOwner(userId);
-        allow write: if isOwner(userId);
+        allow write: if false;
       }
 
       // Config data - read/write by owner only

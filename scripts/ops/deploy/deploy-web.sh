@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Deploy web application to Firebase Hosting
-# Usage: ./scripts/ops/deploy/deploy-web.sh <environment>
+# Usage: ./scripts/ops/deploy/deploy-web.sh <environment> [--hosting-only]
 # Example: ./scripts/ops/deploy/deploy-web.sh dev
 #
 # This script:
@@ -21,9 +21,9 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 WEB_DIR="${PROJECT_ROOT}/packages/web"
 
 # Check arguments
-if [ $# -ne 1 ]; then
+if [ $# -lt 1 ] || [ $# -gt 2 ]; then
   echo "❌ Error: Please specify environment"
-  echo "Usage: $0 <environment>"
+  echo "Usage: $0 <environment> [--hosting-only]"
   echo "Example: $0 dev"
   echo ""
   echo "Valid environments: local, dev, prod"
@@ -31,6 +31,14 @@ if [ $# -ne 1 ]; then
 fi
 
 ENVIRONMENT="$1"
+DEPLOY_TARGETS="hosting,firestore:rules"
+if [ $# -eq 2 ]; then
+  if [ "$2" != "--hosting-only" ]; then
+    echo "Error: unknown option: $2"
+    exit 1
+  fi
+  DEPLOY_TARGETS="hosting"
+fi
 
 # Map environment to Firebase project and validate
 case "$ENVIRONMENT" in
@@ -180,9 +188,9 @@ if ! firebase use "$FIREBASE_PROJECT" --project "$FIREBASE_PROJECT"; then
 fi
 echo ""
 
-# Deploy to Firebase Hosting and Firestore Rules
-echo "🚀 Deploying to Firebase Hosting and Firestore Rules..."
-if ! firebase deploy --only hosting,firestore:rules --project "$FIREBASE_PROJECT"; then
+# Hosting-only rollbacks must retain the currently deployed security rules.
+echo "🚀 Deploying Firebase targets: $DEPLOY_TARGETS..."
+if ! firebase deploy --only "$DEPLOY_TARGETS" --project "$FIREBASE_PROJECT"; then
   echo "❌ Error: Deployment failed"
   exit 1
 fi

@@ -521,9 +521,9 @@ jobs:
           fail_ci_if_error: false
 
   # ===========================================================================
-  # Firestore Integration Tests: Go (Admin SDK) + Web (client SDK)
-  # Both run against ONE Firebase emulator container. Runs parallel to the
-  # Postgres integration-tests job above (parallelize by service).
+  # Firestore Integration Tests: Go/Python (Admin SDK) + Web (client SDK)
+  # One Firebase emulator plus an isolated Postgres fixture for registry tooling.
+  # Runs parallel to the main Postgres integration-tests job above.
   # The emulator image is the project's local-dev image, built with GHA layer
   # caching; firestore.rules + ci-firebase.json are mounted so the client-SDK
   # security tests run against real rules. See
@@ -532,8 +532,20 @@ jobs:
   firestore-integration-tests:
     name: Firestore Integration Tests
     runs-on: ubuntu-latest
+    services:
+      registry-postgres:
+        image: postgis/postgis:17-3.6-alpine
+        env:
+          POSTGRES_USER: registry
+          POSTGRES_PASSWORD: registry-test
+          POSTGRES_DB: registry_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U registry -d registry_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     # Boots an emulator container + npm ci; cap wall-clock so a hung emulator
-    # can't ride the 6h default. Healthy runs finish in ~1-2 min.
+    # can't ride the 6h default.
     timeout-minutes: 10
 
     steps:
@@ -545,6 +557,17 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: go.work.sum
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.3.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: packages/stravapipe/uv.lock
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -605,10 +628,18 @@ jobs:
           FIRESTORE_EMULATOR_HOST: "localhost:8080"
           GCP_PROJECT_ID: "demo-test-project"
           FIRESTORE_DATABASE: "(default)"
+          FIREBASE_AUTH_EMULATOR_HOST: "localhost:9099"
+          REGISTRY_TEST_POSTGRES_URL: "postgresql://registry:registry-test@localhost:5432/registry_test"
         run: |
-          (cd packages/apigateway && go test -tags=integration -v -race -coverpkg=./... -coverprofile=coverage.firestore.out ./adapters/firestore/...)
+          (cd packages/apigateway && go test -tags=integration -v -race -coverpkg=./... -coverprofile=coverage.firestore.out ./adapters/firestore/... ./cmd/connection-registry/...)
           (cd packages/dispatcher && go test -tags=integration -v -race -coverpkg=./... -coverprofile=coverage.firestore.out ./adapters/firestore/...)
-          (cd packages/shared && go test -tags=integration -v -race -coverpkg=./... -coverprofile=coverage.firestore.out ./allowlist/...)
+          (cd packages/shared && go test -tags=integration -v -race -coverpkg=./... -coverprofile=coverage.firestore.out ./allowlist/... ./activityconnection/...)
+
+      - name: Python Firestore deletion integration tests
+        working-directory: packages/stravapipe
+        env:
+          FIRESTORE_EMULATOR_HOST: "localhost:8080"
+        run: uv run --frozen --extra dev pytest tests/firestore/ -v
 
       - name: Upload Go Firestore integration coverage
         uses: codecov/codecov-action@v7

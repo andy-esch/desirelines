@@ -1,0 +1,116 @@
+# Activity connection registry
+
+The registry separates a Strava account from the Firebase UID that owns it.
+It is additive: this release does not change ingestion routing or enable email
+sign-in. Existing Firebase UIDs, credential paths and activity ownership remain.
+
+## Contract
+
+Go's [activityconnection](../../packages/shared/activityconnection/) package and
+Python's [activity_connection](../../packages/stravapipe/src/stravapipe/adapters/firestore/activity_connection.py)
+share the [contract fixture](../../schemas/test-fixtures/activity_connection.json).
+The same record is stored at both paths:
+
+- `provider_accounts/strava:{subject}`: one UID per canonical positive decimal Strava ID.
+- `users/{uid}/connections/strava`: one active Strava account per UID.
+
+Fields are `schema_version`, `uid`, `provider`, `subject`, `scopes`, `status`,
+`provenance` and `bootstrap_id`. UIDs are opaque. Records contain no credentials;
+client SDK access is denied. Both ownership directions are claimed atomically;
+conflicts, incomplete pairs and inactive connections fail closed. OAuth exchanges
+and Firebase Auth calls stay outside retryable Firestore transactions.
+
+Legacy bootstrap uses provenance `legacy_uid`, preserves UID = original athlete
+ID and records an operation ID. Scopes start empty because legacy token/profile
+fields are not trusted evidence. Bootstrap never copies or rotates tokens.
+Future OAuth connection work supplies verified scopes independently.
+
+## Inventory and review
+
+The [operator command](../../packages/apigateway/cmd/connection-registry/main.go)
+requires explicit project and database flags. It uses Application Default
+Credentials and reads `POSTGRES_CONNECTION_STRING` without printing it. Its
+Postgres inventory runs in a read-only transaction and requires a role that can
+see every activity owner; RLS-filtered snapshots are refused. The manifest binds
+the non-secret Postgres host/port/database as well as Firebase's target.
+Keep reports/manifests in a
+private operator workspace; they contain UIDs, never tokens or profile payloads.
+
+```sh
+just connection-registry --mode inventory --project PROJECT --database DATABASE > inventory.json
+```
+
+Inventory cross-checks Firebase UID/admission document IDs, provider metadata,
+Firestore user paths and persisted PostgreSQL owners. Client-writable legacy
+profile fields can identify a mismatch, never establish a mapping. A numeric UID
+alone is insufficient: the owner must attest that approved UIDs were issued by
+the legacy server flow. Unknown provenance and conflicts stop apply.
+
+Create a reviewed manifest; do not blindly turn inventory output into approval:
+
+```json
+{
+  "project": "PROJECT",
+  "database": "DATABASE",
+  "postgres_target": "DATABASE_HOST:5432/DATABASE_NAME",
+  "operation_id": "legacy-bootstrap-1",
+  "reviewed_legacy_uids": true,
+  "uids": ["123"],
+  "excluded": {"456": "allowlist-only; not previously enrolled, keep admission frozen"}
+}
+```
+
+Every eligible candidate must be included. Blocking mismatches/orphans cannot
+be overridden by exclusions; fix their cause and regenerate inventory. Exclusions
+only disposition non-admitted identities such as allowlist-only entries. They receive no
+mapping and cannot newly sign in while admissions are frozen. Reusing a manifest
+refuses newly appeared or changed owners; it is not a stale snapshot override.
+
+## Owner-controlled rollout
+
+These commands are for a reviewed maintenance window, not automatic deployment.
+No live bootstrap is performed by tests or by merging this code.
+
+1. Deploy registry-aware legacy deletion and the gateway's transactional admission
+   check. Deploy and verify credential-denial rules before any bootstrap writes.
+2. Freeze admissions, let in-flight legacy sign-ins settle, then refresh inventory
+   and review the manifest. The freeze initially denies unmapped legacy sign-ins;
+   existing sessions continue. Applied, still-admitted mappings permit sign-in.
+3. Apply and verify. Existing mappings are never overwritten, and partial runs
+   resume using the same operation ID. Verify again before any resolver rollout.
+4. Seal bootstrap rollback **before** deploying ownership resolvers. Preserve
+   mappings after that boundary; do not restore old ownership-inference binaries
+   once independent UIDs are admitted. Independent admission remains disabled
+   until its separate readiness checkpoint.
+
+```sh
+just connection-registry --mode freeze --project PROJECT --database DATABASE --confirm-project PROJECT
+just connection-registry --mode apply --project PROJECT --database DATABASE --manifest reviewed.json --confirm-project PROJECT
+just connection-registry --mode verify --project PROJECT --database DATABASE --manifest reviewed.json
+just connection-registry --mode seal --project PROJECT --database DATABASE --confirm-project PROJECT
+```
+
+The control document `identity_migration/legacy_admissions` contains `frozen` and
+`rollback_allowed` booleans. Missing control preserves current sign-in; malformed
+control fails closed. Freeze cannot reopen sealed rollback. The gateway checks
+admission/control/mappings in the same transaction as credentials, and legacy
+deletion atomically removes admission, registry records and user documents so
+concurrent login/bootstrap cannot recreate Firestore ownership or tokens.
+
+## Rollback
+
+Before sealing, rollback removes only unchanged record pairs created by that
+operation. Existing credentials/config/ownership are not migrated or removed.
+Keep the admission freeze and hardened rules until the owner reviews next steps.
+While registry data or the freeze remains active, backend rollback must retain
+registry-aware deletion and admission checks. Older backends that ignore those
+controls are not supported rollback targets.
+
+```sh
+just connection-registry --mode rollback --project PROJECT --database DATABASE --manifest reviewed.json --confirm-project PROJECT
+```
+
+For a frontend rollback, use the supported `deploy-web.sh ENV --hosting-only`
+route, retaining hardened rules. Do not run an older combined Hosting/rules
+script. Once resolvers depend on mappings, fix forward and preserve the registry;
+the bootstrap rollback command refuses after sealing.

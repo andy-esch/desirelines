@@ -8,6 +8,7 @@ import (
 
 	"cloud.google.com/go/firestore"
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/auth"
+	"github.com/andy-esch/desirelines/packages/shared/activityconnection"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -58,6 +59,9 @@ func (s *AuthStore) WriteAuthData(ctx context.Context, athleteID string, tokens 
 	profileRef := userPrivate.Doc(stravatoken.ProfileDocument)
 
 	err := s.client.RunTransaction(ctx, func(_ context.Context, tx *firestore.Transaction) error {
+		if err := (activityconnection.Store{Client: s.client}).CheckLegacyAdmission(tx, athleteID); err != nil {
+			return fmt.Errorf("legacy admission: %w", err)
+		}
 		// Firestore transactions require all reads before writes.
 		// Preserve CreatedAt from existing profile (first-login timestamp).
 		// On re-login, all other fields are updated but CreatedAt is retained.

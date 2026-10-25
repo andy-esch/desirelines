@@ -6,6 +6,7 @@ Shared Go packages for the desirelines monorepo.
 
 | Package | Description |
 |---------|-------------|
+| [activityconnection](./activityconnection/) | Atomic, server-owned Strava account lookups/connections and legacy-bootstrap controls |
 | [allowlist](./allowlist/) | Shared interfaces + Firestore-backed implementation for athlete-allowlist enforcement across services |
 | [apierrors](./apierrors/) | Standardized API error types and HTTP response writing, decoupled from any router or logging framework |
 | [firestoretest](./firestoretest/) | Test support: a Firestore client for integration tests that skips (fails in CI) unless the emulator is configured, so tests never reach a real project |

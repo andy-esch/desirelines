@@ -61,29 +61,37 @@ Auth middleware (`middleware/auth.go`):
 **Secure**:
 
 - Server-side JWT validation (Firebase Admin SDK)
-- Login-CSRF protection via a signed state token (exact HS256, 5 min expiry)
+- OAuth callback CSRF protection via an expiring signed state token (exact HS256)
   bound to a Secure, HttpOnly, SameSite=Lax, host-only `__session` cookie
 - Custom token delivered via URL fragment (never sent to server in logs or Referer headers)
 - Firestore allowlist checked during OAuth callback and protected API requests
 - `Cache-Control: private, no-store` on authenticated responses
-- Strava tokens stored server-side in Firestore (never exposed to frontend)
 
 **Access control**:
 
 - Firestore `allowlist/{strava_athlete_id}` — must exist for OAuth to succeed
 - Managed via Admin SDK (not client-accessible)
+- Strava tokens at `users/{uid}/private/strava_tokens` are denied to client SDKs
+  by [Firestore rules](../../firestore.rules). Profile metadata is owner-readable
+  and server-writable. Legacy profile/token fields were previously client-writable;
+  the [registry bootstrap](../guides/activity-connection-registry.md) never uses
+  them to establish ownership.
 
 ## Firestore User Config
 
 User settings (preferences, goals, annotations) stored in Firestore at `users/{userId}/config/v1`.
 
-**Security Rules** (`firestore.rules` at repo root):
+**Security rules**: [firestore.rules](../../firestore.rules) owns the executable
+policy. Config reads/deletes require the matching Firebase UID; creates/updates
+also require `schemaVersion`, `userId` and `lastUpdated`, with a matching `userId`.
+Profile reads and config access still use owner UID without an admission check.
+API allowlist checks do not restrict direct Firestore access; independent sign-in
+must remain disabled until admission-aware rules are implemented and verified.
 
-```javascript
-match /users/{userId}/config/{document=**} {
-  allow read, write: if request.auth != null && request.auth.uid == userId;
-}
-```
+The server-only connection registry is additive; sign-in and ingestion still use
+the legacy UID model above. Its migration control can freeze new legacy
+admissions/reactivations while existing admitted, mapped users retain sign-in.
+See the [registry contract and rollout](../guides/activity-connection-registry.md).
 
 **Whose config**: the web client holds one session's config in one store
 (`UserConfigProvider`), with one cache entry for the whole document and one listener.

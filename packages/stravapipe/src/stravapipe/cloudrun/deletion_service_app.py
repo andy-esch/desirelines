@@ -33,6 +33,9 @@ from opentelemetry.trace import Tracer, get_current_span
 from sqlalchemy.orm import Session, sessionmaker
 
 from stravapipe.adapters.firestore import FirestoreTokenStore
+from stravapipe.adapters.firestore.activity_connection import (
+    delete_legacy_user_documents,
+)
 from stravapipe.adapters.gcp import BigQueryClientWrapper
 from stravapipe.adapters.postgres import SqlAlchemyUnitOfWork
 from stravapipe.adapters.postgres._unit_of_work import create_session_factory
@@ -61,7 +64,6 @@ from stravapipe.shared.tracing import (
 logger = setup_logging(__name__)
 
 # Firestore path constants — must match Go shared/stravatoken/types.go
-USERS_COLLECTION = "users"
 
 
 @dataclass
@@ -165,7 +167,7 @@ def _delete_all_stores(
         result.firestore_tokens_deleted = True
 
     def _do_firestore_docs() -> None:
-        result.firestore_user_docs_deleted = _delete_firestore_user_docs(
+        result.firestore_user_docs_deleted = delete_legacy_user_documents(
             deps.firestore_client, user_id
         )
 
@@ -185,39 +187,6 @@ def _delete_all_stores(
         "firestore_docs",
         _do_firestore_docs,
     )
-
-
-def _delete_firestore_user_docs(
-    firestore_client: FirestoreClient,
-    user_id: str,
-) -> int:
-    """Delete all Firestore documents for a user.
-
-    Documents:
-    - users/{user_id}/private/strava_tokens (handled by token_store.delete_tokens)
-    - users/{user_id}/private/profile
-    - users/{user_id}/config/v1
-    - allowlist/{user_id}
-
-    All deletes are idempotent — non-existent documents are silently skipped.
-    """
-    count = 0
-    user_ref = firestore_client.collection(USERS_COLLECTION).document(user_id)
-
-    # Delete subcollection documents
-    subcollection_docs = [
-        user_ref.collection("private").document("profile"),
-        user_ref.collection("config").document("v1"),
-    ]
-    for doc_ref in subcollection_docs:
-        doc_ref.delete()
-        count += 1
-
-    # Delete allowlist entry
-    firestore_client.collection("allowlist").document(user_id).delete()
-    count += 1
-
-    return count
 
 
 @asynccontextmanager

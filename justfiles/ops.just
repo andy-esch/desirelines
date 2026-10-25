@@ -43,3 +43,7 @@ test-flow:
         -d '{"aspect_type":"create","event_time":1734200000,"object_id":12345678,"object_type":"activity","owner_id":98765,"subscription_id":123456}' \
         | head -c 200
     @echo ""
+
+# Explicit-target account registry inventory/bootstrap. No default project/database.
+connection-registry +args:
+    cd packages/apigateway && go run ./cmd/connection-registry {{args}}
