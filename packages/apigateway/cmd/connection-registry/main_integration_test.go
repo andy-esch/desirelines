@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -128,6 +129,9 @@ func TestRegistryCommandEndToEnd(t *testing.T) {
 	if err = execute("freeze", "--confirm-project=demo-test-project"); err != nil {
 		t.Fatal(err)
 	}
+	if verifyErr := execute("verify", args...); verifyErr == nil || !strings.Contains(verifyErr.Error(), "resolve owner UID 123") {
+		t.Fatalf("verify without applied mapping=%v", verifyErr)
+	}
 	for _, mode := range []string{"apply", "apply", "verify"} {
 		if err = execute(mode, args...); err != nil {
 			t.Fatalf("%s: %v inventory=%s", mode, err, inventory.String())
@@ -161,6 +165,32 @@ func TestRegistryCommandEndToEnd(t *testing.T) {
 	requireOwnerReceipt(t, output.String(), "123", "retained_other_operation")
 	if verifyErr := execute("verify", args...); verifyErr != nil {
 		t.Fatalf("rollback removed another operation's records: %v", verifyErr)
+	}
+	for name, mutation := range map[string]string{
+		"unknown owner":            "UPDATE desirelines.activities SET user_id='999'",
+		"wrong provider":           "UPDATE desirelines.activity_external_ids SET source='other'",
+		"wrong external owner":     "UPDATE desirelines.activity_external_ids SET external_owner_id='999'",
+		"missing external mapping": "DELETE FROM desirelines.activity_external_ids",
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, mutateErr := pg.Exec(ctx, mutation); mutateErr != nil {
+				t.Fatal(mutateErr)
+			}
+			t.Cleanup(func() {
+				_, restoreErr := pg.Exec(ctx, `UPDATE desirelines.activities SET user_id='123';
+ DELETE FROM desirelines.activity_external_ids;
+ INSERT INTO desirelines.activity_external_ids VALUES(1,'strava','123')`)
+				if restoreErr != nil {
+					t.Fatal(restoreErr)
+				}
+			})
+			if verifyErr := execute("verify", args...); verifyErr == nil || !strings.Contains(verifyErr.Error(), "persisted owner/source conflicts") {
+				t.Fatalf("conflicting persisted ownership verified: %v", verifyErr)
+			}
+			if strings.Contains(output.String(), "verified_owners") {
+				t.Fatal("failed inventory emitted a verification receipt")
+			}
+		})
 	}
 	// A SELECT that silently sees zero owners under RLS is not a valid inventory.
 	if _, roleErr := pg.Exec(ctx, `DO $$ BEGIN CREATE ROLE registry_limited NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
@@ -277,12 +307,31 @@ func TestPartialOwnerReceipts(t *testing.T) {
 			t.Fatal(seedErr)
 		}
 	}
+	var output bytes.Buffer
+	// Auth admission can change between the reviewed inventory and each claim.
+	if _, updateErr := auth.UpdateUser(ctx, "209001", (&firebaseauth.UserToUpdate{}).Disabled(true)); updateErr != nil {
+		t.Fatal(updateErr)
+	}
+	if applyErr := applyOrVerify(ctx, modeApply, auth, store, &manifest, &output); applyErr == nil || !strings.Contains(applyErr.Error(), "provenance changed for 209001") {
+		t.Fatalf("disabled Auth user applied: %v", applyErr)
+	}
+	if deleteErr := auth.DeleteUser(ctx, "209001"); deleteErr != nil {
+		t.Fatal(deleteErr)
+	}
+	if applyErr := applyOrVerify(ctx, modeApply, auth, store, &manifest, &output); applyErr == nil || !strings.Contains(applyErr.Error(), "recheck Auth UID 209001") {
+		t.Fatalf("deleted Auth user applied: %v", applyErr)
+	}
+	if _, resolveErr := store.Resolve(ctx, "209001"); !errors.Is(resolveErr, activityconnection.ErrNotFound) || output.Len() != 0 {
+		t.Fatalf("failed Auth recheck created ownership or progress: %v %s", resolveErr, output.String())
+	}
+	if _, createErr := auth.CreateUser(ctx, (&firebaseauth.UserToCreate{}).UID("209001")); createErr != nil {
+		t.Fatal(createErr)
+	}
 	// Model a conflict appearing after preflight, between per-owner commits.
 	half := db.Collection("users").Doc("209002").Collection("connections").Doc("strava")
 	if _, seedErr := half.Set(ctx, connectionbootstrap.Record("209002", "partial")); seedErr != nil {
 		t.Fatal(seedErr)
 	}
-	var output bytes.Buffer
 	if applyErr := applyOrVerify(ctx, modeApply, auth, store, &manifest, &output); applyErr == nil || !strings.Contains(applyErr.Error(), "209002") {
 		t.Fatalf("partial apply=%v", applyErr)
 	}

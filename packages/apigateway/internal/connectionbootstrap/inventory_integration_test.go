@@ -85,3 +85,26 @@ func TestInventoryReportsHalfAndMalformedRegistryPairs(t *testing.T) {
 		t.Fatalf("matching pair blocked: %+v %v", inventory.Issues, scanErr)
 	}
 }
+
+func TestInventoryBlocksOrphanUserPaths(t *testing.T) {
+	t.Setenv("FIRESTORE_DATABASE", fmt.Sprintf("inventory-orphans-%d", time.Now().UnixNano()))
+	db := firestoretest.NewClient(t)
+	ctx := context.Background()
+	for _, uid := range []string{"111", "222"} {
+		if _, seedErr := db.Collection("users").Doc(uid).Collection("config").Doc("v1").Set(ctx, map[string]any{}); seedErr != nil {
+			t.Fatal(seedErr)
+		}
+	}
+	// One UID has Auth without admission; the other admission without Auth.
+	inventory := Inventory{}
+	if scanErr := inventory.checkUserDocuments(ctx, db, map[string]*firebaseauth.ExportedUserRecord{"111": {}}, map[string]bool{"222": true}); scanErr != nil {
+		t.Fatal(scanErr)
+	}
+	blocked := map[string]bool{}
+	for _, issue := range inventory.Issues {
+		blocked[issue.UID] = issue.Blocking && issue.Reason == "orphan Firestore user paths"
+	}
+	if len(inventory.Issues) != 2 || !blocked["111"] || !blocked["222"] {
+		t.Fatalf("orphan paths were not blocked: %+v", inventory.Issues)
+	}
+}

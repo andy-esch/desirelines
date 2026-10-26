@@ -135,27 +135,65 @@ func TestBootstrapGuardsAndRollback(t *testing.T) {
 func TestWireTypesAreNotSilentlyCoerced(t *testing.T) {
 	s := testStore(t)
 	ctx := context.Background()
-	r := record("opaque-A", "111")
-	if _, err := s.Claim(ctx, &r); err != nil {
+	r := legacyRecord("123", "wire-test")
+	freeze(t, s)
+	if _, err := s.Client.Collection("allowlist").Doc(r.UID).Set(ctx, map[string]any{}); err != nil {
 		t.Fatal(err)
 	}
-	lookup, _ := s.refs(r.UID, r.Subject)
+	lookup, connection := s.refs(r.UID, r.Subject)
 	for name, updates := range map[string][]firestore.Update{
 		"null optional string":                    {{Path: "bootstrap_id", Value: nil}},
 		"floating schema version":                 {{Path: "schema_version", Value: float64(1)}},
 		"unknown field replacing optional string": {{Path: "bootstrap_id", Value: firestore.Delete}, {Path: "future_field", Value: "changed"}},
+		"missing field":                           {{Path: "bootstrap_id", Value: firestore.Delete}},
+		"wrong scopes type":                       {{Path: "scopes", Value: map[string]any{"read": true}}},
+		"invalid scope":                           {{Path: "scopes", Value: []string{" READ"}}},
 	} {
-		t.Run(name, func(t *testing.T) {
-			if _, err := lookup.Set(ctx, r); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := lookup.Update(ctx, updates); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := s.Resolve(ctx, r.Subject); !errors.Is(err, ErrConflict) {
-				t.Fatalf("malformed document resolved: %v", err)
-			}
-		})
+		for side, ref := range map[string]*firestore.DocumentRef{"lookup": lookup, "connection": connection} {
+			t.Run(name+"/"+side, func(t *testing.T) {
+				for _, pairRef := range []*firestore.DocumentRef{lookup, connection} {
+					if _, err := pairRef.Set(ctx, r); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if _, err := ref.Update(ctx, updates); err != nil {
+					t.Fatal(err)
+				}
+				before, readErr := s.Client.GetAll(ctx, []*firestore.DocumentRef{lookup, connection})
+				if readErr != nil {
+					t.Fatal(readErr)
+				}
+				assertMalformedOwnershipRefused(ctx, t, s, &r, name != "wrong scopes type")
+				after, readErr := s.Client.GetAll(ctx, []*firestore.DocumentRef{lookup, connection})
+				if readErr != nil {
+					t.Fatal(readErr)
+				}
+				for i := range before {
+					if !reflect.DeepEqual(before[i].Data(), after[i].Data()) {
+						t.Fatal("refused operations changed registry data")
+					}
+				}
+			})
+		}
+	}
+}
+
+func assertMalformedOwnershipRefused(ctx context.Context, t *testing.T, s Store, r *Record, wantConflict bool) {
+	t.Helper()
+	if _, resolveErr := s.Resolve(ctx, r.Subject); resolveErr == nil || (wantConflict && !errors.Is(resolveErr, ErrConflict)) {
+		t.Fatalf("malformed ownership did not report the expected conflict/decode error: %v", resolveErr)
+	}
+	if created, claimErr := s.Claim(ctx, r); claimErr == nil || created {
+		t.Fatalf("claim overwrote malformed data: %v %v", created, claimErr)
+	}
+	if outcome, rollbackErr := s.Rollback(ctx, r); rollbackErr == nil || outcome != "" {
+		t.Fatalf("rollback accepted malformed data: %s %v", outcome, rollbackErr)
+	}
+	admissionErr := s.Client.RunTransaction(ctx, func(_ context.Context, tx *firestore.Transaction) error {
+		return s.CheckLegacyAdmission(tx, r.Subject)
+	})
+	if admissionErr == nil {
+		t.Fatal("malformed ownership permitted sign-in")
 	}
 }
 
