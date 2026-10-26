@@ -12,24 +12,30 @@ import (
 	"testing"
 )
 
-func TestRecordContract(t *testing.T) {
+func contractFixture(t *testing.T, name string) []byte {
+	t.Helper()
 	_, file, _, _ := runtime.Caller(0)
-	data, err := os.ReadFile(filepath.Join(filepath.Dir(file), "..", "..", "..", "schemas", "test-fixtures", "activity_connection.json"))
+	data, err := os.ReadFile(filepath.Join(filepath.Dir(file), "..", "..", "..", "schemas", "test-fixtures", name)) //nolint:gosec // Fixture names are constants in this test file.
 	if err != nil {
 		t.Fatal(err)
 	}
+	return data
+}
+
+func TestRecordContract(t *testing.T) {
+	data := contractFixture(t, "activity_connection.json")
 	var r Record
-	if err = json.Unmarshal(data, &r); err != nil {
+	if err := json.Unmarshal(data, &r); err != nil {
 		t.Fatal(err)
 	}
-	if err = r.Validate(); err != nil {
+	if err := r.Validate(); err != nil {
 		t.Fatal(err)
 	}
 	if r.UID == r.Subject || r.Scopes[0] != "activity:read_all" {
 		t.Fatal("fixture must exercise independent ownership and non-default scopes")
 	}
 	var fields map[string]any
-	if err = json.Unmarshal(data, &fields); err != nil {
+	if err := json.Unmarshal(data, &fields); err != nil {
 		t.Fatal(err)
 	}
 	typ := reflect.TypeOf(r)
@@ -109,24 +115,47 @@ func TestInvalidClaimFailsBeforeClientAccess(t *testing.T) {
 	if _, claimErr := s.Claim(ctx, nil); !errors.Is(claimErr, ErrConflict) {
 		t.Fatalf("nil claim: %v", claimErr)
 	}
-	if rollbackErr := s.Rollback(ctx, nil); !errors.Is(rollbackErr, ErrConflict) {
+	if _, rollbackErr := s.Rollback(ctx, nil); !errors.Is(rollbackErr, ErrConflict) {
 		t.Fatalf("nil rollback: %v", rollbackErr)
 	}
 	r := Record{SchemaVersion: 1, UID: "opaque", Provider: Provider, Subject: "111", Scopes: []string{}, Status: "disconnected", Provenance: "oauth"}
 	if _, claimErr := s.Claim(ctx, &r); !errors.Is(claimErr, ErrNotFound) {
 		t.Fatalf("inactive claim: %v", claimErr)
 	}
-	if rollbackErr := s.Rollback(ctx, &r); !errors.Is(rollbackErr, ErrConflict) {
+	if _, rollbackErr := s.Rollback(ctx, &r); !errors.Is(rollbackErr, ErrConflict) {
 		t.Fatalf("non-legacy rollback: %v", rollbackErr)
 	}
 	r.Subject = "001"
 	if _, claimErr := s.Claim(ctx, &r); claimErr == nil {
 		t.Fatal("invalid claim reached client")
 	}
-	if rollbackErr := s.Rollback(ctx, &r); rollbackErr == nil {
+	if _, rollbackErr := s.Rollback(ctx, &r); rollbackErr == nil {
 		t.Fatal("invalid rollback reached client")
 	}
 	if _, resolveErr := s.Resolve(ctx, r.Subject); resolveErr == nil {
 		t.Fatal("invalid lookup reached client")
+	}
+}
+
+func TestScopeContract(t *testing.T) {
+	var cases []struct {
+		Name   string   `json:"name"`
+		Scopes []string `json:"scopes"`
+		Valid  bool     `json:"valid"`
+	}
+	if err := json.Unmarshal(contractFixture(t, "activity_connection_scopes.json"), &cases); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			var record Record
+			if err := json.Unmarshal(contractFixture(t, "activity_connection.json"), &record); err != nil {
+				t.Fatal(err)
+			}
+			record.Scopes = tc.Scopes
+			if err := record.Validate(); (err == nil) != tc.Valid {
+				t.Fatalf("scopes %q valid=%v: %v", tc.Scopes, tc.Valid, err)
+			}
+		})
 	}
 }

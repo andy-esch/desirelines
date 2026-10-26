@@ -62,3 +62,17 @@ def test_reject_invalid_record(change: dict) -> None:
     data = json.loads(FIXTURE.read_text()) | change
     with pytest.raises(ValueError, match=r"Strava subject|invalid|unexpected|legacy"):
         ConnectionRecord.from_dict(data)
+
+
+@pytest.mark.parametrize(
+    "case",
+    json.loads(FIXTURE.with_name("activity_connection_scopes.json").read_text()),
+    ids=lambda case: case["name"],
+)
+def test_shared_scope_contract(case: dict) -> None:
+    data = json.loads(FIXTURE.read_text()) | {"scopes": case["scopes"]}
+    if case["valid"]:
+        assert ConnectionRecord.from_dict(data).scopes == case["scopes"]
+    else:
+        with pytest.raises(ValueError, match="invalid connection record"):
+            ConnectionRecord.from_dict(data)

@@ -1,6 +1,7 @@
 """Server-owned registry contract shared with Go's activityconnection package."""
 
 from dataclasses import dataclass, fields
+import re
 from typing import Any
 from unicodedata import category
 
@@ -64,7 +65,8 @@ class ConnectionRecord:
             or record.provenance not in {"legacy_uid", "oauth", "dev_fixture"}
             or not isinstance(record.scopes, list)
             or any(
-                not isinstance(s, str) or not s or s.strip() != s for s in record.scopes
+                not isinstance(s, str) or re.fullmatch(r"[a-z0-9_:]+", s) is None
+                for s in record.scopes
             )
             or len(record.scopes) != len(set(record.scopes))
             or not isinstance(record.bootstrap_id, str)

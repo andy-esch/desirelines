@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -26,6 +27,9 @@ import (
 func TestRegistryCommandEndToEnd(t *testing.T) {
 	postgresURL := os.Getenv("REGISTRY_TEST_POSTGRES_URL")
 	if postgresURL == "" {
+		if os.Getenv("CI") == "true" {
+			t.Fatal("REGISTRY_TEST_POSTGRES_URL required in CI")
+		}
 		t.Skip("isolated registry_test Postgres fixture required")
 	}
 	parsed, err := url.Parse(postgresURL)
@@ -87,9 +91,11 @@ func TestRegistryCommandEndToEnd(t *testing.T) {
 		t.Fatal(seedErr)
 	}
 	base := []string{"--project=demo-test-project", "--database=" + database}
+	var output bytes.Buffer
 	execute := func(mode string, extra ...string) error {
 		t.Helper()
-		return run(ctx, append(append([]string{}, base...), append([]string{"--mode=" + mode}, extra...)...), &bytes.Buffer{})
+		output.Reset()
+		return run(ctx, append(append([]string{}, base...), append([]string{"--mode=" + mode}, extra...)...), &output)
 	}
 	var inventory bytes.Buffer
 	if err = run(ctx, append(base, "--mode=inventory"), &inventory); err != nil {
@@ -149,9 +155,10 @@ func TestRegistryCommandEndToEnd(t *testing.T) {
 	if writeErr := os.WriteFile(previousPath, previousData, 0o600); writeErr != nil {
 		t.Fatal(writeErr)
 	}
-	if rollbackErr := execute("rollback", "--manifest="+previousPath, "--confirm-project=demo-test-project"); rollbackErr != nil {
-		t.Fatal(rollbackErr)
+	if rollbackErr := execute("rollback", "--manifest="+previousPath, "--confirm-project=demo-test-project"); rollbackErr == nil || !strings.Contains(rollbackErr.Error(), "matched no records") {
+		t.Fatalf("wrong-operation rollback=%v", rollbackErr)
 	}
+	requireOwnerReceipt(t, output.String(), "123", "retained_other_operation")
 	if verifyErr := execute("verify", args...); verifyErr != nil {
 		t.Fatalf("rollback removed another operation's records: %v", verifyErr)
 	}
@@ -194,6 +201,14 @@ func TestRegistryCommandEndToEnd(t *testing.T) {
 	if err = execute("rollback", args...); err != nil {
 		t.Fatal(err)
 	}
+	requireOwnerReceipt(t, output.String(), "123", "removed")
+	if !strings.Contains(output.String(), "rolled-back users cannot start a new sign-in") {
+		t.Fatal("rollback omitted the sign-in consequence")
+	}
+	if retryErr := execute("rollback", args...); retryErr != nil {
+		t.Fatalf("idempotent rollback: %v", retryErr)
+	}
+	requireOwnerReceipt(t, output.String(), "123", "already_absent")
 	if _, err = (activityconnection.Store{Client: db}).Resolve(ctx, "123"); err == nil {
 		t.Fatal("rollback retained mapping")
 	}
@@ -212,5 +227,72 @@ func TestRegistryCommandEndToEnd(t *testing.T) {
 	var owner string
 	if err = pg.QueryRow(ctx, "SELECT user_id FROM desirelines.activities WHERE id=1").Scan(&owner); err != nil || owner != "123" {
 		t.Fatalf("persisted ownership changed: %s %v", owner, err)
+	}
+}
+
+func requireOwnerReceipt(t *testing.T, output, uid, outcome string) {
+	t.Helper()
+	decoder := json.NewDecoder(strings.NewReader(output))
+	for {
+		var receipt map[string]any
+		if err := decoder.Decode(&receipt); err == io.EOF {
+			break
+		} else if err != nil {
+			t.Fatal(err)
+		}
+		if receipt["uid"] == uid && receipt["outcome"] == outcome {
+			return
+		}
+	}
+	t.Fatalf("missing %s receipt for %s: %s", outcome, uid, output)
+}
+
+func TestPartialOwnerReceipts(t *testing.T) {
+	database := fmt.Sprintf("registry-partial-%d", time.Now().UnixNano())
+	t.Setenv("FIRESTORE_DATABASE", database)
+	db := firestoretest.NewClient(t)
+	if host := os.Getenv("FIREBASE_AUTH_EMULATOR_HOST"); !strings.HasPrefix(host, "127.0.0.1:") && !strings.HasPrefix(host, "localhost:") {
+		t.Fatal("local Auth emulator required")
+	}
+	ctx := context.Background()
+	app, appErr := firebase.NewApp(ctx, &firebase.Config{ProjectID: "demo-test-project"})
+	if appErr != nil {
+		t.Fatal(appErr)
+	}
+	auth, authErr := app.Auth(ctx)
+	if authErr != nil {
+		t.Fatal(authErr)
+	}
+	manifest := connectionbootstrap.Manifest{Project: "demo-test-project", Database: database, OperationID: "partial", UIDs: []string{"209001", "209002"}}
+	store := activityconnection.Store{Client: db}
+	if freezeErr := store.Freeze(ctx); freezeErr != nil {
+		t.Fatal(freezeErr)
+	}
+	for _, uid := range manifest.UIDs {
+		if _, createErr := auth.CreateUser(ctx, (&firebaseauth.UserToCreate{}).UID(uid)); createErr != nil {
+			t.Fatal(createErr)
+		}
+		t.Cleanup(func() { _ = auth.DeleteUser(context.Background(), uid) })
+		if _, seedErr := db.Collection("allowlist").Doc(uid).Set(ctx, map[string]any{}); seedErr != nil {
+			t.Fatal(seedErr)
+		}
+	}
+	// Model a conflict appearing after preflight, between per-owner commits.
+	half := db.Collection("users").Doc("209002").Collection("connections").Doc("strava")
+	if _, seedErr := half.Set(ctx, connectionbootstrap.Record("209002", "partial")); seedErr != nil {
+		t.Fatal(seedErr)
+	}
+	var output bytes.Buffer
+	if applyErr := applyOrVerify(ctx, modeApply, auth, store, &manifest, &output); applyErr == nil || !strings.Contains(applyErr.Error(), "209002") {
+		t.Fatalf("partial apply=%v", applyErr)
+	}
+	requireOwnerReceipt(t, output.String(), "209001", "created")
+	output.Reset()
+	if rollbackErr := rollback(ctx, store, &manifest, &output); rollbackErr == nil || !strings.Contains(rollbackErr.Error(), "209002") {
+		t.Fatalf("partial rollback=%v", rollbackErr)
+	}
+	requireOwnerReceipt(t, output.String(), "209001", "removed")
+	if _, readErr := half.Get(ctx); readErr != nil {
+		t.Fatalf("rollback erased the conflicting survivor: %v", readErr)
 	}
 }

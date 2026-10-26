@@ -272,6 +272,33 @@ func TestAuthStore_FreezeAndDeletedAdmission(t *testing.T) {
 	if err := store.WriteAuthData(ctx, uid, tokens, profile); err != nil {
 		t.Fatalf("mapped sign-in: %v", err)
 	}
+	if _, rollbackErr := registry.Rollback(ctx, &record); rollbackErr != nil {
+		t.Fatal(rollbackErr)
+	}
+	if writeErr := store.WriteAuthData(ctx, uid, tokens, profile); !errors.Is(writeErr, activityconnection.ErrAdmissionDenied) {
+		t.Fatalf("rolled-back admission=%v", writeErr)
+	}
+	if _, claimErr := registry.Claim(ctx, &record); claimErr != nil {
+		t.Fatal(claimErr)
+	}
+	if writeErr := store.WriteAuthData(ctx, uid, tokens, profile); writeErr != nil {
+		t.Fatalf("re-applied sign-in: %v", writeErr)
+	}
+	// An agreeing but disconnected pair must not permit credentials to be rewritten.
+	record.Status = "disconnected"
+	for _, path := range []string{"provider_accounts/strava:" + uid, "users/" + uid + "/connections/strava"} {
+		if _, writeErr := store.client.Doc(path).Set(ctx, record); writeErr != nil {
+			t.Fatal(writeErr)
+		}
+	}
+	tokens.AccessToken = "must-not-be-written"
+	if writeErr := store.WriteAuthData(ctx, uid, tokens, profile); !errors.Is(writeErr, activityconnection.ErrAdmissionDenied) {
+		t.Fatalf("disconnected admission=%v", writeErr)
+	}
+	unchanged, readErr := tokenRef.Get(ctx)
+	if readErr != nil || unchanged.Data()["access_token"] != "test-access" {
+		t.Fatalf("denied login changed credentials: %v %v", unchanged, readErr)
+	}
 	// Match deletion's atomic admission/registry removal, then try reactivation.
 	batch := store.client.Batch()
 	batch.Delete(store.client.Collection("allowlist").Doc(uid))

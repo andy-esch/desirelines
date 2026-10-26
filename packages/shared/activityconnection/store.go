@@ -216,19 +216,32 @@ func (s Store) Resolve(ctx context.Context, subject string) (Record, error) {
 	return result, nil
 }
 
+// RollbackOutcome reports the committed disposition of one operation's pair.
+type RollbackOutcome string
+
+// Rollback outcomes distinguish retries from records belonging to another run.
+const (
+	RollbackRemoved        RollbackOutcome = "removed"
+	RollbackAbsent         RollbackOutcome = "already_absent"
+	RollbackOtherOperation RollbackOutcome = "retained_other_operation"
+)
+
 // Rollback removes only the unchanged pair belonging to this exact operation.
+// Admissions stay frozen: re-apply and verify before users can sign in again.
 // Seal must be called before deployed resolvers begin depending on the records.
-func (s Store) Rollback(ctx context.Context, record *Record) error {
+func (s Store) Rollback(ctx context.Context, record *Record) (RollbackOutcome, error) {
 	if record == nil {
-		return ErrConflict
+		return "", ErrConflict
 	}
 	if validationErr := record.Validate(); validationErr != nil {
-		return validationErr
+		return "", validationErr
 	}
 	if record.Provenance != LegacyUID {
-		return ErrConflict
+		return "", ErrConflict
 	}
-	return s.transact(ctx, func(_ context.Context, tx *firestore.Transaction) error {
+	var outcome RollbackOutcome
+	transactionErr := s.transact(ctx, func(_ context.Context, tx *firestore.Transaction) error {
+		outcome = ""
 		migration, migrationErr := s.migration(tx)
 		if migrationErr != nil {
 			return migrationErr
@@ -245,17 +258,39 @@ func (s Store) Rollback(ctx context.Context, record *Record) error {
 		if connectionErr != nil {
 			return connectionErr
 		}
-		if a == nil && b == nil {
-			return nil
-		}
-		if !samePair(a, b) || !reflect.DeepEqual(a, record) {
-			return ErrConflict
+		outcome, connectionErr = rollbackDisposition(a, b, record)
+		if connectionErr != nil || outcome != RollbackRemoved {
+			return connectionErr
 		}
 		if deleteErr := tx.Delete(lookup); deleteErr != nil {
 			return registryError("rollback lookup", deleteErr)
 		}
-		return registryError("rollback connection", tx.Delete(connection))
+		if deleteErr := tx.Delete(connection); deleteErr != nil {
+			return registryError("rollback connection", deleteErr)
+		}
+		outcome = RollbackRemoved
+		return nil
 	})
+	if transactionErr != nil {
+		return "", transactionErr
+	}
+	return outcome, nil
+}
+
+func rollbackDisposition(a, b, expected *Record) (RollbackOutcome, error) {
+	if a == nil && b == nil {
+		return RollbackAbsent, nil
+	}
+	if !sameOwner(a, b, expected) {
+		return "", ErrConflict
+	}
+	if a.BootstrapID != expected.BootstrapID {
+		return RollbackOtherOperation, nil
+	}
+	if !reflect.DeepEqual(a, expected) {
+		return "", ErrConflict
+	}
+	return RollbackRemoved, nil
 }
 
 // Freeze creates the control once; it cannot reopen a sealed bootstrap.

@@ -10,5 +10,5 @@ resources(
 
 resources(
     name="activity_connection_fixture",
-    sources=["activity_connection.json"],
+    sources=["activity_connection.json", "activity_connection_scopes.json"],
 )

@@ -3,7 +3,6 @@
 package activityconnection
 
 import (
-	"cloud.google.com/go/firestore"
 	"context"
 	"errors"
 	"fmt"
@@ -12,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"cloud.google.com/go/firestore"
 	"github.com/andy-esch/desirelines/packages/shared/firestoretest"
 )
 
@@ -114,18 +114,18 @@ func TestBootstrapGuardsAndRollback(t *testing.T) {
 	if made, err := s.Claim(ctx, &other); err != nil || made {
 		t.Fatalf("repeat=%v,%v", made, err)
 	}
-	if err := s.Rollback(ctx, &other); !errors.Is(err, ErrConflict) {
-		t.Fatalf("wrong-operation rollback=%v", err)
+	if outcome, err := s.Rollback(ctx, &other); err != nil || outcome != RollbackOtherOperation {
+		t.Fatalf("wrong-operation rollback=%s,%v", outcome, err)
 	}
 	got, err := s.Resolve(ctx, r.Subject)
 	if err != nil || !reflect.DeepEqual(got, r) {
 		t.Fatalf("unexpected mutation: %+v,%v", got, err)
 	}
-	if err = s.Rollback(ctx, &r); err != nil {
-		t.Fatal(err)
+	if outcome, rollbackErr := s.Rollback(ctx, &r); rollbackErr != nil || outcome != RollbackRemoved {
+		t.Fatalf("rollback=%s,%v", outcome, rollbackErr)
 	}
-	if err = s.Rollback(ctx, &r); err != nil {
-		t.Fatal(err)
+	if outcome, rollbackErr := s.Rollback(ctx, &r); rollbackErr != nil || outcome != RollbackAbsent {
+		t.Fatalf("retry rollback=%s,%v", outcome, rollbackErr)
 	}
 	if _, err = s.Resolve(ctx, r.Subject); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("rolled-back owner: %v", err)
@@ -196,7 +196,7 @@ func TestMigrationControlsFenceWritesAndRollback(t *testing.T) {
 	if _, claimErr := s.Claim(ctx, &r); claimErr == nil {
 		t.Fatal("sealed bootstrap accepted a write")
 	}
-	if rollbackErr := s.Rollback(ctx, &r); rollbackErr == nil {
+	if _, rollbackErr := s.Rollback(ctx, &r); rollbackErr == nil {
 		t.Fatal("sealed rollback accepted")
 	}
 	if freezeErr := s.Freeze(ctx); freezeErr == nil {
@@ -268,7 +268,7 @@ func TestRollbackPreservesChangedOrIncompletePairs(t *testing.T) {
 			t.Fatal(writeErr)
 		}
 	}
-	if rollbackErr := s.Rollback(ctx, &r); !errors.Is(rollbackErr, ErrConflict) {
+	if _, rollbackErr := s.Rollback(ctx, &r); !errors.Is(rollbackErr, ErrConflict) {
 		t.Fatalf("changed records erased: %v", rollbackErr)
 	}
 	got, resolveErr := s.Resolve(ctx, r.Subject)
@@ -281,7 +281,7 @@ func TestRollbackPreservesChangedOrIncompletePairs(t *testing.T) {
 	if _, resolveErr = s.Resolve(ctx, r.Subject); !errors.Is(resolveErr, ErrConflict) {
 		t.Fatalf("half mapping resolved: %v", resolveErr)
 	}
-	if rollbackErr := s.Rollback(ctx, &r); !errors.Is(rollbackErr, ErrConflict) {
+	if _, rollbackErr := s.Rollback(ctx, &r); !errors.Is(rollbackErr, ErrConflict) {
 		t.Fatalf("half mapping rollback: %v", rollbackErr)
 	}
 	if _, readErr := lookup.Get(ctx); readErr != nil {

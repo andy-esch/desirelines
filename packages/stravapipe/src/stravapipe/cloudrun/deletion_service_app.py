@@ -63,8 +63,6 @@ from stravapipe.shared.tracing import (
 
 logger = setup_logging(__name__)
 
-# Firestore path constants — must match Go shared/stravatoken/types.go
-
 
 @dataclass
 class DeletionResult:

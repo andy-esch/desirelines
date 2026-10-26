@@ -8,12 +8,16 @@ import (
 	"log/slog"
 	"slices"
 	"strconv"
+	"strings"
 
 	"cloud.google.com/go/firestore"
 	firebaseauth "firebase.google.com/go/v4/auth"
 	"github.com/andy-esch/desirelines/packages/shared/activityconnection"
+	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/api/iterator"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func inventoryError(operation string, err error) error {
@@ -33,6 +37,11 @@ func Scan(ctx context.Context, auth *firebaseauth.Client, db *firestore.Client, 
 	config, configErr := pgx.ParseConfig(postgresURL)
 	if configErr != nil {
 		return out, inventoryError("parse Postgres target", configErr)
+	}
+	for _, fallback := range config.Fallbacks {
+		if fallback.Host != config.Host || fallback.Port != config.Port {
+			return out, errors.New("inventory requires one Postgres host/port; multi-host failover is not supported")
+		}
 	}
 	out.PostgresTarget = fmt.Sprintf("%s:%d/%s", config.Host, config.Port, config.Database)
 	users, userErr := readUsers(ctx, auth)
@@ -74,7 +83,7 @@ func readUsers(ctx context.Context, auth *firebaseauth.Client) (map[string]*fire
 }
 func readAdmissions(ctx context.Context, db *firestore.Client) (map[string]bool, error) {
 	allowed := map[string]bool{}
-	refs := db.Collection("allowlist").DocumentRefs(ctx)
+	refs := db.Collection(stravatoken.AllowlistCollection).DocumentRefs(ctx)
 	for {
 		ref, nextErr := refs.Next()
 		if errors.Is(nextErr, iterator.Done) {
@@ -106,7 +115,7 @@ func (i *Inventory) checkAuth(users map[string]*firebaseauth.ExportedUserRecord,
 }
 func (i *Inventory) checkUserDocuments(ctx context.Context, db *firestore.Client, users map[string]*firebaseauth.ExportedUserRecord, allowed map[string]bool) error {
 	// DocumentRefs includes missing parents whose subcollections contain user data.
-	refs := db.Collection("users").DocumentRefs(ctx)
+	refs := db.Collection(stravatoken.UsersCollection).DocumentRefs(ctx)
 	seen := map[string]bool{}
 	for {
 		ref, nextErr := refs.Next()
@@ -128,11 +137,29 @@ func (i *Inventory) checkUserDocuments(ctx context.Context, db *firestore.Client
 		if profileErr := i.checkLegacyDocuments(ctx, ref, slices.Contains(i.Candidates, ref.ID)); profileErr != nil {
 			return profileErr
 		}
+		if connectionErr := i.checkUserConnection(ctx, db, ref); connectionErr != nil {
+			return connectionErr
+		}
 	}
 }
+func (i *Inventory) checkUserConnection(ctx context.Context, db *firestore.Client, user *firestore.DocumentRef) error {
+	_, getErr := user.Collection(activityconnection.ConnectionsCollection).Doc(activityconnection.Provider).Get(ctx)
+	if status.Code(getErr) == codes.NotFound {
+		return nil
+	}
+	if getErr != nil {
+		return inventoryError("read connection for "+user.ID, getErr)
+	}
+	resolved, resolveErr := (activityconnection.Store{Client: db}).Resolve(ctx, user.ID)
+	if resolveErr != nil || resolved.UID != user.ID {
+		i.issue(user.ID, "orphan/conflicting registry connection", true)
+	}
+	return nil
+}
+
 func (i *Inventory) checkLegacyDocuments(ctx context.Context, user *firestore.DocumentRef, eligible bool) error {
 	// An empty projection returns names only; never fetch credential payloads.
-	docs, listErr := user.Collection("private").Select().Documents(ctx).GetAll()
+	docs, listErr := user.Collection(stravatoken.PrivateCollection).Select().Documents(ctx).GetAll()
 	if listErr != nil {
 		return inventoryError("list legacy private paths", listErr)
 	}
@@ -140,13 +167,13 @@ func (i *Inventory) checkLegacyDocuments(ctx context.Context, user *firestore.Do
 	for _, doc := range docs {
 		present[doc.Ref.ID] = true
 	}
-	if eligible && (!present["profile"] || !present["strava_tokens"]) {
+	if eligible && (!present[stravatoken.ProfileDocument] || !present[stravatoken.TokensDocument]) {
 		i.issue(user.ID, "missing legacy credential/profile documents", true)
 	}
-	if !present["profile"] {
+	if !present[stravatoken.ProfileDocument] {
 		return nil
 	}
-	profile, getErr := user.Collection("private").Doc("profile").Get(ctx)
+	profile, getErr := user.Collection(stravatoken.PrivateCollection).Doc(stravatoken.ProfileDocument).Get(ctx)
 	if getErr != nil {
 		return inventoryError("read profile metadata", getErr)
 	}
@@ -216,13 +243,10 @@ func (i *Inventory) checkRegistry(ctx context.Context, db *firestore.Client, use
 		if nextErr != nil {
 			return inventoryError("list registry", nextErr)
 		}
-		var record activityconnection.Record
-		if decodeErr := doc.DataTo(&record); decodeErr != nil {
-			return inventoryError("decode lookup", decodeErr)
-		}
-		key, keyErr := activityconnection.LookupKey(record.Subject)
-		resolved, resolveErr := (activityconnection.Store{Client: db}).Resolve(ctx, record.Subject)
-		if resolveErr != nil || keyErr != nil || key != doc.Ref.ID || resolved.UID != record.Subject || !allowed[resolved.UID] || users[resolved.UID] == nil {
+		subject := strings.TrimPrefix(doc.Ref.ID, activityconnection.Provider+":")
+		key, keyErr := activityconnection.LookupKey(subject)
+		resolved, resolveErr := (activityconnection.Store{Client: db}).Resolve(ctx, subject)
+		if resolveErr != nil || keyErr != nil || key != doc.Ref.ID || resolved.UID != subject || !allowed[resolved.UID] || users[resolved.UID] == nil {
 			i.issue(doc.Ref.ID, "orphan/conflicting registry lookup", true)
 		}
 	}

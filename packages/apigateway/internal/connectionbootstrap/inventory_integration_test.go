@@ -47,3 +47,41 @@ func TestMissingLegacyDocumentsBlockEligibility(t *testing.T) {
 		t.Fatalf("healthy identity blocked: %+v", inventory.Issues)
 	}
 }
+
+func TestInventoryReportsHalfAndMalformedRegistryPairs(t *testing.T) {
+	t.Setenv("FIRESTORE_DATABASE", fmt.Sprintf("inventory-pairs-%d", time.Now().UnixNano()))
+	db := firestoretest.NewClient(t)
+	ctx := context.Background()
+	users := map[string]*firebaseauth.ExportedUserRecord{"111": {}}
+	allowed := map[string]bool{"111": true}
+	connection := db.Collection("users").Doc("111").Collection("connections").Doc("strava")
+	record := Record("111", "operation")
+	if _, seedErr := connection.Set(ctx, record); seedErr != nil {
+		t.Fatal(seedErr)
+	}
+	inventory := Inventory{}
+	if scanErr := inventory.checkUserDocuments(ctx, db, users, allowed); scanErr != nil {
+		t.Fatal(scanErr)
+	}
+	if len(inventory.Issues) != 1 || inventory.Issues[0].UID != "111" || !inventory.Issues[0].Blocking {
+		t.Fatalf("connection-only pair missed: %+v", inventory.Issues)
+	}
+	lookup := db.Collection("provider_accounts").Doc("strava:111")
+	if _, seedErr := lookup.Set(ctx, map[string]any{"subject": []string{"111"}}); seedErr != nil {
+		t.Fatal(seedErr)
+	}
+	inventory = Inventory{}
+	if scanErr := inventory.checkRegistry(ctx, db, users, allowed); scanErr != nil {
+		t.Fatalf("malformed metadata aborted inventory: %v", scanErr)
+	}
+	if len(inventory.Issues) != 1 || inventory.Issues[0].UID != "strava:111" || !inventory.Issues[0].Blocking {
+		t.Fatalf("malformed lookup not identified: %+v", inventory.Issues)
+	}
+	if _, seedErr := lookup.Set(ctx, record); seedErr != nil {
+		t.Fatal(seedErr)
+	}
+	inventory = Inventory{}
+	if scanErr := inventory.checkUserDocuments(ctx, db, users, allowed); scanErr != nil || len(inventory.Issues) != 0 {
+		t.Fatalf("matching pair blocked: %+v %v", inventory.Issues, scanErr)
+	}
+}

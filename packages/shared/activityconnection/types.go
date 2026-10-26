@@ -4,6 +4,7 @@ package activityconnection
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"unicode"
@@ -75,10 +76,13 @@ func (r *Record) Validate() error {
 	return validateScopes(r.Scopes)
 }
 
+// Scopes use Strava's lowercase ASCII names, independent of Unicode trimming.
+var scopeName = regexp.MustCompile(`^[a-z0-9_:]+$`)
+
 func validateScopes(scopes []string) error {
 	seen := map[string]bool{}
 	for _, scope := range scopes {
-		if strings.TrimSpace(scope) != scope || scope == "" || seen[scope] {
+		if !scopeName.MatchString(scope) || seen[scope] {
 			return fmt.Errorf("invalid or duplicate scope %q", scope)
 		}
 		seen[scope] = true

@@ -95,7 +95,9 @@ func TestAuthInventoryDoesNotInferLegacyProofFromUIDShape(t *testing.T) {
 }
 
 func TestInventoryRejectsInvalidDatabaseConfigBeforeClientAccess(t *testing.T) {
-	if _, scanErr := Scan(context.Background(), nil, nil, "postgresql://%zz", "project", "database"); scanErr == nil {
-		t.Fatal("invalid database configuration accepted")
+	for _, target := range []string{"postgresql://%zz", "postgresql://localhost:1,localhost:2/registry_test", "postgresql://host-a,host-b/registry_test"} {
+		if _, scanErr := Scan(context.Background(), nil, nil, target, "project", "database"); scanErr == nil {
+			t.Fatalf("invalid or ambiguous database target accepted: %s", target)
+		}
 	}
 }

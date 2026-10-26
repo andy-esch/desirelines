@@ -14,8 +14,10 @@ The same record is stored at both paths:
 - `provider_accounts/strava:{subject}`: one UID per canonical positive decimal Strava ID.
 - `users/{uid}/connections/strava`: one active Strava account per UID.
 
-Fields are `schema_version`, `uid`, `provider`, `subject`, `scopes`, `status`,
-`provenance` and `bootstrap_id`. UIDs are opaque. Records contain no credentials;
+Scope names use lowercase ASCII `[a-z0-9_:]+`; duplicate scopes are invalid.
+The [shared scope cases](../../schemas/test-fixtures/activity_connection_scopes.json)
+exercise both validators. Fields are `schema_version`, `uid`, `provider`, `subject`,
+`scopes`, `status`, `provenance` and `bootstrap_id`. UIDs are opaque. Records contain no credentials;
 client SDK access is denied. Both ownership directions are claimed atomically;
 conflicts, incomplete pairs and inactive connections fail closed. OAuth exchanges
 and Firebase Auth calls stay outside retryable Firestore transactions.
@@ -31,10 +33,9 @@ The [operator command](../../packages/apigateway/cmd/connection-registry/main.go
 requires explicit project and database flags. It uses Application Default
 Credentials and reads `POSTGRES_CONNECTION_STRING` without printing it. Its
 Postgres inventory runs in a read-only transaction and requires a role that can
-see every activity owner; RLS-filtered snapshots are refused. The manifest binds
-the non-secret Postgres host/port/database as well as Firebase's target.
-Keep reports/manifests in a
-private operator workspace; they contain UIDs, never tokens or profile payloads.
+see every activity owner; RLS-filtered snapshots and multi-host failover URLs
+are refused. The manifest binds the non-secret Postgres host/port/database as well
+as Firebase's target. Keep reports/manifests in a private operator workspace; they contain UIDs, never tokens or profile payloads.
 
 ```sh
 just connection-registry --mode inventory --project PROJECT --database DATABASE > inventory.json
@@ -44,8 +45,9 @@ Inventory cross-checks Firebase UID/admission document IDs, provider metadata,
 Firestore user paths and persisted PostgreSQL owners. Client-writable legacy
 profile fields can identify a mismatch, never establish a mapping. Eligible users
 must have both legacy profile and credential document paths; inventory checks
-credential names without reading their payloads. A numeric UID alone is insufficient: the owner must attest that approved UIDs were issued by
-the legacy server flow. Unknown provenance and conflicts stop apply.
+credential names without reading their payloads. A numeric UID alone is
+insufficient: the owner must attest that approved UIDs were issued by the legacy
+server flow. Unknown provenance and conflicts stop apply.
 
 Create a reviewed manifest; do not blindly turn inventory output into approval:
 
@@ -72,6 +74,16 @@ refuses newly appeared or changed owners; it is not a stale snapshot override.
 These commands are for a reviewed maintenance window, not automatic deployment.
 No live bootstrap is performed by tests or by merging this code.
 
+The [deploy script](../../scripts/ops/deploy/deploy-web.sh), invoked with
+`just deploy-web ENV` from the reviewed checkout, publishes Hosting and rules.
+GitOps web deploys publish Hosting only. Confirm that [firebase.json](../../firebase.json)
+targets the database being bootstrapped. Before freezing, compare the published
+source with [firestore.rules](../../firestore.rules) in the target database's
+[Firestore Rules tab](https://docs.cloud.google.com/firestore/native/docs/security/get-started#use_the_google_cloud_console)
+(Cloud console → database → Security). Record the project, database, deployed
+commit and published ruleset in the rollout checkpoint. Stop on a mismatch;
+emulator tests and a successful Hosting deployment do not verify hosted rules.
+
 1. Deploy registry-aware legacy deletion and the gateway's transactional admission
    check. Deploy and verify credential-denial rules before any bootstrap writes.
 2. Freeze admissions, let in-flight legacy sign-ins settle, then refresh inventory
@@ -96,13 +108,19 @@ The control document `identity_migration/legacy_admissions` contains `frozen` an
 control fails closed. Freeze cannot reopen sealed rollback. The gateway checks
 admission/control/mappings in the same transaction as credentials, and legacy
 deletion atomically removes admission, registry records and user documents so
-concurrent login/bootstrap cannot recreate Firestore ownership or tokens.
+concurrent login/bootstrap cannot recreate Firestore ownership or tokens. Do not
+manually re-add revoked admissions during the freeze; that bypasses the migration
+policy when an old mapping remains.
 
 ## Rollback
 
 Before sealing, rollback removes only unchanged record pairs created by that
 operation. Existing credentials/config/ownership are not migrated or removed.
-Keep the admission freeze and hardened rules until the owner reviews next steps.
+**Rolled-back users cannot start a new sign-in while admissions remain frozen.**
+Existing sessions continue. The supported exit is to correct the underlying issue,
+refresh inventory/review, re-apply the reviewed manifest and verify. Keep the freeze
+and hardened rules throughout; rollback is temporary removal of bootstrap records,
+not an exit from the migration. No thaw is supported during this migration.
 While registry data or the freeze remains active, backend rollback must retain
 registry-aware deletion and admission checks. Older backends that ignore those
 controls are not supported rollback targets.
@@ -110,6 +128,13 @@ controls are not supported rollback targets.
 ```sh
 just connection-registry --mode rollback --project PROJECT --database DATABASE --manifest reviewed.json --confirm-project PROJECT
 ```
+
+Apply, verify and rollback emit per-UID JSON progress; preserve stdout on failure.
+Apply receipts record committed claims; only the final verification summary confirms
+all owners resolved successfully. Errors name the failed UID. Rollback reports `removed`,
+`already_absent` or `retained_other_operation`; it fails if only other operations'
+records remain. Retrying an already-absent rollback succeeds. A partial failure
+preserves earlier receipts, so review them before retrying or re-applying.
 
 For a frontend rollback, use the supported `deploy-web.sh ENV --hosting-only`
 route, retaining hardened rules. Do not run an older combined Hosting/rules

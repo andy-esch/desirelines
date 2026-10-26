@@ -17,6 +17,8 @@ from stravapipe.adapters.firestore.activity_connection import (
 def client():
     host = os.environ.get("FIRESTORE_EMULATOR_HOST", "")
     if not host:
+        if os.environ.get("CI") == "true":
+            pytest.fail("FIRESTORE_EMULATOR_HOST required in CI")
         pytest.skip("Firestore emulator required; never create a live client")
     assert host.startswith(("127.0.0.1:", "localhost:")), (
         "tests require a loopback emulator"
