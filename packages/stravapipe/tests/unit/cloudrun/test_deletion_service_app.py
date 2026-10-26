@@ -52,6 +52,10 @@ def client(mock_deletion_config, mock_services):
         patch("stravapipe.cloudrun.deletion_service_app.BigQueryClientWrapper"),
         patch("stravapipe.cloudrun.deletion_service_app.FirestoreClient"),
         patch(
+            "stravapipe.cloudrun.deletion_service_app.delete_legacy_user_documents",
+            return_value=4,
+        ),
+        patch(
             "stravapipe.cloudrun.deletion_service_app.BQUserDeletionService"
         ) as mock_bq_svc,
         patch(
@@ -340,6 +344,10 @@ class TestLifespanCleanup:
             ),
             patch("stravapipe.cloudrun.deletion_service_app.BigQueryClientWrapper"),
             patch("stravapipe.cloudrun.deletion_service_app.FirestoreClient"),
+            patch(
+                "stravapipe.cloudrun.deletion_service_app.delete_legacy_user_documents",
+                return_value=4,
+            ),
             patch("stravapipe.cloudrun.deletion_service_app.FirestoreTokenStore"),
             patch("stravapipe.cloudrun.deletion_service_app.BQUserDeletionService"),
         ):

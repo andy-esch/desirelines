@@ -4,15 +4,20 @@ package firestore
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/auth"
+	"github.com/andy-esch/desirelines/packages/shared/activityconnection"
 	"github.com/andy-esch/desirelines/packages/shared/firestoretest"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // Integration tests need the Firestore emulator: set FIRESTORE_EMULATOR_HOST
@@ -25,6 +30,7 @@ import (
 func newTestAuthStore(t *testing.T) *AuthStore {
 	t.Helper()
 
+	t.Setenv("FIRESTORE_DATABASE", fmt.Sprintf("auth-store-%d", time.Now().UnixNano()))
 	client := firestoretest.NewClient(t)
 
 	return NewAuthStore(client, gcplog.NewNoOpLogger())
@@ -45,6 +51,9 @@ func TestAuthStore_WriteAuthData_HappyPath(t *testing.T) {
 	store := newTestAuthStore(t)
 	ctx := context.Background()
 	stravaID, athleteID := newAthleteID()
+	if _, err := store.client.Collection("allowlist").Doc(athleteID).Set(ctx, map[string]any{}); err != nil {
+		t.Fatal(err)
+	}
 
 	now := time.Now().Truncate(time.Millisecond)
 	tokens := &stravatoken.Data{
@@ -118,6 +127,9 @@ func TestAuthStore_WriteAuthData_PreservesCreatedAt(t *testing.T) {
 	store := newTestAuthStore(t)
 	ctx := context.Background()
 	stravaID, athleteID := newAthleteID()
+	if _, err := store.client.Collection("allowlist").Doc(athleteID).Set(ctx, map[string]any{}); err != nil {
+		t.Fatal(err)
+	}
 
 	// First login
 	originalCreatedAt := time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC)
@@ -196,6 +208,9 @@ func TestAuthStore_WriteAuthData_FirstLogin(t *testing.T) {
 	store := newTestAuthStore(t)
 	ctx := context.Background()
 	stravaID, athleteID := newAthleteID()
+	if _, err := store.client.Collection("allowlist").Doc(athleteID).Set(ctx, map[string]any{}); err != nil {
+		t.Fatal(err)
+	}
 
 	// First login — no existing profile, CreatedAt should be used as-is
 	createdAt := time.Date(2026, 2, 20, 14, 0, 0, 0, time.UTC)
@@ -227,5 +242,82 @@ func TestAuthStore_WriteAuthData_FirstLogin(t *testing.T) {
 
 	if !gotProfile.CreatedAt.Equal(createdAt) {
 		t.Errorf("CreatedAt = %v, want %v (should use provided value on first login)", gotProfile.CreatedAt, createdAt)
+	}
+}
+
+func TestAuthStore_FreezeAndDeletedAdmission(t *testing.T) {
+	store := newTestAuthStore(t)
+	ctx := context.Background()
+	id, uid := newAthleteID()
+	registry := activityconnection.Store{Client: store.client}
+	if _, err := store.client.Collection("allowlist").Doc(uid).Set(ctx, map[string]any{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.Freeze(ctx); err != nil {
+		t.Fatal(err)
+	}
+	tokens := &stravatoken.Data{AccessToken: "test-access", RefreshToken: "test-refresh", ExpiresAt: 1735689600}
+	profile := &auth.AthleteProfile{StravaAthleteID: id, CreatedAt: time.Now()}
+	if err := store.WriteAuthData(ctx, uid, tokens, profile); !errors.Is(err, activityconnection.ErrAdmissionDenied) {
+		t.Fatalf("unmapped admission=%v", err)
+	}
+	tokenRef := store.client.Collection("users").Doc(uid).Collection("private").Doc("strava_tokens")
+	if _, err := tokenRef.Get(ctx); status.Code(err) != codes.NotFound {
+		t.Fatalf("denied login wrote credentials: %v", err)
+	}
+	record := activityconnection.Record{SchemaVersion: 1, UID: uid, Provider: "strava", Subject: uid, Scopes: []string{}, Status: "active", Provenance: "legacy_uid", BootstrapID: "test"}
+	if _, err := registry.Claim(ctx, &record); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.WriteAuthData(ctx, uid, tokens, profile); err != nil {
+		t.Fatalf("mapped sign-in: %v", err)
+	}
+	if _, rollbackErr := registry.Rollback(ctx, &record); rollbackErr != nil {
+		t.Fatal(rollbackErr)
+	}
+	if writeErr := store.WriteAuthData(ctx, uid, tokens, profile); !errors.Is(writeErr, activityconnection.ErrAdmissionDenied) {
+		t.Fatalf("rolled-back admission=%v", writeErr)
+	}
+	if _, claimErr := registry.Claim(ctx, &record); claimErr != nil {
+		t.Fatal(claimErr)
+	}
+	if writeErr := store.WriteAuthData(ctx, uid, tokens, profile); writeErr != nil {
+		t.Fatalf("re-applied sign-in: %v", writeErr)
+	}
+	// An agreeing but disconnected pair must not permit credentials to be rewritten.
+	record.Status = "disconnected"
+	for _, path := range []string{"provider_accounts/strava:" + uid, "users/" + uid + "/connections/strava"} {
+		if _, writeErr := store.client.Doc(path).Set(ctx, record); writeErr != nil {
+			t.Fatal(writeErr)
+		}
+	}
+	tokens.AccessToken = "must-not-be-written"
+	if writeErr := store.WriteAuthData(ctx, uid, tokens, profile); !errors.Is(writeErr, activityconnection.ErrAdmissionDenied) {
+		t.Fatalf("disconnected admission=%v", writeErr)
+	}
+	unchanged, readErr := tokenRef.Get(ctx)
+	if readErr != nil || unchanged.Data()["access_token"] != "test-access" {
+		t.Fatalf("denied login changed credentials: %v %v", unchanged, readErr)
+	}
+	// Match deletion's atomic admission/registry removal, then try reactivation.
+	batch := store.client.Batch()
+	batch.Delete(store.client.Collection("allowlist").Doc(uid))
+	batch.Delete(store.client.Collection("provider_accounts").Doc("strava:" + uid))
+	batch.Delete(store.client.Collection("users").Doc(uid).Collection("connections").Doc("strava"))
+	batch.Delete(tokenRef)
+	if _, err := batch.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.WriteAuthData(ctx, uid, tokens, profile); !errors.Is(err, activityconnection.ErrAdmissionDenied) {
+		t.Fatalf("deleted admission=%v", err)
+	}
+	if _, err := store.client.Collection("allowlist").Doc(uid).Set(ctx, map[string]any{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.WriteAuthData(ctx, uid, tokens, profile); !errors.Is(err, activityconnection.ErrAdmissionDenied) {
+		t.Fatalf("reactivation during freeze=%v", err)
+	}
+	if _, err := tokenRef.Get(ctx); status.Code(err) != codes.NotFound {
+		t.Fatalf("reactivation wrote credentials: %v", err)
 	}
 }

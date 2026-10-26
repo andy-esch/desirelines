@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"crypto/subtle"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"unicode"
 
 	firebaseauth "firebase.google.com/go/v4/auth"
+	"github.com/andy-esch/desirelines/packages/shared/activityconnection"
 	"github.com/andy-esch/desirelines/packages/shared/allowlist"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 )
@@ -335,6 +337,10 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	// failing the OAuth callback because a Firebase backfill failed
 	// would orphan the user with a token they can't access.
 	if writeErr := h.tokens.WriteAuthData(ctx, athleteID, tokenData, profile); writeErr != nil {
+		if errors.Is(writeErr, activityconnection.ErrAdmissionDenied) {
+			h.redirectError(w, r, "not_invited")
+			return
+		}
 		h.logger.Error("Failed to write auth data", "error", writeErr, "athlete_id", athleteID)
 		h.redirectError(w, r, "server_error")
 		return

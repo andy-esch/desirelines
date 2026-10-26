@@ -1,0 +1,16 @@
+[
+  {"name": "empty legacy scopes", "scopes": [], "valid": true},
+  {"name": "Strava scopes", "scopes": ["read", "read_all", "profile:read_all", "activity:read_all", "activity:write"], "valid": true},
+  {"name": "empty", "scopes": [""], "valid": false},
+  {"name": "duplicate", "scopes": ["read", "read"], "valid": false},
+  {"name": "space prefix", "scopes": [" read"], "valid": false},
+  {"name": "space suffix", "scopes": ["read "], "valid": false},
+  {"name": "embedded space", "scopes": ["activity:read all"], "valid": false},
+  {"name": "control prefix", "scopes": ["\u001cread"], "valid": false},
+  {"name": "control suffix", "scopes": ["read\u001f"], "valid": false},
+  {"name": "NBSP", "scopes": ["read\u00a0"], "valid": false},
+  {"name": "line separator", "scopes": ["read\u2028"], "valid": false},
+  {"name": "uppercase", "scopes": ["Read"], "valid": false},
+  {"name": "non ASCII", "scopes": ["r\u00e9ad"], "valid": false},
+  {"name": "newline", "scopes": ["read\n"], "valid": false}
+]

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	firebaseauth "firebase.google.com/go/v4/auth"
+	"github.com/andy-esch/desirelines/packages/shared/activityconnection"
 	"github.com/andy-esch/desirelines/packages/shared/allowlist"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
@@ -655,6 +656,16 @@ func TestHandleCallback(t *testing.T) {
 			firebase:     &mockFirebase{},
 			wantStatus:   http.StatusFound,
 			wantLocation: "/auth/error?error=server_error",
+		},
+		{
+			name:         "frozen legacy admission does not mint a sign-in token",
+			query:        "code=auth-code&state=" + validState,
+			strava:       &mockStravaOAuth{resp: validTokenResp},
+			tokens:       &mockTokenStore{writeErr: activityconnection.ErrAdmissionDenied},
+			allowlist:    &mockAllowlist{allowed: true},
+			firebase:     &mockFirebase{},
+			wantStatus:   http.StatusFound,
+			wantLocation: "/auth/error?error=not_invited",
 		},
 		{
 			name:         "write auth data error",
