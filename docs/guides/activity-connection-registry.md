@@ -1,8 +1,7 @@
 # Activity connection registry
 
 The registry separates a Strava account from the Firebase UID that owns it.
-It is additive: this release does not change ingestion routing or enable email
-sign-in. Existing Firebase UIDs, credential paths and activity ownership remain.
+Bootstrap preserves existing Firebase UIDs, credential paths and activity ownership.
 
 ## Contract
 
@@ -29,9 +28,14 @@ Future OAuth connection work supplies verified scopes independently.
 
 ## Ownership readers
 
-Go's `Store.Resolve` and Python's `ConnectionResolver.resolve` return only an
+Go's [Store.Resolve](../../packages/shared/activityconnection/store.go) and
+Python's [ConnectionResolver.resolve](../../packages/stravapipe/src/stravapipe/adapters/firestore/activity_connection.py) return only an
 active, matching pair. Keep the returned UID separate from the provider subject:
 UIDs identify app data and credentials; subjects identify Strava accounts.
+
+An absent or inactive lookup returns `ErrNotFound` / `ConnectionNotFoundError`.
+Malformed or inconsistent pairs return `ErrConflict` / `ConnectionConflictError`;
+SDK and network failures propagate separately.
 
 For a caller-owned credential transaction, use Go's `ResolveInTransaction` or
 Python's `resolve_in_transaction` so ownership and credentials share a snapshot.
@@ -40,8 +44,9 @@ Bind a refresh write to the UID/subject pair that supplied its credentials, and
 keep external OAuth/Auth calls outside retryable callbacks.
 
 These readers do not establish app admission, verify a provider grant or prove
-rollout readiness. Callers enforce those boundaries separately. Runtime sign-in
-and ingestion still use legacy ownership until the gated consumer migration.
+rollout readiness. Callers enforce those boundaries separately. Adopting readers
+in runtime sign-in or ingestion requires the bootstrap, verification and sealing
+steps below; deploying the reader package alone does not activate routing.
 
 ## Inventory and review
 

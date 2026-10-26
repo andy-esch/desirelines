@@ -65,7 +65,7 @@ func readRecord(tx *firestore.Transaction, ref *firestore.DocumentRef) (*Record,
 	}
 	var record Record
 	if decodeErr := snap.DataTo(&record); decodeErr != nil {
-		return nil, registryError("decode", decodeErr)
+		return nil, fmt.Errorf("%w at %s: %w", ErrConflict, ref.Path, decodeErr)
 	}
 	// DataTo leaves an explicit empty array as a nil slice; null remains invalid.
 	if scopes, ok := data["scopes"].([]any); ok && len(scopes) == 0 {
