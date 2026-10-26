@@ -496,7 +496,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./packages/apigateway/coverage.integration.out
-          flags: go-apigateway-integration
+          flags: go-apigateway,go-apigateway-integration
           name: go-apigateway-integration-coverage
           fail_ci_if_error: false
 
@@ -516,7 +516,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./packages/stravapipe/coverage.integration.xml
-          flags: python-integration
+          flags: python,python-integration
           name: python-integration-coverage
           fail_ci_if_error: false
 
@@ -566,6 +566,7 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@v10.3.0
         with:
+          version-file: packages/stravapipe/pyproject.toml
           enable-cache: true
           cache-dependency-glob: packages/stravapipe/uv.lock
 
@@ -631,23 +632,58 @@ jobs:
           FIREBASE_AUTH_EMULATOR_HOST: "localhost:9099"
           REGISTRY_TEST_POSTGRES_URL: "postgresql://registry:registry-test@localhost:5432/registry_test"
         run: |
-          (cd packages/apigateway && go test -tags=integration -v -race -coverpkg=./... -coverprofile=coverage.firestore.out ./adapters/firestore/... ./cmd/connection-registry/...)
+          (cd packages/apigateway && go test -tags=integration -v -race -coverpkg=./... -coverprofile=coverage.firestore.out ./adapters/firestore/... ./cmd/connection-registry/... ./internal/connectionbootstrap/...)
           (cd packages/dispatcher && go test -tags=integration -v -race -coverpkg=./... -coverprofile=coverage.firestore.out ./adapters/firestore/...)
           (cd packages/shared && go test -tags=integration -v -race -coverpkg=./... -coverprofile=coverage.firestore.out ./allowlist/... ./activityconnection/...)
+
+      # Reuse each module's flag so project checks include unit AND integration
+      # coverage. Upload before Python, so an unrelated failure cannot drop it.
+      - name: Upload apigateway Firestore integration coverage
+        if: ${{ !cancelled() && hashFiles('packages/apigateway/coverage.firestore.out') != '' }}
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/apigateway/coverage.firestore.out
+          flags: go-apigateway,go-firestore-integration
+          name: go-apigateway-firestore-integration-coverage
+          fail_ci_if_error: false
+
+      - name: Upload dispatcher Firestore integration coverage
+        if: ${{ !cancelled() && hashFiles('packages/dispatcher/coverage.firestore.out') != '' }}
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/dispatcher/coverage.firestore.out
+          flags: go-dispatcher,go-firestore-integration
+          name: go-dispatcher-firestore-integration-coverage
+          fail_ci_if_error: false
+
+      - name: Upload shared Firestore integration coverage
+        if: ${{ !cancelled() && hashFiles('packages/shared/coverage.firestore.out') != '' }}
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/shared/coverage.firestore.out
+          flags: go-shared,go-firestore-integration
+          name: go-shared-firestore-integration-coverage
+          fail_ci_if_error: false
 
       - name: Python Firestore deletion integration tests
         working-directory: packages/stravapipe
         env:
           FIRESTORE_EMULATOR_HOST: "localhost:8080"
-        run: uv run --frozen --extra dev pytest tests/firestore/ -v
+        run: |
+          uv run --frozen --extra dev pytest tests/firestore/ -v \
+            --cov=stravapipe --cov-report=xml:coverage.firestore.xml
 
-      - name: Upload Go Firestore integration coverage
+      - name: Upload Python Firestore integration coverage
+        if: ${{ !cancelled() && hashFiles('packages/stravapipe/coverage.firestore.xml') != '' }}
         uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./packages/apigateway/coverage.firestore.out,./packages/dispatcher/coverage.firestore.out,./packages/shared/coverage.firestore.out
-          flags: go-firestore-integration
-          name: go-firestore-integration-coverage
+          files: ./packages/stravapipe/coverage.firestore.xml
+          flags: python,python-firestore-integration
+          name: python-firestore-integration-coverage
           fail_ci_if_error: false
 
       - name: Install web dependencies
