@@ -135,6 +135,9 @@ func TestInvalidClaimFailsBeforeClientAccess(t *testing.T) {
 	if _, resolveErr := s.Resolve(ctx, r.Subject); resolveErr == nil {
 		t.Fatal("invalid lookup reached client")
 	}
+	if _, resolveErr := s.ResolveInTransaction(nil, r.Subject); resolveErr == nil {
+		t.Fatal("invalid transactional lookup reached client")
+	}
 }
 
 func TestScopeContract(t *testing.T) {

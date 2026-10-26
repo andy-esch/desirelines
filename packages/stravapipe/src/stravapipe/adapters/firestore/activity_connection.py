@@ -2,10 +2,12 @@
 
 from dataclasses import dataclass, fields
 import re
-from typing import Any
+from typing import Any, cast
 from unicodedata import category
 
 from google.cloud.firestore_v1 import Client, Transaction, transactional
+
+from stravapipe.exceptions import StravaPipeError
 
 LOOKUPS_COLLECTION = "provider_accounts"
 CONNECTIONS_COLLECTION = "connections"
@@ -79,6 +81,65 @@ class ConnectionRecord:
         ):
             raise ValueError("legacy connection requires original UID and bootstrap ID")
         return record
+
+
+class ConnectionNotFoundError(StravaPipeError):
+    """No active lookup exists for this provider subject."""
+
+
+class ConnectionConflictError(StravaPipeError):
+    """The persisted ownership pair is incomplete, malformed or inconsistent."""
+
+
+class ConnectionResolver:
+    """Read server-owned Strava ownership without inferring a UID from a subject."""
+
+    def __init__(self, client: Client):
+        self._client = client
+
+    def resolve(self, subject: str) -> ConnectionRecord:
+        """Read both active records in one transaction; never read credentials."""
+        lookup_key(subject)  # Reject invalid subjects before creating a transaction.
+        read = transactional(self.resolve_in_transaction)
+        return cast(ConnectionRecord, read(self._client.transaction(), subject))
+
+    def resolve_in_transaction(
+        self, transaction: Transaction, subject: str
+    ) -> ConnectionRecord:
+        """Use the caller's snapshot, including subsequent credential reads.
+
+        Finish all reads before scheduling writes; OAuth/Auth calls must remain
+        outside retryable transaction callbacks.
+        """
+        lookup = self._client.collection(LOOKUPS_COLLECTION).document(
+            lookup_key(subject)
+        )
+        snapshot = lookup.get(transaction=transaction)
+        if not snapshot.exists:
+            raise ConnectionNotFoundError("active activity connection not found")
+        record = self._decode(snapshot.to_dict() or {})
+        if record.status != "active":
+            raise ConnectionNotFoundError("active activity connection not found")
+        connection = (
+            self._client.collection("users")
+            .document(record.uid)
+            .collection(CONNECTIONS_COLLECTION)
+            .document(PROVIDER)
+        ).get(transaction=transaction)
+        if (
+            not connection.exists
+            or self._decode(connection.to_dict() or {}) != record
+            or record.subject != subject
+        ):
+            raise ConnectionConflictError("activity connection ownership conflict")
+        return record
+
+    @staticmethod
+    def _decode(data: dict[str, Any]) -> ConnectionRecord:
+        try:
+            return ConnectionRecord.from_dict(data)
+        except (TypeError, ValueError) as exc:
+            raise ConnectionConflictError("malformed activity connection") from exc
 
 
 def delete_legacy_user_documents(client: Client, user_id: str) -> int:

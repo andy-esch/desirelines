@@ -329,3 +329,91 @@ func TestRollbackPreservesChangedOrIncompletePairs(t *testing.T) {
 		t.Fatalf("claim silently healed a half mapping: %v", claimErr)
 	}
 }
+
+func TestResolveInTransactionKeepsOpaqueOwnership(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	owner := record("opaque-user", "111")
+	other := record("111", "222")
+	for _, r := range []Record{owner, other} {
+		if _, claimErr := s.Claim(ctx, &r); claimErr != nil {
+			t.Fatal(claimErr)
+		}
+		if _, seedErr := s.Client.Doc("users/"+r.UID+"/private/strava_tokens").Set(ctx, map[string]any{"canary": r.Subject}); seedErr != nil {
+			t.Fatal(seedErr)
+		}
+	}
+	transactionErr := s.Client.RunTransaction(ctx, func(_ context.Context, tx *firestore.Transaction) error {
+		resolved, resolveErr := s.ResolveInTransaction(tx, owner.Subject)
+		if resolveErr != nil {
+			return resolveErr
+		}
+		tokens, tokenErr := tx.Get(s.Client.Doc("users/" + resolved.UID + "/private/strava_tokens"))
+		if tokenErr != nil {
+			return fmt.Errorf("read resolved credentials: %w", tokenErr)
+		}
+		if resolved.UID != owner.UID || tokens.Data()["canary"] != owner.Subject {
+			t.Fatal("provider subject was confused with another user's UID")
+		}
+		return registryError("write resolved probe", tx.Set(s.Client.Doc("test_results/resolved"), map[string]any{"uid": resolved.UID}))
+	})
+	if transactionErr != nil {
+		t.Fatal(transactionErr)
+	}
+}
+
+func TestResolveInTransactionUsesCallerSnapshot(t *testing.T) {
+	s := testStore(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	r := record("opaque-user", "111")
+	if _, claimErr := s.Claim(ctx, &r); claimErr != nil {
+		t.Fatal(claimErr)
+	}
+	lookup, connection := s.refs(r.UID, r.Subject)
+	transactionErr := s.Client.RunTransaction(ctx, func(_ context.Context, tx *firestore.Transaction) error {
+		if _, readErr := tx.Get(lookup); readErr != nil {
+			return fmt.Errorf("establish caller snapshot: %w", readErr)
+		}
+		inactive := r
+		inactive.Status = "disconnected"
+		writeErr := s.Client.RunTransaction(ctx, func(_ context.Context, writer *firestore.Transaction) error {
+			if setErr := writer.Set(lookup, inactive); setErr != nil {
+				return fmt.Errorf("advance lookup state: %w", setErr)
+			}
+			return registryError("advance connection state", writer.Set(connection, inactive))
+		})
+		if writeErr != nil {
+			return fmt.Errorf("advance test state: %w", writeErr)
+		}
+		resolved, resolveErr := s.ResolveInTransaction(tx, r.Subject)
+		if resolveErr != nil {
+			return resolveErr
+		}
+		if !reflect.DeepEqual(resolved, r) {
+			t.Fatal("reader left the caller's snapshot")
+		}
+		return nil
+	}, firestore.ReadOnly)
+	if transactionErr != nil {
+		t.Fatal(transactionErr)
+	}
+	if _, resolveErr := s.Resolve(ctx, r.Subject); !errors.Is(resolveErr, ErrNotFound) {
+		t.Fatalf("fresh read ignored the disconnect: %v", resolveErr)
+	}
+}
+
+func TestResolveRejectsAgreeingPairForDifferentSubject(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	r := record("opaque-user", "222")
+	lookup, connection := s.refs(r.UID, "111")
+	for _, ref := range []*firestore.DocumentRef{lookup, connection} {
+		if _, seedErr := ref.Set(ctx, r); seedErr != nil {
+			t.Fatal(seedErr)
+		}
+	}
+	if _, resolveErr := s.Resolve(ctx, "111"); !errors.Is(resolveErr, ErrConflict) {
+		t.Fatalf("agreed records for another subject resolved: %v", resolveErr)
+	}
+}

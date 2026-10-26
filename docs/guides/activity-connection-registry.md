@@ -27,6 +27,22 @@ ID and records an operation ID. Scopes start empty because legacy token/profile
 fields are not trusted evidence. Bootstrap never copies or rotates tokens.
 Future OAuth connection work supplies verified scopes independently.
 
+## Ownership readers
+
+Go's `Store.Resolve` and Python's `ConnectionResolver.resolve` return only an
+active, matching pair. Keep the returned UID separate from the provider subject:
+UIDs identify app data and credentials; subjects identify Strava accounts.
+
+For a caller-owned credential transaction, use Go's `ResolveInTransaction` or
+Python's `resolve_in_transaction` so ownership and credentials share a snapshot.
+Finish reads before writes, as required by [Firestore transactions](https://firebase.google.com/docs/firestore/manage-data/transactions).
+Bind a refresh write to the UID/subject pair that supplied its credentials, and
+keep external OAuth/Auth calls outside retryable callbacks.
+
+These readers do not establish app admission, verify a provider grant or prove
+rollout readiness. Callers enforce those boundaries separately. Runtime sign-in
+and ingestion still use legacy ownership until the gated consumer migration.
+
 ## Inventory and review
 
 The [operator command](../../packages/apigateway/cmd/connection-registry/main.go)
