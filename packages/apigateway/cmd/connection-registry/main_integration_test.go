@@ -82,6 +82,10 @@ func TestRegistryCommandEndToEnd(t *testing.T) {
 	if _, err = db.Collection("users").Doc("123").Collection("private").Doc("profile").Set(ctx, map[string]any{"strava_athlete_id": int64(123)}); err != nil {
 		t.Fatal(err)
 	}
+	credentials := db.Collection("users").Doc("123").Collection("private").Doc("strava_tokens")
+	if _, seedErr := credentials.Set(ctx, map[string]any{"access_token": "credential-canary-never-export"}); seedErr != nil {
+		t.Fatal(seedErr)
+	}
 	base := []string{"--project=demo-test-project", "--database=" + database}
 	execute := func(mode string, extra ...string) error {
 		t.Helper()
@@ -122,6 +126,34 @@ func TestRegistryCommandEndToEnd(t *testing.T) {
 		if err = execute(mode, args...); err != nil {
 			t.Fatalf("%s: %v inventory=%s", mode, err, inventory.String())
 		}
+	}
+	if strings.Contains(inventory.String(), "credential-canary-never-export") {
+		t.Fatal("inventory leaked credential data")
+	}
+	if _, deleteErr := credentials.Delete(ctx); deleteErr != nil {
+		t.Fatal(deleteErr)
+	}
+	if verifyErr := execute("verify", args...); verifyErr == nil || !strings.Contains(verifyErr.Error(), "missing legacy credential") {
+		t.Fatalf("missing credentials: %v", verifyErr)
+	}
+	if _, seedErr := credentials.Set(ctx, map[string]any{"access_token": "credential-canary-never-export"}); seedErr != nil {
+		t.Fatal(seedErr)
+	}
+	previousOperation := manifest
+	previousOperation.OperationID = "not-the-creator"
+	previousPath := filepath.Join(t.TempDir(), "other-operation.json")
+	previousData, marshalErr := json.Marshal(previousOperation)
+	if marshalErr != nil {
+		t.Fatal(marshalErr)
+	}
+	if writeErr := os.WriteFile(previousPath, previousData, 0o600); writeErr != nil {
+		t.Fatal(writeErr)
+	}
+	if rollbackErr := execute("rollback", "--manifest="+previousPath, "--confirm-project=demo-test-project"); rollbackErr != nil {
+		t.Fatal(rollbackErr)
+	}
+	if verifyErr := execute("verify", args...); verifyErr != nil {
+		t.Fatalf("rollback removed another operation's records: %v", verifyErr)
 	}
 	// A SELECT that silently sees zero owners under RLS is not a valid inventory.
 	if _, roleErr := pg.Exec(ctx, `DO $$ BEGIN CREATE ROLE registry_limited NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;

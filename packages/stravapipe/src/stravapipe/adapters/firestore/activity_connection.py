@@ -68,7 +68,7 @@ class ConnectionRecord:
             )
             or len(record.scopes) != len(set(record.scopes))
             or not isinstance(record.bootstrap_id, str)
-            or len(record.bootstrap_id) > MAX_UID_LENGTH
+            or len(record.bootstrap_id.encode("utf-8")) > MAX_UID_LENGTH
             or any(c in record.bootstrap_id for c in "/\r\n")
         ):
             raise ValueError("invalid connection record")

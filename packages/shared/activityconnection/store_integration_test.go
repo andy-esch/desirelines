@@ -158,3 +158,136 @@ func TestWireTypesAreNotSilentlyCoerced(t *testing.T) {
 		})
 	}
 }
+
+func TestMigrationControlsFenceWritesAndRollback(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	r := legacyRecord("123", "operation")
+	if sealErr := s.Seal(ctx); sealErr == nil {
+		t.Fatal("seal without freeze accepted")
+	}
+	if freezeErr := s.Freeze(ctx); freezeErr != nil {
+		t.Fatal(freezeErr)
+	}
+	if freezeErr := s.Freeze(ctx); freezeErr != nil {
+		t.Fatalf("freeze is not idempotent: %v", freezeErr)
+	}
+	if _, writeErr := s.Client.Collection("allowlist").Doc(r.UID).Set(ctx, map[string]any{}); writeErr != nil {
+		t.Fatal(writeErr)
+	}
+	check := func(subject string) error {
+		return s.Client.RunTransaction(ctx, func(_ context.Context, tx *firestore.Transaction) error { return s.CheckLegacyAdmission(tx, subject) })
+	}
+	if admissionErr := check(r.Subject); !errors.Is(admissionErr, ErrAdmissionDenied) {
+		t.Fatalf("unmapped admission: %v", admissionErr)
+	}
+	if _, claimErr := s.Claim(ctx, &r); claimErr != nil {
+		t.Fatal(claimErr)
+	}
+	if admissionErr := check(r.Subject); admissionErr != nil {
+		t.Fatal(admissionErr)
+	}
+	if sealErr := s.Seal(ctx); sealErr != nil {
+		t.Fatal(sealErr)
+	}
+	if admissionErr := check(r.Subject); admissionErr != nil {
+		t.Fatalf("sealing stranded existing user: %v", admissionErr)
+	}
+	if _, claimErr := s.Claim(ctx, &r); claimErr == nil {
+		t.Fatal("sealed bootstrap accepted a write")
+	}
+	if rollbackErr := s.Rollback(ctx, &r); rollbackErr == nil {
+		t.Fatal("sealed rollback accepted")
+	}
+	if freezeErr := s.Freeze(ctx); freezeErr == nil {
+		t.Fatal("sealed rollback reopened")
+	}
+	got, resolveErr := s.Resolve(ctx, r.Subject)
+	if resolveErr != nil || !reflect.DeepEqual(got, r) {
+		t.Fatalf("sealed data changed: %+v %v", got, resolveErr)
+	}
+}
+
+func TestAdmissionAndMalformedStateFailClosed(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	check := func(subject string) error {
+		return s.Client.RunTransaction(ctx, func(_ context.Context, tx *firestore.Transaction) error { return s.CheckLegacyAdmission(tx, subject) })
+	}
+	if admissionErr := check("001"); admissionErr == nil {
+		t.Fatal("noncanonical subject accepted")
+	}
+	if admissionErr := check("123"); !errors.Is(admissionErr, ErrAdmissionDenied) {
+		t.Fatalf("missing admission: %v", admissionErr)
+	}
+	if _, writeErr := s.Client.Collection("allowlist").Doc("123").Set(ctx, map[string]any{}); writeErr != nil {
+		t.Fatal(writeErr)
+	}
+	if admissionErr := check("123"); admissionErr != nil {
+		t.Fatalf("legacy admission without migration control: %v", admissionErr)
+	}
+	control := s.Client.Collection(MigrationCollection).Doc(MigrationDocument)
+	for name, data := range map[string]map[string]any{
+		"missing frozen":   {"rollback_allowed": true},
+		"missing rollback": {"frozen": true},
+		"string boolean":   {"frozen": "true", "rollback_allowed": true},
+		"null boolean":     {"frozen": true, "rollback_allowed": nil},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, writeErr := control.Set(ctx, data); writeErr != nil {
+				t.Fatal(writeErr)
+			}
+			if admissionErr := check("123"); admissionErr == nil {
+				t.Fatal("malformed control allowed login")
+			}
+			if freezeErr := s.Freeze(ctx); freezeErr == nil {
+				t.Fatal("freeze silently replaced malformed control")
+			}
+		})
+	}
+}
+
+func TestRollbackPreservesChangedOrIncompletePairs(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	r := legacyRecord("123", "operation")
+	if freezeErr := s.Freeze(ctx); freezeErr != nil {
+		t.Fatal(freezeErr)
+	}
+	if _, writeErr := s.Client.Collection("allowlist").Doc(r.UID).Set(ctx, map[string]any{}); writeErr != nil {
+		t.Fatal(writeErr)
+	}
+	if _, claimErr := s.Claim(ctx, &r); claimErr != nil {
+		t.Fatal(claimErr)
+	}
+	lookup, connection := s.refs(r.UID, r.Subject)
+	changed := r
+	changed.Scopes = []string{"activity:read_all"}
+	for _, ref := range []*firestore.DocumentRef{lookup, connection} {
+		if _, writeErr := ref.Set(ctx, changed); writeErr != nil {
+			t.Fatal(writeErr)
+		}
+	}
+	if rollbackErr := s.Rollback(ctx, &r); !errors.Is(rollbackErr, ErrConflict) {
+		t.Fatalf("changed records erased: %v", rollbackErr)
+	}
+	got, resolveErr := s.Resolve(ctx, r.Subject)
+	if resolveErr != nil || !reflect.DeepEqual(got, changed) {
+		t.Fatal("rollback changed the current grant")
+	}
+	if _, deleteErr := connection.Delete(ctx); deleteErr != nil {
+		t.Fatal(deleteErr)
+	}
+	if _, resolveErr = s.Resolve(ctx, r.Subject); !errors.Is(resolveErr, ErrConflict) {
+		t.Fatalf("half mapping resolved: %v", resolveErr)
+	}
+	if rollbackErr := s.Rollback(ctx, &r); !errors.Is(rollbackErr, ErrConflict) {
+		t.Fatalf("half mapping rollback: %v", rollbackErr)
+	}
+	if _, readErr := lookup.Get(ctx); readErr != nil {
+		t.Fatal("rollback erased the surviving record")
+	}
+	if _, claimErr := s.Claim(ctx, &r); !errors.Is(claimErr, ErrConflict) {
+		t.Fatalf("claim silently healed a half mapping: %v", claimErr)
+	}
+}

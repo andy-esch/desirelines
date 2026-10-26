@@ -14,8 +14,6 @@ import (
 	"github.com/andy-esch/desirelines/packages/shared/activityconnection"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/api/iterator"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 func inventoryError(operation string, err error) error {
@@ -109,9 +107,15 @@ func (i *Inventory) checkAuth(users map[string]*firebaseauth.ExportedUserRecord,
 func (i *Inventory) checkUserDocuments(ctx context.Context, db *firestore.Client, users map[string]*firebaseauth.ExportedUserRecord, allowed map[string]bool) error {
 	// DocumentRefs includes missing parents whose subcollections contain user data.
 	refs := db.Collection("users").DocumentRefs(ctx)
+	seen := map[string]bool{}
 	for {
 		ref, nextErr := refs.Next()
 		if errors.Is(nextErr, iterator.Done) {
+			for _, uid := range i.Candidates {
+				if !seen[uid] {
+					i.issue(uid, "missing legacy Firestore user documents", true)
+				}
+			}
 			return nil
 		}
 		if nextErr != nil {
@@ -120,18 +124,37 @@ func (i *Inventory) checkUserDocuments(ctx context.Context, db *firestore.Client
 		if users[ref.ID] == nil || !allowed[ref.ID] {
 			i.issue(ref.ID, "orphan Firestore user paths", true)
 		}
-		profile, getErr := ref.Collection("private").Doc("profile").Get(ctx)
-		if status.Code(getErr) == codes.NotFound {
-			continue
-		}
-		if getErr != nil {
-			return inventoryError("read profile metadata", getErr)
-		}
-		value, isInteger := profile.Data()["strava_athlete_id"].(int64)
-		if !isInteger || strconv.FormatInt(value, 10) != ref.ID {
-			i.issue(ref.ID, "untrusted profile subject mismatch; not ownership evidence", true)
+		seen[ref.ID] = true
+		if profileErr := i.checkLegacyDocuments(ctx, ref, slices.Contains(i.Candidates, ref.ID)); profileErr != nil {
+			return profileErr
 		}
 	}
+}
+func (i *Inventory) checkLegacyDocuments(ctx context.Context, user *firestore.DocumentRef, eligible bool) error {
+	// An empty projection returns names only; never fetch credential payloads.
+	docs, listErr := user.Collection("private").Select().Documents(ctx).GetAll()
+	if listErr != nil {
+		return inventoryError("list legacy private paths", listErr)
+	}
+	present := map[string]bool{}
+	for _, doc := range docs {
+		present[doc.Ref.ID] = true
+	}
+	if eligible && (!present["profile"] || !present["strava_tokens"]) {
+		i.issue(user.ID, "missing legacy credential/profile documents", true)
+	}
+	if !present["profile"] {
+		return nil
+	}
+	profile, getErr := user.Collection("private").Doc("profile").Get(ctx)
+	if getErr != nil {
+		return inventoryError("read profile metadata", getErr)
+	}
+	value, isInteger := profile.Data()["strava_athlete_id"].(int64)
+	if !isInteger || strconv.FormatInt(value, 10) != user.ID {
+		i.issue(user.ID, "untrusted profile subject mismatch; not ownership evidence", true)
+	}
+	return nil
 }
 func (i *Inventory) checkPersistedOwners(ctx context.Context, postgresURL string, users map[string]*firebaseauth.ExportedUserRecord, allowed map[string]bool) error {
 	conn, connectErr := pgx.Connect(ctx, postgresURL)

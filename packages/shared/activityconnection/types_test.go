@@ -1,7 +1,9 @@
 package activityconnection
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -49,5 +51,82 @@ func TestRecordContract(t *testing.T) {
 		if validationErr := r.Validate(); validationErr == nil {
 			t.Errorf("accepted invalid UID %q", uid)
 		}
+	}
+}
+
+func TestRecordValidationBoundaries(t *testing.T) {
+	valid := func() Record {
+		return Record{SchemaVersion: 1, UID: "opaque-user", Provider: Provider, Subject: "111", Scopes: []string{"read"}, Status: Active, Provenance: "oauth"}
+	}
+	cases := map[string]func(*Record){
+		"invalid subject":             func(r *Record) { r.Subject = "001" },
+		"unsupported schema":          func(r *Record) { r.SchemaVersion = 2 },
+		"wrong provider":              func(r *Record) { r.Provider = "other" },
+		"unknown status":              func(r *Record) { r.Status = "pending" },
+		"absent scopes":               func(r *Record) { r.Scopes = nil },
+		"unknown provenance":          func(r *Record) { r.Provenance = "guessed" },
+		"legacy UID mismatch":         func(r *Record) { r.Provenance = LegacyUID; r.BootstrapID = "operation" },
+		"missing legacy operation":    func(r *Record) { r.Provenance = LegacyUID; r.UID = r.Subject },
+		"oversized Unicode operation": func(r *Record) { r.BootstrapID = strings.Repeat("é", 65) },
+		"oversized operation":         func(r *Record) { r.BootstrapID = strings.Repeat("x", 129) },
+		"path-shaped operation":       func(r *Record) { r.BootstrapID = "../operation" },
+		"empty scope":                 func(r *Record) { r.Scopes = []string{""} },
+		"scope whitespace":            func(r *Record) { r.Scopes = []string{" read"} },
+		"duplicate scopes":            func(r *Record) { r.Scopes = []string{"read", "read"} },
+	}
+	for name, mutate := range cases {
+		t.Run(name, func(t *testing.T) {
+			r := valid()
+			mutate(&r)
+			if validationErr := r.Validate(); validationErr == nil {
+				t.Fatal("invalid wire record accepted")
+			}
+		})
+	}
+	for _, uid := range []string{"opaque-user", strings.Repeat("界", 128)} {
+		if validationErr := ValidateUID(uid); validationErr != nil {
+			t.Fatal(validationErr)
+		}
+	}
+	if validationErr := ValidateUID("\xff"); validationErr == nil {
+		t.Fatal("invalid UTF-8 UID accepted")
+	}
+	if _, keyErr := LookupKey("9223372036854775807"); keyErr != nil {
+		t.Fatal(keyErr)
+	}
+	r := valid()
+	r.Provenance = "dev_fixture"
+	r.Status = "disconnected"
+	r.Scopes = []string{}
+	if validationErr := r.Validate(); validationErr != nil {
+		t.Fatal(validationErr)
+	}
+}
+
+func TestInvalidClaimFailsBeforeClientAccess(t *testing.T) {
+	s := Store{}
+	ctx := context.Background()
+	if _, claimErr := s.Claim(ctx, nil); !errors.Is(claimErr, ErrConflict) {
+		t.Fatalf("nil claim: %v", claimErr)
+	}
+	if rollbackErr := s.Rollback(ctx, nil); !errors.Is(rollbackErr, ErrConflict) {
+		t.Fatalf("nil rollback: %v", rollbackErr)
+	}
+	r := Record{SchemaVersion: 1, UID: "opaque", Provider: Provider, Subject: "111", Scopes: []string{}, Status: "disconnected", Provenance: "oauth"}
+	if _, claimErr := s.Claim(ctx, &r); !errors.Is(claimErr, ErrNotFound) {
+		t.Fatalf("inactive claim: %v", claimErr)
+	}
+	if rollbackErr := s.Rollback(ctx, &r); !errors.Is(rollbackErr, ErrConflict) {
+		t.Fatalf("non-legacy rollback: %v", rollbackErr)
+	}
+	r.Subject = "001"
+	if _, claimErr := s.Claim(ctx, &r); claimErr == nil {
+		t.Fatal("invalid claim reached client")
+	}
+	if rollbackErr := s.Rollback(ctx, &r); rollbackErr == nil {
+		t.Fatal("invalid rollback reached client")
+	}
+	if _, resolveErr := s.Resolve(ctx, r.Subject); resolveErr == nil {
+		t.Fatal("invalid lookup reached client")
 	}
 }

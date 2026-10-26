@@ -38,8 +38,13 @@ def test_invalid_subject(subject: str) -> None:
     [
         {"uid": "../other"},
         {"uid": ""},
+        {"uid": "x" * 129},
+        {"uid": "line\nbreak"},
+        {"schema_version": 2},
         {"schema_version": True},
         {"scopes": None},
+        {"scopes": [" read"]},
+        {"scopes": [123]},
         {"scopes": ["read", "read"]},
         {"status": "unknown"},
         {"status": []},
@@ -47,6 +52,10 @@ def test_invalid_subject(subject: str) -> None:
         {"provider": "other"},
         {"provenance": "legacy_uid", "bootstrap_id": "x"},
         {"extra": "future-field"},
+        {"bootstrap_id": "../operation"},
+        {"bootstrap_id": "x" * 129},
+        {"bootstrap_id": "é" * 65},
+        {"uid": "222", "provenance": "legacy_uid", "bootstrap_id": ""},
     ],
 )
 def test_reject_invalid_record(change: dict) -> None:

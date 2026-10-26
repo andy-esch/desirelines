@@ -42,8 +42,9 @@ just connection-registry --mode inventory --project PROJECT --database DATABASE 
 
 Inventory cross-checks Firebase UID/admission document IDs, provider metadata,
 Firestore user paths and persisted PostgreSQL owners. Client-writable legacy
-profile fields can identify a mismatch, never establish a mapping. A numeric UID
-alone is insufficient: the owner must attest that approved UIDs were issued by
+profile fields can identify a mismatch, never establish a mapping. Eligible users
+must have both legacy profile and credential document paths; inventory checks
+credential names without reading their payloads. A numeric UID alone is insufficient: the owner must attest that approved UIDs were issued by
 the legacy server flow. Unknown provenance and conflicts stop apply.
 
 Create a reviewed manifest; do not blindly turn inventory output into approval:
