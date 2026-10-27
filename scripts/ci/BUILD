@@ -11,7 +11,7 @@ resources(
 
 resources(
     name="inputs",
-    sources=["image-build-inputs.json"],
+    sources=["image-build-inputs.json", "identity-rollout.json"],
 )
 
 # Already present in the stravapipe lockfile; used only to inspect workflow

@@ -171,6 +171,9 @@ func inventoryOperation(ctx context.Context, config *options, db *firestore.Clie
 	if postgresURL == "" {
 		return errors.New("POSTGRES_CONNECTION_STRING required for read-only owner inventory")
 	}
+	// Anchor the receipt before any inventory reads. A scan that overlaps sealing
+	// must not qualify as proof of the sealed state merely because it ends later.
+	verifiedAt := time.Now().UTC().Format(time.RFC3339Nano)
 	app, appErr := firebase.NewApp(ctx, &firebase.Config{ProjectID: config.project})
 	if appErr != nil {
 		return commandError("Firebase app", appErr)
@@ -192,7 +195,7 @@ func inventoryOperation(ctx context.Context, config *options, db *firestore.Clie
 	if operationErr := applyOrVerify(ctx, config.mode, auth, store, manifest, out); operationErr != nil {
 		return operationErr
 	}
-	return commandError("encode verification", json.NewEncoder(out).Encode(map[string]any{"mode": config.mode, "project": config.project, "database": config.database, "verified_owners": len(manifest.UIDs), "postgres_target": inventory.PostgresTarget, "operation_id": manifest.OperationID, "verified_at": time.Now().UTC().Format(time.RFC3339)}))
+	return commandError("encode verification", json.NewEncoder(out).Encode(map[string]any{"mode": config.mode, "project": config.project, "database": config.database, "verified_owners": len(manifest.UIDs), "postgres_target": inventory.PostgresTarget, "operation_id": manifest.OperationID, "verified_at": verifiedAt}))
 }
 
 func applyOrVerify(ctx context.Context, mode string, auth *firebaseauth.Client, store activityconnection.Store, manifest *connectionbootstrap.Manifest, out io.Writer) error {

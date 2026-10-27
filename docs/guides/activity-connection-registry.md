@@ -48,6 +48,12 @@ rollout readiness. Callers enforce those boundaries separately. Adopting readers
 in runtime sign-in or ingestion requires the bootstrap, verification and sealing
 steps below; deploying the reader package alone does not activate routing.
 
+[The release declaration](../../scripts/ci/identity-rollout.json) records which
+service images depend on bootstrapped ownership. Set an image's requirement in
+the same PR that wires its runtime consumers. The release producer validates
+the declaration and includes it in every image's build inputs; it neither enables
+independent enrollment nor performs a bootstrap.
+
 ## Inventory and review
 
 The [operator command](../../packages/apigateway/cmd/connection-registry/main.go)
@@ -111,18 +117,27 @@ emulator tests and a successful Hosting deployment do not verify hosted rules.
    and review the manifest. The freeze initially denies unmapped legacy sign-ins;
    existing sessions continue. Applied, still-admitted mappings permit sign-in.
 3. Apply and verify. Existing mappings are never overwritten, and partial runs
-   resume using the same operation ID. Verify again before any resolver rollout.
-4. Seal bootstrap rollback **before** deploying ownership resolvers. Preserve
-   mappings after that boundary; do not restore old ownership-inference binaries
-   once independent UIDs are admitted. Independent admission remains disabled
-   until its separate readiness checkpoint.
+   resume using the same operation ID. Resolve failures before sealing.
+4. Seal rollback, then run read-only verify again. Use the **post-seal** summary
+   and control updateTime for the deployment checkpoint; pre-seal evidence cannot
+   prove the sealed registry. Resolver deployment waits for that checkpoint.
+   Preserve mappings after sealing. Independent admission remains disabled until
+   its separate readiness checkpoint; then old ownership-inference binaries are
+   no longer safe rollback targets.
 
 ```sh
 just connection-registry --mode freeze --project PROJECT --database DATABASE --confirm-project PROJECT
 just connection-registry --mode apply --project PROJECT --database DATABASE --manifest reviewed.json --confirm-project PROJECT
 just connection-registry --mode verify --project PROJECT --database DATABASE --manifest reviewed.json
 just connection-registry --mode seal --project PROJECT --database DATABASE --confirm-project PROJECT
+just connection-registry --mode verify --project PROJECT --database DATABASE --manifest reviewed.json
 ```
+
+To renew evidence after a PostgreSQL endpoint change, refresh inventory/review
+against the new runtime target and rerun read-only verify. Replace the checkpoint
+summary with that successful output; do not reseal or edit receipt timestamps.
+The summary's `verified_at` records when inventory started, with subsecond
+precision; it is emitted only after the entire verification succeeds.
 
 The control document `identity_migration/legacy_admissions` contains `frozen` and
 `rollback_allowed` booleans. Missing control preserves current sign-in; malformed
