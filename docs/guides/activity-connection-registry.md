@@ -48,6 +48,12 @@ rollout readiness. Callers enforce those boundaries separately. Adopting readers
 in runtime sign-in or ingestion requires the bootstrap, verification and sealing
 steps below; deploying the reader package alone does not activate routing.
 
+[The release declaration](../../scripts/ci/identity-rollout.json) records which
+service images depend on bootstrapped ownership. Set an image's requirement in
+the same PR that wires its runtime consumers. The release producer validates
+the declaration and includes it in every image's build inputs; it neither enables
+independent enrollment nor performs a bootstrap.
+
 ## Inventory and review
 
 The [operator command](../../packages/apigateway/cmd/connection-registry/main.go)

@@ -33,6 +33,83 @@ def successful_history(commit: str) -> dict[str, object]:
     }
 
 
+class TestIdentityRequirements:
+    @pytest.fixture
+    def declaration(self, tmp_path: Path) -> Path:
+        file = tmp_path / "identity-rollout.json"
+        file.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "requires_bootstrap": {
+                        "dispatcher": False,
+                        "apigateway": True,
+                        "stravapipe": False,
+                    },
+                }
+            )
+        )
+        return file
+
+    def test_per_image_requirement_and_catalog_coverage(
+        self, declaration: Path
+    ) -> None:
+        images = release.load_catalog()
+        assert release.identity_requirements(images, declaration) == {
+            "dispatcher": False,
+            "apigateway": True,
+            "stravapipe": False,
+        }
+        for image in images:
+            assert any(
+                item == "scripts/ci/identity-rollout.json"
+                or "scripts/ci/identity-rollout.json".startswith(f"{item}/")
+                for item in image.inputs
+            )
+
+    @pytest.mark.parametrize(
+        "data",
+        [
+            None,
+            {},
+            {"schema_version": True, "requires_bootstrap": {}},
+            {"schema_version": 2, "requires_bootstrap": {}},
+            {"schema_version": 1, "requires_bootstrap": []},
+            {"schema_version": 1, "requires_bootstrap": {"apigateway": True}},
+            {
+                "schema_version": 1,
+                "requires_bootstrap": {
+                    "dispatcher": False,
+                    "apigateway": 1,
+                    "stravapipe": False,
+                },
+            },
+            {"schema_version": 1, "requires_bootstrap": {}, "future": True},
+        ],
+    )
+    def test_rejects_ambiguous_declarations(
+        self, declaration: Path, data: object
+    ) -> None:
+        declaration.write_text(json.dumps(data))
+        with pytest.raises(ValueError, match="Unsupported identity rollout"):
+            release.identity_requirements(release.load_catalog(), declaration)
+
+    @pytest.mark.parametrize("kind", ["missing", "symlink", "oversized", "invalid"])
+    def test_requires_regular_json(self, declaration: Path, kind: str) -> None:
+        if kind == "missing":
+            declaration.unlink()
+        elif kind == "symlink":
+            target = declaration.with_name("target.json")
+            declaration.rename(target)
+            declaration.symlink_to(target)
+        elif kind == "oversized":
+            declaration.write_text(" " * 4097)
+        else:
+            declaration.write_text("not JSON")
+        with pytest.raises(ValueError, match=r"small regular file|Expecting value"):
+            release.identity_requirements(release.load_catalog(), declaration)
+
+
 class TestRelease:
     @pytest.fixture(autouse=True)
     def setup(self, tmp_path: Path) -> None:
@@ -132,6 +209,7 @@ class TestRelease:
         for path in [
             ".github/workflows/deploy.yml",
             "scripts/ci",
+            "scripts/ci/identity-rollout.json",
             ".dockerignore",
             ".gitattributes",
             ".gitmodules",
@@ -139,6 +217,16 @@ class TestRelease:
             self.before = self.commit()
             self.write(f"{path}/policy.json" if path == "scripts/ci" else path)
             assert self.changed(self.commit()) == self.all_images
+
+    def test_identity_input_cannot_be_omitted_by_catalog(self) -> None:
+        data = json.loads(release.CATALOG.read_text())
+        data["common_inputs"].remove("scripts/ci")
+        catalog = self.repo / "catalog.json"
+        catalog.write_text(json.dumps(data))
+        self.images = release.load_catalog(catalog)
+        self.before = self.commit()
+        self.write("scripts/ci/identity-rollout.json")
+        assert self.changed(self.commit()) == self.all_images
 
     def test_absent_optional_input_deletion_modes_and_symlinks(self) -> None:
         # An absent root ignore file is still tracked by policy when introduced.

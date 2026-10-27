@@ -19,6 +19,8 @@ import sys
 from typing import Any
 
 CATALOG = Path(__file__).with_name("image-build-inputs.json")
+IDENTITY_CONTRACT = Path(__file__).with_name("identity-rollout.json")
+IDENTITY_MAX_BYTES = 4096
 FULL_SHA = re.compile(r"[0-9a-f]{40}")
 DIGEST = re.compile(r"sha256:[0-9a-f]{64}")
 ZERO_SHA = "0" * 40
@@ -62,7 +64,9 @@ def load_catalog(path: Path = CATALOG) -> list[ImageBuild]:
     data = json.loads(path.read_text())
     if not isinstance(data, dict) or data.get("schema_version") != 1:
         raise ValueError("Unsupported image build input schema")
-    common = checked_paths(data["common_inputs"])
+    # Identity requirements always participate in rebuild selection, even if a
+    # later catalog edit accidentally drops the enclosing scripts directory.
+    common = [*checked_paths(data["common_inputs"]), "scripts/ci/identity-rollout.json"]
     if not isinstance(data["images"], dict) or not data["images"]:
         raise ValueError("Build input catalog must contain images")
     images = []
@@ -277,8 +281,33 @@ def release_matrix(
     if git(repo, "rev-parse", "HEAD").stdout.strip() != after:
         raise ValueError("Checkout must match the release source commit")
     images = load_catalog()
+    identity_requirements(images)
     include = changed_images(repo, before, after, images)
     return {"include": include}
+
+
+def identity_requirements(
+    images: list[ImageBuild], path: Path = IDENTITY_CONTRACT
+) -> dict[str, bool]:
+    """Require explicit release requirements; deletion cannot reset the cutover."""
+    if (
+        path.is_symlink()
+        or not path.is_file()
+        or path.stat().st_size > IDENTITY_MAX_BYTES
+    ):
+        raise ValueError("Identity rollout declaration must be a small regular file")
+    data = json.loads(path.read_text())
+    if (
+        not isinstance(data, dict)
+        or set(data) != {"schema_version", "requires_bootstrap"}
+        or type(data["schema_version"]) is not int
+        or data["schema_version"] != 1
+        or not isinstance(data["requires_bootstrap"], dict)
+        or set(data["requires_bootstrap"]) != {image.name for image in images}
+        or any(type(value) is not bool for value in data["requires_bootstrap"].values())
+    ):
+        raise ValueError("Unsupported identity rollout declaration")
+    return data["requires_bootstrap"]
 
 
 def main() -> int:
