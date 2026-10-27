@@ -1,35 +1,13 @@
 """Real emulator tests of legacy deletion against concurrent bootstrap writes."""
 
 from concurrent.futures import ThreadPoolExecutor
-import os
-from uuid import uuid4
 
-from google.auth.credentials import AnonymousCredentials
 from google.cloud.firestore_v1 import Client, Transaction, transactional
 import pytest
 
 from stravapipe.adapters.firestore.activity_connection import (
     delete_legacy_user_documents,
 )
-
-
-@pytest.fixture
-def client():
-    host = os.environ.get("FIRESTORE_EMULATOR_HOST", "")
-    if not host:
-        if os.environ.get("CI") == "true":
-            pytest.fail("FIRESTORE_EMULATOR_HOST required in CI")
-        pytest.skip("Firestore emulator required; never create a live client")
-    assert host.startswith(("127.0.0.1:", "localhost:")), (
-        "tests require a loopback emulator"
-    )
-    db = Client(
-        project="demo-test-project",
-        database=f"registry-python-{uuid4().hex}",
-        credentials=AnonymousCredentials(),
-    )
-    yield db
-    db.close()
 
 
 def seed(client: Client, uid: str) -> dict:

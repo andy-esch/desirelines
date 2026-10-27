@@ -668,7 +668,7 @@ jobs:
           name: go-shared-firestore-integration-coverage
           fail_ci_if_error: false
 
-      - name: Python Firestore deletion integration tests
+      - name: Python Firestore integration tests
         working-directory: packages/stravapipe
         env:
           FIRESTORE_EMULATOR_HOST: "localhost:8080"

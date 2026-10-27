@@ -65,7 +65,7 @@ func readRecord(tx *firestore.Transaction, ref *firestore.DocumentRef) (*Record,
 	}
 	var record Record
 	if decodeErr := snap.DataTo(&record); decodeErr != nil {
-		return nil, registryError("decode", decodeErr)
+		return nil, fmt.Errorf("%w at %s: %w", ErrConflict, ref.Path, decodeErr)
 	}
 	// DataTo leaves an explicit empty array as a nil slice; null remains invalid.
 	if scopes, ok := data["scopes"].([]any); ok && len(scopes) == 0 {
@@ -192,28 +192,40 @@ func (s Store) Resolve(ctx context.Context, subject string) (Record, error) {
 	}
 	var result Record
 	transactionErr := s.transact(ctx, func(_ context.Context, tx *firestore.Transaction) error {
-		a, lookupErr := readRecord(tx, s.Client.Collection(LookupsCollection).Doc(Provider+":"+subject))
-		if lookupErr != nil {
-			return lookupErr
-		}
-		if a == nil || a.Status != Active {
-			return ErrNotFound
-		}
-		_, connection := s.refs(a.UID, subject)
-		b, connectionErr := readRecord(tx, connection)
-		if connectionErr != nil {
-			return connectionErr
-		}
-		if !samePair(a, b) || a.Subject != subject {
-			return ErrConflict
-		}
-		result = *a
-		return nil
+		var resolveErr error
+		result, resolveErr = s.ResolveInTransaction(tx, subject)
+		return resolveErr
 	})
 	if transactionErr != nil {
 		return Record{}, transactionErr
 	}
 	return result, nil
+}
+
+// ResolveInTransaction reads the active pair in the caller's snapshot. Credential
+// callers can read ownership and tokens in one transaction; finish all reads
+// before scheduling writes. External OAuth/Auth calls stay outside retries.
+func (s Store) ResolveInTransaction(tx *firestore.Transaction, subject string) (Record, error) {
+	key, keyErr := LookupKey(subject)
+	if keyErr != nil {
+		return Record{}, keyErr
+	}
+	a, lookupErr := readRecord(tx, s.Client.Collection(LookupsCollection).Doc(key))
+	if lookupErr != nil {
+		return Record{}, lookupErr
+	}
+	if a == nil || a.Status != Active {
+		return Record{}, ErrNotFound
+	}
+	_, connection := s.refs(a.UID, subject)
+	b, connectionErr := readRecord(tx, connection)
+	if connectionErr != nil {
+		return Record{}, connectionErr
+	}
+	if !samePair(a, b) || a.Subject != subject {
+		return Record{}, ErrConflict
+	}
+	return *a, nil
 }
 
 // RollbackOutcome reports the committed disposition of one operation's pair.
