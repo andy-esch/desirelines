@@ -1075,41 +1075,40 @@
           "artifacts": [
             {
               "algorithm": "sha256",
-              "hash": "01d9bbc4a2d76bf0db7c1f729812ded6d912bd318d3b1cf81d30c0f845dbf3af",
-              "url": "https://files.pythonhosted.org/packages/ba/5a/18ad964b0086c6e62e2e7500f7edc89e3faa45033c71c1893d34eed2b2de/dnspython-2.8.0-py3-none-any.whl"
+              "hash": "9a4aedb833c3c1b49214d04d44d3032ab7a9135f7c1d29a549b4ff78fd82fda9",
+              "url": "https://files.pythonhosted.org/packages/10/02/cdcc9b7c051786a103c3b09e1003a82fa0c66bcb91ffbdabcfbf7b4163b9/dnspython-2.9.0-py3-none-any.whl"
             },
             {
               "algorithm": "sha256",
-              "hash": "181d3c6996452cb1189c4046c61599b84a5a86e099562ffde77d26984ff26d0f",
-              "url": "https://files.pythonhosted.org/packages/8c/8b/57666417c0f90f08bcafa776861060426765fdb422eb10212086fb811d26/dnspython-2.8.0.tar.gz"
+              "hash": "b44dc6b18f07a8b1c56676a19fbfdb5209415b046a9cece286baafa87ff3f7f1",
+              "url": "https://files.pythonhosted.org/packages/ef/4a/50822184bd67cc6493f0fb6a880749158fcd31ab3fa07409acfd91f9fc85/dnspython-2.9.0.tar.gz"
             }
           ],
           "project_name": "dnspython",
           "requires_dists": [
-            "aioquic>=1.2.0; extra == \"doq\"",
-            "black>=25.1.0; extra == \"dev\"",
-            "coverage>=7.0; extra == \"dev\"",
-            "cryptography>=45; extra == \"dnssec\"",
-            "flake8>=7; extra == \"dev\"",
-            "h2>=4.2.0; extra == \"doh\"",
-            "httpcore>=1.0.0; extra == \"doh\"",
-            "httpx>=0.28.0; extra == \"doh\"",
-            "hypercorn>=0.17.0; extra == \"dev\"",
-            "idna>=3.10; extra == \"idna\"",
-            "mypy>=1.17; extra == \"dev\"",
-            "pylint>=3; extra == \"dev\"",
-            "pytest-cov>=6.2.0; extra == \"dev\"",
-            "pytest>=8.4; extra == \"dev\"",
+            "aioquic>=1.3.0; extra == \"doq\"",
+            "black>=26.5; extra == \"dev\"",
+            "coverage>=7.15; extra == \"dev\"",
+            "cryptography>=50; extra == \"dnssec\"",
+            "h2>=4.4; extra == \"doh\"",
+            "httpcore2>=2.13; extra == \"doh\"",
+            "httpx2>=2.13; extra == \"doh\"",
+            "hypercorn>=0.18.0; extra == \"dev\"",
+            "idna>=3.20; extra == \"idna\"",
+            "pyright>=1.1.411; extra == \"dev\"",
+            "pytest-cov>=7.1; extra == \"dev\"",
+            "pytest>=9.1; extra == \"dev\"",
             "quart-trio>=0.12.0; extra == \"dev\"",
-            "sphinx-rtd-theme>=3.0.0; extra == \"dev\"",
-            "sphinx>=8.2.0; extra == \"dev\"",
-            "trio>=0.30; extra == \"trio\"",
-            "twine>=6.1.0; extra == \"dev\"",
-            "wheel>=0.45.0; extra == \"dev\"",
-            "wmi>=1.5.1; platform_system == \"Windows\" and extra == \"wmi\""
+            "ruff>=0.16.0; extra == \"dev\"",
+            "sphinx-rtd-theme>=3.1.0; python_full_version >= \"3.12\" and extra == \"dev\"",
+            "sphinx>=9.1.0; python_full_version >= \"3.12\" and extra == \"dev\"",
+            "trio>=0.34; extra == \"trio\"",
+            "trustme>=1.2.1; extra == \"dev\"",
+            "ty>=0.0.85; extra == \"dev\"",
+            "wmi>=1.5.1; sys_platform == \"win32\" and extra == \"wmi\""
           ],
-          "requires_python": ">=3.10",
-          "version": "2.8.0"
+          "requires_python": ">=3.11",
+          "version": "2.9.0"
         },
         {
           "artifacts": [
