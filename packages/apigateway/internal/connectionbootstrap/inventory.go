@@ -122,7 +122,7 @@ func (i *Inventory) checkUserDocuments(ctx context.Context, db *firestore.Client
 		if errors.Is(nextErr, iterator.Done) {
 			for _, uid := range i.Candidates {
 				if !seen[uid] {
-					i.issue(uid, "missing legacy Firestore user documents", true)
+					i.recordMissingDocuments(uid, nil)
 				}
 			}
 			return nil
@@ -167,8 +167,8 @@ func (i *Inventory) checkLegacyDocuments(ctx context.Context, user *firestore.Do
 	for _, doc := range docs {
 		present[doc.Ref.ID] = true
 	}
-	if eligible && (!present[stravatoken.ProfileDocument] || !present[stravatoken.TokensDocument]) {
-		i.issue(user.ID, "missing legacy credential/profile documents", true)
+	if eligible {
+		i.recordMissingDocuments(user.ID, present)
 	}
 	if !present[stravatoken.ProfileDocument] {
 		return nil
@@ -182,6 +182,17 @@ func (i *Inventory) checkLegacyDocuments(ctx context.Context, user *firestore.Do
 		i.issue(user.ID, "untrusted profile subject mismatch; not ownership evidence", true)
 	}
 	return nil
+}
+
+func (i *Inventory) recordMissingDocuments(uid string, present map[string]bool) {
+	for _, name := range []string{stravatoken.ProfileDocument, stravatoken.TokensDocument} {
+		if !present[name] {
+			if i.MissingLegacyDocuments == nil {
+				i.MissingLegacyDocuments = map[string][]string{}
+			}
+			i.MissingLegacyDocuments[uid] = append(i.MissingLegacyDocuments[uid], name)
+		}
+	}
 }
 func (i *Inventory) checkPersistedOwners(ctx context.Context, postgresURL string, users map[string]*firebaseauth.ExportedUserRecord, allowed map[string]bool) error {
 	conn, connectErr := pgx.Connect(ctx, postgresURL)

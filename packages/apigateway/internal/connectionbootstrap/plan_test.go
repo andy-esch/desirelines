@@ -3,9 +3,12 @@ package connectionbootstrap
 import (
 	"context"
 	"reflect"
+	"slices"
+	"strings"
 	"testing"
 
 	firebaseauth "firebase.google.com/go/v4/auth"
+	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 )
 
 func TestReviewRejectsUntrustedAndDriftedOwners(t *testing.T) {
@@ -99,5 +102,53 @@ func TestInventoryRejectsInvalidDatabaseConfigBeforeClientAccess(t *testing.T) {
 		if _, scanErr := Scan(context.Background(), nil, nil, target, "project", "database"); scanErr == nil {
 			t.Fatalf("invalid or ambiguous database target accepted: %s", target)
 		}
+	}
+}
+
+func TestReviewRequiresExactMissingDocumentAcknowledgement(t *testing.T) {
+	profile, tokens := stravatoken.ProfileDocument, stravatoken.TokensDocument
+	for _, missing := range [][]string{{profile}, {tokens}, {profile, tokens}} {
+		t.Run(strings.Join(missing, "+"), func(t *testing.T) {
+			inventory := Inventory{Project: "project", Database: "database", PostgresTarget: "host:5432/db", Candidates: []string{"111"}, MissingLegacyDocuments: map[string][]string{"111": missing}}
+			manifest := Manifest{Project: inventory.Project, Database: inventory.Database, PostgresTarget: inventory.PostgresTarget, OperationID: "reviewed", ReviewedLegacyUIDs: true, UIDs: []string{"111"}}
+			if err := Review(&inventory, &manifest); err == nil {
+				t.Fatal("missing documents accepted without acknowledgement")
+			}
+			manifest.MissingLegacyDocuments = map[string][]string{"111": slices.Clone(missing)}
+			slices.Reverse(manifest.MissingLegacyDocuments["111"])
+			if err := Review(&inventory, &manifest); err != nil {
+				t.Fatalf("reviewed missing documents rejected: %v", err)
+			}
+			inventory.Issues = []Issue{{UID: "111", Reason: "untrusted profile subject mismatch", Blocking: true}}
+			if err := Review(&inventory, &manifest); err == nil {
+				t.Fatal("document acknowledgement overrode ownership conflict")
+			}
+			inventory.Issues = nil
+			inventory.MissingLegacyDocuments = nil
+			if err := Review(&inventory, &manifest); err == nil {
+				t.Fatal("restored documents accepted against stale acknowledgement")
+			}
+		})
+	}
+}
+
+func TestReviewRejectsInvalidOrDriftedDocumentAcknowledgements(t *testing.T) {
+	profile, tokens := stravatoken.ProfileDocument, stravatoken.TokensDocument
+	for name, acknowledged := range map[string]map[string][]string{
+		"empty":                          {"111": {}},
+		"unknown document":               {"111": {"access_token"}},
+		"duplicate document":             {"111": {tokens, tokens}},
+		"unclaimed UID":                  {"222": {tokens}},
+		"ambiguous UID":                  {"0111": {tokens}},
+		"unreviewed missing profile":     {"111": {tokens}},
+		"unreviewed missing credentials": {"111": {profile}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			inventory := Inventory{Project: "project", Database: "database", PostgresTarget: "host:5432/db", Candidates: []string{"111"}, MissingLegacyDocuments: map[string][]string{"111": {profile, tokens}}}
+			manifest := Manifest{Project: inventory.Project, Database: inventory.Database, PostgresTarget: inventory.PostgresTarget, OperationID: "reviewed", ReviewedLegacyUIDs: true, UIDs: []string{"111"}, MissingLegacyDocuments: acknowledged}
+			if err := Review(&inventory, &manifest); err == nil {
+				t.Fatal("invalid or incomplete acknowledgement accepted")
+			}
+		})
 	}
 }
