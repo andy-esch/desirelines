@@ -5,7 +5,7 @@ package connectionbootstrap
 import (
 	"context"
 	"fmt"
-	"strings"
+	"reflect"
 	"testing"
 	"time"
 
@@ -13,7 +13,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/shared/firestoretest"
 )
 
-func TestMissingLegacyDocumentsBlockEligibility(t *testing.T) {
+func TestMissingLegacyDocumentsRequireReview(t *testing.T) {
 	t.Setenv("FIRESTORE_DATABASE", fmt.Sprintf("inventory-health-%d", time.Now().UnixNano()))
 	db := firestoretest.NewClient(t)
 	ctx := context.Background()
@@ -27,14 +27,9 @@ func TestMissingLegacyDocumentsBlockEligibility(t *testing.T) {
 	if scanErr := inventory.checkUserDocuments(ctx, db, users, allowed); scanErr != nil {
 		t.Fatal(scanErr)
 	}
-	missing := map[string]bool{}
-	for _, issue := range inventory.Issues {
-		if issue.Blocking && strings.Contains(issue.Reason, "missing legacy") {
-			missing[issue.UID] = true
-		}
-	}
-	if !missing["111"] || !missing["222"] {
-		t.Fatalf("incomplete legacy state accepted: %+v", inventory.Issues)
+	want := map[string][]string{"111": {"strava_tokens"}, "222": {"profile", "strava_tokens"}}
+	if !reflect.DeepEqual(inventory.MissingLegacyDocuments, want) || len(inventory.Issues) != 0 {
+		t.Fatalf("missing document paths not reported: %+v", inventory)
 	}
 	if _, seedErr := user.Collection("private").Doc("strava_tokens").Set(ctx, map[string]any{"secret": "not-inventory-data"}); seedErr != nil {
 		t.Fatal(seedErr)
@@ -43,8 +38,34 @@ func TestMissingLegacyDocumentsBlockEligibility(t *testing.T) {
 	if scanErr := inventory.checkUserDocuments(ctx, db, users, allowed); scanErr != nil {
 		t.Fatal(scanErr)
 	}
-	if len(inventory.Issues) != 0 {
-		t.Fatalf("healthy identity blocked: %+v", inventory.Issues)
+	if len(inventory.Issues) != 0 || len(inventory.MissingLegacyDocuments) != 0 {
+		t.Fatalf("healthy identity blocked: %+v", inventory)
+	}
+	if _, deleteErr := user.Collection("private").Doc("profile").Delete(ctx); deleteErr != nil {
+		t.Fatal(deleteErr)
+	}
+	inventory = Inventory{Candidates: []string{"111"}}
+	if scanErr := inventory.checkUserDocuments(ctx, db, users, allowed); scanErr != nil {
+		t.Fatal(scanErr)
+	}
+	if !reflect.DeepEqual(inventory.MissingLegacyDocuments, map[string][]string{"111": {"profile"}}) {
+		t.Fatalf("missing profile not reported: %+v", inventory)
+	}
+}
+
+func TestMissingCredentialsDoNotHideProfileMismatch(t *testing.T) {
+	t.Setenv("FIRESTORE_DATABASE", fmt.Sprintf("inventory-profile-%d", time.Now().UnixNano()))
+	db := firestoretest.NewClient(t)
+	ctx := context.Background()
+	if _, err := db.Collection("users").Doc("111").Collection("private").Doc("profile").Set(ctx, map[string]any{"strava_athlete_id": int64(222)}); err != nil {
+		t.Fatal(err)
+	}
+	inventory := Inventory{Candidates: []string{"111"}}
+	if err := inventory.checkUserDocuments(ctx, db, map[string]*firebaseauth.ExportedUserRecord{"111": {}}, map[string]bool{"111": true}); err != nil {
+		t.Fatal(err)
+	}
+	if len(inventory.Issues) != 1 || !inventory.Issues[0].Blocking || inventory.Issues[0].Reason != "untrusted profile subject mismatch; not ownership evidence" {
+		t.Fatalf("profile mismatch not blocked: %+v", inventory)
 	}
 }
 

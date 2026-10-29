@@ -23,6 +23,8 @@ import (
 	"github.com/andy-esch/desirelines/packages/shared/activityconnection"
 	"github.com/andy-esch/desirelines/packages/shared/firestoretest"
 	"github.com/jackc/pgx/v5"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestRegistryCommandEndToEnd(t *testing.T) {
@@ -140,14 +142,63 @@ func TestRegistryCommandEndToEnd(t *testing.T) {
 	if strings.Contains(inventory.String(), "credential-canary-never-export") {
 		t.Fatal("inventory leaked credential data")
 	}
+	stored, readErr := credentials.Get(ctx)
+	if readErr != nil || stored.Data()["access_token"] != "credential-canary-never-export" {
+		t.Fatalf("bootstrap changed existing credentials: %v", readErr)
+	}
 	if _, deleteErr := credentials.Delete(ctx); deleteErr != nil {
 		t.Fatal(deleteErr)
 	}
-	if verifyErr := execute("verify", args...); verifyErr == nil || !strings.Contains(verifyErr.Error(), "missing legacy credential") {
+	if verifyErr := execute("verify", args...); verifyErr == nil || !strings.Contains(verifyErr.Error(), "missing legacy documents") {
 		t.Fatalf("missing credentials: %v", verifyErr)
+	}
+	credentialless := manifest
+	credentialless.MissingLegacyDocuments = map[string][]string{"123": {"strava_tokens"}}
+	credentiallessPath := filepath.Join(t.TempDir(), "missing-documents.json")
+	writeCredentialless := func() {
+		t.Helper()
+		encoded, marshalErr := json.Marshal(credentialless)
+		if marshalErr != nil {
+			t.Fatal(marshalErr)
+		}
+		if writeErr := os.WriteFile(credentiallessPath, encoded, 0o600); writeErr != nil {
+			t.Fatal(writeErr)
+		}
+	}
+	writeCredentialless()
+	credentiallessArgs := []string{"--manifest=" + credentiallessPath, "--confirm-project=demo-test-project"}
+	if verifyErr := execute("verify", credentiallessArgs...); verifyErr != nil {
+		t.Fatalf("reviewed absent credentials: %v", verifyErr)
+	}
+	profile := db.Collection("users").Doc("123").Collection("private").Doc("profile")
+	if _, deleteErr := profile.Delete(ctx); deleteErr != nil {
+		t.Fatal(deleteErr)
+	}
+	if verifyErr := execute("verify", credentiallessArgs...); verifyErr == nil {
+		t.Fatal("newly absent profile accepted against old acknowledgement")
+	}
+	credentialless.MissingLegacyDocuments["123"] = []string{"profile", "strava_tokens"}
+	writeCredentialless()
+	// Remove the first mapping, then bootstrap the admitted legacy owner with
+	// neither private document. Only ownership routing may be created.
+	for _, mode := range []string{"rollback", "apply", "verify"} {
+		if operationErr := execute(mode, credentiallessArgs...); operationErr != nil {
+			t.Fatalf("%s without provider documents: %v", mode, operationErr)
+		}
+	}
+	for _, ref := range []*firestore.DocumentRef{profile, credentials} {
+		if _, getErr := ref.Get(ctx); status.Code(getErr) != codes.NotFound {
+			t.Fatalf("bootstrap created private document %s: %v", ref.ID, getErr)
+		}
+	}
+	if _, seedErr := profile.Set(ctx, map[string]any{"strava_athlete_id": int64(123)}); seedErr != nil {
+		t.Fatal(seedErr)
 	}
 	if _, seedErr := credentials.Set(ctx, map[string]any{"access_token": "credential-canary-never-export"}); seedErr != nil {
 		t.Fatal(seedErr)
+	}
+	if verifyErr := execute("verify", credentiallessArgs...); verifyErr == nil {
+		t.Fatal("stale absence acknowledgement accepted after documents restored")
 	}
 	previousOperation := manifest
 	previousOperation.OperationID = "not-the-creator"
@@ -218,7 +269,6 @@ func TestRegistryCommandEndToEnd(t *testing.T) {
 	}
 	t.Setenv("POSTGRES_CONNECTION_STRING", postgresURL)
 	// Dry run/verify never trusts client-writable profile metadata as identity.
-	profile := db.Collection("users").Doc("123").Collection("private").Doc("profile")
 	if _, err = profile.Update(ctx, []firestore.Update{{Path: "strava_athlete_id", Value: int64(999)}}); err != nil {
 		t.Fatal(err)
 	}

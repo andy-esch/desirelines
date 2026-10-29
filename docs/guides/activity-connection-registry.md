@@ -26,6 +26,9 @@ ID and records an operation ID. Scopes start empty because legacy token/profile
 fields are not trusted evidence. Bootstrap never copies or rotates tokens.
 Future OAuth connection work supplies verified scopes independently.
 
+Registry `active` means the ownership pair can be resolved; it does not establish
+a usable Strava grant. Provider operations still require real credentials.
+
 ## Ownership readers
 
 Go's [Store.Resolve](../../packages/shared/activityconnection/store.go) and
@@ -70,9 +73,9 @@ just connection-registry --mode inventory --project PROJECT --database DATABASE 
 
 Inventory cross-checks Firebase UID/admission document IDs, provider metadata,
 Firestore user paths and persisted PostgreSQL owners. Client-writable legacy
-profile fields can identify a mismatch, never establish a mapping. Eligible users
-must have both legacy profile and credential document paths; inventory checks
-credential names without reading their payloads. A numeric UID alone is
+profile fields can identify a mismatch, never establish a mapping. Inventory
+lists absent legacy profile/credential paths in `missing_legacy_documents`,
+without reading credential payloads. A numeric UID alone is
 insufficient: the owner must attest that approved UIDs were issued by the legacy
 server flow. Unknown provenance and conflicts stop apply.
 
@@ -95,6 +98,20 @@ be overridden by exclusions; fix their cause and regenerate inventory. Exclusion
 only disposition non-admitted identities such as allowlist-only entries. They receive no
 mapping and cannot newly sign in while admissions are frozen. Reusing a manifest
 refuses newly appeared or changed owners; it is not a stale snapshot override.
+
+An admitted, existing legacy UID can own preserved activities without provider
+documents. To bootstrap that owner, explicitly acknowledge the exact absent
+document names in the reviewed manifest, for example:
+
+```json
+{"missing_legacy_documents": {"123": ["profile", "strava_tokens"]}}
+```
+
+Only claimed UIDs and those two names are accepted. Omit the field when both
+documents exist; old manifests still reject missing documents. Any change in
+their presence requires fresh inventory and review. Acknowledgement cannot
+override identity/admission failures, profile mismatches or ownership conflicts.
+Bootstrap creates neither private document and does not restore provider access.
 
 ## Owner-controlled rollout
 

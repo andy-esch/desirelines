@@ -9,6 +9,7 @@ import (
 	"slices"
 
 	"github.com/andy-esch/desirelines/packages/shared/activityconnection"
+	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 )
 
 // Issue records an unresolved identity boundary; blocking issues cannot be excluded.
@@ -25,6 +26,8 @@ type Inventory struct {
 	PostgresTarget string   `json:"postgres_target"`
 	Candidates     []string `json:"candidates"`
 	Issues         []Issue  `json:"issues"`
+	// Document presence is reviewed separately from server-issued UID ownership.
+	MissingLegacyDocuments map[string][]string `json:"missing_legacy_documents,omitempty"`
 }
 
 // Manifest attests to legacy UID provenance and dispositions a specific target.
@@ -38,6 +41,8 @@ type Manifest struct {
 	ReviewedLegacyUIDs bool              `json:"reviewed_legacy_uids"`
 	UIDs               []string          `json:"uids"`
 	Excluded           map[string]string `json:"excluded"`
+	// Exact acknowledgement of inventory's absent document paths, not a grant.
+	MissingLegacyDocuments map[string][]string `json:"missing_legacy_documents,omitempty"`
 }
 
 var operationID = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$`)
@@ -62,6 +67,22 @@ func (m *Manifest) Validate(project, database string) error {
 			return errors.New("invalid exclusion")
 		}
 	}
+	return m.validateMissingLegacyDocuments(seen)
+}
+
+func (m *Manifest) validateMissingLegacyDocuments(claimed map[string]bool) error {
+	for uid, documents := range m.MissingLegacyDocuments {
+		if !claimed[uid] || len(documents) == 0 {
+			return errors.New("missing-document acknowledgement requires a claimed UID and document names")
+		}
+		seenDocuments := map[string]bool{}
+		for _, name := range documents {
+			if (name != stravatoken.ProfileDocument && name != stravatoken.TokensDocument) || seenDocuments[name] {
+				return errors.New("unknown or duplicate legacy document name")
+			}
+			seenDocuments[name] = true
+		}
+	}
 	return nil
 }
 
@@ -79,6 +100,13 @@ func Review(inventory *Inventory, m *Manifest) error {
 		known[uid] = true
 		if !slices.Contains(m.UIDs, uid) {
 			return fmt.Errorf("unreviewed candidate %s", uid)
+		}
+		observed := slices.Clone(inventory.MissingLegacyDocuments[uid])
+		reviewed := slices.Clone(m.MissingLegacyDocuments[uid])
+		slices.Sort(observed)
+		slices.Sort(reviewed)
+		if !slices.Equal(observed, reviewed) {
+			return fmt.Errorf("missing legacy documents for %s differ from reviewed manifest; refresh inventory and review", uid)
 		}
 	}
 	for _, issue := range inventory.Issues {
