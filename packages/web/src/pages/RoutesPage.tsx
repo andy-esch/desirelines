@@ -32,7 +32,7 @@ import { useUnitSettings } from "../hooks/usePreferences";
 import { getConfig } from "../lib/config";
 import { buildTileTemplateUrl, buildApiBaseUrl } from "../api/map";
 import { buildSportColorExpression } from "../utils/routeMapStyle";
-import { SPORT_COLORS, DEFAULT_SPORT_COLOR } from "../utils/sportConfig";
+import { DEFAULT_SPORT_COLOR, getSportColor } from "../utils/sportConfig";
 import { useIsMobile } from "../hooks/useIsMobile";
 import { useRefreshMapData } from "../hooks/useRefreshMapData";
 import MapLoadingState from "../components/routes/MapLoadingState";
@@ -63,6 +63,23 @@ const HEADER_HEIGHT = 48;
 
 function StatusMessage({ children }: { children: React.ReactNode }) {
   return <div className="flex grow items-center justify-center">{children}</div>;
+}
+
+/** The popup selection for an activity, centered on its bbox when it has one. */
+function selectedFromActivity(a: MapActivity, sportLabels: Record<string, string>): SelectedRoute {
+  const bbox = a.bbox;
+  const center =
+    bbox && bbox.length === 4
+      ? { lng: (bbox[0]! + bbox[2]!) / 2, lat: (bbox[1]! + bbox[3]!) / 2 }
+      : {};
+  return {
+    id: a.activityId,
+    name: a.name,
+    distanceMeters: a.distanceMeters,
+    date: a.startDateLocal.slice(0, 10),
+    sportLabel: sportLabels[a.sport] ?? a.sport,
+    ...center,
+  };
 }
 
 export default function RoutesPage() {
@@ -176,7 +193,7 @@ export default function RoutesPage() {
   const sportColors = useMemo(() => {
     const map: Record<string, string> = {};
     orderedSports.forEach((sport) => {
-      map[sport] = SPORT_COLORS[sport] ?? DEFAULT_SPORT_COLOR;
+      map[sport] = getSportColor(sport);
     });
     return map;
   }, [orderedSports]);
@@ -268,23 +285,11 @@ export default function RoutesPage() {
     const a = getActivity(focusId);
     if (!a) return; // dataset still loading, or the id isn't in the user's map set
     focusAppliedRef.current = focusId;
-    const bbox = a.bbox;
-    const center =
-      bbox && bbox.length === 4
-        ? { lng: (bbox[0]! + bbox[2]!) / 2, lat: (bbox[1]! + bbox[3]!) / 2 }
-        : {};
     // One-shot sync of the URL focus param into selection state (ref-guarded, so it
     // can't cascade) — the popup/fit depend on the dataset, which may load after mount.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSelected({
-      id: a.activityId,
-      name: a.name,
-      distanceMeters: a.distanceMeters,
-      date: a.startDateLocal.slice(0, 10),
-      sportLabel: sportLabels[a.sport] ?? a.sport,
-      ...center,
-    });
-    requestFit(bbox);
+    setSelected(selectedFromActivity(a, sportLabels));
+    requestFit(a.bbox);
   }, [focusId, getActivity, requestFit, sportLabels]);
 
   // Leave focus: clear the popup + drop ONLY the ?activity= param — the filter params
@@ -302,20 +307,8 @@ export default function RoutesPage() {
 
   const onSelectFromList = useCallback(
     (a: MapActivity) => {
-      const bbox = a.bbox;
-      const center =
-        bbox && bbox.length === 4
-          ? { lng: (bbox[0]! + bbox[2]!) / 2, lat: (bbox[1]! + bbox[3]!) / 2 }
-          : {};
-      setSelected({
-        id: a.activityId,
-        name: a.name,
-        distanceMeters: a.distanceMeters,
-        date: a.startDateLocal.slice(0, 10),
-        sportLabel: sportLabels[a.sport] ?? a.sport,
-        ...center,
-      });
-      requestFit(bbox);
+      setSelected(selectedFromActivity(a, sportLabels));
+      requestFit(a.bbox);
     },
     [requestFit, sportLabels]
   );

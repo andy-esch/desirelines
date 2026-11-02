@@ -27,11 +27,7 @@ import type { SportConfig } from "../../api/activities";
 import type { ChartData, ChartRow } from "../../utils/activityBuckets";
 import { CHART_CONFIG } from "../../constants/chartConfig";
 import ChartTooltipFrame from "./ChartTooltipFrame";
-import { SPORT_COLORS, DEFAULT_SPORT_COLOR, getSportDisplayName } from "../../utils/sportConfig";
-
-function sportColor(sport: string): string {
-  return SPORT_COLORS[sport] ?? DEFAULT_SPORT_COLOR;
-}
+import { getSportDisplayName, getSportColor } from "../../utils/sportConfig";
 
 /**
  * The series on top of a month's stack: the last one, in stacking order, with any volume.
@@ -135,7 +131,7 @@ export default function ActivityVolumeChart({
               key={s.key}
               dataKey={s.key}
               stackId="volume"
-              fill={sportColor(s.sport)}
+              fill={getSportColor(s.sport)}
               // Ring around each stacked fill, doing two jobs at once. Dark: it resolves
               // to the panel ground, so its width is the gap between sports. Light: it goes
               // to ink, giving the neon fill a boundary that clears 3:1 against
@@ -166,7 +162,7 @@ export default function ActivityVolumeChart({
               // Same outline as the bars: invisible against the dark ground, an ink
               // boundary in light mode so a 10px neon square is still a legible mark.
               className="inline-block h-2.5 w-2.5 rounded-sm ring-1 ring-chart-mark-outline"
-              style={{ backgroundColor: sportColor(s.sport) }}
+              style={{ backgroundColor: getSportColor(s.sport) }}
             />
             {getSportDisplayName(s.sport, sportConfig)}
           </span>
@@ -237,7 +233,7 @@ function VolumeTooltip({
                 height: "8px",
                 // A sport mark, so it takes the theme's shape: square in Arcade.
                 borderRadius: "min(var(--sport-mark-radius), 2px)",
-                backgroundColor: sportColor(r.meta.sport),
+                backgroundColor: getSportColor(r.meta.sport),
                 // Same outline as the bars and legend. This one earns its keep on the
                 // near-white light tooltip, where an 8px neon square is ~1.3:1; in dark
                 // it's a faint hairline against the tooltip fill rather than invisible,

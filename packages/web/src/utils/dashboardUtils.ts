@@ -3,7 +3,7 @@ import type { SportConfig } from "../api/activities";
 import type { GoalsForYear } from "../types/generated/user_config";
 import type { UserSettings } from "../utils/units";
 import { getMetricConfigByMetricId, getMetricFieldName } from "../config/metricConfig";
-import { getSportDisplayName, getPrimaryMetric } from "../utils/sportConfig";
+import { getSportDisplayName, getPrimaryMetric, getSportColor } from "../utils/sportConfig";
 import { getTargetGoalValue } from "../utils/goalCalculations";
 import {
   convertDistance,
@@ -11,7 +11,6 @@ import {
   minutesToHours,
   type MetricType,
 } from "../utils/units";
-import { SPORT_COLORS, DEFAULT_SPORT_COLOR } from "../utils/sportConfig";
 
 export interface SportGoalData {
   sport: string;
@@ -115,7 +114,7 @@ export function transformToSportGoalData(options: TransformOptions): SportGoalDa
   return {
     sport,
     displayName: getSportDisplayName(sport, sportConfig),
-    color: SPORT_COLORS[sport] ?? DEFAULT_SPORT_COLOR,
+    color: getSportColor(sport),
     currentValue,
     hasGoal,
     targetGoal,

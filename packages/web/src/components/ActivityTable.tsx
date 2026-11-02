@@ -10,7 +10,7 @@ import {
   type DistanceUnit,
   type ElevationUnit,
 } from "../utils/units";
-import { SPORT_COLORS, DEFAULT_SPORT_COLOR, getSportDisplayName } from "../utils/sportConfig";
+import { getSportDisplayName, getSportColor } from "../utils/sportConfig";
 import { useSportConfig } from "../hooks/useSportConfig";
 import { useThemeDateFormat } from "./theme/useThemeDateFormat";
 import Loader from "./Loader";
@@ -206,7 +206,7 @@ const ActivityTable: React.FC<ActivityTableProps> = ({
                     )}
                   </td>
                   <td>
-                    <SportLabel color={SPORT_COLORS[activity.sport] ?? DEFAULT_SPORT_COLOR}>
+                    <SportLabel color={getSportColor(activity.sport)}>
                       {getSportDisplayName(activity.sport, sportConfig)}
                     </SportLabel>
                   </td>

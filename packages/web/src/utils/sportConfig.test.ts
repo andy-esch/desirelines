@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import type { SportConfig } from "../api/activities";
 import {
   SPORT_COLORS,
+  DEFAULT_SPORT_COLOR,
+  getSportColor,
   getSportDisplayName,
   getPrimaryMetric,
   isDistanceSport,
@@ -78,6 +80,16 @@ describe("SPORT_COLORS", () => {
     const colors = Object.values(SPORT_COLORS);
     const uniqueColors = new Set(colors);
     expect(uniqueColors.size).toBe(colors.length);
+  });
+});
+
+describe("getSportColor", () => {
+  it("returns the palette color for a known sport", () => {
+    expect(getSportColor("cycling")).toBe(SPORT_COLORS.cycling);
+  });
+
+  it("falls back to the default color for an unknown sport", () => {
+    expect(getSportColor("not_a_sport")).toBe(DEFAULT_SPORT_COLOR);
   });
 });
 

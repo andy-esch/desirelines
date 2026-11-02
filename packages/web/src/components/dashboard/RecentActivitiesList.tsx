@@ -23,7 +23,7 @@ import { SportLabel } from "../theme/SportLabel";
 import { useThemeStructure } from "../theme/useThemeStructure";
 import { Panel } from "../theme/Panel";
 import { cn } from "@/lib/utils";
-import { SPORT_COLORS, DEFAULT_SPORT_COLOR, getSportDisplayName } from "../../utils/sportConfig";
+import { getSportDisplayName, getSportColor } from "../../utils/sportConfig";
 import type { ColorToken } from "../../themes/contract";
 
 /** Height of the thead row in px */
@@ -385,7 +385,7 @@ export default function RecentActivitiesList({
                     className="text-muted-text text-left px-1 py-0 align-middle"
                     style={{ whiteSpace: "nowrap", textTransform: "capitalize" }}
                   >
-                    <SportLabel color={SPORT_COLORS[activity.sport] ?? DEFAULT_SPORT_COLOR}>
+                    <SportLabel color={getSportColor(activity.sport)}>
                       {getSportDisplayName(activity.sport, sportConfig)}
                     </SportLabel>
                   </td>

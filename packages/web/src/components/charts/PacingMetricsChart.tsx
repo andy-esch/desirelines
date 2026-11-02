@@ -10,13 +10,12 @@
  * - Container (this file): Data, state, callbacks
  * - Presenter (PacingChartPresenter): Pure rendering
  */
-import { useState, useEffect } from "react";
 import type { DistanceEntry } from "../../types/activity";
 import { type Goals } from "../../utils/goalCalculations";
 import { getMetricUnitLabel, isSessionsUnit, type MetricUnit } from "../../utils/units";
 import { getMetricDisplayLabel } from "../../config/metricConfig";
 import { usePacingChartData } from "../../hooks/usePacingChartData";
-import { useReducedMotion } from "../../hooks/useReducedMotion";
+import { useInitialAnimation } from "../../hooks/useInitialAnimation";
 import ChartContainer from "./ChartContainer";
 import PacingChartPresenter from "./PacingChartPresenter";
 
@@ -110,16 +109,8 @@ const PacingMetricsChart = (props: PacingMetricsChartProps) => {
     onRetry,
   } = props;
 
-  const reducedMotion = useReducedMotion();
-
-  // Only animate chart lines on first mount — suppress re-animation on prop changes.
-  // This one-time gate is intentional: the effect sets false after mount to prevent
-  // Recharts from re-animating lines when goals or range presets change.
-  const [isFirstRender, setIsFirstRender] = useState(true);
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time mount animation gate
-    setIsFirstRender(false);
-  }, []);
+  // Animate lines on first mount only, and never under reduced motion.
+  const isAnimationActive = useInitialAnimation();
 
   // Derive display values
   const isSessionsMode = isSessionsUnit(unit);
@@ -163,7 +154,7 @@ const PacingMetricsChart = (props: PacingMetricsChartProps) => {
         naturalYMax={naturalYMax}
         unitLabel={unitLabel}
         isSessionsMode={isSessionsMode}
-        isAnimationActive={isFirstRender && !reducedMotion}
+        isAnimationActive={isAnimationActive}
         dangerZone={{
           show: shouldShowDangerZone,
           threshold: dangerThreshold,

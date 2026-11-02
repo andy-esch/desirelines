@@ -1,5 +1,6 @@
 import type { DistanceEntry, PacingEntry } from "../types/activity";
 import { toLocalDateString } from "./dateUtils";
+import { getDaysInYear } from "./yearContext";
 import {
   goalDisplayToMeters,
   goalMetersToDisplay,
@@ -80,19 +81,6 @@ export function toStoredGoals<T extends { id: string; value: number }>(
       ? { ...goal, value: before.value }
       : toStoredGoal(goal, ctx);
   });
-}
-
-/**
- * Calculate the number of days in a year using UTC to avoid DST issues
- * @param year - The year to calculate for
- * @returns 365 for regular years, 366 for leap years
- */
-function getDaysInYear(year: number): number {
-  // Use UTC dates to avoid DST issues
-  const startOfYearUTC = Date.UTC(year, 0, 1);
-  const endOfYearUTC = Date.UTC(year, 11, 31);
-  // Math.floor for consistency, +1 for inclusive counting (Jan 1 to Dec 31)
-  return Math.floor((endOfYearUTC - startOfYearUTC) / (1000 * 60 * 60 * 24)) + 1;
 }
 
 /**
