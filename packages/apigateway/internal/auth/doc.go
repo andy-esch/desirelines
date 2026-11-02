@@ -16,9 +16,9 @@
 //  1. User visits /auth/strava → redirect to Strava with CSRF state token
 //  2. User approves on Strava → Strava redirects to /auth/callback with code
 //  3. Callback validates state, exchanges code for Strava tokens
-//  4. Checks athlete against Firestore allowlist (invite-only)
-//  5. Writes tokens + profile atomically to Firestore via transaction
-//  6. Creates Firebase custom token (UID = Strava athlete ID as string)
+//  4. Resolves the active Strava connection to an app UID and checks its admission
+//  5. Rechecks the same ownership pair/admission and writes tokens + profile atomically
+//  6. Creates a Firebase custom token for the resolved UID
 //  7. Redirects to frontend with token in URL fragment (#token=...)
 //
 // URL fragments are used for token delivery because fragments are never sent
@@ -35,7 +35,7 @@
 //   - invalid_state: CSRF state token invalid or expired
 //   - missing_code: No authorization code in callback
 //   - exchange_failed: Strava token exchange failed or returned invalid data
-//   - not_invited: Athlete not on allowlist
+//   - not_invited: No active mapping or the app UID is not admitted
 //   - server_error: Internal error (Firestore, Firebase, etc.)
 //
 // # Architecture
@@ -43,8 +43,9 @@
 // The package follows hexagonal architecture with port interfaces:
 //
 //   - [StravaOAuthClient]: Exchanges authorization code for tokens
-//   - [TokenStore]: Writes tokens and profile to Firestore
-//   - [allowlist.Checker]: Checks if athlete is invited (shared package)
+//   - [ConnectionResolver]: Resolves a Strava subject to its app UID
+//   - [TokenStore]: Revalidates ownership/admission and writes tokens/profile
+//   - [allowlist.Checker]: Checks if the app UID is admitted (shared package)
 //   - [FirebaseAuthClient]: Creates Firebase custom auth tokens and manages user profiles
 //
 // All dependencies are injected via [HandlerConfig] and [NewHandler].

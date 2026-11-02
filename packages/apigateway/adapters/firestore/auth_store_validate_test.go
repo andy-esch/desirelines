@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/auth"
+	"github.com/andy-esch/desirelines/packages/shared/activityconnection"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 )
 
@@ -27,6 +28,7 @@ func TestWriteAuthData_RejectsIncompleteTokens(t *testing.T) {
 		name   string
 		tokens *stravatoken.Data
 	}{
+		{name: "nil tokens"},
 		{
 			name:   "missing access token",
 			tokens: &stravatoken.Data{RefreshToken: "ref", ExpiresAt: 1735689600},
@@ -47,13 +49,34 @@ func TestWriteAuthData_RejectsIncompleteTokens(t *testing.T) {
 			// return before anything touches the Firestore client. If this
 			// panics, the guard is in the wrong place.
 			store := &AuthStore{}
-			err := store.WriteAuthData(context.Background(), "12345", tt.tokens, &auth.AthleteProfile{})
+			err := store.WriteAuthData(context.Background(), auth.CredentialOwner{}, tt.tokens, &auth.AthleteProfile{})
 
 			if err == nil {
 				t.Fatal("WriteAuthData accepted an incomplete grant")
 			}
 			if !errors.Is(err, stravatoken.ErrIncompleteTokens) {
 				t.Errorf("err = %v, want it to wrap ErrIncompleteTokens", err)
+			}
+		})
+	}
+}
+
+func TestWriteAuthDataRejectsInvalidCredentialOrigin(t *testing.T) {
+	cases := []struct {
+		name    string
+		owner   auth.CredentialOwner
+		profile *auth.AthleteProfile
+	}{
+		{"invalid UID", auth.CredentialOwner{UID: "invalid/path", Subject: "123"}, &auth.AthleteProfile{StravaAthleteID: 123}},
+		{"invalid subject", auth.CredentialOwner{UID: "app-owner", Subject: "0123"}, &auth.AthleteProfile{StravaAthleteID: 123}},
+		{"missing profile", auth.CredentialOwner{UID: "app-owner", Subject: "123"}, nil},
+		{"mismatched profile subject", auth.CredentialOwner{UID: "app-owner", Subject: "123"}, &auth.AthleteProfile{StravaAthleteID: 456}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := (&AuthStore{}).WriteAuthData(context.Background(), tc.owner, &stravatoken.Data{AccessToken: "access", RefreshToken: "refresh", ExpiresAt: 2000000000}, tc.profile)
+			if !errors.Is(err, activityconnection.ErrConflict) {
+				t.Fatalf("invalid origin returned %v", err)
 			}
 		})
 	}

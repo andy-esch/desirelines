@@ -4,6 +4,7 @@ import (
 	"context"
 
 	firebaseauth "firebase.google.com/go/v4/auth"
+	"github.com/andy-esch/desirelines/packages/shared/activityconnection"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 )
 
@@ -13,11 +14,21 @@ type StravaOAuthClient interface {
 	AuthorizeURL() string
 }
 
+// ConnectionResolver resolves a provider subject to an active ownership pair.
+// Missing, inactive or inconsistent ownership must fail closed.
+type ConnectionResolver interface {
+	Resolve(ctx context.Context, subject string) (activityconnection.Record, error)
+}
+
+// CredentialOwner pins the app UID and provider subject that supplied a grant.
+// It is copied by value so transaction retries cannot change the destination.
+type CredentialOwner struct{ UID, Subject string }
+
 // TokenStore manages per-user Strava tokens and profiles in Firestore.
 type TokenStore interface {
-	// WriteAuthData atomically writes both tokens and profile for an athlete.
-	// Both writes succeed or both fail.
-	WriteAuthData(ctx context.Context, athleteID string, tokens *stravatoken.Data, profile *AthleteProfile) error
+	// WriteAuthData revalidates owner and admission in the same transaction as
+	// the credential/profile writes. A retry must never retarget credentials.
+	WriteAuthData(ctx context.Context, owner CredentialOwner, tokens *stravatoken.Data, profile *AthleteProfile) error
 }
 
 // FirebaseAuthClient creates Firebase Custom Auth tokens and manages user profiles.

@@ -37,6 +37,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/apigateway/middleware"
 	"github.com/andy-esch/desirelines/packages/apigateway/pkg/cors"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
+	"github.com/andy-esch/desirelines/packages/shared/activityconnection"
 	"github.com/andy-esch/desirelines/packages/shared/allowlist"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/andy-esch/desirelines/packages/shared/otel"
@@ -514,10 +515,11 @@ func initAuthHandler(cfg *config.Config, authClient auth.FirebaseAuthClient, fir
 	}
 
 	stravaOAuth := stravaadapter.NewOAuthClient(stravaClientID, stravaClientSecret, log, nil, oauthHist)
-	authStore := firestoreadapter.NewAuthStore(firestoreClient, log)
+	authStore := firestoreadapter.NewAuthStore(firestoreClient)
 	handler, err := auth.NewHandler(&auth.HandlerConfig{
 		Strava:       stravaOAuth,
 		Tokens:       authStore,
+		Connections:  authStore,
 		Allowlist:    allowChecker,
 		Firebase:     authClient,
 		StateSecret:  []byte(stateSecret),
@@ -665,8 +667,12 @@ func initLocalDevAuth(ctx context.Context, cfg *config.Config, deps *Dependencie
 	deps.authMiddleware = middleware.NewAuthMiddlewareWithAccessCheck(authClient, mockAllowlist, log, authHist, accessHist, tracer)
 
 	handler, err := auth.NewHandler(&auth.HandlerConfig{
-		Strava:      mockStrava,
-		Tokens:      mockStore,
+		Strava: mockStrava,
+		Tokens: mockStore,
+		Connections: &mockadapter.ConnectionResolver{Owner: activityconnection.Record{
+			SchemaVersion: 1, UID: strconv.FormatInt(mockAthleteID, 10), Provider: activityconnection.Provider,
+			Subject: strconv.FormatInt(mockAthleteID, 10), Scopes: []string{}, Status: activityconnection.Active, Provenance: "dev_fixture",
+		}},
 		Allowlist:   mockAllowlist,
 		Firebase:    authClient,
 		StateSecret: []byte(stateSecret),

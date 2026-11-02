@@ -20,7 +20,7 @@ const (
 )
 
 // Data is the Firestore document schema for per-user Strava tokens.
-// Stored at users/{athleteID}/private/strava_tokens.
+// Stored at users/{uid}/private/strava_tokens; the UID is the app owner.
 type Data struct {
 	AccessToken  string `firestore:"access_token"`
 	RefreshToken string `firestore:"refresh_token"`
