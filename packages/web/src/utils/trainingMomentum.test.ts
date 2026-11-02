@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   filterActualActivityData,
-  calculateDailyPaces,
+  calculateDailyPacePoints,
   calculateLinearRegression,
   calculateTrainingMomentum,
   getMomentumLevel,
@@ -66,7 +66,9 @@ describe("filterActualActivityData", () => {
   });
 });
 
-describe("calculateDailyPaces", () => {
+describe("calculateDailyPacePoints", () => {
+  const paces = (data: DistanceEntry[]) => calculateDailyPacePoints(data).map((p) => p.pace);
+
   it("calculates pace between consecutive days", () => {
     const data: DistanceEntry[] = [
       { x: "2025-01-01", y: 100 },
@@ -74,7 +76,7 @@ describe("calculateDailyPaces", () => {
       { x: "2025-01-03", y: 125 }, // +15 miles in 1 day = 15 mi/day
     ];
 
-    const result = calculateDailyPaces(data);
+    const result = paces(data);
 
     expect(result).toHaveLength(2);
     expect(result[0]).toBeCloseTo(10.0, 1);
@@ -87,7 +89,7 @@ describe("calculateDailyPaces", () => {
       { x: "2025-01-03", y: 120 }, // +20 miles in 2 days = 10 mi/day
     ];
 
-    const result = calculateDailyPaces(data);
+    const result = paces(data);
 
     expect(result).toHaveLength(1);
     expect(result[0]).toBeCloseTo(10.0, 1);
@@ -95,12 +97,12 @@ describe("calculateDailyPaces", () => {
 
   it("returns empty array for single entry", () => {
     const data: DistanceEntry[] = [{ x: "2025-01-01", y: 100 }];
-    const result = calculateDailyPaces(data);
+    const result = paces(data);
     expect(result).toEqual([]);
   });
 
   it("returns empty array for empty data", () => {
-    const result = calculateDailyPaces([]);
+    const result = paces([]);
     expect(result).toEqual([]);
   });
 
@@ -111,7 +113,7 @@ describe("calculateDailyPaces", () => {
       { x: "2025-01-03", y: 120 },
     ];
 
-    const result = calculateDailyPaces(data);
+    const result = paces(data);
 
     // Only valid transitions should be included
     expect(result.length).toBeLessThan(2);

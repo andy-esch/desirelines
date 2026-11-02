@@ -66,17 +66,6 @@ export function calculateDailyPacePoints(data: DistanceEntry[]): PacePoint[] {
 }
 
 /**
- * Calculates daily pace between consecutive data points in the data's own units
- * (miles/day for distance sports, hours/day for time sports, sessions/day, etc.).
- *
- * @param data - Cumulative metric entries
- * @returns Array of daily pace values
- */
-export function calculateDailyPaces(data: DistanceEntry[]): number[] {
-  return calculateDailyPacePoints(data).map((p) => p.pace);
-}
-
-/**
  * Performs simple linear regression on a dataset
  *
  * @param values - Y-values

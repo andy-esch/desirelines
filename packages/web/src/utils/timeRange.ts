@@ -19,7 +19,7 @@ export const TIME_RANGE_OPTIONS: { value: TimeRange; label: string; short: strin
   { value: "all", label: "All Time", short: "All" },
 ];
 
-export const VALID_RANGES: TimeRange[] = ["2w", "4w", "2m", "6m", "ytd", "all"];
+const VALID_RANGES: TimeRange[] = ["2w", "4w", "2m", "6m", "ytd", "all"];
 
 /** Narrow a raw URL value to a valid TimeRange, falling back to `fallback`. */
 export function coerceTimeRange(value: unknown, fallback: TimeRange): TimeRange {
