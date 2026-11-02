@@ -407,6 +407,75 @@ func TestFirebaseHostingStateCookieRoundTrip(t *testing.T) {
 	}
 }
 
+// TestStateCookieIsSingleUse replays a state from the same browser after its
+// first callback. The first callback clears the cookie, so the replay arrives
+// without one and is rejected before any code exchange, even inside the
+// state's validity window.
+func TestStateCookieIsSingleUse(t *testing.T) {
+	strava := &mockStravaOAuth{err: errors.New("expected exchange stop")}
+	h, err := NewHandler(&HandlerConfig{
+		Strava:      strava,
+		Tokens:      &mockTokenStore{},
+		Allowlist:   &mockAllowlist{},
+		Firebase:    &mockFirebase{},
+		StateSecret: []byte("test-secret-key-32-bytes-long!!!"),
+		FrontendURL: "http://frontend.example",
+		ClientID:    "test-client-id",
+		RedirectURI: "http://canonical.example/api/auth/callback",
+		Logger:      gcplog.NewNoOpLogger(),
+	})
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		t.Fatalf("cookiejar.New: %v", err)
+	}
+
+	startURL, err := url.Parse("http://canonical.example/api/auth/strava/start")
+	if err != nil {
+		t.Fatalf("parse start URL: %v", err)
+	}
+	startW := httptest.NewRecorder()
+	h.HandleInitiateStart(startW, httptest.NewRequest(http.MethodGet, startURL.String(), nil))
+	jar.SetCookies(startURL, startW.Result().Cookies())
+	stravaRedirect, err := url.Parse(startW.Header().Get("Location"))
+	if err != nil {
+		t.Fatalf("parse Strava redirect: %v", err)
+	}
+	state := stravaRedirect.Query().Get(paramState)
+	if state == "" {
+		t.Fatal("state missing from Strava redirect")
+	}
+
+	callbackURL, err := url.Parse("http://canonical.example/api/auth/callback?code=auth-code&state=" + url.QueryEscape(state))
+	if err != nil {
+		t.Fatalf("parse callback URL: %v", err)
+	}
+	callback := func() *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, callbackURL.String(), nil)
+		for _, cookie := range jar.Cookies(callbackURL) {
+			req.AddCookie(cookie)
+		}
+		w := httptest.NewRecorder()
+		h.HandleCallback(w, req)
+		jar.SetCookies(callbackURL, w.Result().Cookies())
+		return w
+	}
+
+	if got := callback().Header().Get("Location"); !strings.Contains(got, "error=exchange_failed") {
+		t.Fatalf("first callback Location = %q, want exchange_failed (state accepted)", got)
+	}
+	strava.calledWith = ""
+
+	if got := callback().Header().Get("Location"); !strings.Contains(got, "error=invalid_state") {
+		t.Fatalf("replayed callback Location = %q, want invalid_state", got)
+	}
+	if strava.calledWith != "" {
+		t.Errorf("replayed state reached ExchangeCode with %q", strava.calledWith)
+	}
+}
+
 // --- HandleCallback tests ---
 
 func TestHandleCallback(t *testing.T) {
