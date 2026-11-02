@@ -398,6 +398,8 @@ func (h *Handler) syncFirebaseProfile(ctx context.Context, athleteID string, ath
 // (despite our struct having the tag), so the query parameter is typically the only source.
 // The query param is set by Strava's redirect — a user could tamper with it, but the real
 // enforcement is at Strava's API: a token without activity:read_all will fail at call time.
+// The returned value is persisted as stravatoken.Data.Scopes, so that stored field is
+// advisory; see its doc before reading it.
 //
 // Returns the granted scope string and a non-nil error (and redirects to the error page) if
 // scope validation fails.
