@@ -1,6 +1,4 @@
 import { useMemo, useState } from "react";
-import type { CSSProperties } from "react";
-import { cn } from "@/lib/utils";
 import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
 import type { MapActivity } from "../../api/map";
 import { formatDistance, formatHoursMinutes, type DistanceUnit } from "../../utils/units";
@@ -11,6 +9,8 @@ import {
   type SportBreakdownRow,
 } from "../../utils/mapInsights";
 import { DEFAULT_SPORT_COLOR } from "../../utils/sportConfig";
+import { InsightSection } from "./InsightSection";
+import { BreakdownBarRow, breakdownBarPct } from "./BreakdownBarRow";
 
 export interface SportBreakdownChartProps {
   /** The currently-filtered activities (same set the map + summary show). */
@@ -55,14 +55,13 @@ export default function SportBreakdownChart({
   const max = rows.length > 0 ? breakdownValue(rows[0]!, metric) : 0;
 
   return (
-    <section className="px-4 py-3" aria-label="Sport breakdown">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <p
-          id="insights-sport-label"
-          className="text-(length:--label-size) font-(weight:--label-weight) tracking-(--label-tracking) [text-transform:var(--label-case)] text-(color:--label-color)"
-        >
-          By sport
-        </p>
+    <InsightSection
+      title="By sport"
+      ariaLabel="Sport breakdown"
+      labelId="insights-sport-label"
+      headerSpacing="mb-3"
+      isEmpty={rows.length === 0}
+      action={
         <ToggleGroup
           value={[metric]}
           onValueChange={(vals) => {
@@ -82,51 +81,25 @@ export default function SportBreakdownChart({
             Count
           </ToggleGroupItem>
         </ToggleGroup>
-      </div>
-
-      {rows.length === 0 ? (
-        <p className="text-xs text-muted-text">No activities to summarize.</p>
-      ) : (
-        <ul className="space-y-1.5" aria-labelledby="insights-sport-label">
-          {rows.map((row) => {
-            const value = breakdownValue(row, metric);
-            const pct = max > 0 ? Math.max(2, (value / max) * 100) : 0;
-            const color = sportColors[row.sport] ?? DEFAULT_SPORT_COLOR;
-            const isSelected = selectedSports.includes(row.sport);
-            const dimmed = selectedSports.length > 0 && !isSelected;
-            return (
-              <li key={row.sport}>
-                <button
-                  type="button"
-                  onClick={() => onToggleSport(row.sport)}
-                  aria-pressed={isSelected}
-                  style={{ "--bar": color } as CSSProperties}
-                  className={cn(
-                    "group block w-full rounded-md px-1.5 py-1 text-left transition-opacity",
-                    "hover:bg-accent",
-                    dimmed && "opacity-40 hover:opacity-100"
-                  )}
-                >
-                  <div className="flex items-baseline justify-between gap-2 text-xs">
-                    <span className="truncate text-body-text">
-                      {sportLabels[row.sport] ?? row.sport}
-                    </span>
-                    <span className="shrink-0 tabular-nums text-muted-text">
-                      {formatRowValue(row, metric, distanceUnit)}
-                    </span>
-                  </div>
-                  <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="sport-mark h-full rounded-full bg-[var(--bar)]"
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </section>
+      }
+    >
+      <ul className="space-y-1.5" aria-labelledby="insights-sport-label">
+        {rows.map((row) => {
+          const isSelected = selectedSports.includes(row.sport);
+          return (
+            <BreakdownBarRow
+              key={row.sport}
+              label={sportLabels[row.sport] ?? row.sport}
+              value={formatRowValue(row, metric, distanceUnit)}
+              pct={breakdownBarPct(breakdownValue(row, metric), max)}
+              isSelected={isSelected}
+              dimmed={selectedSports.length > 0 && !isSelected}
+              onClick={() => onToggleSport(row.sport)}
+              barColor={sportColors[row.sport] ?? DEFAULT_SPORT_COLOR}
+            />
+          );
+        })}
+      </ul>
+    </InsightSection>
   );
 }

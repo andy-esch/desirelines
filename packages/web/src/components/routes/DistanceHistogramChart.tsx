@@ -5,6 +5,7 @@ import { convertDistance, getDistanceLabel, type DistanceUnit } from "../../util
 import { distanceHistogram } from "../../utils/mapInsights";
 import { chartLabelToString } from "../../utils/chartUtils";
 import RouteChartTooltip from "./RouteChartTooltip";
+import { InsightSection } from "./InsightSection";
 
 export interface DistanceHistogramChartProps {
   activities: MapActivity[];
@@ -36,81 +37,77 @@ export default function DistanceHistogramChart({
   );
 
   return (
-    <section className="px-4 py-3" aria-label="Distance histogram">
-      <p className="mb-2 text-(length:--label-size) font-(weight:--label-weight) tracking-(--label-tracking) [text-transform:var(--label-case)] text-(color:--label-color)">
-        Distance ({unit})
-      </p>
-      {data.length === 0 ? (
-        <p className="text-xs text-muted-text">No activities to summarize.</p>
-      ) : (
-        <>
-          <div className="h-32" aria-hidden="true">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -18 }}>
-                <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
-                <XAxis
-                  dataKey="label"
-                  tick={{ fontSize: 9, fill: "var(--color-chart-tick)" }}
-                  axisLine={false}
-                  tickLine={false}
-                  interval="preserveStartEnd"
-                  minTickGap={8}
+    <InsightSection
+      title={`Distance (${unit})`}
+      ariaLabel="Distance histogram"
+      isEmpty={data.length === 0}
+    >
+      <div className="h-32" aria-hidden="true">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -18 }}>
+            <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
+            <XAxis
+              dataKey="label"
+              tick={{ fontSize: 9, fill: "var(--color-chart-tick)" }}
+              axisLine={false}
+              tickLine={false}
+              interval="preserveStartEnd"
+              minTickGap={8}
+            />
+            <YAxis
+              width={28}
+              allowDecimals={false}
+              tick={{ fontSize: 9, fill: "var(--color-chart-tick)" }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <Tooltip
+              cursor={{ fill: "var(--chart-hover-column)" }}
+              content={
+                <RouteChartTooltip
+                  name="Count"
+                  formatLabel={(l) => `${chartLabelToString(l)}+ ${unit}`}
+                  formatValue={(v) => `${v} activities`}
                 />
-                <YAxis
-                  width={28}
-                  allowDecimals={false}
-                  tick={{ fontSize: 9, fill: "var(--color-chart-tick)" }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <Tooltip
-                  cursor={{ fill: "var(--chart-hover-column)" }}
-                  content={
-                    <RouteChartTooltip
-                      name="Count"
-                      formatLabel={(l) => `${chartLabelToString(l)}+ ${unit}`}
-                      formatValue={(v) => `${v} activities`}
-                    />
-                  }
-                />
-                <Bar
-                  dataKey="count"
-                  fill="var(--color-accent-cyan)"
-                  radius={[2, 2, 0, 0]}
-                  cursor="pointer"
-                  isAnimationActive={false}
-                  onClick={(d) => {
-                    const bin = d as unknown as Record<string, unknown>;
-                    if (typeof bin.start === "number" && typeof bin.end === "number") {
-                      onSelectRange([bin.start, bin.end]);
-                    }
-                  }}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          {/* Text alternative for the visual-only chart (the SVG bars are aria-hidden).
+              }
+            />
+            <Bar
+              dataKey="count"
+              fill="var(--color-accent-cyan)"
+              radius={[2, 2, 0, 0]}
+              cursor="pointer"
+              isAnimationActive={false}
+              onClick={(d) => {
+                const bin = d as unknown as Record<string, unknown>;
+                if (typeof bin.start === "number" && typeof bin.end === "number") {
+                  onSelectRange([bin.start, bin.end]);
+                }
+              }}
+            />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      {/* Text alternative for the visual-only chart (the SVG bars are aria-hidden).
               Bin-filtering — which the bars do on click, with no keyboard path — is also
               reachable via the keyboard-operable distance slider. */}
-          <table className="sr-only">
-            <caption>Activity count by distance ({unit})</caption>
-            <thead>
-              <tr>
-                <th>Min distance ({unit})</th>
-                <th>Activities</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.map((b) => (
-                <tr key={b.label}>
-                  <td>{b.label}+</td>
-                  <td>{b.count}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
-      )}
-    </section>
+      <table className="sr-only">
+        <caption>Activity count by distance ({unit})</caption>
+        <thead>
+          <tr>
+            <th>Min distance ({unit})</th>
+            <th>Activities</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((b) => (
+            // Labels are rounded bin starts, so narrow bins can share one; the start can't repeat.
+            <tr key={b.start}>
+              <td>{b.label}+</td>
+              <td>{b.count}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </InsightSection>
   );
 }

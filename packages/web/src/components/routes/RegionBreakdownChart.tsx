@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
-import { cn } from "@/lib/utils";
 import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
 import type { MapActivity } from "../../api/map";
 import { formatDistance, type DistanceUnit } from "../../utils/units";
 import { regionBreakdown } from "../../utils/mapInsights";
+import { BreakdownBarRow, breakdownBarPct } from "./BreakdownBarRow";
+import { InsightSection } from "./InsightSection";
 
 type RegionMetric = "distance" | "count";
 
@@ -45,11 +46,13 @@ export default function RegionBreakdownChart({
     rows.length > 0 ? (metric === "distance" ? rows[0]!.distanceMeters : rows[0]!.count) : 0;
 
   return (
-    <section className="px-4 py-3" aria-label="Region breakdown">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <p className="text-(length:--label-size) font-(weight:--label-weight) tracking-(--label-tracking) [text-transform:var(--label-case)] text-(color:--label-color)">
-          By region
-        </p>
+    <InsightSection
+      title="By region"
+      ariaLabel="Region breakdown"
+      headerSpacing="mb-3"
+      isEmpty={rows.length === 0}
+      emptyText="No region data."
+      action={
         <ToggleGroup
           value={[metric]}
           onValueChange={(vals) => {
@@ -66,51 +69,29 @@ export default function RegionBreakdownChart({
             Count
           </ToggleGroupItem>
         </ToggleGroup>
-      </div>
-
-      {rows.length === 0 ? (
-        <p className="text-xs text-muted-text">No region data.</p>
-      ) : (
-        <ul className="space-y-1.5">
-          {rows.map((row) => {
-            const value = metric === "distance" ? row.distanceMeters : row.count;
-            const pct = max > 0 ? Math.max(2, (value / max) * 100) : 0;
-            const isSelected = row.regionId === selectedRegionId;
-            const dimmed = selectedRegionId !== null && !isSelected;
-            return (
-              <li key={row.regionId}>
-                <button
-                  type="button"
-                  onClick={() => onSelectRegion(isSelected ? null : row.regionId)}
-                  aria-pressed={isSelected}
-                  className={cn(
-                    "group block w-full rounded-md px-1.5 py-1 text-left transition-opacity",
-                    "hover:bg-accent",
-                    dimmed && "opacity-40 hover:opacity-100"
-                  )}
-                >
-                  <div className="flex items-baseline justify-between gap-2 text-xs">
-                    <span className="truncate text-body-text">
-                      {regionNames[row.regionId] ?? `Region ${row.regionId}`}
-                    </span>
-                    <span className="shrink-0 tabular-nums text-muted-text">
-                      {metric === "distance"
-                        ? formatDistance(row.distanceMeters, distanceUnit)
-                        : row.count.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full bg-accent-cyan"
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </section>
+      }
+    >
+      <ul className="space-y-1.5">
+        {rows.map((row) => {
+          const value = metric === "distance" ? row.distanceMeters : row.count;
+          const isSelected = row.regionId === selectedRegionId;
+          return (
+            <BreakdownBarRow
+              key={row.regionId}
+              label={regionNames[row.regionId] ?? `Region ${row.regionId}`}
+              value={
+                metric === "distance"
+                  ? formatDistance(row.distanceMeters, distanceUnit)
+                  : row.count.toLocaleString()
+              }
+              pct={breakdownBarPct(value, max)}
+              isSelected={isSelected}
+              dimmed={selectedRegionId !== null && !isSelected}
+              onClick={() => onSelectRegion(isSelected ? null : row.regionId)}
+            />
+          );
+        })}
+      </ul>
+    </InsightSection>
   );
 }
