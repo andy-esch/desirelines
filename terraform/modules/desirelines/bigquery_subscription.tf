@@ -262,7 +262,14 @@ resource "google_pubsub_subscription" "activities_live_writer" {
     ttl = "" # empty string = never
   }
 
-  depends_on = [google_project_service.required_apis]
+  depends_on = [
+    # Without the DLQ publish grant, a row that fails before the grant lands can't
+    # be dead-lettered: it retries until retention drops it and the DLQ alert never
+    # fires. The subscriber grant references this subscription, so it can't be
+    # listed here (it would form a cycle).
+    google_pubsub_topic_iam_member.activity_rows_dlq_publisher,
+    google_project_service.required_apis
+  ]
 }
 
 # ---- IAM (least privilege) ----------------------------------------------------
