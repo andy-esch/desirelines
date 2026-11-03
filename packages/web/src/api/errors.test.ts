@@ -3,8 +3,6 @@ import axios, { AxiosHeaders, type AxiosError } from "axios";
 import {
   isCancellationError,
   isAuthError,
-  isRetryableError,
-  is404Error,
   createAuthError,
   logApiError,
   throwApiError,
@@ -83,71 +81,6 @@ describe("API Error Utilities", () => {
         toJSON: () => ({}),
       }) as AxiosError;
       expect(isAuthError(error)).toBe(false);
-    });
-  });
-
-  describe("isRetryableError", () => {
-    it("should return true for network errors (no response)", () => {
-      const error = Object.assign(new Error("Network Error"), {
-        isAxiosError: true,
-        name: "AxiosError",
-        config: {} as any,
-        toJSON: () => ({}),
-      }) as AxiosError;
-      expect(isRetryableError(error)).toBe(true);
-    });
-
-    it("should return true for 500 Internal Server Error", () => {
-      const error = createAxiosError(500);
-      expect(isRetryableError(error)).toBe(true);
-    });
-
-    it("should return true for 502 Bad Gateway", () => {
-      const error = createAxiosError(502);
-      expect(isRetryableError(error)).toBe(true);
-    });
-
-    it("should return true for 503 Service Unavailable", () => {
-      const error = createAxiosError(503);
-      expect(isRetryableError(error)).toBe(true);
-    });
-
-    it("should return false for 400 Bad Request", () => {
-      const error = createAxiosError(400);
-      expect(isRetryableError(error)).toBe(false);
-    });
-
-    it("should return false for 401 Unauthorized", () => {
-      const error = createAxiosError(401);
-      expect(isRetryableError(error)).toBe(false);
-    });
-
-    it("should return false for 404 Not Found", () => {
-      const error = createAxiosError(404);
-      expect(isRetryableError(error)).toBe(false);
-    });
-
-    it("should return false for regular errors", () => {
-      const error = new Error("Regular error");
-      expect(isRetryableError(error)).toBe(false);
-    });
-  });
-
-  describe("is404Error", () => {
-    it("should return true for 404 Not Found", () => {
-      const error = createAxiosError(404);
-      expect(is404Error(error)).toBe(true);
-    });
-
-    it("should return false for other status codes", () => {
-      expect(is404Error(createAxiosError(400))).toBe(false);
-      expect(is404Error(createAxiosError(401))).toBe(false);
-      expect(is404Error(createAxiosError(500))).toBe(false);
-    });
-
-    it("should return false for non-axios errors", () => {
-      expect(is404Error(new Error("Not found"))).toBe(false);
-      expect(is404Error(null)).toBe(false);
     });
   });
 

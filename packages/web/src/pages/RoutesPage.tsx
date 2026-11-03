@@ -61,6 +61,26 @@ const RegionBreakdownChart = lazy(() => import("../components/routes/RegionBreak
 /** Must match the rendered header height (see also sidebar top offset in tailwind.css) */
 const HEADER_HEIGHT = 48;
 
+/**
+ * The popup selection for a dataset activity, anchored at its route's bbox center
+ * because a deep link or a list pick has no click point.
+ */
+function selectedFromActivity(a: MapActivity, sportLabels: Record<string, string>): SelectedRoute {
+  const bbox = a.bbox;
+  const center =
+    bbox && bbox.length === 4
+      ? { lng: (bbox[0]! + bbox[2]!) / 2, lat: (bbox[1]! + bbox[3]!) / 2 }
+      : {};
+  return {
+    id: a.activityId,
+    name: a.name,
+    distanceMeters: a.distanceMeters,
+    date: a.startDateLocal.slice(0, 10),
+    sportLabel: sportLabels[a.sport] ?? a.sport,
+    ...center,
+  };
+}
+
 function StatusMessage({ children }: { children: React.ReactNode }) {
   return <div className="flex grow items-center justify-center">{children}</div>;
 }
@@ -268,23 +288,11 @@ export default function RoutesPage() {
     const a = getActivity(focusId);
     if (!a) return; // dataset still loading, or the id isn't in the user's map set
     focusAppliedRef.current = focusId;
-    const bbox = a.bbox;
-    const center =
-      bbox && bbox.length === 4
-        ? { lng: (bbox[0]! + bbox[2]!) / 2, lat: (bbox[1]! + bbox[3]!) / 2 }
-        : {};
     // One-shot sync of the URL focus param into selection state (ref-guarded, so it
     // can't cascade) — the popup/fit depend on the dataset, which may load after mount.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSelected({
-      id: a.activityId,
-      name: a.name,
-      distanceMeters: a.distanceMeters,
-      date: a.startDateLocal.slice(0, 10),
-      sportLabel: sportLabels[a.sport] ?? a.sport,
-      ...center,
-    });
-    requestFit(bbox);
+    setSelected(selectedFromActivity(a, sportLabels));
+    requestFit(a.bbox);
   }, [focusId, getActivity, requestFit, sportLabels]);
 
   // Leave focus: clear the popup + drop ONLY the ?activity= param — the filter params
@@ -302,20 +310,8 @@ export default function RoutesPage() {
 
   const onSelectFromList = useCallback(
     (a: MapActivity) => {
-      const bbox = a.bbox;
-      const center =
-        bbox && bbox.length === 4
-          ? { lng: (bbox[0]! + bbox[2]!) / 2, lat: (bbox[1]! + bbox[3]!) / 2 }
-          : {};
-      setSelected({
-        id: a.activityId,
-        name: a.name,
-        distanceMeters: a.distanceMeters,
-        date: a.startDateLocal.slice(0, 10),
-        sportLabel: sportLabels[a.sport] ?? a.sport,
-        ...center,
-      });
-      requestFit(bbox);
+      setSelected(selectedFromActivity(a, sportLabels));
+      requestFit(a.bbox);
     },
     [requestFit, sportLabels]
   );

@@ -187,6 +187,6 @@ export function toChartData(
 }
 
 /** Row/Bar data key for a sport, namespaced so it can never collide with "month". */
-export function seriesKey(sport: string): string {
+function seriesKey(sport: string): string {
   return `s:${sport}`;
 }

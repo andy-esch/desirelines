@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   filterActualActivityData,
-  calculateDailyPaces,
   calculateLinearRegression,
   calculateTrainingMomentum,
   getMomentumLevel,
@@ -63,58 +62,6 @@ describe("filterActualActivityData", () => {
       { x: "2025-01-01", y: 100 }, // First point included
       { x: "2025-01-03", y: 110 },
     ]);
-  });
-});
-
-describe("calculateDailyPaces", () => {
-  it("calculates pace between consecutive days", () => {
-    const data: DistanceEntry[] = [
-      { x: "2025-01-01", y: 100 },
-      { x: "2025-01-02", y: 110 }, // +10 miles in 1 day = 10 mi/day
-      { x: "2025-01-03", y: 125 }, // +15 miles in 1 day = 15 mi/day
-    ];
-
-    const result = calculateDailyPaces(data);
-
-    expect(result).toHaveLength(2);
-    expect(result[0]).toBeCloseTo(10.0, 1);
-    expect(result[1]).toBeCloseTo(15.0, 1);
-  });
-
-  it("handles gaps in dates correctly", () => {
-    const data: DistanceEntry[] = [
-      { x: "2025-01-01", y: 100 },
-      { x: "2025-01-03", y: 120 }, // +20 miles in 2 days = 10 mi/day
-    ];
-
-    const result = calculateDailyPaces(data);
-
-    expect(result).toHaveLength(1);
-    expect(result[0]).toBeCloseTo(10.0, 1);
-  });
-
-  it("returns empty array for single entry", () => {
-    const data: DistanceEntry[] = [{ x: "2025-01-01", y: 100 }];
-    const result = calculateDailyPaces(data);
-    expect(result).toEqual([]);
-  });
-
-  it("returns empty array for empty data", () => {
-    const result = calculateDailyPaces([]);
-    expect(result).toEqual([]);
-  });
-
-  it("skips entries with zero or negative time diff", () => {
-    const data: DistanceEntry[] = [
-      { x: "2025-01-02", y: 100 },
-      { x: "2025-01-01", y: 110 }, // Date went backwards
-      { x: "2025-01-03", y: 120 },
-    ];
-
-    const result = calculateDailyPaces(data);
-
-    // Only valid transitions should be included
-    expect(result.length).toBeLessThan(2);
   });
 });
 

@@ -35,9 +35,7 @@ allowed to receive one:
 ```typescript
 import {
   isCancellationError, // Check if error is a cancellation
-  is404Error, // Check if error is 404
   isAuthError, // Check if error is 401/403
-  isRetryableError, // Check if error is network/5xx
   redactAuthorizationHeader, // Strip credentials before an error is logged
   logApiError, // Log without throwing
   throwApiError, // Standard error handler (logs + throws)
