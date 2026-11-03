@@ -73,6 +73,7 @@ resource "google_pubsub_subscription" "postgres_writer" {
 
   depends_on = [
     google_cloud_run_v2_service.postgres_writer,
+    # Must exist before delivery starts, or a failing message can't be dead-lettered.
     google_pubsub_topic_iam_member.dead_letter_publisher,
     google_project_service.required_apis
   ]
@@ -136,6 +137,7 @@ resource "google_pubsub_subscription" "deletion_service" {
 
   depends_on = [
     google_cloud_run_v2_service.deletion_service,
+    # Must exist before delivery starts, or a failing message can't be dead-lettered.
     google_pubsub_topic_iam_member.dead_letter_publisher,
     google_project_service.required_apis
   ]
