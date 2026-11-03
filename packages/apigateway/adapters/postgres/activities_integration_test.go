@@ -4,9 +4,12 @@ package postgres_test
 
 import (
 	"context"
+	"encoding/base64"
 	"log/slog"
 	"os"
+	"slices"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -330,6 +333,56 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 
 			if response.NextCursor == nil {
 				t.Error("expected NextCursor to be set")
+			}
+		})
+	})
+
+	// Following NextCursor must continue the (start_date_local DESC, id DESC)
+	// order with no overlap or gap, and the cursor must name the page's last row.
+	t.Run("ListActivities_CursorContinuesOrder", func(t *testing.T) {
+		withTestTx(t, pool, func(repo *postgres.ActivityRepository) {
+			all, err := repo.ListActivities(ctx, repository.ActivityListFilter{UserID: "test-user", Limit: 10})
+			if err != nil {
+				t.Fatalf("ListActivities (unpaged) failed: %v", err)
+			}
+			if len(all.Activities) != 4 {
+				t.Fatalf("expected 4 fixture activities, got %d", len(all.Activities))
+			}
+
+			first, err := repo.ListActivities(ctx, repository.ActivityListFilter{UserID: "test-user", Limit: 2})
+			if err != nil {
+				t.Fatalf("ListActivities (page 1) failed: %v", err)
+			}
+			if !first.HasMore || first.NextCursor == nil {
+				t.Fatalf("page 1: HasMore=%v, NextCursor set=%v; want a next page", first.HasMore, first.NextCursor != nil)
+			}
+			cursor := decodeListCursor(t, *first.NextCursor)
+			last := first.Activities[len(first.Activities)-1]
+			if cursor.Timestamp != last.StartDateLocal || cursor.ID != last.Id {
+				t.Errorf("cursor = (%q, %d), want page 1's last row (%q, %d)", cursor.Timestamp, cursor.ID, last.StartDateLocal, last.Id)
+			}
+
+			second, err := repo.ListActivities(ctx, repository.ActivityListFilter{UserID: "test-user", Limit: 2, Cursor: cursor})
+			if err != nil {
+				t.Fatalf("ListActivities (page 2) failed: %v", err)
+			}
+			if second.HasMore || second.NextCursor != nil {
+				t.Errorf("page 2: HasMore=%v, NextCursor set=%v; want the last page", second.HasMore, second.NextCursor != nil)
+			}
+
+			paged := make([]int64, 0, len(first.Activities)+len(second.Activities))
+			unpaged := make([]int64, 0, len(all.Activities))
+			for _, a := range first.Activities {
+				paged = append(paged, a.Id)
+			}
+			for _, a := range second.Activities {
+				paged = append(paged, a.Id)
+			}
+			for _, a := range all.Activities {
+				unpaged = append(unpaged, a.Id)
+			}
+			if !slices.Equal(paged, unpaged) {
+				t.Errorf("paged ids = %v, want the unpaged order %v", paged, unpaged)
 			}
 		})
 	})
@@ -985,4 +1038,23 @@ func keysOf[K comparable, V any](m map[K]V) []K {
 		keys = append(keys, k)
 	}
 	return keys
+}
+
+// decodeListCursor reads a NextCursor in the base64 "<start_date_local>|<id>"
+// form that the activities handler decodes.
+func decodeListCursor(t *testing.T, s string) *repository.ActivityCursor {
+	t.Helper()
+	data, err := base64.URLEncoding.DecodeString(s)
+	if err != nil {
+		t.Fatalf("cursor %q is not base64: %v", s, err)
+	}
+	timestamp, idText, ok := strings.Cut(string(data), "|")
+	if !ok {
+		t.Fatalf("cursor %q has no '|' separator", data)
+	}
+	id, err := strconv.ParseInt(idText, 10, 64)
+	if err != nil {
+		t.Fatalf("cursor id %q: %v", idText, err)
+	}
+	return &repository.ActivityCursor{Timestamp: timestamp, ID: id}
 }
