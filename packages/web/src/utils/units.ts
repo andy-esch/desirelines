@@ -234,7 +234,7 @@ export interface UserSettings {
   defaultSport: string;
 }
 
-export const DEFAULT_USER_SETTINGS: UserSettings = {
+const DEFAULT_USER_SETTINGS: UserSettings = {
   distanceUnit: "miles", // US default
   elevationUnit: "feet", // US default
   defaultSport: "cycling", // User's main sport

@@ -42,7 +42,7 @@ export interface PacePoint {
  * @param data - Cumulative metric entries
  * @returns One point per interval with a positive length
  */
-export function calculateDailyPacePoints(data: DistanceEntry[]): PacePoint[] {
+function calculateDailyPacePoints(data: DistanceEntry[]): PacePoint[] {
   const points: PacePoint[] = [];
   const first = data[0];
   if (!first) return points;
@@ -63,17 +63,6 @@ export function calculateDailyPacePoints(data: DistanceEntry[]): PacePoint[] {
   }
 
   return points;
-}
-
-/**
- * Calculates daily pace between consecutive data points in the data's own units
- * (miles/day for distance sports, hours/day for time sports, sessions/day, etc.).
- *
- * @param data - Cumulative metric entries
- * @returns Array of daily pace values
- */
-export function calculateDailyPaces(data: DistanceEntry[]): number[] {
-  return calculateDailyPacePoints(data).map((p) => p.pace);
 }
 
 /**

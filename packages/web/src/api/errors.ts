@@ -62,31 +62,6 @@ export function isAuthError(err: unknown): boolean {
 }
 
 /**
- * Check if an error is potentially retryable (network issues, server errors).
- */
-export function isRetryableError(err: unknown): boolean {
-  if (!axios.isAxiosError(err)) {
-    return false;
-  }
-
-  // Network errors are retryable (no response received)
-  if (!err.response) {
-    return true;
-  }
-
-  // 5xx server errors are retryable
-  const status = err.response.status;
-  return status >= 500;
-}
-
-/**
- * Check if an error is a 404 Not Found response.
- */
-export function is404Error(err: unknown): boolean {
-  return axios.isAxiosError(err) && err.response?.status === 404;
-}
-
-/**
  * Create a standardized auth error with user-friendly message.
  */
 export function createAuthError(): Error {
