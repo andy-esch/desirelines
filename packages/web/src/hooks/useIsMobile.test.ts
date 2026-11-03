@@ -55,6 +55,8 @@ describe("useIsMobile", () => {
 
     const handler = listeners.get(QUERY);
     expect(handler).toBeDefined();
+    // A real MediaQueryList reports the new value by the time it fires "change".
+    matchesMock = true;
     act(() => {
       handler!({ matches: true } as MediaQueryListEvent);
     });
