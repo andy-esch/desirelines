@@ -1,11 +1,12 @@
 import { useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useCurrentYear } from "../hooks/useCurrentYear";
-import { getDisplayUnitForMetric, getUserSettings, type MetricUnit } from "../utils/units";
+import { getDisplayUnitForMetric, type MetricUnit } from "../utils/units";
 import {
   buildGoal,
   estimateYearEndDistance,
   goalToDisplay,
+  legacyGoalToDisplay,
   toStoredGoal,
   toStoredGoals,
   type GoalUnitContext,
@@ -24,6 +25,7 @@ import { getPrimaryMetric, isTimeSport } from "../utils/sportConfig";
 import { convertMetricsToChartData } from "../hooks/useSportPageData";
 import { GOAL_STORAGE_VERSION, type GoalsForYear } from "../services/userConfigService";
 import { useGoals } from "../hooks/useGoals";
+import { useUnitSettings } from "../hooks/usePreferences";
 import SportPageContent from "../components/SportPageContent";
 import { DEMO_ROUTE_PREFIX } from "../constants/demoConfig";
 import { DemoBanner } from "../components/DemoBanner";
@@ -49,8 +51,8 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
   // Fetch sidebar sport data for demo mode
   const { availableSports, sportCounts } = useDemoSidebarSportData(currentYear);
 
-  // Use hardcoded settings for demo (no Firestore)
-  const userSettings = getUserSettings(null);
+  // The demo's own units, which demo Settings sets and the demo dashboard follows too.
+  const userSettings = useUnitSettings();
 
   // Determine sport type and primary metric
   const sportInfo = sportConfig?.sportCategories?.[sport] ?? null;
@@ -89,8 +91,8 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
     [hasDistance, isTime, userSettings.distanceUnit]
   );
 
-  // The demo's starting goals, shown until any are saved. They're in display units, so
-  // stored canonical like a saved set.
+  // The demo's starting goals, shown until any are saved. They're written in miles (or
+  // hours), so they're stored canonical from miles, then shown in the visitor's units.
   const startingGoals = useMemo((): GoalsForYear => {
     const now = new Date().toISOString();
     const demoGoals = getDemoGoalsForSport(sport);
@@ -106,7 +108,7 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
       ),
     ];
     return {
-      goals: starting.map((g) => toStoredGoal(g, goalCtx)),
+      goals: starting.map((g) => toStoredGoal(g, { ...goalCtx, distanceUnit: "miles" })),
       storageVersion: GOAL_STORAGE_VERSION,
     };
   }, [sport, goalCtx, primaryMetric]);
@@ -123,8 +125,8 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
   const goals = useMemo((): Goals => {
     if (!goalsForYear) return [];
     // Stored canonical (storageVersion 2) → convert to display for the UI. Older entries
-    // predate canonical storage and already hold display values; the next save stores
-    // them canonical and stamps the version.
+    // predate canonical storage and hold the miles or hours the demo showed then; the next
+    // save stores them canonical and stamps the version.
     const canonical = goalsForYear.storageVersion === GOAL_STORAGE_VERSION;
     // Legacy demo payloads may lack proto metadata (pre-#2 fix), which the store reads as
     // empty: fill it so the resulting Goals always satisfy the type.
@@ -135,7 +137,9 @@ export default function DemoSportPage({ sport, year }: DemoSportPageProps) {
       const goal = buildGoal(
         {
           id: g.id || now,
-          value: canonical ? goalToDisplay(g.value, goalCtx) : g.value,
+          value: canonical
+            ? goalToDisplay(g.value, goalCtx)
+            : legacyGoalToDisplay(g.value, goalCtx),
           label: g.label,
           metric: g.metric || primaryMetric,
         },

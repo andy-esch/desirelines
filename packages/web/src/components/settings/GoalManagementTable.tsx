@@ -1,10 +1,20 @@
 import { useMemo } from "react";
 import { useCurrentYear } from "../../hooks/useCurrentYear";
 import { useAllGoals } from "../../hooks/useGoals";
+import { useSportConfig } from "../../hooks/useSportConfig";
+import { useUnitSettings } from "../../hooks/usePreferences";
 import { DEMO_SPORT_LABELS, type DemoSport } from "../../constants/demoConfig";
 import Loader from "../Loader";
 import { ErrorState } from "../ErrorState";
 import { Table } from "../ui/table";
+import { GOAL_STORAGE_VERSION, type GoalsForYear } from "../../services/userConfigService";
+import {
+  goalToDisplay,
+  legacyGoalToDisplay,
+  type GoalUnitContext,
+} from "../../utils/goalCalculations";
+import { getMetricUnitLabel, type MetricUnit } from "../../utils/units";
+import { isTimeSport } from "../../utils/sportConfig";
 
 /** Flattened goal row for display */
 interface GoalRow {
@@ -13,7 +23,10 @@ interface GoalRow {
   sportLabel: string;
   goalId: string;
   label: string;
+  /** In the session's units, or as stored when the sport isn't in the sport config. */
   value: number;
+  /** The unit `value` is in ("mi", "hrs", "sessions"), or null when it's as stored. */
+  unit: string | null;
 }
 
 /**
@@ -23,6 +36,8 @@ interface GoalRow {
  */
 export function GoalManagementTable() {
   const { goalsByYear: goals, loading, error } = useAllGoals();
+  const { sportConfig, isLoading: sportConfigLoading } = useSportConfig();
+  const { distanceUnit } = useUnitSettings();
 
   // Flatten goals from nested structure into table rows
   const goalRows = useMemo<GoalRow[]>(() => {
@@ -37,21 +52,40 @@ export function GoalManagementTable() {
       if (isNaN(year) || !data?.sports) return;
 
       // Iterate sports
-      Object.entries(data.sports).forEach(([sport, goalsForYear]) => {
+      // The store keeps each section's `storageVersion`, which the generated type leaves out.
+      Object.entries<GoalsForYear>(data.sports).forEach(([sport, goalsForYear]) => {
         if (!goalsForYear?.goals) return;
 
         const sportKey = sport as DemoSport;
         const sportLabel = DEMO_SPORT_LABELS[sportKey] || sport;
 
+        // Goals are stored in meters, minutes or sessions; show them as the sport page
+        // does. A sport the config doesn't know keeps its stored value, with no unit.
+        const sportInfo = sportConfig?.sportCategories?.[sport];
+        const ctx: GoalUnitContext = {
+          hasDistance: sportInfo?.hasDistance ?? false,
+          isTime: isTimeSport(sport, sportConfig),
+          distanceUnit,
+        };
+        const canonical = goalsForYear.storageVersion === GOAL_STORAGE_VERSION;
+        const unit: MetricUnit = ctx.hasDistance ? distanceUnit : ctx.isTime ? "hours" : "sessions";
+
         // Iterate goals
         goalsForYear.goals.forEach((goal) => {
+          let value = goal.value;
+          if (sportInfo) {
+            value = canonical
+              ? goalToDisplay(goal.value, ctx)
+              : legacyGoalToDisplay(goal.value, ctx);
+          }
           rows.push({
             year,
             sport: sportKey,
             sportLabel,
             goalId: goal.id,
             label: goal.label || "Unnamed",
-            value: goal.value,
+            value,
+            unit: sportInfo ? getMetricUnitLabel(unit) : null,
           });
         });
       });
@@ -63,11 +97,11 @@ export function GoalManagementTable() {
       if (a.sport !== b.sport) return a.sport.localeCompare(b.sport);
       return a.value - b.value;
     });
-  }, [goals]);
+  }, [goals, sportConfig, distanceUnit]);
 
   const currentYear = useCurrentYear();
 
-  if (loading) {
+  if (loading || sportConfigLoading) {
     return (
       <div className="flex justify-center py-6">
         <Loader />
@@ -113,7 +147,10 @@ export function GoalManagementTable() {
                   </td>
                   <td>{row.sportLabel}</td>
                   <td>{row.label}</td>
-                  <td style={{ textAlign: "right" }}>{row.value.toLocaleString()}</td>
+                  <td style={{ textAlign: "right" }}>
+                    {row.value.toLocaleString()}
+                    {row.unit && ` ${row.unit}`}
+                  </td>
                 </tr>
               );
             })}
