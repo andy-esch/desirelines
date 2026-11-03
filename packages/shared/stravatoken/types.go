@@ -22,9 +22,15 @@ const (
 // Data is the Firestore document schema for per-user Strava tokens.
 // Stored at users/{athleteID}/private/strava_tokens.
 type Data struct {
-	AccessToken   string    `firestore:"access_token"`
-	RefreshToken  string    `firestore:"refresh_token"`
-	ExpiresAt     int64     `firestore:"expires_at"`
+	AccessToken  string `firestore:"access_token"`
+	RefreshToken string `firestore:"refresh_token"`
+	ExpiresAt    int64  `firestore:"expires_at"`
+	// Scopes is advisory and caller-influenced, not verified. Strava's token
+	// exchange omits scope, so the OAuth callback records the redirect's query
+	// parameter, which the user can edit (apigateway's validateScope). Strava
+	// enforces the real grant on every API call. Do not gate behavior on this
+	// value or copy it into activityconnection.Record.Scopes; confirm the grant
+	// with Strava instead.
 	Scopes        string    `firestore:"scopes"`
 	ConnectedAt   time.Time `firestore:"connected_at"`
 	LastRefreshed time.Time `firestore:"last_refreshed"`
