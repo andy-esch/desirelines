@@ -731,22 +731,7 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 	}
 	defer rows.Close()
 
-	// Internal struct for scanning rows before building proto messages
-	type scannedActivity struct {
-		id             int64
-		name           string
-		activityType   string
-		sport          string
-		startDateLocal string
-		distanceMeters float64
-		movingTime     int32
-		elevation      *float64
-		hasRoute       bool
-		source         string
-		sourceURL      string
-	}
-
-	scannedActivities := make([]scannedActivity, 0, limit)
+	activities := make([]*activitiesv1.ActivitySummary, 0, limit+1)
 	for rows.Next() {
 		var id int64
 		var name, activityType, sport string
@@ -773,18 +758,18 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 			return nil, fmt.Errorf("scan activity row: %w", retErr)
 		}
 
-		scannedActivities = append(scannedActivities, scannedActivity{
-			id:             id,
-			name:           name,
-			activityType:   activityType,
-			sport:          sport,
-			startDateLocal: startDateLocal.Format(time.RFC3339),
-			distanceMeters: distanceMeters,
-			movingTime:     movingTime,
-			elevation:      elevation,
-			hasRoute:       hasRoute,
-			source:         source,
-			sourceURL:      repository.ActivitySourceLink(source, sourceExternalID),
+		activities = append(activities, &activitiesv1.ActivitySummary{
+			Id:                id,
+			Name:              name,
+			Type:              activityType,
+			Sport:             sport,
+			StartDateLocal:    startDateLocal.Format(time.RFC3339),
+			DistanceMeters:    distanceMeters,
+			MovingTimeSeconds: movingTime,
+			ElevationMeters:   elevation,
+			HasRoute:          hasRoute,
+			Source:            source,
+			SourceUrl:         repository.ActivitySourceLink(source, sourceExternalID),
 		})
 	}
 
@@ -793,40 +778,20 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 	}
 
 	// Determine if there are more results
-	hasMore := len(scannedActivities) > limit
+	hasMore := len(activities) > limit
 	if hasMore {
 		// Remove the extra row we fetched
-		scannedActivities = scannedActivities[:limit]
-	}
-
-	// Build proto messages
-	activities := make([]*activitiesv1.ActivitySummary, 0, len(scannedActivities))
-	for i := range scannedActivities {
-		a := &scannedActivities[i]
-		activities = append(activities, &activitiesv1.ActivitySummary{
-			Id:                a.id,
-			Name:              a.name,
-			Type:              a.activityType,
-			Sport:             a.sport,
-			StartDateLocal:    a.startDateLocal,
-			DistanceMeters:    a.distanceMeters,
-			MovingTimeSeconds: a.movingTime,
-			ElevationMeters:   a.elevation,
-			HasRoute:          a.hasRoute,
-			Source:            a.source,
-			SourceUrl:         a.sourceURL,
-		})
+		activities = activities[:limit]
 	}
 
 	// Build next cursor from last activity
 	var nextCursor *string
-	if hasMore && len(scannedActivities) > 0 {
-		lastActivity := scannedActivities[len(scannedActivities)-1]
-		cursor := repository.ActivityCursor{
-			Timestamp: lastActivity.startDateLocal,
-			ID:        lastActivity.id,
-		}
-		encoded := encodeCursor(&cursor)
+	if hasMore && len(activities) > 0 {
+		last := activities[len(activities)-1]
+		encoded := encodeCursor(&repository.ActivityCursor{
+			Timestamp: last.StartDateLocal,
+			ID:        last.Id,
+		})
 		nextCursor = &encoded
 	}
 
