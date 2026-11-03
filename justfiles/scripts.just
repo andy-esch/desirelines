@@ -51,7 +51,7 @@ ci-lint:
     just workflow-lint
 
 workflow-lint:
-    actionlint .github/workflows/deploy.yml .github/workflows/ci.yml
+    actionlint .github/workflows/deploy.yml .github/workflows/ci.yml .github/workflows/links.yml
 
 # Fail on comments or config that cite private planning records: dated audit
 # names, finding codes, or task references. Say what the code guards against

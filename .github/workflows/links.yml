@@ -1,0 +1,37 @@
+name: Markdown links
+
+# External links in the docs, checked weekly rather than on every PR: an outage
+# or rate limit on any linked site would otherwise block every merge until it
+# recovered. PRs still check internal links in ci.yml (Validation).
+on:
+  schedule:
+    - cron: "23 14 * * 1" # Mondays, 14:23 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  external-links:
+    name: External links
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Check external Markdown links
+        uses: tcort/github-action-markdown-link-check@v1
+        with:
+          config-file: '.github/mlc_config.json'
+          folder-path: '.'
+          use-quiet-mode: 'yes'
+
+      - name: Notify Slack on failure
+        if: failure()
+        uses: ./.github/actions/notify-slack
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          headline: ":warning: *Broken links in the docs* — the weekly Markdown link check found links that no longer resolve"
+          context: "weekly external link check"

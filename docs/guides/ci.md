@@ -8,6 +8,7 @@ CI/CD workflows for Desirelines using GitHub Actions.
 |----------|---------|---------|
 | `ci.yml` | PR, push to main | Tests, lint, validate |
 | `deploy.yml` | Push to main | Build changed images, validate digests, sign provenance, trigger deploy repo |
+| `links.yml` | Weekly (Mondays), manual | Check external links in Markdown docs; posts to Slack on failure, never blocks merges |
 
 ## Concurrency
 
@@ -67,6 +68,7 @@ pants tailor --check :: # Check BUILD files (~4 min)
 - Proto files pass buf lint rules
 - Pants BUILD files are up to date
 - GitHub workflows pass `actionlint` (including embedded shell checks)
+- Internal Markdown links (relative paths and anchors) resolve. External links are checked weekly by `links.yml` instead, so an outside site's outage can't block a merge.
 
 CI pins actionlint, with a Renovate custom manager for its `go install`
 version. For this workflow check alone, run `just workflow-lint` locally.

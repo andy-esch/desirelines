@@ -62,10 +62,12 @@ jobs:
           globs: '**/*.md'
           config: '.github/.markdownlint-cli2.yaml'
 
-      - name: Check Markdown links
+      # Internal links only (relative paths and anchors), so an outside site's
+      # outage can't block a merge. External links run weekly in links.yml.
+      - name: Check internal Markdown links
         uses: tcort/github-action-markdown-link-check@v1
         with:
-          config-file: '.github/mlc_config.json'
+          config-file: '.github/mlc_internal.json'
           folder-path: '.'
           use-quiet-mode: 'yes'
 
