@@ -93,7 +93,7 @@ def test_log_result_uses_consistent_terminal_metrics(
         total_activities=7,
         total_pg_inserted=3,
         total_pg_updated=4,
-        total_bq_inserted=7,
+        total_bq_merged=7,
         total_source_errors=total_source_errors,
         total_errors=total_errors,
         duration_seconds=12.5,
@@ -107,7 +107,7 @@ def test_log_result_uses_consistent_terminal_metrics(
     log.assert_called_once_with(
         "Backfill %s: %d activities "
         "(source errors: %d; processing errors: %d; "
-        "PG: %d inserted, %d updated; BQ: %d inserted; errors: %d) in %.1fs",
+        "PG: %d inserted, %d updated; BQ: %d merged; errors: %d) in %.1fs",
         status,
         7,
         total_source_errors,

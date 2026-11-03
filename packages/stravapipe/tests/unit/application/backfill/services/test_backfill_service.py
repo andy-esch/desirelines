@@ -1168,7 +1168,7 @@ class TestBigQueryInsertion:
 
         result = service.backfill_user("12345", years=[2024])
 
-        assert result.total_bq_inserted == 0
+        assert result.total_bq_merged == 0
 
     def test_writes_to_bq_when_configured(
         self,
@@ -1190,7 +1190,7 @@ class TestBigQueryInsertion:
         result = service_with_bq.backfill_user("12345", years=[2024])
 
         mock_bq_writer.write_activities_batch.assert_called_once()
-        assert result.total_bq_inserted == 3
+        assert result.total_bq_merged == 3
 
     def test_bq_error_tracked(
         self,
@@ -1269,7 +1269,7 @@ class TestBigQueryRetry:
 
         assert mock_bq_writer.write_activities_batch.call_count == 3
         assert mock_sleep.call_args_list == [call(1), call(2)]
-        assert result.year_stats[0].bq_inserted == 3
+        assert result.year_stats[0].bq_merged == 3
         assert result.year_stats[0].bq_errors == 0
         assert result.success is True
 
@@ -1382,7 +1382,7 @@ class TestMetricLogging:
             if record.getMessage().startswith("Year 2024 complete")
         ] == [
             "Year 2024 complete in 2.0s: "
-            "PG(2 inserted, 1 updated, 0 skipped, 0 errors), BQ(0 inserted, 0 errors)"
+            "PG(2 inserted, 1 updated, 0 skipped, 0 errors), BQ(0 merged, 0 errors)"
         ]
 
     @pytest.mark.parametrize(
@@ -1407,7 +1407,7 @@ class TestMetricLogging:
             pg_inserted=2,
             pg_updated=1,
             pg_errors=pg_errors,
-            bq_inserted=4,
+            bq_merged=4,
         )
 
         with (
@@ -1430,14 +1430,14 @@ class TestMetricLogging:
                 "Backfill completed for athlete 12345: 4 activities across 1 year "
                 "(source errors: 0; processing errors: 0; "
                 "PG: 2 inserted, 1 updated, 0 skipped; "
-                "BQ: 4 inserted; errors: 0) in 5.0s"
+                "BQ: 4 merged; errors: 0) in 5.0s"
             ]
         else:
             assert terminal == [
                 "Backfill completed with errors for athlete 12345: 4 activities "
                 "across 1 year (source errors: 0; processing errors: 0; "
                 "PG: 2 inserted, 1 updated, 0 skipped; "
-                "BQ: 4 inserted; errors: 1) in 5.0s"
+                "BQ: 4 merged; errors: 1) in 5.0s"
             ]
 
 

@@ -58,14 +58,14 @@ def _log_result(result: BackfillResult) -> int:
             log,
             "Backfill %s: %d activities "
             "(source errors: %d; processing errors: %d; "
-            "PG: %d inserted, %d updated; BQ: %d inserted; errors: %d) in %.1fs",
+            "PG: %d inserted, %d updated; BQ: %d merged; errors: %d) in %.1fs",
             status,
             result.total_activities,
             result.total_source_errors,
             result.total_processing_errors,
             result.total_pg_inserted,
             result.total_pg_updated,
-            result.total_bq_inserted,
+            result.total_bq_merged,
             result.total_errors,
             result.duration_seconds,
         )
