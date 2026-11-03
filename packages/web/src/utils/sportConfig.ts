@@ -82,6 +82,11 @@ export const SPORT_COLORS: Record<string, string> = {
 /** Fallback color for unknown sports */
 export const DEFAULT_SPORT_COLOR = "rgb(150, 150, 150)";
 
+/** A sport's fixed identity color, or the grey fallback for an unknown sport. */
+export function getSportColor(sport: string): string {
+  return SPORT_COLORS[sport] ?? DEFAULT_SPORT_COLOR;
+}
+
 /**
  * Get the display name for a sport from config.
  *

@@ -15,11 +15,10 @@ import type { MetricUnit } from "../utils/units";
 import type { YearContext } from "../utils/yearContext";
 import type { DistanceEntry } from "../types/activity";
 import { useSportConfig } from "../hooks/useSportConfig";
-import { getSportDisplayName } from "../utils/sportConfig";
+import { getSportColor, getSportDisplayName } from "../utils/sportConfig";
 import { DEMO_ROUTE_PREFIX } from "../constants/demoConfig";
 import { PageTitle } from "./theme/PageTitle";
 import { SportMark } from "./theme/SportLabel";
-import { SPORT_COLORS, DEFAULT_SPORT_COLOR } from "../utils/sportConfig";
 import { Alert } from "./ui/alert";
 
 export interface SportPageContentProps {
@@ -193,11 +192,11 @@ export default function SportPageContent({
           <div className="flex justify-between flex-wrap md:flex-nowrap items-center pt-6 pb-2 mb-3">
             <PageTitle
               kicker={sportKicker(sportCounts[sport], currentYear)}
-              glowColor={SPORT_COLORS[sport] ?? DEFAULT_SPORT_COLOR}
+              glowColor={getSportColor(sport)}
               className="flex items-center gap-3.5"
             >
               <SportMark
-                color={SPORT_COLORS[sport] ?? DEFAULT_SPORT_COLOR}
+                color={getSportColor(sport)}
                 className="size-4 rounded-[min(var(--sport-mark-radius),3px)] [box-shadow:0_0_12px_var(--sport-color)]"
               />
               {sportDisplayName} {currentYear}

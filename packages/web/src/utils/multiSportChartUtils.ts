@@ -1,13 +1,7 @@
 import type { DailyActivity } from "../api/activities";
 import type { SportConfig } from "../utils/sportConfig";
 import { toDailyArray, normalizeToRange } from "./chartUtils";
-import {
-  SPORT_COLORS,
-  DEFAULT_SPORT_COLOR,
-  getSportDisplayName,
-  isDistanceSport,
-  isTimeSport,
-} from "./sportConfig";
+import { getSportColor, getSportDisplayName, isDistanceSport, isTimeSport } from "./sportConfig";
 
 /** Midpoint value used for days with no activity in normalized (0-1) sparkline display */
 const NORMALIZED_BASELINE = 0.5;
@@ -99,7 +93,7 @@ export function getSportMetadata(sparklineData: ProcessedSportData[]) {
   return sparklineData.map((data) => ({
     sport: data.sport,
     displayName: data.displayName,
-    color: SPORT_COLORS[data.sport] ?? DEFAULT_SPORT_COLOR,
+    color: getSportColor(data.sport),
     lastActivityYear: data.lastActivityYear,
     isDistanceSport: data.isDistanceSport,
     isTimeSport: data.isTimeSport,

@@ -12,7 +12,7 @@ import { Input } from "../ui/input";
 import { Table } from "../ui/table";
 import { SectionLabel } from "../theme/SectionLabel";
 import { SportLabel } from "../theme/SportLabel";
-import { SPORT_COLORS, DEFAULT_SPORT_COLOR } from "../../utils/sportConfig";
+import { getSportColor } from "../../utils/sportConfig";
 
 /** Duration to show "Saved" indicator */
 const SAVE_SUCCESS_DURATION = 2000;
@@ -80,7 +80,7 @@ function SportTable({
               <tr key={sport.key}>
                 <td className="align-middle font-medium">
                   <SportLabel
-                    color={SPORT_COLORS[sport.key] ?? DEFAULT_SPORT_COLOR}
+                    color={getSportColor(sport.key)}
                     className={actionVariant === "show" ? "opacity-55" : undefined}
                   >
                     {sport.displayName}
