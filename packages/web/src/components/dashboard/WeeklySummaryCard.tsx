@@ -4,6 +4,7 @@ import Skeleton, { SkeletonRegion } from "../Skeleton";
 import { ErrorState } from "../ErrorState";
 import { StatusSymbol, type GoalStatus } from "../theme/StatusSymbol";
 import { Panel } from "../theme/Panel";
+import { SectionLabel } from "../theme/SectionLabel";
 import { MissingValue } from "../theme/MissingValue";
 
 /**
@@ -113,9 +114,7 @@ export default function WeeklySummaryCard() {
 
           {/* Footer totals */}
           <div className="flex items-baseline justify-between gap-4 pt-2 mt-1">
-            <span className="text-(length:--label-size) font-(weight:--label-weight) tracking-(--label-tracking) [text-transform:var(--label-case)] text-(color:--color-muted-text)">
-              Total
-            </span>
+            <SectionLabel className="text-(color:--color-muted-text)">Total</SectionLabel>
             <small className="text-muted-text">
               {totalDistance > 0 && (
                 <span>{formatMetricDisplayValue(totalDistance, "distance", distanceUnit)}</span>

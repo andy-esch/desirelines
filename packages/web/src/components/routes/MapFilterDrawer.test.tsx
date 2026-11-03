@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import MapFilterDrawer, { type MapFilterDrawerProps } from "./MapFilterDrawer";
 import type { ActivityTotals } from "../../utils/routeFilters";
+import { useHeadingLevel } from "../theme/useHeadingLevel";
 
 const TOTALS: ActivityTotals = {
   count: 142,
@@ -40,6 +41,16 @@ function renderDrawer(over: Partial<MapFilterDrawerProps> = {}) {
 }
 
 describe("MapFilterDrawer", () => {
+  it("titles the filter groups inside one level below its own heading", () => {
+    function GroupTitle() {
+      const Heading = `h${useHeadingLevel()}` as const;
+      return <Heading>Sport</Heading>;
+    }
+    renderDrawer({ children: <GroupTitle /> });
+    expect(screen.getByRole("heading", { level: 2, name: "Activity filters" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3, name: "Sport" })).toBeInTheDocument();
+  });
+
   it("remaps the accent to the theme's map-chrome token rather than branching on theme", () => {
     renderDrawer();
     const panel = screen.getByRole("region", { name: /activity filters/i });

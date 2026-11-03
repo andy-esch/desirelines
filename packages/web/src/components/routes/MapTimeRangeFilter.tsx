@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Slider } from "../ui/slider";
 import { Input } from "../ui/input";
 import { ymdToDay, dayToYmd } from "../../utils/dayIndex";
+import { SectionLabel } from "../theme/SectionLabel";
+import { useHeadingLevel } from "../theme/useHeadingLevel";
 
 export interface MapTimeRangeFilterProps {
   /** `[earliest, today]` (YYYY-MM-DD) — the full selectable domain. */
@@ -58,14 +60,12 @@ export default function MapTimeRangeFilter({
     onChange([dateRange[0] > v ? v : dateRange[0], v]);
   };
 
+  const heading = `h${useHeadingLevel()}` as const;
   return (
     <section className="px-4 py-3" aria-label="Date range">
-      <p
-        id="filter-daterange-label"
-        className="mb-2 text-(length:--label-size) font-(weight:--label-weight) tracking-(--label-tracking) [text-transform:var(--label-case)] text-(color:--label-color)"
-      >
+      <SectionLabel as={heading} id="filter-daterange-label" className="mb-2">
         Date range
-      </p>
+      </SectionLabel>
       <Slider
         aria-labelledby="filter-daterange-label"
         min={0}

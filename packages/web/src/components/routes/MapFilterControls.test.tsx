@@ -53,6 +53,12 @@ function renderControls(over: Partial<MapFilterControlsProps> = {}) {
 }
 
 describe("MapFilterControls", () => {
+  it("titles each filter group with a heading", () => {
+    renderControls();
+    expect(screen.getByRole("heading", { level: 2, name: "When" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Distance" })).toBeInTheDocument();
+  });
+
   it("renders a sport chip per option and toggles on click", async () => {
     const user = userEvent.setup();
     const { onSportsChange } = renderControls();

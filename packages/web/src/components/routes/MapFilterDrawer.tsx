@@ -5,6 +5,8 @@ import { Button } from "../ui/button";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import type { ActivityTotals } from "../../utils/routeFilters";
 import { LoadingValue } from "../theme/LoadingValue";
+import { NextHeadingLevel } from "../theme/NextHeadingLevel";
+import { SectionLabel } from "../theme/SectionLabel";
 import { MAP_CHROME_STYLE } from "./mapChrome";
 import {
   convertDistance,
@@ -127,9 +129,7 @@ function Stat({ label, value }: { label: string; value: ReactNode }) {
       >
         {value}
       </div>
-      <div className="text-(length:--label-size) font-(weight:--label-weight) tracking-(--label-tracking) [text-transform:var(--label-case)] text-(color:--label-color)">
-        {label}
-      </div>
+      <SectionLabel className="block">{label}</SectionLabel>
     </div>
   );
 }
@@ -459,7 +459,10 @@ export default function MapFilterDrawer({
 
         {/* Scrolling body for `children`. `overscroll-contain` stops scroll-chaining
             into the map/page behind it. */}
-        <div className="flex-1 overflow-y-auto overscroll-contain">{children}</div>
+        {/* The filter groups inside title themselves one level below the "Activity filters" heading. */}
+        <div className="flex-1 overflow-y-auto overscroll-contain">
+          <NextHeadingLevel>{children}</NextHeadingLevel>
+        </div>
       </aside>
     </>
   );
