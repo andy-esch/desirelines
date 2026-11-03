@@ -1,6 +1,8 @@
-# Lint the HTTP API contract with location-specific Redocly exceptions
+# Lint the HTTP API contract with location-specific Redocly exceptions.
+# The CLI is pinned so a release can't change the gate unannounced; Renovate
+# bumps it (see the @redocly/cli customManager in renovate.json).
 openapi-lint +args='':
-    npx --yes @redocly/cli lint packages/apigateway/openapi.yaml {{args}}
+    npx --yes @redocly/cli@2.72.1 lint packages/apigateway/openapi.yaml {{args}}
 
 # Run Python tests (default: uv pytest, use --pants for Pants)
 py-test +args='':

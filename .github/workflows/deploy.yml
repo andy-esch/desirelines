@@ -263,3 +263,11 @@ jobs:
           echo "Tagging as ${TAG}"
           git tag "$TAG"
           git push origin "$TAG"
+
+      - name: Notify Slack on failure
+        if: failure()
+        uses: ./.github/actions/notify-slack
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          headline: ":x: *Terraform module tag failed* — no new `tf-N` tag was pushed, so desirelines-deploy will not pick up this module change"
+          context: "commit `${{ github.sha }}`"
