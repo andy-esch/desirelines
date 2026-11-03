@@ -44,6 +44,21 @@ export function goalToDisplay(storageValue: number, ctx: GoalUnitContext): numbe
 }
 
 /**
+ * The distance unit of a goal saved before canonical storage (no `storageVersion`). Only a
+ * demo browser can still hold one, and the demo always showed and saved goals in miles.
+ */
+const LEGACY_GOAL_DISTANCE_UNIT: DistanceUnit = "miles";
+
+/**
+ * The display value of a goal saved before canonical storage: read in the miles or hours
+ * it was saved in, then shown in `ctx`'s units.
+ */
+export function legacyGoalToDisplay(legacyValue: number, ctx: GoalUnitContext): number {
+  const saved: GoalUnitContext = { ...ctx, distanceUnit: LEGACY_GOAL_DISTANCE_UNIT };
+  return goalToDisplay(goalToStorage(legacyValue, saved), ctx);
+}
+
+/**
  * Convert a whole goal to canonical storage units, carrying its metadata through.
  *
  * Only `value` changes; `id`, `label`, `metric`, `createdAt` and `updatedAt` are

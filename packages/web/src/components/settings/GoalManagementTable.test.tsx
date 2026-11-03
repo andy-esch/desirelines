@@ -11,8 +11,18 @@ import { DemoStore } from "../../test/fixtures/demoStore";
 import { ACCOUNT_CONFIG_PATH, accountServices, storedGoal } from "../../test/fixtures/userConfig";
 import { saveDemoSection } from "../../services/demoStorage";
 import { GOAL_STORAGE_VERSION } from "../../services/userConfigService";
+import { DEFAULT_PREFERENCES } from "../../constants/settings";
+import { mockSportConfig } from "../../test/fixtures/sportConfig";
 
 vi.mock("../../hooks/useCurrentYear", () => ({ useCurrentYear: () => 2026 }));
+vi.mock("../../hooks/useSportConfig", () => ({
+  useSportConfig: () => ({
+    sportConfig: mockSportConfig,
+    isLoading: false,
+    error: null,
+    retry: () => undefined,
+  }),
+}));
 
 /** The account's store, over `services`. */
 function accountStore(services: ReturnType<typeof accountServices>) {
@@ -72,6 +82,45 @@ describe("GoalManagementTable", () => {
     expect(await screen.findByText(/couldn't be synced/)).toBeInTheDocument();
     expect(screen.getByText("Account target")).toBeInTheDocument();
     expect(screen.queryByText("Error loading goals")).toBeNull();
+  });
+
+  it("shows an account's goals in the session's units, with the unit", async () => {
+    // 4,828,032 m is 3,000 mi.
+    const services = accountServices(2026, { running: [storedGoal("Account target", 4_828_032)] });
+    render(<GoalManagementTable />, { wrapper: accountStore(services) });
+
+    await screen.findByText("Account target");
+    expect(screen.getByText("3,000 mi")).toBeInTheDocument();
+  });
+
+  it("shows distance in the chosen unit and time in hours", async () => {
+    saveDemoSection("preferences", { ...DEFAULT_PREFERENCES, distanceUnit: "kilometers" });
+    saveDemoSection(
+      "goals",
+      { goals: [storedGoal("Ride", 5_000_000)], storageVersion: GOAL_STORAGE_VERSION },
+      2026,
+      "cycling"
+    );
+    saveDemoSection(
+      "goals",
+      { goals: [storedGoal("Stretch", 15_000)], storageVersion: GOAL_STORAGE_VERSION },
+      2026,
+      "yoga"
+    );
+    render(<GoalManagementTable />, { wrapper: DemoStore });
+
+    await screen.findByText("Ride");
+    expect(screen.getByText("5,000 km")).toBeInTheDocument();
+    expect(screen.getByText("250 hrs")).toBeInTheDocument();
+  });
+
+  it("reads a goal saved before canonical units as the miles it was saved in", async () => {
+    saveDemoSection("preferences", { ...DEFAULT_PREFERENCES, distanceUnit: "kilometers" });
+    saveDemoSection("goals", { goals: [storedGoal("Old target", 3000)] }, 2026, "cycling");
+    render(<GoalManagementTable />, { wrapper: DemoStore });
+
+    await screen.findByText("Old target");
+    expect(screen.getByText("4,828 km")).toBeInTheDocument();
   });
 
   it("says the goals failed to load when none ever did", async () => {

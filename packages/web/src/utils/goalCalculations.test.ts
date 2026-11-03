@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  legacyGoalToDisplay,
   buildGoal,
   calculateDesireLine,
   calculateCurrentAverageLine,
@@ -463,6 +464,24 @@ describe("goal display ↔ storage round-trip", () => {
   it("leaves session/unitless values unchanged in storage", () => {
     expect(goalToStorage(42, sessions)).toBe(42);
     expect(goalToDisplay(42, sessions)).toBe(42);
+  });
+});
+
+describe("legacyGoalToDisplay", () => {
+  const ctx = (distanceUnit: "miles" | "kilometers", hasDistance = true, isTime = false) => ({
+    hasDistance,
+    isTime,
+    distanceUnit,
+  });
+
+  it("reads a distance goal as miles and shows it in the chosen unit", () => {
+    expect(legacyGoalToDisplay(3000, ctx("miles"))).toBe(3000);
+    expect(legacyGoalToDisplay(3000, ctx("kilometers"))).toBe(4828);
+  });
+
+  it("leaves hours and sessions as they were saved", () => {
+    expect(legacyGoalToDisplay(250, ctx("kilometers", false, true))).toBe(250);
+    expect(legacyGoalToDisplay(150, ctx("kilometers", false, false))).toBe(150);
   });
 });
 
