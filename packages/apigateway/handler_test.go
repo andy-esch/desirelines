@@ -12,14 +12,13 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/config"
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/activities"
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/health"
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/server"
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/sports"
-	"github.com/andy-esch/desirelines/packages/apigateway/middleware"
+	"github.com/andy-esch/desirelines/packages/apigateway/internal/testutil"
 	"github.com/andy-esch/desirelines/packages/apigateway/pkg/cors"
 	"github.com/andy-esch/desirelines/packages/apigateway/pkg/validate"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
@@ -32,94 +31,6 @@ import (
 )
 
 // Health status constants imported from health package for test assertions
-
-// mockAuthMiddleware injects a test user ID into the request context.
-// This simulates authenticated requests so handlers can extract the user ID.
-type mockAuthMiddleware struct{}
-
-func (m *mockAuthMiddleware) Middleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := middleware.WithUserID(r.Context(), "test-user")
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
-}
-
-// mockActivityRepository is a mock implementation of repository.ActivityRepository
-type mockActivityRepository struct {
-	pingErr             error
-	closeErr            error
-	sportMetrics        *generated.SportMetrics
-	sportMetricsErr     error
-	dailySummary        *generated.DailySummary
-	dailySummaryErr     error
-	yearMetadata        *generated.YearMetadata
-	yearMetadataErr     error
-	activity            *activitiesv1.Activity
-	activityErr         error
-	activityList        *activitiesv1.ListActivitiesResponse
-	activityListErr     error
-	lastListFilter      *repository.ActivityListFilter
-	activityBuckets     []*activitiesv1.ActivityBucket
-	activityBucketsErr  error
-	lastAggregateFilter *repository.ActivityAggregateFilter
-}
-
-func (m *mockActivityRepository) Ping(ctx context.Context) error {
-	return m.pingErr
-}
-
-func (m *mockActivityRepository) Close() error {
-	return m.closeErr
-}
-
-func (m *mockActivityRepository) GetMultiSportMetrics(ctx context.Context, userID string, year int, sportTypes []string, loc *time.Location) (map[string]*generated.SportMetrics, error) {
-	return nil, m.sportMetricsErr
-}
-
-func (m *mockActivityRepository) GetMultiSportMetricsByDateRange(ctx context.Context, userID, from, to string, sportTypes []string) (map[string]*generated.SportMetrics, error) {
-	return nil, m.sportMetricsErr
-}
-
-func (m *mockActivityRepository) GetMultiSportDailySummary(ctx context.Context, userID string, year int, sportTypes []string, loc *time.Location) (map[string]*generated.DailySummary, error) {
-	return nil, m.dailySummaryErr
-}
-
-func (m *mockActivityRepository) GetMultiSportDailySummaryByDateRange(ctx context.Context, userID, from, to string, sportTypes []string) (map[string]*generated.DailySummary, error) {
-	return nil, m.dailySummaryErr
-}
-
-func (m *mockActivityRepository) GetYearMetadata(ctx context.Context, userID string, year int) (*generated.YearMetadata, error) {
-	return m.yearMetadata, m.yearMetadataErr
-}
-
-func (m *mockActivityRepository) GetActivityByID(ctx context.Context, userID string, id int64) (*activitiesv1.Activity, error) {
-	return m.activity, m.activityErr
-}
-
-func (m *mockActivityRepository) ListActivities(ctx context.Context, filter repository.ActivityListFilter) (*activitiesv1.ListActivitiesResponse, error) {
-	m.lastListFilter = &filter
-	return m.activityList, m.activityListErr
-}
-
-func (m *mockActivityRepository) AggregateActivities(ctx context.Context, filter repository.ActivityAggregateFilter) ([]*activitiesv1.ActivityBucket, error) {
-	m.lastAggregateFilter = &filter
-	return m.activityBuckets, m.activityBucketsErr
-}
-
-func (m *mockActivityRepository) GetMapTile(ctx context.Context, userID string, z, x, y int) ([]byte, error) {
-	return nil, nil
-}
-
-func (m *mockActivityRepository) GetMapRegionSummary(ctx context.Context, userID string) ([]repository.RegionSummary, error) {
-	return nil, nil
-}
-
-func (m *mockActivityRepository) GetMapDataset(ctx context.Context, userID string) ([]*activitiesv1.MapActivity, error) {
-	return nil, nil
-}
-
-// Compile-time interface verification
-var _ repository.ActivityRepository = (*mockActivityRepository)(nil)
 
 // HealthResponse mirrors the health.Response type for test verification
 type HealthResponse struct {
@@ -149,7 +60,7 @@ func newTestRouterWithDB(activityRepo repository.ActivityRepository, allowedOrig
 	}
 
 	// Create a mock auth middleware for testing
-	mockAuth := &mockAuthMiddleware{}
+	mockAuth := &testutil.AuthMiddleware{UserID: "test-user"}
 
 	// Create feature handlers. Zero retry backoff so failure-path tests don't
 	// pay the production retry pause; retry behavior is covered in
@@ -217,7 +128,7 @@ func TestTileRateLimitScopingAndCORS(t *testing.T) {
 	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 	routerCfg := server.RouterConfig{
 		CORSHandler:     corsHandler,
-		AuthMiddleware:  &mockAuthMiddleware{},
+		AuthMiddleware:  &testutil.AuthMiddleware{UserID: "test-user"},
 		RateLimiter:     globalLimiter,
 		TileRateLimiter: tileLimiter,
 	}
@@ -266,8 +177,8 @@ func TestHandlerHealth(t *testing.T) {
 		repo repository.ActivityRepository
 	}{
 		{"without database", nil},
-		{"with healthy database", &mockActivityRepository{pingErr: nil}},
-		{"with unhealthy database", &mockActivityRepository{pingErr: errors.New("connection refused")}},
+		{"with healthy database", &testutil.ActivityRepository{PingErr: nil}},
+		{"with unhealthy database", &testutil.ActivityRepository{PingErr: errors.New("connection refused")}},
 	}
 
 	for _, tc := range cases {
@@ -334,7 +245,7 @@ func TestHandlerReady(t *testing.T) {
 	})
 
 	t.Run("with healthy database", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{pingErr: nil}
+		mockRepo := &testutil.ActivityRepository{PingErr: nil}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/ready", nil)
@@ -361,7 +272,7 @@ func TestHandlerReady(t *testing.T) {
 	})
 
 	t.Run("with unhealthy database", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{pingErr: errors.New("connection refused")}
+		mockRepo := &testutil.ActivityRepository{PingErr: errors.New("connection refused")}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/ready", nil)
@@ -480,7 +391,7 @@ func TestHandlerMetrics(t *testing.T) {
 	}
 
 	t.Run("valid sport parameter with database", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{sportMetrics: testMetrics}
+		mockRepo := &testutil.ActivityRepository{SportMetrics: map[string]*generated.SportMetrics{"Ride": testMetrics}}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/v1/activities/2024/metrics?sport=cycling", nil)
@@ -496,7 +407,7 @@ func TestHandlerMetrics(t *testing.T) {
 	// Note: "returns 503 without database" test removed - app now fails fast at startup if repo is nil
 
 	t.Run("missing sport parameter", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{}
+		mockRepo := &testutil.ActivityRepository{}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/v1/activities/2024/metrics", nil)
@@ -510,7 +421,7 @@ func TestHandlerMetrics(t *testing.T) {
 	})
 
 	t.Run("invalid sport name", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{}
+		mockRepo := &testutil.ActivityRepository{}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/v1/activities/2024/metrics?sport=invalid", nil)
@@ -525,7 +436,7 @@ func TestHandlerMetrics(t *testing.T) {
 
 	// Date range validation tests
 	t.Run("valid date range", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{sportMetrics: testMetrics}
+		mockRepo := &testutil.ActivityRepository{SportMetrics: map[string]*generated.SportMetrics{"Ride": testMetrics}}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/v1/activities/2024/metrics?sport=cycling&from=2024-12-15&to=2025-01-01", nil)
@@ -539,7 +450,7 @@ func TestHandlerMetrics(t *testing.T) {
 	})
 
 	t.Run("only from provided without to", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{}
+		mockRepo := &testutil.ActivityRepository{}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/v1/activities/2024/metrics?sport=cycling&from=2024-12-15", nil)
@@ -553,7 +464,7 @@ func TestHandlerMetrics(t *testing.T) {
 	})
 
 	t.Run("only to provided without from", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{}
+		mockRepo := &testutil.ActivityRepository{}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/v1/activities/2024/metrics?sport=cycling&to=2025-01-01", nil)
@@ -567,7 +478,7 @@ func TestHandlerMetrics(t *testing.T) {
 	})
 
 	t.Run("from date after to date", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{}
+		mockRepo := &testutil.ActivityRepository{}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/v1/activities/2024/metrics?sport=cycling&from=2025-01-01&to=2024-12-15", nil)
@@ -581,7 +492,7 @@ func TestHandlerMetrics(t *testing.T) {
 	})
 
 	t.Run("date range exceeds maximum", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{}
+		mockRepo := &testutil.ActivityRepository{}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		// Request 2 years of data (exceeds 366 day limit)
@@ -596,7 +507,7 @@ func TestHandlerMetrics(t *testing.T) {
 	})
 
 	t.Run("invalid from date format", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{}
+		mockRepo := &testutil.ActivityRepository{}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/v1/activities/2024/metrics?sport=cycling&from=invalid&to=2025-01-01", nil)
@@ -610,7 +521,7 @@ func TestHandlerMetrics(t *testing.T) {
 	})
 
 	t.Run("invalid to date format", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{}
+		mockRepo := &testutil.ActivityRepository{}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/v1/activities/2024/metrics?sport=cycling&from=2024-12-15&to=invalid", nil)
@@ -640,7 +551,7 @@ func TestHandlerSource(t *testing.T) {
 	}
 
 	t.Run("valid sport parameter with database", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{dailySummary: testSummary}
+		mockRepo := &testutil.ActivityRepository{DailySummaries: map[string]*generated.DailySummary{"Run": testSummary}}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/v1/activities/2024/source?sport=running", nil)
@@ -656,7 +567,7 @@ func TestHandlerSource(t *testing.T) {
 	// Note: "returns 503 without database" test removed - app now fails fast at startup if repo is nil
 
 	t.Run("missing sport parameter", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{}
+		mockRepo := &testutil.ActivityRepository{}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/v1/activities/2024/source", nil)
@@ -670,7 +581,7 @@ func TestHandlerSource(t *testing.T) {
 	})
 
 	t.Run("invalid sport name", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{}
+		mockRepo := &testutil.ActivityRepository{}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/v1/activities/2024/source?sport=badminton", nil)
@@ -700,7 +611,7 @@ func TestHandlerMetadata(t *testing.T) {
 	}
 
 	t.Run("returns metadata successfully with database", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{yearMetadata: testMetadata}
+		mockRepo := &testutil.ActivityRepository{YearMetadata: testMetadata}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/v1/activities/2024/metadata", nil)
@@ -756,7 +667,7 @@ func TestHandlerGetActivity(t *testing.T) {
 	}
 
 	t.Run("returns activity successfully", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{activity: testActivity}
+		mockRepo := &testutil.ActivityRepository{Activity: testActivity}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/v1/activities/12345678901", nil)
@@ -784,7 +695,7 @@ func TestHandlerGetActivity(t *testing.T) {
 	})
 
 	t.Run("returns 404 for not found", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{activity: nil} // Not found
+		mockRepo := &testutil.ActivityRepository{Activity: nil} // Not found
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/v1/activities/99999999999", nil)
@@ -798,7 +709,7 @@ func TestHandlerGetActivity(t *testing.T) {
 	})
 
 	t.Run("returns 400 for invalid ID format", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{}
+		mockRepo := &testutil.ActivityRepository{}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/v1/activities/not-a-number", nil)
@@ -814,7 +725,7 @@ func TestHandlerGetActivity(t *testing.T) {
 	// Note: "returns 503 without database" test removed - app now fails fast at startup if repo is nil
 
 	t.Run("returns 500 on database error", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{activityErr: errors.New("database error")}
+		mockRepo := &testutil.ActivityRepository{ActivityErr: errors.New("database error")}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/v1/activities/12345678901", nil)
@@ -848,7 +759,7 @@ func TestHandlerListActivities(t *testing.T) {
 	}
 
 	t.Run("returns activities successfully", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{activityList: testResponse}
+		mockRepo := &testutil.ActivityRepository{ActivityList: testResponse}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/v1/activities", nil)
@@ -876,7 +787,7 @@ func TestHandlerListActivities(t *testing.T) {
 	})
 
 	t.Run("accepts date range parameters", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{activityList: testResponse}
+		mockRepo := &testutil.ActivityRepository{ActivityList: testResponse}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/v1/activities?from=2025-12-01&to=2025-12-28", nil)
@@ -890,7 +801,7 @@ func TestHandlerListActivities(t *testing.T) {
 	})
 
 	t.Run("accepts limit parameter", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{activityList: testResponse}
+		mockRepo := &testutil.ActivityRepository{ActivityList: testResponse}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/v1/activities?limit=50", nil)
@@ -904,7 +815,7 @@ func TestHandlerListActivities(t *testing.T) {
 	})
 
 	t.Run("returns 400 for invalid from date", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{}
+		mockRepo := &testutil.ActivityRepository{}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/v1/activities?from=not-a-date", nil)
@@ -918,7 +829,7 @@ func TestHandlerListActivities(t *testing.T) {
 	})
 
 	t.Run("returns 400 for invalid to date", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{}
+		mockRepo := &testutil.ActivityRepository{}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/v1/activities?to=not-a-date", nil)
@@ -932,7 +843,7 @@ func TestHandlerListActivities(t *testing.T) {
 	})
 
 	t.Run("returns 400 for invalid limit", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{}
+		mockRepo := &testutil.ActivityRepository{}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/v1/activities?limit=999", nil)
@@ -946,7 +857,7 @@ func TestHandlerListActivities(t *testing.T) {
 	})
 
 	t.Run("returns 400 for invalid cursor", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{}
+		mockRepo := &testutil.ActivityRepository{}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/v1/activities?cursor=not-valid-base64!!!", nil)
@@ -962,7 +873,7 @@ func TestHandlerListActivities(t *testing.T) {
 	// Note: "returns 503 without database" test removed - app now fails fast at startup if repo is nil
 
 	t.Run("returns 500 on database error", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{activityListErr: errors.New("database error")}
+		mockRepo := &testutil.ActivityRepository{ActivityListErr: errors.New("database error")}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/v1/activities", nil)
@@ -1049,7 +960,7 @@ func TestHandlerListActivitiesSportsFilter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := &mockActivityRepository{activityList: testResponse}
+			mockRepo := &testutil.ActivityRepository{ActivityList: testResponse}
 			router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 			req := httptest.NewRequest(http.MethodGet, "/v1/activities"+tt.query, nil)
@@ -1063,10 +974,10 @@ func TestHandlerListActivitiesSportsFilter(t *testing.T) {
 			if tt.wantStatus != http.StatusOK {
 				return
 			}
-			if mockRepo.lastListFilter == nil {
+			if mockRepo.LastListFilter() == nil {
 				t.Fatal("expected ListActivities to be called")
 			}
-			if got := mockRepo.lastListFilter.SportTypes; !slices.Equal(got, tt.wantSportTypes) {
+			if got := mockRepo.LastListFilter().SportTypes; !slices.Equal(got, tt.wantSportTypes) {
 				t.Errorf("expected SportTypes %v, got %v", tt.wantSportTypes, got)
 			}
 		})
@@ -1102,7 +1013,7 @@ func TestHandlerActivitySummary(t *testing.T) {
 	t.Run("merges raw sport_type buckets onto one category", func(t *testing.T) {
 		// Ride and VirtualRide both map to cycling and must merge into one
 		// (month, cycling, geographic) cell with summed measures.
-		mockRepo := &mockActivityRepository{activityBuckets: []*activitiesv1.ActivityBucket{
+		mockRepo := &testutil.ActivityRepository{ActivityBuckets: []*activitiesv1.ActivityBucket{
 			{Month: "2026-05", Sport: "Ride", Geographic: false, Count: 2, MovingTimeSeconds: 3600, DistanceMeters: 50000},
 			{Month: "2026-05", Sport: "VirtualRide", Geographic: false, Count: 1, MovingTimeSeconds: 1800, DistanceMeters: 30000},
 			{Month: "2026-05", Sport: "Run", Geographic: true, Count: 1, MovingTimeSeconds: 2400, DistanceMeters: 8000},
@@ -1127,7 +1038,7 @@ func TestHandlerActivitySummary(t *testing.T) {
 	})
 
 	t.Run("sorts merged buckets by month, sport, geographic", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{activityBuckets: []*activitiesv1.ActivityBucket{
+		mockRepo := &testutil.ActivityRepository{ActivityBuckets: []*activitiesv1.ActivityBucket{
 			{Month: "2026-06", Sport: "Run", Geographic: true, Count: 1},
 			{Month: "2026-05", Sport: "Yoga", Geographic: false, Count: 1},
 			{Month: "2026-05", Sport: "Ride", Geographic: true, Count: 1},
@@ -1158,7 +1069,7 @@ func TestHandlerActivitySummary(t *testing.T) {
 	})
 
 	t.Run("passes date and sports filters to the repository", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{}
+		mockRepo := &testutil.ActivityRepository{}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		req := httptest.NewRequest(http.MethodGet,
@@ -1170,7 +1081,7 @@ func TestHandlerActivitySummary(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("expected status 200, got %d", w.Code)
 		}
-		f := mockRepo.lastAggregateFilter
+		f := mockRepo.LastAggregateFilter()
 		if f == nil {
 			t.Fatal("expected AggregateActivities to be called")
 		}
@@ -1188,7 +1099,7 @@ func TestHandlerActivitySummaryErrors(t *testing.T) {
 
 	t.Run("returns 400 for an invalid date or sport", func(t *testing.T) {
 		for _, query := range []string{"?from=not-a-date", "?to=2026-13-99", "?sports=badminton"} {
-			mockRepo := &mockActivityRepository{}
+			mockRepo := &testutil.ActivityRepository{}
 			router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 			req := httptest.NewRequest(http.MethodGet, "/v1/activities/summary"+query, nil)
@@ -1203,7 +1114,7 @@ func TestHandlerActivitySummaryErrors(t *testing.T) {
 	})
 
 	t.Run("returns 500 on database error", func(t *testing.T) {
-		mockRepo := &mockActivityRepository{activityBucketsErr: errors.New("database error")}
+		mockRepo := &testutil.ActivityRepository{ActivityBucketsErr: errors.New("database error")}
 		router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 		req := httptest.NewRequest(http.MethodGet, "/v1/activities/summary", nil)
@@ -1253,7 +1164,7 @@ func TestValidateDate(t *testing.T) {
 
 func TestRoutesMatchOpenAPISpec(t *testing.T) {
 	logger := slog.Default()
-	mockRepo := &mockActivityRepository{}
+	mockRepo := &testutil.ActivityRepository{}
 	router := newTestRouterWithDB(mockRepo, []string{}, logger)
 
 	// Type assert to chi.Routes so we can walk the route tree

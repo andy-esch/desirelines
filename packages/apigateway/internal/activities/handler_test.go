@@ -12,70 +12,21 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/config"
+	"github.com/andy-esch/desirelines/packages/apigateway/internal/testutil"
 	"github.com/andy-esch/desirelines/packages/apigateway/middleware"
 	"github.com/andy-esch/desirelines/packages/apigateway/repository"
-	"github.com/andy-esch/desirelines/packages/apigateway/types/generated"
 	activitiesv1 "github.com/andy-esch/desirelines/packages/apigateway/types/generated/activitiesv1"
 	"github.com/go-chi/chi/v5"
 )
 
-// mockRepo is a minimal mock for unit tests that don't exercise repository methods.
-// Tests here focus on validation logic (cursor decoding, year validation, etc.).
-// For handler integration tests with actual repository interactions, see the
-// more complete mockActivityRepository in handler_test.go (root package).
-type mockRepo struct {
-	err      error
-	activity *activitiesv1.Activity
-	tile     []byte
-	regions  []repository.RegionSummary
-	dataset  []*activitiesv1.MapActivity
-}
-
-func (m *mockRepo) Ping(ctx context.Context) error { return nil }
-func (m *mockRepo) Close() error                   { return nil }
-func (m *mockRepo) GetYearMetadata(ctx context.Context, userID string, year int) (*generated.YearMetadata, error) {
-	return nil, m.err
-}
-func (m *mockRepo) GetMultiSportMetrics(ctx context.Context, userID string, year int, sportTypes []string, loc *time.Location) (map[string]*generated.SportMetrics, error) {
-	return nil, m.err
-}
-func (m *mockRepo) GetMultiSportMetricsByDateRange(ctx context.Context, userID, from, to string, sportTypes []string) (map[string]*generated.SportMetrics, error) {
-	return nil, m.err
-}
-func (m *mockRepo) GetMultiSportDailySummary(ctx context.Context, userID string, year int, sportTypes []string, loc *time.Location) (map[string]*generated.DailySummary, error) {
-	return nil, m.err
-}
-func (m *mockRepo) GetMultiSportDailySummaryByDateRange(ctx context.Context, userID, from, to string, sportTypes []string) (map[string]*generated.DailySummary, error) {
-	return nil, m.err
-}
-func (m *mockRepo) GetActivityByID(ctx context.Context, userID string, id int64) (*activitiesv1.Activity, error) {
-	return m.activity, m.err
-}
-func (m *mockRepo) ListActivities(ctx context.Context, filter repository.ActivityListFilter) (*activitiesv1.ListActivitiesResponse, error) {
-	return nil, m.err
-}
-func (m *mockRepo) AggregateActivities(ctx context.Context, filter repository.ActivityAggregateFilter) ([]*activitiesv1.ActivityBucket, error) {
-	return nil, m.err
-}
-func (m *mockRepo) GetMapTile(ctx context.Context, userID string, z, x, y int) ([]byte, error) {
-	return m.tile, m.err
-}
-func (m *mockRepo) GetMapRegionSummary(ctx context.Context, userID string) ([]repository.RegionSummary, error) {
-	return m.regions, m.err
-}
-func (m *mockRepo) GetMapDataset(ctx context.Context, userID string) ([]*activitiesv1.MapActivity, error) {
-	return m.dataset, m.err
-}
-
 func newTestHandler(t *testing.T) *Handler {
 	t.Helper()
-	return newTestHandlerWithRepo(t, &mockRepo{})
+	return newTestHandlerWithRepo(t, &testutil.ActivityRepository{})
 }
 
-func newTestHandlerWithRepo(t *testing.T, repo *mockRepo) *Handler {
+func newTestHandlerWithRepo(t *testing.T, repo *testutil.ActivityRepository) *Handler {
 	t.Helper()
 	sportConfig, err := config.LoadSportConfig("")
 	if err != nil {
@@ -414,7 +365,7 @@ func TestNewHandler(t *testing.T) {
 		t.Fatalf("failed to load sport config: %v", err)
 	}
 
-	handler := NewHandler(&mockRepo{}, sportConfig, slog.Default())
+	handler := NewHandler(&testutil.ActivityRepository{}, sportConfig, slog.Default())
 
 	if handler == nil {
 		t.Fatal("NewHandler returned nil")
@@ -436,16 +387,16 @@ func TestHandleMapTile(t *testing.T) {
 		name       string
 		z, x, y    string
 		userID     string
-		mock       *mockRepo
+		mock       *testutil.ActivityRepository
 		wantStatus int
 	}{
-		{"happy path", "10", "301", "384", "user-123", &mockRepo{tile: []byte("mvt-bytes")}, http.StatusOK},
-		{"empty tile is still 200", "10", "301", "384", "user-123", &mockRepo{tile: []byte{}}, http.StatusOK},
-		{"invalid z", "abc", "1", "1", "user-123", &mockRepo{}, http.StatusBadRequest},
-		{"zoom too high", "23", "1", "1", "user-123", &mockRepo{}, http.StatusBadRequest},
-		{"x out of range for zoom", "1", "5", "0", "user-123", &mockRepo{}, http.StatusBadRequest},
-		{"missing user ID", "10", "1", "1", "", &mockRepo{}, http.StatusInternalServerError},
-		{"database error", "10", "1", "1", "user-123", &mockRepo{err: errors.New("connection refused")}, http.StatusInternalServerError},
+		{"happy path", "10", "301", "384", "user-123", &testutil.ActivityRepository{MapTile: []byte("mvt-bytes")}, http.StatusOK},
+		{"empty tile is still 200", "10", "301", "384", "user-123", &testutil.ActivityRepository{MapTile: []byte{}}, http.StatusOK},
+		{"invalid z", "abc", "1", "1", "user-123", &testutil.ActivityRepository{}, http.StatusBadRequest},
+		{"zoom too high", "23", "1", "1", "user-123", &testutil.ActivityRepository{}, http.StatusBadRequest},
+		{"x out of range for zoom", "1", "5", "0", "user-123", &testutil.ActivityRepository{}, http.StatusBadRequest},
+		{"missing user ID", "10", "1", "1", "", &testutil.ActivityRepository{}, http.StatusInternalServerError},
+		{"database error", "10", "1", "1", "user-123", &testutil.ActivityRepository{Err: errors.New("connection refused")}, http.StatusInternalServerError},
 	}
 
 	for _, tt := range tests {
@@ -474,8 +425,8 @@ func TestHandleMapTile(t *testing.T) {
 				if ct := w.Header().Get("Content-Type"); ct != mvtContentType {
 					t.Errorf("Content-Type = %q, want %q", ct, mvtContentType)
 				}
-				if !bytes.Equal(w.Body.Bytes(), tt.mock.tile) {
-					t.Errorf("body = %q, want %q", w.Body.Bytes(), tt.mock.tile)
+				if !bytes.Equal(w.Body.Bytes(), tt.mock.MapTile) {
+					t.Errorf("body = %q, want %q", w.Body.Bytes(), tt.mock.MapTile)
 				}
 			}
 		})
@@ -491,14 +442,14 @@ func TestHandleMapRegions(t *testing.T) {
 	tests := []struct {
 		name       string
 		userID     string
-		mock       *mockRepo
+		mock       *testutil.ActivityRepository
 		wantStatus int
 		wantLen    int // -1 to skip body check
 	}{
-		{"happy path", "user-123", &mockRepo{regions: sample}, http.StatusOK, 1},
-		{"empty results", "user-123", &mockRepo{regions: []repository.RegionSummary{}}, http.StatusOK, 0},
-		{"missing user ID", "", &mockRepo{}, http.StatusInternalServerError, -1},
-		{"database error", "user-123", &mockRepo{err: errors.New("connection refused")}, http.StatusInternalServerError, -1},
+		{"happy path", "user-123", &testutil.ActivityRepository{MapRegionSummary: sample}, http.StatusOK, 1},
+		{"empty results", "user-123", &testutil.ActivityRepository{MapRegionSummary: []repository.RegionSummary{}}, http.StatusOK, 0},
+		{"missing user ID", "", &testutil.ActivityRepository{}, http.StatusInternalServerError, -1},
+		{"database error", "user-123", &testutil.ActivityRepository{Err: errors.New("connection refused")}, http.StatusInternalServerError, -1},
 	}
 
 	for _, tt := range tests {
@@ -627,14 +578,14 @@ func TestHandleMapDataset(t *testing.T) {
 	tests := []struct {
 		name       string
 		userID     string
-		mock       *mockRepo
+		mock       *testutil.ActivityRepository
 		wantStatus int
 		wantLen    int // -1 to skip body check
 	}{
-		{"happy path", "user-123", &mockRepo{dataset: sample}, http.StatusOK, 1},
-		{"empty results", "user-123", &mockRepo{dataset: []*activitiesv1.MapActivity{}}, http.StatusOK, 0},
-		{"missing user ID", "", &mockRepo{}, http.StatusInternalServerError, -1},
-		{"database error", "user-123", &mockRepo{err: errors.New("connection refused")}, http.StatusInternalServerError, -1},
+		{"happy path", "user-123", &testutil.ActivityRepository{MapDataset: sample}, http.StatusOK, 1},
+		{"empty results", "user-123", &testutil.ActivityRepository{MapDataset: []*activitiesv1.MapActivity{}}, http.StatusOK, 0},
+		{"missing user ID", "", &testutil.ActivityRepository{}, http.StatusInternalServerError, -1},
+		{"database error", "user-123", &testutil.ActivityRepository{Err: errors.New("connection refused")}, http.StatusInternalServerError, -1},
 	}
 
 	for _, tt := range tests {
@@ -754,39 +705,39 @@ func TestHandleGetActivity(t *testing.T) {
 	tests := []struct {
 		name       string
 		idParam    string
-		mock       *mockRepo
+		mock       *testutil.ActivityRepository
 		wantStatus int
 	}{
 		{
 			name:    "happy path returns 200",
 			idParam: "12345",
-			mock: &mockRepo{
-				activity: &activitiesv1.Activity{Id: 12345, Sport: "Ride"},
+			mock: &testutil.ActivityRepository{
+				Activity: &activitiesv1.Activity{Id: 12345, Sport: "Ride"},
 			},
 			wantStatus: http.StatusOK,
 		},
 		{
 			name:       "invalid id format returns 400",
 			idParam:    "not-a-number",
-			mock:       &mockRepo{},
+			mock:       &testutil.ActivityRepository{},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "negative id returns 400",
 			idParam:    "-1",
-			mock:       &mockRepo{},
+			mock:       &testutil.ActivityRepository{},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "repository error returns 500",
 			idParam:    "12345",
-			mock:       &mockRepo{err: errors.New("db down")},
+			mock:       &testutil.ActivityRepository{Err: errors.New("db down")},
 			wantStatus: http.StatusInternalServerError,
 		},
 		{
 			name:       "missing activity returns 404",
 			idParam:    "12345",
-			mock:       &mockRepo{activity: nil},
+			mock:       &testutil.ActivityRepository{Activity: nil},
 			wantStatus: http.StatusNotFound,
 		},
 	}
