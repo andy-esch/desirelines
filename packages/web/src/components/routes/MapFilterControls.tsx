@@ -5,6 +5,8 @@ import { Button } from "../ui/button";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../ui/select";
 import { MAP_CHROME_STYLE } from "./mapChrome";
 import { cn } from "@/lib/utils";
+import { SectionLabel } from "../theme/SectionLabel";
+import { useHeadingLevel } from "../theme/useHeadingLevel";
 import { type RouteFilterState, yearRange } from "../../utils/routeFilters";
 import type { RegionSummary } from "../../api/map";
 import { convertDistance, getDistanceLabel, type DistanceUnit } from "../../utils/units";
@@ -74,15 +76,13 @@ function Section({
   action?: React.ReactNode;
   children: React.ReactNode;
 }) {
+  const heading = `h${useHeadingLevel()}` as const;
   return (
     <div className="px-4 py-3">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <p
-          id={htmlId}
-          className="text-(length:--label-size) font-(weight:--label-weight) tracking-(--label-tracking) [text-transform:var(--label-case)] text-(color:--label-color)"
-        >
+        <SectionLabel as={heading} id={htmlId}>
           {label}
-        </p>
+        </SectionLabel>
         {action}
       </div>
       {children}

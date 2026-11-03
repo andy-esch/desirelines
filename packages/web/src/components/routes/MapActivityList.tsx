@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
+import { LABEL_TEXT_CLASS } from "../theme/SectionLabel";
 import { Button } from "../ui/button";
 import { ExternalLinkIcon } from "../ui/ExternalLinkIcon";
 import type { MapActivity } from "../../api/map";
@@ -98,7 +99,7 @@ export default function MapActivityList({
           onClick={() => setCollapsed((c) => !c)}
           aria-expanded={!collapsed}
           aria-controls="map-activity-list"
-          className="flex items-center gap-1 text-(length:--label-size) font-(weight:--label-weight) tracking-(--label-tracking) [text-transform:var(--label-case)] text-(color:--label-color) hover:text-body-text"
+          className={cn("flex items-center gap-1", LABEL_TEXT_CLASS, "hover:text-body-text")}
         >
           <span
             className={cn(

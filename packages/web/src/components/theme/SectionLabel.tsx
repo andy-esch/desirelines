@@ -3,6 +3,20 @@ import { cn } from "@/lib/utils";
 import type { HeadingLevel } from "./useHeadingLevel";
 import { useThemeStructure } from "./useThemeStructure";
 
+/**
+ * The theme's label type scale: size, tracking and case from its `--label-*` slots. For a
+ * control set in label type that keeps its own weight and color, such as a pager link.
+ */
+export const LABEL_SCALE_CLASS =
+  "text-(length:--label-size) tracking-(--label-tracking) [text-transform:var(--label-case)]";
+
+/**
+ * The full label treatment `SectionLabel` draws: the scale plus line height, weight and
+ * color. For an element that reads as a label but can't be a `SectionLabel`, such as a
+ * toggle button or a heading with its own layout.
+ */
+export const LABEL_TEXT_CLASS = `${LABEL_SCALE_CLASS} leading-tight font-(weight:--label-weight) text-(color:--label-color)`;
+
 export interface SectionLabelProps extends HTMLAttributes<HTMLElement> {
   /**
    * The element: a heading where the label titles what follows (a panel's title), a span
@@ -43,7 +57,7 @@ export function SectionLabel({
   return (
     <Element
       className={cn(
-        "text-(length:--label-size) leading-tight font-(weight:--label-weight) tracking-(--label-tracking) text-(color:--label-color) [text-transform:var(--label-case)]",
+        LABEL_TEXT_CLASS,
         Element !== "span" && "m-0 [font-family:inherit]",
         marked && "flex items-center gap-2.5",
         className

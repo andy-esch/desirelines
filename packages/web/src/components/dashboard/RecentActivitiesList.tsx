@@ -22,6 +22,7 @@ import { useSportConfig } from "../../hooks/useSportConfig";
 import { SportLabel } from "../theme/SportLabel";
 import { useThemeStructure } from "../theme/useThemeStructure";
 import { Panel } from "../theme/Panel";
+import { LABEL_SCALE_CLASS } from "../theme/SectionLabel";
 import { cn } from "@/lib/utils";
 import { getSportColor, getSportDisplayName } from "../../utils/sportConfig";
 import type { ColorToken } from "../../themes/contract";
@@ -432,13 +433,16 @@ export default function RecentActivitiesList({
       {/* Pagination: a labelled row under the table, or arrows centered beside it */}
       {labelledPager ? (
         <div
-          className="flex shrink-0 items-center justify-end gap-2.5 pt-2.5 text-(length:--label-size) tracking-(--label-tracking) [text-transform:var(--label-case)]"
+          className={cn("flex shrink-0 items-center justify-end gap-2.5 pt-2.5", LABEL_SCALE_CLASS)}
           style={{ visibility: showPagination ? "visible" : "hidden" }}
         >
           <Button
             variant="link"
             size="sm"
-            className="h-auto p-0 text-(length:--label-size) tracking-(--label-tracking) text-muted-text no-underline disabled:opacity-40"
+            className={cn(
+              "h-auto p-0 text-muted-text no-underline disabled:opacity-40",
+              LABEL_SCALE_CLASS
+            )}
             onClick={() => setPage((p) => p - 1)}
             disabled={!canGoUp}
             aria-label="Newer activities"
@@ -451,7 +455,7 @@ export default function RecentActivitiesList({
           <Button
             variant="link"
             size="sm"
-            className="h-auto p-0 text-(length:--label-size) tracking-(--label-tracking) no-underline disabled:opacity-40"
+            className={cn("h-auto p-0 no-underline disabled:opacity-40", LABEL_SCALE_CLASS)}
             onClick={handleNextPage}
             disabled={!canGoDown}
             aria-label="Older activities"
