@@ -1,6 +1,6 @@
 import { cloneElement, type ReactElement } from "react";
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import CumulativeDistanceChart from "./CumulativeDistanceChart";
 import type { MapActivity } from "../../api/map";
 import { hoverChart } from "../../test/fixtures/chartTestHelpers";
@@ -54,6 +54,21 @@ describe("CumulativeDistanceChart", () => {
     );
     expect(screen.getByText("Cumulative distance")).toBeInTheDocument();
     expect(screen.getByTestId("responsive-container")).toBeInTheDocument();
+  });
+
+  it("provides an sr-only data table of the running total as a text alternative", () => {
+    render(
+      <CumulativeDistanceChart
+        activities={[
+          act({ activityId: 1, distanceMeters: 1_609_344 }),
+          act({ activityId: 2, startDateLocal: "2026-05-02T08:00:00", distanceMeters: 1_609_344 }),
+        ]}
+        distanceUnit="miles"
+      />
+    );
+    const table = screen.getByRole("table", { name: /cumulative distance \(mi\) by date/i });
+    const rows = within(table).getAllByRole("row").slice(1);
+    expect(rows.map((row) => row.textContent)).toEqual(["May 1, 20261,000", "May 2, 20262,000"]);
   });
 
   it("shows an empty hint when there are no activities", () => {

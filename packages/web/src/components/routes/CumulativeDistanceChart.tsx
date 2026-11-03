@@ -46,7 +46,7 @@ export default function CumulativeDistanceChart({
       ariaLabel="Cumulative distance"
       isEmpty={data.length === 0}
     >
-      <div className="h-36">
+      <div className="h-36" aria-hidden="true">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -18 }}>
             <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
@@ -86,6 +86,24 @@ export default function CumulativeDistanceChart({
           </LineChart>
         </ResponsiveContainer>
       </div>
+      {/* Text alternative for the visual-only chart (the SVG line is aria-hidden). */}
+      <table className="sr-only">
+        <caption>Cumulative distance ({unit}) by date</caption>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Total ({unit})</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((d) => (
+            <tr key={d.date}>
+              <td>{formatActivityDate(d.date, { year: true })}</td>
+              <td>{Math.round(d.total).toLocaleString()}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </InsightSection>
   );
 }
