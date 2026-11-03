@@ -44,8 +44,20 @@ deploy-web env:
     fi
     ./scripts/ops/deploy/deploy-web.sh {{env}}
 
+# The protoc that made the committed TypeScript in packages/web/src/types/generated. With
+# ts-proto, pinned exactly in packages/web/package.json, it makes regeneration on an unchanged
+# proto a no-op. CI installs this version. To bump either, see "Generated protobuf code" in
+# docs/guides/ci.md.
+protoc_version := "35.0"
+
 # Generate TypeScript protos via npm/protoc
 proto-gen-web:
+    @found="$(protoc --version 2>/dev/null || echo 'no protoc')"; \
+    if [ "$found" != "libprotoc {{protoc_version}}" ]; then \
+        echo "❌ proto-gen-web needs protoc {{protoc_version}}, the version the committed code was made with (found: $found)."; \
+        echo "   Install it from https://github.com/protocolbuffers/protobuf/releases/tag/v{{protoc_version}}"; \
+        exit 1; \
+    fi
     @echo "🔨 Generating TypeScript code..."
     @mkdir -p packages/web/src/types/generated
     @# Generate to temp directory first
@@ -76,3 +88,14 @@ proto-gen-web:
     @find packages/web/src/types/generated/.tmp -name "*.ts" -exec cp {} packages/web/src/types/generated/ \;
     @rm -rf packages/web/src/types/generated/.tmp
     @echo "✅ Web generation complete"
+
+# Regenerate the web's protobuf TypeScript and fail if it differs from what's committed (CI runs this)
+proto-check-web: proto-gen-web
+    @if ! git diff --quiet -- packages/web/src/types/generated || [ -n "$(git ls-files --others --exclude-standard -- packages/web/src/types/generated)" ]; then \
+        git --no-pager diff --stat -- packages/web/src/types/generated; \
+        git ls-files --others --exclude-standard -- packages/web/src/types/generated; \
+        echo "❌ packages/web/src/types/generated is out of date with schemas/proto."; \
+        echo "   Run 'just proto-gen-web' (protoc {{protoc_version}}, ts-proto as pinned in packages/web/package.json) and commit the result."; \
+        exit 1; \
+    fi
+    @echo "✅ Generated TypeScript matches schemas/proto"
