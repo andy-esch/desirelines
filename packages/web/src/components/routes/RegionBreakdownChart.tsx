@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
-import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
 import type { MapActivity } from "../../api/map";
 import { formatDistance, type DistanceUnit } from "../../utils/units";
 import { regionBreakdown } from "../../utils/mapInsights";
 import { BreakdownBarRow, breakdownBarPct } from "./BreakdownBarRow";
 import { InsightSection } from "./InsightSection";
+import { MetricToggle, type MetricOption } from "./MetricToggle";
 
 type RegionMetric = "distance" | "count";
 
@@ -20,6 +20,11 @@ export interface RegionBreakdownChartProps {
   /** Cap the number of bars shown (rest omitted). */
   limit?: number;
 }
+
+const REGION_METRICS: readonly MetricOption<RegionMetric>[] = [
+  { value: "distance", label: "Distance" },
+  { value: "count", label: "Count" },
+];
 
 /**
  * Region breakdown — bars per geographic region over the filtered set (distance or
@@ -53,22 +58,12 @@ export default function RegionBreakdownChart({
       isEmpty={rows.length === 0}
       emptyText="No region data."
       action={
-        <ToggleGroup
-          value={[metric]}
-          onValueChange={(vals) => {
-            const v = vals[0] as RegionMetric | undefined;
-            if (v) setMetric(v);
-          }}
-          aria-label="Region metric"
-          className="p-0.5 text-xs"
-        >
-          <ToggleGroupItem value="distance" className="px-2 py-0.5">
-            Distance
-          </ToggleGroupItem>
-          <ToggleGroupItem value="count" className="px-2 py-0.5">
-            Count
-          </ToggleGroupItem>
-        </ToggleGroup>
+        <MetricToggle
+          options={REGION_METRICS}
+          value={metric}
+          onChange={setMetric}
+          ariaLabel="Region metric"
+        />
       }
     >
       <ul className="space-y-1.5">

@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
-import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
 import type { MapActivity } from "../../api/map";
 import { convertDistance, getDistanceLabel, type DistanceUnit } from "../../utils/units";
 import { weeklyVolume } from "../../utils/mapInsights";
@@ -8,6 +7,7 @@ import { chartLabelToString } from "../../utils/chartUtils";
 import { useThemeDateFormat } from "../theme/useThemeDateFormat";
 import RouteChartTooltip from "./RouteChartTooltip";
 import { InsightSection } from "./InsightSection";
+import { MetricToggle, type MetricOption } from "./MetricToggle";
 
 type WeeklyMetric = "distance" | "time";
 
@@ -15,6 +15,11 @@ export interface WeeklyVolumeChartProps {
   activities: MapActivity[];
   distanceUnit: DistanceUnit;
 }
+
+const WEEKLY_METRICS: readonly MetricOption<WeeklyMetric>[] = [
+  { value: "distance", label: "Distance" },
+  { value: "time", label: "Time" },
+];
 
 /**
  * Weekly volume — distance or moving-time per ISO week over the filtered set
@@ -43,22 +48,12 @@ export default function WeeklyVolumeChart({ activities, distanceUnit }: WeeklyVo
       ariaLabel="Weekly volume"
       isEmpty={data.length === 0}
       action={
-        <ToggleGroup
-          value={[metric]}
-          onValueChange={(vals) => {
-            const v = vals[0] as WeeklyMetric | undefined;
-            if (v) setMetric(v);
-          }}
-          aria-label="Weekly metric"
-          className="p-0.5 text-xs"
-        >
-          <ToggleGroupItem value="distance" className="px-2 py-0.5">
-            Distance
-          </ToggleGroupItem>
-          <ToggleGroupItem value="time" className="px-2 py-0.5">
-            Time
-          </ToggleGroupItem>
-        </ToggleGroup>
+        <MetricToggle
+          options={WEEKLY_METRICS}
+          value={metric}
+          onChange={setMetric}
+          ariaLabel="Weekly metric"
+        />
       }
     >
       <div className="h-36" aria-hidden="true">

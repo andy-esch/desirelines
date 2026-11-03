@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
 import type { MapActivity } from "../../api/map";
 import { formatDistance, formatHoursMinutes, type DistanceUnit } from "../../utils/units";
 import {
@@ -10,6 +9,7 @@ import {
 } from "../../utils/mapInsights";
 import { DEFAULT_SPORT_COLOR } from "../../utils/sportConfig";
 import { InsightSection } from "./InsightSection";
+import { MetricToggle, type MetricOption } from "./MetricToggle";
 import { BreakdownBarRow, breakdownBarPct } from "./BreakdownBarRow";
 
 export interface SportBreakdownChartProps {
@@ -35,6 +35,12 @@ function formatRowValue(
   if (metric === "time") return formatHoursMinutes(row.movingTimeSeconds / 3600);
   return row.count.toLocaleString();
 }
+
+const SPORT_METRICS: readonly MetricOption<BreakdownMetric>[] = [
+  { value: "distance", label: "Distance" },
+  { value: "time", label: "Time" },
+  { value: "count", label: "Count" },
+];
 
 /**
  * Sport breakdown — horizontal bars per sport over the filtered set, sized by the
@@ -62,25 +68,12 @@ export default function SportBreakdownChart({
       headerSpacing="mb-3"
       isEmpty={rows.length === 0}
       action={
-        <ToggleGroup
-          value={[metric]}
-          onValueChange={(vals) => {
-            const v = vals[0] as BreakdownMetric | undefined;
-            if (v) setMetric(v);
-          }}
-          aria-label="Breakdown metric"
-          className="p-0.5 text-xs"
-        >
-          <ToggleGroupItem value="distance" className="px-2 py-0.5">
-            Distance
-          </ToggleGroupItem>
-          <ToggleGroupItem value="time" className="px-2 py-0.5">
-            Time
-          </ToggleGroupItem>
-          <ToggleGroupItem value="count" className="px-2 py-0.5">
-            Count
-          </ToggleGroupItem>
-        </ToggleGroup>
+        <MetricToggle
+          options={SPORT_METRICS}
+          value={metric}
+          onChange={setMetric}
+          ariaLabel="Breakdown metric"
+        />
       }
     >
       <ul className="space-y-1.5" aria-labelledby="insights-sport-label">
