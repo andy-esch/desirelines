@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv, type Plugin } from "vite";
-import react from "@vitejs/plugin-react";
+import babel from "@rolldown/plugin-babel";
+import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { execSync } from "child_process";
@@ -85,7 +86,8 @@ function keepChartsOffTheEntryPath(): Plugin {
 if (process.env.VITEST) {
   const requested = process.env.TZ?.trim();
   const isUtcEquivalent =
-    !requested || /^(UTC|GMT|Z|Zulu|Universal|Etc\/(UTC|GMT|Zulu|Universal|Unknown|GMT[+-]?0))$/i.test(requested);
+    !requested ||
+    /^(UTC|GMT|Z|Zulu|Universal|Etc\/(UTC|GMT|Zulu|Universal|Unknown|GMT[+-]?0))$/i.test(requested);
   if (isUtcEquivalent) {
     if (requested) {
       console.warn(
@@ -249,11 +251,10 @@ export default defineConfig(({ mode }) => {
       themeBootScript(),
       keepChartsOffTheEntryPath(),
       tailwindcss(),
-      react({
-        babel: {
-          plugins: ["babel-plugin-react-compiler"],
-        },
-      }),
+      react(),
+      // plugin-react v6 dropped its Babel pipeline, so React Compiler runs
+      // through @rolldown/plugin-babel with the preset plugin-react provides.
+      babel({ presets: [reactCompilerPreset()] }),
     ],
     server: {
       port: 3000,
