@@ -178,11 +178,12 @@ just start-frontend   # Postgres with migrations on :15430, Firestore emulator o
   POSTGRES_CONNECTION_STRING="postgresql://<user>:<password>@localhost:15430/<db>?application_name=integration-test" \
   go test -tags=integration ./adapters/postgres/...)
 
-# Firestore suites (API gateway, dispatcher, shared allowlist)
+# Firestore suites (API gateway, dispatcher, shared), the same packages CI runs
 export FIRESTORE_EMULATOR_HOST=localhost:8089
-(cd packages/apigateway && go test -tags=integration ./adapters/firestore/...)
+export FIREBASE_AUTH_EMULATOR_HOST=localhost:9099 # the connection-registry suites
+(cd packages/apigateway && go test -tags=integration ./adapters/firestore/... ./cmd/connection-registry/... ./internal/connectionbootstrap/...)
 (cd packages/dispatcher && go test -tags=integration ./adapters/firestore/...)
-(cd packages/shared && go test -tags=integration ./allowlist/...)
+(cd packages/shared && go test -tags=integration ./allowlist/... ./activityconnection/...)
 ```
 
 The Postgres user, password and database are the `POSTGRES_*_LOCAL` values in
@@ -194,6 +195,12 @@ The Postgres user, password and database are the `POSTGRES_*_LOCAL` values in
 credentials, so a broad `go test -tags=integration ./...` cannot reach a real
 Google Cloud project with your Application Default Credentials. New Firestore
 integration tests should get their client the same way.
+
+The connection-registry end-to-end test also needs an isolated Postgres
+database named `registry_test` on localhost, passed as
+`REGISTRY_TEST_POSTGRES_URL`. It skips without one; CI runs it against a
+throwaway service container. Its Auth-emulator checks fail rather than skip
+when `FIREBASE_AUTH_EMULATOR_HOST` is unset or not local.
 
 ## Troubleshooting
 
