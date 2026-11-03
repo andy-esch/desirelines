@@ -6,9 +6,13 @@ import { useSportConfig } from "./useSportConfig";
 import { useUnitSettings } from "./usePreferences";
 import { useConfigDocument } from "./useConfigDocument";
 import { useDailySportData } from "./useDailySportData";
-import { SPORT_COLORS, DEFAULT_SPORT_COLOR } from "../utils/sportConfig";
 import { generateDemoGoals } from "../utils/demoDataGenerator";
-import { filterValidSports, getSportDisplayName, getPrimaryMetric } from "../utils/sportConfig";
+import {
+  filterValidSports,
+  getSportColor,
+  getSportDisplayName,
+  getPrimaryMetric,
+} from "../utils/sportConfig";
 import { getMetricConfigByMetricId } from "../config/metricConfig";
 import { getTargetGoalValue } from "../utils/goalCalculations";
 import { getDaysInYear } from "../utils/yearContext";
@@ -175,7 +179,7 @@ export function useWeeklySummary(): {
       return {
         sport,
         displayName: getSportDisplayName(sport, sportConfig),
-        color: SPORT_COLORS[sport] ?? DEFAULT_SPORT_COLOR,
+        color: getSportColor(sport),
         weeklyTotal,
         hasGoal: yearlyGoal !== null,
         weeklyGoal,

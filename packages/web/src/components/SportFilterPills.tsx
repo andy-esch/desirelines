@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
-import { SPORT_COLORS, DEFAULT_SPORT_COLOR } from "../utils/sportConfig";
+import { getSportColor } from "../utils/sportConfig";
 import { sportChipClass, sportChipStyle, SportChipDot } from "./sportChip";
 import type { SportOption } from "../hooks/useSportOptions";
 
@@ -55,7 +55,7 @@ export default function SportFilterPills({
       className="flex-wrap"
     >
       {pills.map((o) => {
-        const color = SPORT_COLORS[o.value] ?? DEFAULT_SPORT_COLOR;
+        const color = getSportColor(o.value);
         return (
           <ToggleGroupItem
             key={o.value}

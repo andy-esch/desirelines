@@ -11,14 +11,14 @@
  * - Container (this file): Data, state, callbacks
  * - Presenter (CumulativeChartPresenter): Pure rendering
  */
-import { useState, useRef, useCallback, useMemo, useEffect } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import type { DistanceEntry } from "../../types/activity";
 import { type Goals } from "../../utils/goalCalculations";
 import type { SportConfig } from "../../api/activities";
 import { getMetricUnitLabel, isSessionsUnit, type MetricUnit } from "../../utils/units";
 import { getMetricDisplayLabel } from "../../config/metricConfig";
 import { useCumulativeChartData } from "../../hooks/useCumulativeChartData";
-import { useReducedMotion } from "../../hooks/useReducedMotion";
+import { useInitialAnimation } from "../../hooks/useInitialAnimation";
 import ChartContainer from "./ChartContainer";
 import type { MouseHandlerDataParam } from "recharts";
 import CumulativeChartPresenter from "./CumulativeChartPresenter";
@@ -217,19 +217,8 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
     onPriorYearsChange,
   } = props;
 
-  // Only animate chart lines on first mount — suppress re-animation on goal/range changes.
-  // Both lint-clean alternatives have tradeoffs: a ref read during render trips
-  // `react-hooks/refs` (purity), and dropping the gate makes Recharts re-animate
-  // every prop change. The set-state-in-effect cost (one extra render at mount)
-  // is acceptable here.
-  const [isFirstRender, setIsFirstRender] = useState(true);
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional mount-only gate for Recharts animation
-    setIsFirstRender(false);
-  }, []);
-
-  // Respect OS-level reduced motion preference
-  const reducedMotion = useReducedMotion();
+  // Animate lines on first mount only, and not at all under reduced motion.
+  const isAnimationActive = useInitialAnimation();
 
   // Active range preset — drives which button is highlighted and x-axis domain
   const [activeRange, setActiveRange] = useState<RangePreset>(showFullYear ? "full" : "ytd");
@@ -410,7 +399,7 @@ const CumulativeMetricsChart = (props: CumulativeMetricsChartProps) => {
         estimatedYearEnd={estimatedYearEnd}
         isSessionsMode={isSessionsMode}
         showAchievements={showAchievements}
-        isAnimationActive={isFirstRender && !reducedMotion}
+        isAnimationActive={isAnimationActive}
         isZoomed={isDragZoomed || activeRange !== "full"}
         selectionLeft={selectionLeft}
         selectionRight={selectionRight}

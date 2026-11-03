@@ -32,7 +32,7 @@ import { useUnitSettings } from "../hooks/usePreferences";
 import { getConfig } from "../lib/config";
 import { buildTileTemplateUrl, buildApiBaseUrl } from "../api/map";
 import { buildSportColorExpression } from "../utils/routeMapStyle";
-import { SPORT_COLORS, DEFAULT_SPORT_COLOR } from "../utils/sportConfig";
+import { DEFAULT_SPORT_COLOR, getSportColor } from "../utils/sportConfig";
 import { useIsMobile } from "../hooks/useIsMobile";
 import { useRefreshMapData } from "../hooks/useRefreshMapData";
 import MapLoadingState from "../components/routes/MapLoadingState";
@@ -196,7 +196,7 @@ export default function RoutesPage() {
   const sportColors = useMemo(() => {
     const map: Record<string, string> = {};
     orderedSports.forEach((sport) => {
-      map[sport] = SPORT_COLORS[sport] ?? DEFAULT_SPORT_COLOR;
+      map[sport] = getSportColor(sport);
     });
     return map;
   }, [orderedSports]);
