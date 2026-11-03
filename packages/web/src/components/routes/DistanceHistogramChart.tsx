@@ -100,7 +100,8 @@ export default function DistanceHistogramChart({
         </thead>
         <tbody>
           {data.map((b) => (
-            <tr key={b.label}>
+            // Labels are rounded bin starts, so narrow bins can share one; the start can't repeat.
+            <tr key={b.start}>
               <td>{b.label}+</td>
               <td>{b.count}</td>
             </tr>

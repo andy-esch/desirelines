@@ -74,6 +74,24 @@ describe("DistanceHistogramChart", () => {
     expect(within(table).getByText("Activities")).toBeInTheDocument();
   });
 
+  it("keys the data table rows uniquely when narrow bins share a rounded label", () => {
+    // One 5 km activity makes bins narrower than one mile, so several round to the
+    // same label; the rows must still get distinct React keys.
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    render(
+      <DistanceHistogramChart
+        activities={[act({ activityId: 1, distanceMeters: 5_000 })]}
+        distanceUnit="miles"
+        onSelectRange={vi.fn()}
+      />
+    );
+    const duplicateKeyWarnings = consoleError.mock.calls.filter((args) =>
+      args.some((a) => typeof a === "string" && a.includes("same key"))
+    );
+    consoleError.mockRestore();
+    expect(duplicateKeyWarnings).toEqual([]);
+  });
+
   it("names the hovered bin and its count in the tooltip", async () => {
     const { container } = render(
       <DistanceHistogramChart
