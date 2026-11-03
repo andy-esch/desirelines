@@ -38,7 +38,7 @@ terraform apply
 
 ## CI/CD
 
-- **CI validation**: formatting, validation, module/lifecycle tests, TFLint and terraform-docs checks on PRs
+- **CI validation**: formatting, validation, module/lifecycle tests and TFLint on PRs. Module READMEs are regenerated locally with `just tf-docs`.
 - **Deployment**: Handled by `desirelines-deploy` repo
 
 See [docs/guides/ci.md](../docs/guides/ci.md) for details.

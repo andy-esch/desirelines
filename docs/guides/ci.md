@@ -203,7 +203,6 @@ just tf-test
 - `terraform validate` - Syntax and consistency
 - `just tf-test` - Mocked module contracts and [cloud-free table lifecycle plans](../../scripts/ci/activity_table_lifecycle.py)
 - TFLint - Google Cloud ruleset linting
-- `terraform-docs --output-check` - Module README docs are up to date
 
 **Validated:** `environments/artifacts` and all modules. Dev/prod environments are in the private `desirelines-deploy` repo.
 
@@ -310,11 +309,9 @@ go_binary(name="bin")
 pants tailor ::
 ```
 
-### Terraform: terraform-docs Check Fails
+### Terraform: Module README Is Out of Date
 
-**Error:** `"Check terraform-docs"` step fails with output mismatch.
-
-**Fix:** Regenerate the module READMEs:
+CI does not check the generated module docs, so regenerate them yourself whenever you change a module's variables, outputs or resources:
 
 ```bash
 just tf-docs
@@ -322,7 +319,7 @@ just tf-docs
 
 This updates the auto-generated sections (between `<!-- BEGIN_TF_DOCS -->` / `<!-- END_TF_DOCS -->` markers) in each module's README. Commit the updated READMEs.
 
-**Why:** When you add, remove, or change variables, outputs, or resources in a module, the README's generated documentation becomes stale. CI runs `terraform-docs --output-check` which fails if the README doesn't match.
+**Why:** When you add, remove, or change variables, outputs, or resources in a module, the README's generated documentation becomes stale. `just tf-docs` needs `terraform-docs` installed locally.
 
 ### CI Passes Locally But Fails in GitHub Actions
 

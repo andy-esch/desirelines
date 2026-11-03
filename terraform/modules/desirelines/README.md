@@ -9,8 +9,9 @@ One Terraform file per concern, named for it — `cloud_run.tf`, `alerts.tf`,
 foundations (Pub/Sub topics, BigQuery, Firestore, enabled APIs).
 
 For what the module actually provisions, read the auto-generated
-[Resources](#resources) table below. It is regenerated from the code by
-terraform-docs, so unlike a hand-maintained summary it cannot fall behind.
+[Resources](#resources) table below. It is generated from the code by
+terraform-docs (`just tf-docs`); regenerate it after changing the module's
+resources, inputs or outputs.
 
 ## Usage
 
