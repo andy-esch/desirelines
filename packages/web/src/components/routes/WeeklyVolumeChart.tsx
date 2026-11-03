@@ -7,6 +7,7 @@ import { weeklyVolume } from "../../utils/mapInsights";
 import { chartLabelToString } from "../../utils/chartUtils";
 import { useThemeDateFormat } from "../theme/useThemeDateFormat";
 import RouteChartTooltip from "./RouteChartTooltip";
+import { InsightSection } from "./InsightSection";
 
 type WeeklyMetric = "distance" | "time";
 
@@ -37,11 +38,11 @@ export default function WeeklyVolumeChart({ activities, distanceUnit }: WeeklyVo
   );
 
   return (
-    <section className="px-4 py-3" aria-label="Weekly volume">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-(length:--label-size) font-(weight:--label-weight) tracking-(--label-tracking) [text-transform:var(--label-case)] text-(color:--label-color)">
-          Weekly volume
-        </p>
+    <InsightSection
+      title="Weekly volume"
+      ariaLabel="Weekly volume"
+      isEmpty={data.length === 0}
+      action={
         <ToggleGroup
           value={[metric]}
           onValueChange={(vals) => {
@@ -58,72 +59,67 @@ export default function WeeklyVolumeChart({ activities, distanceUnit }: WeeklyVo
             Time
           </ToggleGroupItem>
         </ToggleGroup>
-      </div>
-      {data.length === 0 ? (
-        <p className="text-xs text-muted-text">No activities to summarize.</p>
-      ) : (
-        <>
-          <div className="h-36" aria-hidden="true">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -18 }}>
-                <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
-                <XAxis
-                  dataKey="week"
-                  tick={{ fontSize: 9, fill: "var(--color-chart-tick)" }}
-                  tickFormatter={(d) => formatActivityDate(String(d))}
-                  axisLine={false}
-                  tickLine={false}
-                  interval="preserveStartEnd"
-                  minTickGap={24}
-                />
-                <YAxis
-                  width={40}
-                  tick={{ fontSize: 9, fill: "var(--color-chart-tick)" }}
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={(v: number) => String(Math.round(v))}
-                />
-                <Tooltip
-                  cursor={{ fill: "var(--chart-hover-column)" }}
-                  content={
-                    <RouteChartTooltip
-                      name="Volume"
-                      formatLabel={(d) =>
-                        `Week of ${formatActivityDate(chartLabelToString(d), { year: true })}`
-                      }
-                      formatValue={(v) => `${Math.round(v)} ${unit}`}
-                    />
+      }
+    >
+      <div className="h-36" aria-hidden="true">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -18 }}>
+            <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
+            <XAxis
+              dataKey="week"
+              tick={{ fontSize: 9, fill: "var(--color-chart-tick)" }}
+              tickFormatter={(d) => formatActivityDate(String(d))}
+              axisLine={false}
+              tickLine={false}
+              interval="preserveStartEnd"
+              minTickGap={24}
+            />
+            <YAxis
+              width={40}
+              tick={{ fontSize: 9, fill: "var(--color-chart-tick)" }}
+              axisLine={false}
+              tickLine={false}
+              tickFormatter={(v: number) => String(Math.round(v))}
+            />
+            <Tooltip
+              cursor={{ fill: "var(--chart-hover-column)" }}
+              content={
+                <RouteChartTooltip
+                  name="Volume"
+                  formatLabel={(d) =>
+                    `Week of ${formatActivityDate(chartLabelToString(d), { year: true })}`
                   }
+                  formatValue={(v) => `${Math.round(v)} ${unit}`}
                 />
-                <Bar
-                  dataKey="value"
-                  fill="var(--color-accent-cyan)"
-                  radius={[2, 2, 0, 0]}
-                  isAnimationActive={false}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          {/* Text alternative for the visual-only chart (the SVG bars are aria-hidden). */}
-          <table className="sr-only">
-            <caption>Weekly {metric === "distance" ? "distance" : "time"} by week</caption>
-            <thead>
-              <tr>
-                <th>Week of</th>
-                <th>{metric === "distance" ? `Distance (${unit})` : "Time (hours)"}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.map((d) => (
-                <tr key={d.week}>
-                  <td>{formatActivityDate(d.week, { year: true })}</td>
-                  <td>{d.value.toLocaleString(undefined, { maximumFractionDigits: 1 })}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
-      )}
-    </section>
+              }
+            />
+            <Bar
+              dataKey="value"
+              fill="var(--color-accent-cyan)"
+              radius={[2, 2, 0, 0]}
+              isAnimationActive={false}
+            />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      {/* Text alternative for the visual-only chart (the SVG bars are aria-hidden). */}
+      <table className="sr-only">
+        <caption>Weekly {metric === "distance" ? "distance" : "time"} by week</caption>
+        <thead>
+          <tr>
+            <th>Week of</th>
+            <th>{metric === "distance" ? `Distance (${unit})` : "Time (hours)"}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((d) => (
+            <tr key={d.week}>
+              <td>{formatActivityDate(d.week, { year: true })}</td>
+              <td>{d.value.toLocaleString(undefined, { maximumFractionDigits: 1 })}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </InsightSection>
   );
 }

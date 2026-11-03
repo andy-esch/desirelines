@@ -14,6 +14,7 @@ import { cumulativeDistance } from "../../utils/mapInsights";
 import { chartLabelToString } from "../../utils/chartUtils";
 import { useThemeDateFormat } from "../theme/useThemeDateFormat";
 import RouteChartTooltip from "./RouteChartTooltip";
+import { InsightSection } from "./InsightSection";
 
 export interface CumulativeDistanceChartProps {
   activities: MapActivity[];
@@ -40,54 +41,51 @@ export default function CumulativeDistanceChart({
   );
 
   return (
-    <section className="px-4 py-3" aria-label="Cumulative distance">
-      <p className="mb-2 text-(length:--label-size) font-(weight:--label-weight) tracking-(--label-tracking) [text-transform:var(--label-case)] text-(color:--label-color)">
-        Cumulative distance
-      </p>
-      {data.length === 0 ? (
-        <p className="text-xs text-muted-text">No activities to summarize.</p>
-      ) : (
-        <div className="h-36">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -18 }}>
-              <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 9, fill: "var(--color-chart-tick)" }}
-                tickFormatter={(d) => formatActivityDate(String(d))}
-                axisLine={false}
-                tickLine={false}
-                interval="preserveStartEnd"
-                minTickGap={28}
-              />
-              <YAxis
-                width={40}
-                tick={{ fontSize: 9, fill: "var(--color-chart-tick)" }}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(v: number) => String(Math.round(v))}
-              />
-              <Tooltip
-                content={
-                  <RouteChartTooltip
-                    name="Total"
-                    formatLabel={(d) => formatActivityDate(chartLabelToString(d), { year: true })}
-                    formatValue={(v) => `${Math.round(v).toLocaleString()} ${unit}`}
-                  />
-                }
-              />
-              <Line
-                type="monotone"
-                dataKey="total"
-                stroke="var(--color-accent-cyan)"
-                strokeWidth={2}
-                dot={false}
-                isAnimationActive={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-    </section>
+    <InsightSection
+      title="Cumulative distance"
+      ariaLabel="Cumulative distance"
+      isEmpty={data.length === 0}
+    >
+      <div className="h-36">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -18 }}>
+            <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
+            <XAxis
+              dataKey="date"
+              tick={{ fontSize: 9, fill: "var(--color-chart-tick)" }}
+              tickFormatter={(d) => formatActivityDate(String(d))}
+              axisLine={false}
+              tickLine={false}
+              interval="preserveStartEnd"
+              minTickGap={28}
+            />
+            <YAxis
+              width={40}
+              tick={{ fontSize: 9, fill: "var(--color-chart-tick)" }}
+              axisLine={false}
+              tickLine={false}
+              tickFormatter={(v: number) => String(Math.round(v))}
+            />
+            <Tooltip
+              content={
+                <RouteChartTooltip
+                  name="Total"
+                  formatLabel={(d) => formatActivityDate(chartLabelToString(d), { year: true })}
+                  formatValue={(v) => `${Math.round(v).toLocaleString()} ${unit}`}
+                />
+              }
+            />
+            <Line
+              type="monotone"
+              dataKey="total"
+              stroke="var(--color-accent-cyan)"
+              strokeWidth={2}
+              dot={false}
+              isAnimationActive={false}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </InsightSection>
   );
 }
