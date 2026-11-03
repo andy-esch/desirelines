@@ -1,12 +1,6 @@
 import type { ReactNode } from "react";
-
-/**
- * The label treatment the insight panels share. Kept inline rather than using
- * `SectionLabel`, which adds `leading-tight` and renders a span or a heading:
- * switching would change these panels' line height and markup.
- */
-const LABEL_CLASS =
-  "text-(length:--label-size) font-(weight:--label-weight) tracking-(--label-tracking) [text-transform:var(--label-case)] text-(color:--label-color)";
+import { SectionLabel } from "../theme/SectionLabel";
+import { useHeadingLevel } from "../theme/useHeadingLevel";
 
 export interface InsightSectionProps {
   title: ReactNode;
@@ -18,14 +12,19 @@ export interface InsightSectionProps {
   action?: ReactNode;
   /** Space below a header that carries an `action`. */
   headerSpacing?: "mb-2" | "mb-3";
-  /** Show the shared empty state instead of `children`. */
+  /** Show the empty state instead of `children`. */
   isEmpty: boolean;
+  emptyText?: string;
   children: ReactNode;
 }
 
 /**
  * One routes-map insight panel: the section, its title, an optional header
- * control, and the shared empty state. Each chart supplies its own body.
+ * control, and the empty state. Each chart supplies its own body.
+ *
+ * The title is a heading at the surrounding level (the Charts drawer raises it
+ * below its own heading), drawn by the theme's `SectionLabel` like every other
+ * panel title.
  */
 export function InsightSection({
   title,
@@ -34,23 +33,25 @@ export function InsightSection({
   action,
   headerSpacing = "mb-2",
   isEmpty,
+  emptyText = "No activities to summarize.",
   children,
 }: InsightSectionProps) {
+  const heading = `h${useHeadingLevel()}` as const;
   return (
     <section className="px-4 py-3" aria-label={ariaLabel}>
       {action ? (
         <div className={`${headerSpacing} flex items-center justify-between gap-2`}>
-          <p id={labelId} className={LABEL_CLASS}>
+          <SectionLabel as={heading} id={labelId}>
             {title}
-          </p>
+          </SectionLabel>
           {action}
         </div>
       ) : (
-        <p id={labelId} className={`mb-2 ${LABEL_CLASS}`}>
+        <SectionLabel as={heading} id={labelId} className="mb-2">
           {title}
-        </p>
+        </SectionLabel>
       )}
-      {isEmpty ? <p className="text-xs text-muted-text">No activities to summarize.</p> : children}
+      {isEmpty ? <p className="text-xs text-muted-text">{emptyText}</p> : children}
     </section>
   );
 }

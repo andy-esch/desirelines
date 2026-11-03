@@ -2,6 +2,7 @@ import { useEffect, useId, useRef } from "react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
+import { NextHeadingLevel } from "../theme/NextHeadingLevel";
 import { MAP_CHROME_STYLE } from "./mapChrome";
 
 const DRAWER_ID = "map-insights-drawer";
@@ -176,7 +177,10 @@ export default function MapInsightsDrawer({
             <Chevron className="h-4 w-4 -rotate-90 sm:rotate-180" />
           </Button>
         </div>
-        <div className="flex-1 overflow-y-auto overscroll-contain">{children}</div>
+        {/* The panels inside title themselves one level below the "Charts" heading. */}
+        <div className="flex-1 overflow-y-auto overscroll-contain">
+          <NextHeadingLevel>{children}</NextHeadingLevel>
+        </div>
       </aside>
     </>
   );
