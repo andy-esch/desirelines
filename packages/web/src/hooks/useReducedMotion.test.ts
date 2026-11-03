@@ -50,6 +50,8 @@ describe("useReducedMotion", () => {
     const handler = listeners.get("(prefers-reduced-motion: reduce)");
     expect(handler).toBeDefined();
 
+    // A real MediaQueryList reports the new value by the time it fires "change".
+    matchesMock = true;
     act(() => {
       handler!({ matches: true } as MediaQueryListEvent);
     });
