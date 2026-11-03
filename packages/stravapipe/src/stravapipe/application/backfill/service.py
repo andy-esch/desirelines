@@ -46,7 +46,7 @@ _BACKFILL_SUMMARY_TAIL = (
     "%d activities across %d %s "
     "(source errors: %d; processing errors: %d; "
     "PG: %d inserted, %d updated, %d skipped; "
-    "BQ: %d inserted; errors: %d) in %.1fs"
+    "BQ: %d merged; errors: %d) in %.1fs"
 )
 
 BATCH_SIZE = 100
@@ -168,7 +168,7 @@ class YearStats:
     pg_updated: int = 0
     pg_skipped: int = 0
     pg_errors: int = 0
-    bq_inserted: int = 0
+    bq_merged: int = 0
     bq_errors: int = 0
     duration_seconds: float = 0.0
 
@@ -295,7 +295,7 @@ class BackfillResult:
     total_pg_inserted: int = 0
     total_pg_updated: int = 0
     total_pg_skipped: int = 0
-    total_bq_inserted: int = 0
+    total_bq_merged: int = 0
     total_errors: int = 0
     duration_seconds: float = 0.0
 
@@ -451,7 +451,7 @@ class BackfillService:
             result.total_pg_inserted += year_stats.pg_inserted
             result.total_pg_updated += year_stats.pg_updated
             result.total_pg_skipped += year_stats.pg_skipped
-            result.total_bq_inserted += year_stats.bq_inserted
+            result.total_bq_merged += year_stats.bq_merged
             result.total_errors += (
                 year_stats.source_errors
                 + year_stats.processing_errors
@@ -485,7 +485,7 @@ class BackfillService:
             result.total_pg_inserted,
             result.total_pg_updated,
             result.total_pg_skipped,
-            result.total_bq_inserted,
+            result.total_bq_merged,
             result.total_errors,
             result.duration_seconds,
         )
@@ -602,8 +602,8 @@ class BackfillService:
 
         # Insert to BigQuery (optional)
         if self._bq_writer is not None:
-            bq_inserted, bq_errors = self._insert_to_bigquery(activities)
-            stats.bq_inserted = bq_inserted
+            bq_merged, bq_errors = self._insert_to_bigquery(activities)
+            stats.bq_merged = bq_merged
             stats.bq_errors = bq_errors
 
         stats.duration_seconds = time.monotonic() - start_time
@@ -613,14 +613,14 @@ class BackfillService:
                 logger.info,
                 "Year %d complete in %.1fs: "
                 "PG(%d inserted, %d updated, %d skipped, %d errors), "
-                "BQ(%d inserted, %d errors)",
+                "BQ(%d merged, %d errors)",
                 year,
                 stats.duration_seconds,
                 stats.pg_inserted,
                 stats.pg_updated,
                 stats.pg_skipped,
                 stats.pg_errors,
-                stats.bq_inserted,
+                stats.bq_merged,
                 stats.bq_errors,
             )
         )
@@ -777,14 +777,16 @@ class BackfillService:
         self,
         activities: Sequence[DetailedStravaActivity | SummaryStravaActivity],
     ) -> tuple[int, int]:
-        """Insert activities to BigQuery in batches.
+        """MERGE activities into BigQuery in batches.
 
         Returns:
-            Tuple of (inserted_count, error_count)
+            Tuple of (merged_count, error_count). ``merged_count`` sums the
+            MERGE's ``rows_affected``, which counts rows it inserted and rows it
+            updated alike, so it is not an insert count.
         """
         assert self._bq_writer is not None  # noqa: S101 -- type-narrowing; sole caller guards `if self._bq_writer is not None`
 
-        inserted_count = 0
+        merged_count = 0
         error_count = 0
 
         for batch_num, total_batches, batch_seq in _iter_batches(
@@ -797,7 +799,7 @@ class BackfillService:
                     batch, batch_num=batch_num, total_batches=total_batches
                 )
                 rows_affected = result["rows_affected"]
-                inserted_count += rows_affected
+                merged_count += rows_affected
 
                 logger.info(
                     "BQ batch %d/%d: %d rows affected",
@@ -809,7 +811,7 @@ class BackfillService:
                 error_count += len(batch)
                 logger.exception("BQ batch %d/%d failed", batch_num, total_batches)
 
-        return inserted_count, error_count
+        return merged_count, error_count
 
     def _write_batch_with_retry(
         self,
