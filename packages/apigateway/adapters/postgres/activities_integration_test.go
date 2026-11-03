@@ -387,6 +387,51 @@ func TestIntegration_ActivityRepository(t *testing.T) {
 		})
 	})
 
+	t.Run("ListActivities_CursorKeepsSubSecondOrder", func(t *testing.T) {
+		// Two activities in the same second, 0.4 s apart. A cursor cut to whole seconds
+		// would put page 2's boundary before both, so the earlier one would be skipped.
+		withTestTxRaw(t, pool, func(tx pgx.Tx, repo *postgres.ActivityRepository) {
+			base := time.Date(2024, 3, 1, 8, 0, 0, 0, time.UTC)
+			for _, a := range []struct {
+				id    int64
+				start time.Time
+			}{
+				{fixtureID(6001), base.Add(900 * time.Millisecond)},
+				{fixtureID(6002), base.Add(500 * time.Millisecond)},
+			} {
+				if _, err := tx.Exec(ctx, `
+					INSERT INTO desirelines.activities (
+						id, user_id, name, type, sport, start_date_local, year,
+						distance, moving_time, elapsed_time, total_elevation_gain, source
+					) OVERRIDING SYSTEM VALUE VALUES ($1, 'same-second-user', 'Ride', 'Ride', 'Ride', $2, 2024, 1000, 100, 100, 10, 'strava')`,
+					a.id, a.start,
+				); err != nil {
+					t.Fatalf("insert activity %d: %v", a.id, err)
+				}
+			}
+
+			first, err := repo.ListActivities(ctx, repository.ActivityListFilter{UserID: "same-second-user", Limit: 1})
+			if err != nil {
+				t.Fatalf("ListActivities (page 1) failed: %v", err)
+			}
+			if first.NextCursor == nil || len(first.Activities) != 1 || first.Activities[0].Id != fixtureID(6001) {
+				t.Fatalf("page 1 = %v (next cursor set: %v); want the later activity and a next page", first.Activities, first.NextCursor != nil)
+			}
+
+			page2, err := repo.ListActivities(ctx, repository.ActivityListFilter{
+				UserID: "same-second-user",
+				Limit:  1,
+				Cursor: decodeListCursor(t, *first.NextCursor),
+			})
+			if err != nil {
+				t.Fatalf("ListActivities (page 2) failed: %v", err)
+			}
+			if len(page2.Activities) != 1 || page2.Activities[0].Id != fixtureID(6002) {
+				t.Errorf("page 2 = %v; want the earlier activity in the same second", page2.Activities)
+			}
+		})
+	})
+
 	t.Run("ListActivities_WithSportFilter", func(t *testing.T) {
 		withTestTx(t, pool, func(repo *postgres.ActivityRepository) {
 			response, err := repo.ListActivities(ctx, repository.ActivityListFilter{
