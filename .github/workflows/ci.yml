@@ -740,12 +740,18 @@ jobs:
             cd ../../..
           done
 
-      - name: Validate module
+      # Validate every module, not only lint it: TFLint does not load provider
+      # schemas, so an invalid argument in github-actions-wif would merge green.
+      - name: Validate modules
         run: |
-          cd terraform/modules/desirelines
-          terraform fmt -check
-          terraform init -backend=false
-          terraform validate
+          for module in desirelines github-actions-wif; do
+            echo "Validating $module module..."
+            cd terraform/modules/$module
+            terraform fmt -check
+            terraform init -backend=false
+            terraform validate
+            cd ../../..
+          done
 
       - name: Test module rollout contract without cloud credentials
         working-directory: terraform/modules/desirelines

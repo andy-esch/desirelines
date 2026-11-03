@@ -114,6 +114,14 @@
     },
     {
       "customType": "regex",
+      "description": "Track the pinned @redocly/cli the openapi-lint recipe runs through npx; no manager extracts versions from npx commands in a justfile.",
+      "managerFilePatterns": ["/^justfiles/backend\\.just$/"],
+      "matchStrings": ["npx --yes @redocly/cli@(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)"],
+      "depNameTemplate": "@redocly/cli",
+      "datasourceTemplate": "npm"
+    },
+    {
+      "customType": "regex",
       "description": "Track the CI Go patch pin. The github-actions manager cannot resolve setup-go's go-version from env.GO_VERSION.",
       "managerFilePatterns": ["/^\\.github/workflows/ci\\.yml$/"],
       "matchStrings": ["GO_VERSION:\\s*\"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""],
