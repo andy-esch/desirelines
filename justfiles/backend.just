@@ -297,6 +297,8 @@ generate-bq-proto:
 # Generate Python/Go protos via Pants and sync to source tree
 proto-gen-backend: generate-bq-proto
     @echo "🔨 Generating Go & Python code with Pants..."
+    @# Start from an empty dist/codegen, so output left from an earlier run can't stand in for this one.
+    @rm -rf dist/codegen
     pants export-codegen schemas/proto::
     @echo "📋 Syncing generated code to source tree..."
     # Python: Copy sports_metrics, webhook, and BQ activities protos to stravapipe
@@ -312,6 +314,31 @@ proto-gen-backend: generate-bq-proto
     @find dist/codegen/schemas/proto -name "webhook.pb.go" -exec cp {} packages/dispatcher/types/generated/ \;
     @find dist/codegen/schemas/proto -name "bq_activity_rows.pb.go" -exec cp {} packages/dispatcher/types/generated/ \;
     @echo "✅ Backend generation complete"
+
+# The directories proto-gen-backend writes, which proto-check-backend compares with what's committed.
+backend_generated_dirs := "packages/apigateway/types/generated packages/dispatcher/types/generated packages/stravapipe/src/stravapipe/types/generated"
+
+# Regenerate the Go and Python protobuf code and fail if it differs from what's committed (CI runs this)
+proto-check-backend: proto-gen-backend
+    @# The copy steps above match files by name, so a renamed proto would leave its old generated
+    @# file committed and unchanged. Fail when Pants no longer produces a committed file.
+    @missing=""; \
+    for f in $(git ls-files -- {{backend_generated_dirs}} | grep -E '(\.pb\.go|_pb2\.pyi?)$'); do \
+        [ -n "$(find dist/codegen -name "$(basename "$f")" -print -quit)" ] || missing="$missing $f"; \
+    done; \
+    if [ -n "$missing" ]; then \
+        echo "❌ Pants no longer generates these committed files:$missing"; \
+        echo "   A proto was renamed or removed: update proto-gen-backend's copy steps, delete the stale files and run 'just proto-gen-backend'."; \
+        exit 1; \
+    fi
+    @if ! git diff --quiet -- {{backend_generated_dirs}} || [ -n "$(git ls-files --others --exclude-standard -- {{backend_generated_dirs}})" ]; then \
+        git --no-pager diff -- {{backend_generated_dirs}}; \
+        git ls-files --others --exclude-standard -- {{backend_generated_dirs}}; \
+        echo "❌ The generated Go or Python protobuf code is out of date with schemas/proto (diff above)."; \
+        echo "   Run 'just proto-gen-backend' and commit the result."; \
+        exit 1; \
+    fi
+    @echo "✅ Generated Go and Python match schemas/proto"
 
 # Regenerate protos and sync JSON configs
 sync-schemas: proto-gen-backend sync-sport-config
