@@ -107,6 +107,15 @@ func TestDecodeCursor(t *testing.T) {
 			wantErr:       false,
 		},
 		{
+			// ListActivities keeps sub-second precision in its cursors; the longest one
+			// (microseconds, the largest ID) still fits the 64-byte decoded cap.
+			name:          "valid cursor with microseconds and the largest ID",
+			input:         base64.URLEncoding.EncodeToString([]byte("2025-12-28T08:30:00.123456Z|9223372036854775807")),
+			wantTimestamp: "2025-12-28T08:30:00.123456Z",
+			wantID:        9223372036854775807,
+			wantErr:       false,
+		},
+		{
 			name:    "invalid base64",
 			input:   "not-valid-base64!!!",
 			wantErr: true,

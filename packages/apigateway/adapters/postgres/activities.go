@@ -661,7 +661,11 @@ func addActivityFilters(qb *queryBuilder, userID string, from, to *string, sport
 
 // ListActivities returns activities matching the filter criteria with cursor-based pagination.
 // Results are ordered by (start_date_local DESC, id DESC) for stable ordering.
-// Uses keyset pagination for O(1) performance regardless of offset.
+//
+// Keyset pagination keeps a page's cost to its size, not its offset, only while an index
+// supplies rows in that order: idx_activities_user_date (user_id, start_date_local DESC,
+// id DESC), from migration V0016. Without it the database reads and sorts the athlete's
+// whole history for every page.
 func (r *ActivityRepository) ListActivities(ctx context.Context, filter repository.ActivityListFilter) (resp *activitiesv1.ListActivitiesResponse, retErr error) {
 	ctx, spanDone := otel.StartSpan(ctx, r.tracer, "repository.activities.list",
 		attribute.String("db.system", dbSystem),
@@ -758,12 +762,15 @@ func (r *ActivityRepository) ListActivities(ctx context.Context, filter reposito
 			return nil, fmt.Errorf("scan activity row: %w", retErr)
 		}
 
+		// StartDateLocal uses RFC3339Nano because the next-page cursor below is built from
+		// it: cut to whole seconds, the cursor would skip a row later in the same second.
+		// Whole-second times format exactly as RFC3339 does.
 		activities = append(activities, &activitiesv1.ActivitySummary{
 			Id:                id,
 			Name:              name,
 			Type:              activityType,
 			Sport:             sport,
-			StartDateLocal:    startDateLocal.Format(time.RFC3339),
+			StartDateLocal:    startDateLocal.Format(time.RFC3339Nano),
 			DistanceMeters:    distanceMeters,
 			MovingTimeSeconds: movingTime,
 			ElevationMeters:   elevation,
