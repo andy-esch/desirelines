@@ -90,12 +90,26 @@
       "groupName": "flyway"
     },
     {
+      "description": "Keep the protobuf generators in their own PR. A ts-proto or protoc bump changes the generated TypeScript, so its PR fails CI's generated-code check until someone runs `just proto-gen-web` on the branch with the new versions and commits the result (docs/guides/ci.md, Generated protobuf code). Grouped apart so that work can't hold up the other npm updates. Must stay after the group-by-manager rule to win under last-rule-wins.",
+      "matchDepNames": ["ts-proto", "protocolbuffers/protobuf"],
+      "groupName": "protobuf generators"
+    },
+    {
       "description": "Hold sqlalchemy below 2.1 until opentelemetry-instrumentation-sqlalchemy supports it. The instrumentor refuses sqlalchemy>=2.1.0 and only logs an error, so DB spans disappear without a failure; tests/unit/shared/test_instrumentation.py fails if the cap is lifted early. Remove this rule together with the cap in packages/stravapipe/pyproject.toml.",
       "matchDepNames": ["sqlalchemy"],
       "allowedVersions": "<2.1"
     }
   ],
   "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Track the protoc version proto-gen-web requires and CI installs; no manager reads justfile variables.",
+      "managerFilePatterns": ["/^justfiles/web\\.just$/"],
+      "matchStrings": ["protoc_version := \"(?<currentValue>[0-9]+\\.[0-9]+)\""],
+      "depNameTemplate": "protocolbuffers/protobuf",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
     {
       "customType": "regex",
       "description": "Track the pinned actionlint binary installed by CI; github-actions does not extract versions from go install commands.",

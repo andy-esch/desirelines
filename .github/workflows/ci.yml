@@ -370,6 +370,26 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # The generated protobuf TypeScript must match schemas/proto under the pinned
+      # generators (protoc in justfiles/web.just, ts-proto in package.json), so a proto
+      # change ships with its regenerated code and a generator bump can't add unrelated
+      # churn to the next one. Needs npm ci first: the ts-proto plugin is a dev dependency.
+      - name: Set up Just
+        uses: extractions/setup-just@v4
+
+      - name: Read the pinned protoc version
+        id: protoc
+        run: echo "version=$(just --evaluate protoc_version)" >> "$GITHUB_OUTPUT"
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: ${{ steps.protoc.outputs.version }}
+          repo-token: ${{ github.token }}
+
+      - name: Check generated protobuf TypeScript
+        run: just proto-check-web
+
       - name: Lint
         run: npm run lint
 
