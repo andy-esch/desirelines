@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/andy-esch/desirelines/packages/apigateway/internal/testutil"
 	"github.com/andy-esch/desirelines/packages/apigateway/pkg/cors"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/andy-esch/desirelines/packages/shared/ratelimit"
@@ -17,23 +18,6 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
-
-// mockAuthMiddleware implements AuthMiddleware for testing
-type mockAuthMiddleware struct {
-	called      bool
-	blockAccess bool
-}
-
-func (m *mockAuthMiddleware) Middleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		m.called = true
-		if m.blockAccess {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
 
 // Test RespondJSON
 func TestRespondJSON(t *testing.T) {
@@ -250,7 +234,7 @@ func noopAuthRoutes() AuthenticatedRoutes {
 }
 
 // newTestRouter creates a router with no-op handlers for testing
-func newTestRouter(c *cors.Handler, auth *mockAuthMiddleware, logger *slog.Logger) chi.Router {
+func newTestRouter(c *cors.Handler, auth *testutil.AuthMiddleware, logger *slog.Logger) chi.Router {
 	return NewRouter(
 		RouterConfig{CORSHandler: c, AuthMiddleware: auth},
 		PublicRoutes{
@@ -289,15 +273,15 @@ func TestNewRouter_RouteRegistration(t *testing.T) {
 			if err != nil {
 				t.Fatalf("cors.NewHandler: %v", err)
 			}
-			auth := &mockAuthMiddleware{}
+			auth := &testutil.AuthMiddleware{}
 			router := newTestRouter(c, auth, logger)
 
 			req := corsRequest(tt.method, tt.path)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
 
-			if auth.called != tt.wantAuthCall {
-				t.Errorf("auth.called = %v, want %v", auth.called, tt.wantAuthCall)
+			if auth.Called() != tt.wantAuthCall {
+				t.Errorf("auth.Called() = %v, want %v", auth.Called(), tt.wantAuthCall)
 			}
 		})
 	}
@@ -310,7 +294,7 @@ func TestNewRouter_AuthBlocking(t *testing.T) {
 	if err != nil {
 		t.Fatalf("cors.NewHandler: %v", err)
 	}
-	auth := &mockAuthMiddleware{blockAccess: true}
+	auth := &testutil.AuthMiddleware{Block: true}
 
 	handlerCalled := false
 	authRoutes := noopAuthRoutes()
@@ -347,8 +331,8 @@ func TestNewRouter_ReadinessAuthBlocking(t *testing.T) {
 	if err != nil {
 		t.Fatalf("cors.NewHandler: %v", err)
 	}
-	userAuth := &mockAuthMiddleware{}
-	readinessAuth := &mockAuthMiddleware{blockAccess: true}
+	userAuth := &testutil.AuthMiddleware{}
+	readinessAuth := &testutil.AuthMiddleware{Block: true}
 	readyCalled := false
 	router := NewRouter(
 		RouterConfig{
@@ -375,8 +359,8 @@ func TestNewRouter_ReadinessAuthBlocking(t *testing.T) {
 	if got := w.Header().Get("Cache-Control"); got != "no-store" {
 		t.Errorf("Cache-Control = %q, want no-store", got)
 	}
-	if !readinessAuth.called || userAuth.called {
-		t.Errorf("readiness auth called=%v, user auth called=%v", readinessAuth.called, userAuth.called)
+	if !readinessAuth.Called() || userAuth.Called() {
+		t.Errorf("readiness auth called=%v, user auth called=%v", readinessAuth.Called(), userAuth.Called())
 	}
 	if readyCalled {
 		t.Error("readiness handler should not be called when OIDC auth blocks")
@@ -390,7 +374,7 @@ func TestNewRouter_OAuthResponsesAreNotCacheable(t *testing.T) {
 		t.Fatalf("cors.NewHandler: %v", err)
 	}
 	router := NewRouter(
-		RouterConfig{CORSHandler: c, AuthMiddleware: &mockAuthMiddleware{}},
+		RouterConfig{CORSHandler: c, AuthMiddleware: &testutil.AuthMiddleware{}},
 		PublicRoutes{
 			Health:            func(http.ResponseWriter, *http.Request) {},
 			Ready:             func(http.ResponseWriter, *http.Request) {},
@@ -422,7 +406,7 @@ func TestNewRouter_PublicBypassesAuth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("cors.NewHandler: %v", err)
 	}
-	auth := &mockAuthMiddleware{blockAccess: true}
+	auth := &testutil.AuthMiddleware{Block: true}
 
 	healthCalled := false
 	router := NewRouter(
@@ -452,7 +436,7 @@ func TestNewRouter_CORSPreflight(t *testing.T) {
 	if err != nil {
 		t.Fatalf("cors.NewHandler: %v", err)
 	}
-	auth := &mockAuthMiddleware{}
+	auth := &testutil.AuthMiddleware{}
 	router := newTestRouter(c, auth, logger)
 
 	paths := []string{"/health", "/v1/activities/2024/metrics"}
@@ -474,7 +458,7 @@ func TestNewRouter_UndefinedRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("cors.NewHandler: %v", err)
 	}
-	auth := &mockAuthMiddleware{}
+	auth := &testutil.AuthMiddleware{}
 	router := newTestRouter(c, auth, logger)
 
 	t.Run("POST to GET-only endpoint returns 405", func(t *testing.T) {
@@ -509,7 +493,7 @@ func TestNewRouter_AuthRateLimiterScopedToAuth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("cors.NewHandler: %v", err)
 	}
-	auth := &mockAuthMiddleware{}
+	auth := &testutil.AuthMiddleware{}
 
 	// Auth limiter: 1 req/s, burst 1 — second hit in quick succession is rejected.
 	authLimiter := ratelimit.New(ctx, &ratelimit.Config{
@@ -651,7 +635,7 @@ func TestGlobalRateLimit429CarriesCORSHeaders(t *testing.T) {
 	router := NewRouter(
 		RouterConfig{
 			CORSHandler:    c,
-			AuthMiddleware: &mockAuthMiddleware{},
+			AuthMiddleware: &testutil.AuthMiddleware{},
 			RateLimiter:    globalLimiter,
 		},
 		PublicRoutes{
@@ -724,7 +708,7 @@ func TestPreflightBypassesGlobalRateLimiter(t *testing.T) {
 	router := NewRouter(
 		RouterConfig{
 			CORSHandler:    c,
-			AuthMiddleware: &mockAuthMiddleware{},
+			AuthMiddleware: &testutil.AuthMiddleware{},
 			RateLimiter:    globalLimiter,
 		},
 		PublicRoutes{
@@ -840,7 +824,7 @@ func TestRecoverOutermost_PassesOnTheAbortSignal(t *testing.T) {
 // A panic in middleware above chi's Recoverer, here CORS with no handler
 // configured, still ends in the standard JSON 500 instead of reaching net/http.
 func TestNewRouter_PanicInOuterMiddlewareIsAJSON500(t *testing.T) {
-	router := newTestRouter(nil, &mockAuthMiddleware{}, slog.New(slog.DiscardHandler))
+	router := newTestRouter(nil, &testutil.AuthMiddleware{}, slog.New(slog.DiscardHandler))
 
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, corsRequest(http.MethodGet, "/health"))
