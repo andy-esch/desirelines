@@ -120,6 +120,13 @@ jobs:
       - name: Verify BUILD files
         run: "pants tailor --check ::"
 
+      # The Go and Python protobuf code is committed and shipped as is (the dispatcher image
+      # builds from webhook.pb.go, the writer imports webhook_pb2), so it must match
+      # schemas/proto. Pants pins its own protoc and plugins; this reuses its setup above.
+      # The TypeScript is checked in the Web/React job.
+      - name: Check generated protobuf Go and Python
+        run: just proto-check-backend
+
       # Shellcheck (preinstalled on ubuntu-latest) + shfmt format check.
       # shfmt is installed via `go install` since Go is already set up
       # above. Catches hardening / formatting regressions in scripts/ +
