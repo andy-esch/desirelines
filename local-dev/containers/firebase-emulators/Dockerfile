@@ -8,7 +8,7 @@ ARG FIREBASE_TOOLS_VERSION=13.29.1
 # Install firebase-tools, curl for healthcheck, and Java for emulators
 RUN npm install -g firebase-tools@${FIREBASE_TOOLS_VERSION} && \
     apt-get update && \
-    apt-get install -y --no-install-recommends curl openjdk-17-jre-headless && \
+    apt-get install -y --no-install-recommends curl openjdk-21-jre-headless && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
