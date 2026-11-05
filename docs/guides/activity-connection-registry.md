@@ -47,9 +47,11 @@ Bind a refresh write to the UID/subject pair that supplied its credentials, and
 keep external OAuth/Auth calls outside retryable callbacks.
 
 These readers do not establish app admission, verify a provider grant or prove
-rollout readiness. Callers enforce those boundaries separately. Adopting readers
-in runtime sign-in or ingestion requires the bootstrap, verification and sealing
-steps below; deploying the reader package alone does not activate routing.
+rollout readiness. Callers enforce those boundaries separately. The gateway
+adopts these readers for sign-in and credential writes; ingestion
+consumers remain separate stages. Gateway releases require the bootstrap,
+verification and sealing steps below. See the
+[authentication flow](../architecture/authentication.md).
 
 [The release declaration](../../scripts/ci/identity-rollout.json) records which
 service images depend on bootstrapped ownership. Set an image's requirement in
@@ -157,10 +159,12 @@ The summary's `verified_at` records when inventory started, with subsecond
 precision; it is emitted only after the entire verification succeeds.
 
 The control document `identity_migration/legacy_admissions` contains `frozen` and
-`rollback_allowed` booleans. Missing control preserves current sign-in; malformed
-control fails closed. Freeze cannot reopen sealed rollback. The gateway checks
-admission/control/mappings in the same transaction as credentials, and legacy
-deletion atomically removes admission, registry records and user documents so
+`rollback_allowed` booleans. Missing control preserves the pre-migration legacy
+bridge; malformed control
+fails its legacy admission check. The resolver-based gateway always requires an
+active mapping and revalidates that exact UID/subject pair and UID admission in
+the credential transaction. Its release gate checks sealed control metadata.
+Freeze cannot reopen sealed rollback. Legacy deletion atomically removes admission, registry records and user documents so
 concurrent login/bootstrap cannot recreate Firestore ownership or tokens. Do not
 manually re-add revoked admissions during the freeze; that bypasses the migration
 policy when an old mapping remains.

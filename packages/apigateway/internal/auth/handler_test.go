@@ -44,13 +44,15 @@ func (m *mockStravaOAuth) AuthorizeURL() string {
 type mockTokenStore struct {
 	writeErr error
 
-	calledWith string // captures the athleteID argument
+	calledWith string // captures the app UID argument
+	owner      CredentialOwner
 	called     bool
 }
 
-func (m *mockTokenStore) WriteAuthData(_ context.Context, athleteID string, _ *stravatoken.Data, _ *AthleteProfile) error {
+func (m *mockTokenStore) WriteAuthData(_ context.Context, owner CredentialOwner, _ *stravatoken.Data, _ *AthleteProfile) error {
 	m.called = true
-	m.calledWith = athleteID
+	m.calledWith = owner.UID
+	m.owner = owner
 	return m.writeErr
 }
 
@@ -90,6 +92,24 @@ func (m *mockFirebase) UpdateUser(_ context.Context, uid string, params *firebas
 	return nil, m.updateUserErr
 }
 
+type mockConnectionResolver struct {
+	owner      *activityconnection.Record
+	err        error
+	calledWith string
+}
+
+func legacyOwner(subject string) activityconnection.Record {
+	return activityconnection.Record{SchemaVersion: 1, UID: subject, Provider: activityconnection.Provider, Subject: subject, Scopes: []string{}, Status: activityconnection.Active, Provenance: activityconnection.LegacyUID, BootstrapID: "test"}
+}
+
+func (m *mockConnectionResolver) Resolve(_ context.Context, subject string) (activityconnection.Record, error) {
+	m.calledWith = subject
+	if m.owner != nil {
+		return *m.owner, m.err
+	}
+	return legacyOwner(subject), m.err
+}
+
 // --- Helper ---
 
 func newTestHandler(
@@ -102,6 +122,7 @@ func newTestHandler(
 	t.Helper()
 	h, err := NewHandler(&HandlerConfig{
 		Strava:       strava,
+		Connections:  &mockConnectionResolver{},
 		Tokens:       tokens,
 		Allowlist:    allow,
 		Firebase:     firebase,
@@ -134,6 +155,7 @@ func addStateCookie(req *http.Request, h *Handler, value string) {
 func TestNewHandler_URLValidation(t *testing.T) {
 	baseCfg := HandlerConfig{
 		Strava:      &mockStravaOAuth{},
+		Connections: &mockConnectionResolver{},
 		Tokens:      &mockTokenStore{},
 		Allowlist:   &mockAllowlist{},
 		Firebase:    &mockFirebase{},
@@ -342,6 +364,7 @@ func TestFirebaseHostingStateCookieRoundTrip(t *testing.T) {
 	strava := &mockStravaOAuth{err: errors.New("expected exchange stop")}
 	h, err := NewHandler(&HandlerConfig{
 		Strava:      strava,
+		Connections: &mockConnectionResolver{},
 		Tokens:      &mockTokenStore{},
 		Allowlist:   &mockAllowlist{},
 		Firebase:    &mockFirebase{},
@@ -415,6 +438,7 @@ func TestStateCookieIsSingleUse(t *testing.T) {
 	strava := &mockStravaOAuth{err: errors.New("expected exchange stop")}
 	h, err := NewHandler(&HandlerConfig{
 		Strava:      strava,
+		Connections: &mockConnectionResolver{},
 		Tokens:      &mockTokenStore{},
 		Allowlist:   &mockAllowlist{},
 		Firebase:    &mockFirebase{},

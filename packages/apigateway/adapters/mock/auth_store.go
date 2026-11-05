@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/andy-esch/desirelines/packages/apigateway/internal/auth"
+	"github.com/andy-esch/desirelines/packages/shared/activityconnection"
 	"github.com/andy-esch/desirelines/packages/shared/allowlist"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 )
@@ -28,9 +29,26 @@ func NewAuthStore(logger *slog.Logger) *AuthStore {
 }
 
 // WriteAuthData logs the write and discards it (no Firestore in local dev).
-func (s *AuthStore) WriteAuthData(_ context.Context, athleteID string, _ *stravatoken.Data, _ *auth.AthleteProfile) error {
-	s.logger.Debug("Mock auth store: discarding token write", "athlete_id", athleteID)
+func (s *AuthStore) WriteAuthData(_ context.Context, owner auth.CredentialOwner, _ *stravatoken.Data, _ *auth.AthleteProfile) error {
+	s.logger.Debug("Mock auth store: discarding token write", "uid", owner.UID, "subject", owner.Subject)
 	return nil
+}
+
+// ConnectionResolver supplies one explicitly configured local fixture pair.
+// It never derives a production UID from an arbitrary provider subject.
+type ConnectionResolver struct{ Owner activityconnection.Record }
+
+var _ auth.ConnectionResolver = (*ConnectionResolver)(nil)
+
+// Resolve accepts only the configured active fixture subject.
+func (r *ConnectionResolver) Resolve(_ context.Context, subject string) (activityconnection.Record, error) {
+	if err := r.Owner.Validate(); err != nil {
+		return activityconnection.Record{}, activityconnection.ErrConflict
+	}
+	if r.Owner.Subject != subject || r.Owner.Status != activityconnection.Active {
+		return activityconnection.Record{}, activityconnection.ErrNotFound
+	}
+	return r.Owner, nil
 }
 
 // AllowlistChecker is a no-op implementation of allowlist.Checker for local

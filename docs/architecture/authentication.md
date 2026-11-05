@@ -2,13 +2,13 @@
 
 ## Overview
 
-Strava OAuth with Firebase Custom Auth protects personal activity data. Users sign in with their Strava account; the API gateway exchanges the OAuth code for a Firebase custom token. Access is controlled by a Firestore athlete ID allowlist. Unauthenticated users see client-side generated demo data.
+Strava OAuth with Firebase Custom Auth protects personal activity data. Users sign in with their Strava account; the API gateway exchanges the OAuth code for a Firebase custom token. Access is controlled by a Firestore app UID allowlist. Unauthenticated users see client-side generated demo data.
 
 ## Auth Flow
 
 ```
 User → "Connect with Strava" → API Gateway /auth/strava → Strava OAuth
-     → /auth/callback → Firestore allowlist check → Firebase Custom Token
+     → /auth/callback → Connection registry → App admission → Firebase Custom Token
      → Frontend /auth/complete → signInWithCustomToken → Session established
 ```
 
@@ -33,19 +33,26 @@ OAuth endpoints (`internal/auth/`):
    to `StravaOAuthClient.AuthorizeURL()` (Strava in production, gateway's own
    callback in local dev).
 3. `GET /auth/callback` — validates state and the browser-bound cookie,
-   exchanges the code via `StravaOAuthClient.ExchangeCode()`, checks the
-   allowlist, creates a Firebase custom token, and redirects to the frontend.
+   exchanges the code via `StravaOAuthClient.ExchangeCode()`, resolves the Strava
+   subject through the active registry pair, and checks the resolved app UID
+   against the allowlist. Credential/profile writes recheck that exact UID/subject
+   pair and admission inside their transaction. Firebase profile sync and custom
+   token creation use the resolved UID after commit.
 
 Auth middleware (`middleware/auth.go`):
 
 1. Validates JWT using Firebase Admin SDK.
-2. Re-checks the athlete-ID allowlist, using a short positive-only cache to
+2. Re-checks the app UID allowlist, using a short positive-only cache to
    coalesce map-tile bursts while bounding revocation staleness.
-3. Injects `token.UID` (Strava athlete ID) into request context.
+3. Injects the app UID from `token.UID` into request context.
 4. Returns 401 for invalid identity, 403 for removal, or 503 when authorization
    cannot be checked.
 
-**Identity model**: Firebase UID = Strava athlete ID (as string) = PostgreSQL `user_id` column.
+**Identity model**: the Firebase UID identifies app data and PostgreSQL `user_id`.
+The registry maps a Strava subject to that UID; existing users retain their
+numeric UIDs. The callback never derives a UID from an athlete ID or falls back
+when ownership is absent, inactive or inconsistent. Other ingestion consumers
+remain on the legacy numeric model until their separately scoped routing stages.
 
 **User States**:
 
@@ -69,7 +76,7 @@ Auth middleware (`middleware/auth.go`):
 
 **Access control**:
 
-- Firestore `allowlist/{strava_athlete_id}` — must exist for OAuth to succeed
+- Firestore `allowlist/{uid}` — must exist for OAuth to succeed
 - Managed via Admin SDK (not client-accessible)
 - Strava tokens at `users/{uid}/private/strava_tokens` are denied to client SDKs
   by [Firestore rules](../../firestore.rules). Profile metadata is owner-readable
@@ -88,9 +95,14 @@ Profile reads and config access still use owner UID without an admission check.
 API allowlist checks do not restrict direct Firestore access; independent sign-in
 must remain disabled until admission-aware rules are implemented and verified.
 
-The server-only connection registry is additive; sign-in and ingestion still use
-the legacy UID model above. Its migration control can freeze new legacy
-admissions/reactivations while existing admitted, mapped users retain sign-in.
+The gateway requires verified, sealed bootstrap evidence through
+[`identity-rollout.json`](../../scripts/ci/identity-rollout.json). New independent
+enrollment remains disabled. Missing/inactive ownership or removed admission
+returns `not_invited`; conflicting ownership or backend failures return
+`server_error`. Retry OAuth after transient failures; an in-flight grant is never
+retargeted to a newly resolved UID. OAuth exchanges and Firebase Auth calls stay
+outside Firestore transaction retries. Rollback must retain registry-aware
+admission/deletion and the current reviewed rules; never remove sealed mappings.
 See the [registry contract and rollout](../guides/activity-connection-registry.md).
 
 **Whose config**: the web client holds one session's config in one store
@@ -101,7 +113,7 @@ Components read and save it through the section hooks (`usePreferences`, `useGoa
 reaching Firestore or the demo's storage around it.
 
 - Signed in: the document at `users/{uid}/config/v1`, the uid being the Firebase UID
-  (= Strava athlete ID).
+  (retained numeric IDs for legacy accounts).
 - Signed out: the demo's own storage on the device, under `demo.` keys in localStorage.
   It never reads the account's document, and the account never reads it.
 
@@ -117,7 +129,8 @@ reaching Firestore or the demo's storage around it.
 - Run `just start-frontend` to start Firebase emulators + API Gateway + PostgreSQL
 - Uses Firebase Auth Emulator for real JWT minting/verification
 - A mock Strava adapter (`MockOAuthClient`) replaces the real Strava OAuth redirect — clicking "Connect with Strava" instantly completes the OAuth flow via the gateway's own callback URL
-- A mock auth store (`MockAuthStore`) replaces Firestore for token storage and allowlist checks (always allows, discards writes)
+- A mock auth store discards credential writes; local admission always allows. An
+  explicit connection fixture resolves only the configured `MOCK_ATHLETE_ID`.
 - The full auth middleware runs on every request, verifying real Firebase JWTs against the emulator — identical to production
 - Firebase Emulator UI available at `http://localhost:4000`
 

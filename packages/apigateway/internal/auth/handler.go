@@ -45,6 +45,7 @@ const (
 type HandlerConfig struct {
 	Strava      StravaOAuthClient
 	Tokens      TokenStore
+	Connections ConnectionResolver
 	Allowlist   allowlist.Checker
 	Firebase    FirebaseAuthClient
 	StateSecret []byte
@@ -63,6 +64,7 @@ type HandlerConfig struct {
 type Handler struct {
 	strava       StravaOAuthClient
 	tokens       TokenStore
+	connections  ConnectionResolver
 	allowlist    allowlist.Checker
 	firebase     FirebaseAuthClient
 	stateSecret  []byte
@@ -82,6 +84,9 @@ func NewHandler(cfg *HandlerConfig) (*Handler, error) {
 	if len(cfg.StateSecret) < minStateSecretBytes {
 		return nil, fmt.Errorf("OAuth state secret must be at least %d bytes", minStateSecretBytes)
 	}
+	if cfg.Connections == nil {
+		return nil, errors.New("activity connection resolver is required")
+	}
 
 	frontendURL, err := validateExternalURL("frontend URL", cfg.FrontendURL, cfg.RequireHTTPS, "would leak Firebase token")
 	if err != nil {
@@ -96,6 +101,7 @@ func NewHandler(cfg *HandlerConfig) (*Handler, error) {
 	return &Handler{
 		strava:       cfg.Strava,
 		tokens:       cfg.Tokens,
+		connections:  cfg.Connections,
 		allowlist:    cfg.Allowlist,
 		firebase:     cfg.Firebase,
 		stateSecret:  cfg.StateSecret,
@@ -302,15 +308,22 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), defaultExternalTimeout)
 	defer cancel()
 
-	// Check allowlist
-	allowed, err := h.allowlist.IsAllowed(ctx, athleteID)
+	owner, err := h.resolveOwner(ctx, athleteID)
 	if err != nil {
-		h.logger.Error("Failed to check allowlist", "error", err, "athlete_id", athleteID)
+		h.logger.Error("Failed to resolve activity owner", "error", err, "athlete_id", athleteID)
+		h.redirectOwnershipError(w, r, err)
+		return
+	}
+
+	// Admission is keyed by the resolved app UID, independently of the subject.
+	allowed, err := h.allowlist.IsAllowed(ctx, owner.UID)
+	if err != nil {
+		h.logger.Error("Failed to check app admission", "error", err, "uid", owner.UID)
 		h.redirectError(w, r, "server_error")
 		return
 	}
 	if !allowed {
-		h.logger.Warn("Athlete not on allowlist", "athlete_id", athleteID)
+		h.logger.Warn("Activity owner not admitted", "uid", owner.UID)
 		h.redirectError(w, r, "not_invited")
 		return
 	}
@@ -336,21 +349,17 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	// syncFirebaseProfile call below is intentionally best-effort —
 	// failing the OAuth callback because a Firebase backfill failed
 	// would orphan the user with a token they can't access.
-	if writeErr := h.tokens.WriteAuthData(ctx, athleteID, tokenData, profile); writeErr != nil {
-		if errors.Is(writeErr, activityconnection.ErrAdmissionDenied) {
-			h.redirectError(w, r, "not_invited")
-			return
-		}
+	if writeErr := h.tokens.WriteAuthData(ctx, owner, tokenData, profile); writeErr != nil {
 		h.logger.Error("Failed to write auth data", "error", writeErr, "athlete_id", athleteID)
-		h.redirectError(w, r, "server_error")
+		h.redirectOwnershipError(w, r, writeErr)
 		return
 	}
 
 	// Sync Strava profile to Firebase user record (non-fatal on failure).
-	h.syncFirebaseProfile(ctx, athleteID, tokenResp.Athlete)
+	h.syncFirebaseProfile(ctx, owner.UID, tokenResp.Athlete)
 
 	// Create Firebase custom token
-	customToken, err := h.firebase.CustomToken(ctx, athleteID)
+	customToken, err := h.firebase.CustomToken(ctx, owner.UID)
 	if err != nil {
 		h.logger.Error("Failed to create Firebase custom token", "error", err, "athlete_id", athleteID)
 		h.redirectError(w, r, "server_error")
@@ -368,10 +377,29 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, u.String(), http.StatusFound)
 }
 
+func (h *Handler) resolveOwner(ctx context.Context, subject string) (CredentialOwner, error) {
+	record, err := h.connections.Resolve(ctx, subject)
+	if err != nil {
+		return CredentialOwner{}, fmt.Errorf("resolve activity owner: %w", err)
+	}
+	if record.Validate() != nil || record.Subject != subject || record.Status != activityconnection.Active {
+		return CredentialOwner{}, activityconnection.ErrConflict
+	}
+	return CredentialOwner{UID: record.UID, Subject: record.Subject}, nil
+}
+
+func (h *Handler) redirectOwnershipError(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, activityconnection.ErrAdmissionDenied) || errors.Is(err, activityconnection.ErrNotFound) {
+		h.redirectError(w, r, "not_invited")
+		return
+	}
+	h.redirectError(w, r, "server_error")
+}
+
 // syncFirebaseProfile sets the display name and photo on the Firebase user record
 // so the frontend can show the athlete's name without a separate Firestore read.
 // Failures are logged but not propagated — profile sync is best-effort.
-func (h *Handler) syncFirebaseProfile(ctx context.Context, athleteID string, athlete StravaAthlete) {
+func (h *Handler) syncFirebaseProfile(ctx context.Context, uid string, athlete StravaAthlete) {
 	userUpdate := &firebaseauth.UserToUpdate{}
 	hasUpdate := false
 
@@ -387,8 +415,8 @@ func (h *Handler) syncFirebaseProfile(ctx context.Context, athleteID string, ath
 	if !hasUpdate {
 		return
 	}
-	if _, err := h.firebase.UpdateUser(ctx, athleteID, userUpdate); err != nil {
-		h.logger.Warn("Failed to update Firebase user profile", "error", err, "athlete_id", athleteID)
+	if _, err := h.firebase.UpdateUser(ctx, uid, userUpdate); err != nil {
+		h.logger.Warn("Failed to update Firebase user profile", "error", err, "uid", uid)
 	}
 }
 
