@@ -438,6 +438,7 @@ func TestStateCookieIsSingleUse(t *testing.T) {
 	strava := &mockStravaOAuth{err: errors.New("expected exchange stop")}
 	h, err := NewHandler(&HandlerConfig{
 		Strava:      strava,
+		Connections: &mockConnectionResolver{},
 		Tokens:      &mockTokenStore{},
 		Allowlist:   &mockAllowlist{},
 		Firebase:    &mockFirebase{},
