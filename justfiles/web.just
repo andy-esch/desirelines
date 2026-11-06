@@ -48,7 +48,7 @@ deploy-web env:
 # ts-proto, pinned exactly in packages/web/package.json, it makes regeneration on an unchanged
 # proto a no-op. CI installs this version. To bump either, see "Generated protobuf code" in
 # docs/guides/ci.md.
-protoc_version := "35.0"
+protoc_version := "35.1"
 
 # Generate TypeScript protos via npm/protoc
 proto-gen-web:
