@@ -14,6 +14,9 @@
   "prConcurrentLimit": 3,
   "prHourlyLimit": 2,
   "postUpdateOptions": ["gomodTidyAll", "npmDedupe"],
+  "constraints": {
+    "npm": "^11"
+  },
   "terraform": {
     "enabled": true
   },

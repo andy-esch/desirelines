@@ -193,6 +193,14 @@ just proto-check-web   # from the repo root; needs the pinned protoc
 
 **Coverage:** Uploaded to Codecov.
 
+**Renovate's npm:** `constraints.npm` in `renovate.json` makes Renovate update
+`packages/web/package-lock.json` with npm 11, the major CI's Node and Node 24 ship. npm 12
+refuses to fetch the tarball of a package with `bundleDependencies` (here
+`@tailwindcss/oxide-wasm32-wasi`, under Tailwind) during a lockfile-only update, so with
+npm 12 Renovate's npm PRs fail with `EALLOWREMOTE` and leave the lockfile stale
+([npm/cli#9800](https://github.com/npm/cli/issues/9800)). Raise the constraint once an npm 12
+release fixes that bug, or when the project moves to npm 12.
+
 #### Generated protobuf code
 
 The job regenerates the protobuf TypeScript with `just proto-check-web` and fails if the result
