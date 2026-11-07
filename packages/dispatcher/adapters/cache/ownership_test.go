@@ -3,6 +3,7 @@ package cache_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -24,7 +25,7 @@ func TestTokenCacheSeparatesUIDAndSubjectAndRevalidatesHits(t *testing.T) {
 			t.Fatalf("owner=%+v tokens=%v err=%v", owner, got, err)
 		}
 	}
-	if get, _, _ := inner.counts(); get != 3 || len(inner.validated) != 3 {
+	if get, _, _ := inner.counts(); get != 3 || !slices.Equal(inner.validated, []ports.CredentialOwner{a, b, c}) {
 		t.Fatalf("reads=%d validations=%v", get, inner.validated)
 	}
 	for _, err := range []error{activityconnection.ErrConflict, activityconnection.ErrNotFound, context.DeadlineExceeded} {

@@ -17,6 +17,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports/portstest"
 	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
+	"github.com/andy-esch/desirelines/packages/shared/activityconnection"
 	"github.com/andy-esch/desirelines/packages/shared/apierrors"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"go.opentelemetry.io/otel/metric"
@@ -979,6 +980,7 @@ func TestHandler_OwnerCheck_CounterLabels(t *testing.T) {
 		stravaErr    error
 		wantResult   string
 		wantStatus   int
+		wantCode     string
 		payloadBytes []byte
 	}
 
@@ -1028,6 +1030,33 @@ func TestHandler_OwnerCheck_CounterLabels(t *testing.T) {
 			wantStatus:   http.StatusInternalServerError,
 			payloadBytes: validBody,
 		},
+		{
+			name:         "mapping disappeared during credential use",
+			allowlist:    portstest.NewAllowAllMockAllowlist(),
+			stravaErr:    fmt.Errorf("read credentials: %w", activityconnection.ErrNotFound),
+			wantResult:   "error",
+			wantStatus:   http.StatusInternalServerError,
+			wantCode:     ErrCodeOwnershipCheckFailed,
+			payloadBytes: validBody,
+		},
+		{
+			name:         "mapping changed during refresh",
+			allowlist:    portstest.NewAllowAllMockAllowlist(),
+			stravaErr:    fmt.Errorf("refresh write: %w", activityconnection.ErrConflict),
+			wantResult:   "error",
+			wantStatus:   http.StatusInternalServerError,
+			wantCode:     ErrCodeOwnershipCheckFailed,
+			payloadBytes: validBody,
+		},
+		{
+			name:         "unrelated fetch failure stays distinct",
+			allowlist:    portstest.NewAllowAllMockAllowlist(),
+			stravaErr:    errors.New("provider unavailable"),
+			wantResult:   "allowed",
+			wantStatus:   http.StatusInternalServerError,
+			wantCode:     ErrCodeStravaFetchFailed,
+			payloadBytes: validBody,
+		},
 	}
 
 	for _, c := range cases {
@@ -1063,6 +1092,12 @@ func TestHandler_OwnerCheck_CounterLabels(t *testing.T) {
 
 			if w.Code != c.wantStatus {
 				t.Errorf("status = %d, want %d (body: %s)", w.Code, c.wantStatus, w.Body.String())
+			}
+			if c.wantCode != "" {
+				response := parseErrorResponse(w.Body.String())
+				if response == nil || response.Code != c.wantCode {
+					t.Fatalf("error response = %s, want %s", w.Body.String(), c.wantCode)
+				}
 			}
 
 			var rm metricdata.ResourceMetrics

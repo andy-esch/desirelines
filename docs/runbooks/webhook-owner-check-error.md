@@ -27,8 +27,9 @@ dropped.
 4. Missing, inactive or conflicting ownership records. Inspect both directions
    using the [registry guide](../guides/activity-connection-registry.md); the
    [handler](../../packages/dispatcher/adapters/http/handler.go) never falls back
-   to an athlete-shaped UID. A mapping change during enrichment can also surface
-   as `STRAVA_FETCH_FAILED`, preserving the registry error in its cause.
+   to an athlete-shaped UID. A known missing/conflicting pair during enrichment
+   also returns `OWNERSHIP_CHECK_FAILED`; other credential backend failures can
+   surface as `STRAVA_FETCH_FAILED`.
 
 **Quick mitigations**:
 

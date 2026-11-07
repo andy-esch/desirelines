@@ -278,7 +278,7 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 	pubsubHist := newHistogram(meter, log, "desirelines.io/pubsub/publish.duration", "PubSub publish duration")
 	webhookCounter := newCounter(meter, log, "desirelines.io/webhook/events", "Webhook events processed")
 	eventAgeHistogram := newHistogramWithUnit(meter, log, "desirelines.io/webhook/event_age", "Absolute offset between dispatcher receive time and Strava event_time", "s")
-	ownerCheckCounter := newCounter(meter, log, "desirelines.io/webhook/owner_check", "Webhook owner allowlist check outcomes (allowed/stray/orphan/error)")
+	ownerCheckCounter := newCounter(meter, log, "desirelines.io/webhook/owner_check", "Webhook ownership/admission outcomes (allowed/stray/orphan/error)")
 	deauthCleanupCounter := newCounter(meter, log, "desirelines.io/webhook/deauth_cleanup", "Deauth verification, durable-handoff, and token-cleanup outcomes")
 	callbackCapabilityCounter := newCounter(meter, log, "desirelines.io/webhook/callback_capability", "Webhook callback capability outcomes (accepted/rejected)")
 	rowPublishCounter := newCounter(meter, log, "desirelines.io/bigquery/row_publish", "BigQuery activity-row publish outcomes (published/skipped/error)")

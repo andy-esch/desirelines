@@ -629,7 +629,7 @@ func (c *Client) doFetchActivity(ctx context.Context, activityID int64, accessTo
 	}
 }
 
-// refreshAndPersist serializes refreshes per athlete, then delegates to
+// refreshAndPersist serializes refreshes per captured UID/subject pair, then delegates to
 // refreshAndPersistOnce.
 //
 // The optimistic write-back guards the *write*; it does nothing about the

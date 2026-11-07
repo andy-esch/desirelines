@@ -23,6 +23,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/dispatcher/config"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
 	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
+	"github.com/andy-esch/desirelines/packages/shared/activityconnection"
 	"github.com/andy-esch/desirelines/packages/shared/allowlist"
 	"github.com/andy-esch/desirelines/packages/shared/apierrors"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
@@ -59,7 +60,7 @@ const (
 	ErrCodeOwnershipCheckFailed  = "OWNERSHIP_CHECK_FAILED"
 )
 
-// Owner-allowlist check outcomes (label values for the owner_check counter).
+// Ownership/admission outcomes (label values for the owner_check counter).
 const (
 	ownerCheckAllowed = "allowed"
 	ownerCheckStray   = "stray"
@@ -810,7 +811,7 @@ func (h *Handler) recordWebhookMetric(ctx context.Context, webhook *generated.We
 	)
 }
 
-// recordOwnerCheck increments the owner-allowlist-check counter labeled by
+// recordOwnerCheck increments the ownership/admission counter labeled by
 // the outcome (allowed / stray / orphan / error). No-op when no counter is
 // configured. Used to drive a dashboard tile and the orphan-rate alert.
 func (h *Handler) recordOwnerCheck(ctx context.Context, webhook *generated.WebhookEvent, result string) {
@@ -964,6 +965,13 @@ func (h *Handler) handleActivityEvent(ctx context.Context, w http.ResponseWriter
 				"object_id", webhook.ObjectId,
 			)
 			h.writeAcknowledged(w)
+			return
+		case errors.Is(fetchErr, activityconnection.ErrNotFound), errors.Is(fetchErr, activityconnection.ErrConflict):
+			// The pair changed after admission, during credential validation or
+			// refresh. Keep both the retry response and ownership-error signal.
+			result = ownerCheckError
+			h.writeError(w, r, http.StatusInternalServerError, ErrCodeOwnershipCheckFailed,
+				"Ownership check failed", fmt.Sprintf("Credential ownership check failed: %v", fetchErr))
 			return
 		default:
 			// Other Strava errors — return 500 so Strava retries (up to 3
