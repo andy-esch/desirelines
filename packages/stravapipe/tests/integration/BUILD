@@ -16,6 +16,9 @@ python_tests(
         "packages/stravapipe:deps#psycopg",
     ],
     overrides={
+        "test_owned_fence_preparation.py": {
+            "dependencies": ["scripts/ci:inputs"],
+        },
         "test_activity_id_cleanup.py": {
             "dependencies": ["schemas/database:local_seeds"],
         },

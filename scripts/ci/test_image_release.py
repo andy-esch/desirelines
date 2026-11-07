@@ -737,3 +737,70 @@ class TestWorkflow:
         python = next(image for image in images if image.name == "stravapipe")
         assert python.matrix_entry()["context_suffix"] == ":packages/stravapipe"
         assert python.dockerfile == "Dockerfile"
+
+
+@pytest.mark.parametrize(("writer", "required"), [(0, 0), (1, 0), (1, 1)])
+def test_writer_protocol_stages_are_validated(
+    tmp_path: Path, writer: int, required: int
+) -> None:
+    path = tmp_path / "identity-rollout.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "requires_bootstrap": dict.fromkeys(
+                    ["dispatcher", "apigateway", "stravapipe"], True
+                ),
+                "writer_protocol": writer,
+                "required_writer_protocol": required,
+            }
+        )
+    )
+    assert (
+        release.identity_requirements(release.load_catalog(), path)["stravapipe"]
+        is True
+    )
+
+
+@pytest.mark.parametrize("field", ["writer_protocol", "required_writer_protocol"])
+@pytest.mark.parametrize("invalid", [None, True, "1", 0.5, -1, 2, [], {}])
+def test_ambiguous_writer_protocol_is_rejected(
+    tmp_path: Path, field: str, invalid: object
+) -> None:
+    data = {
+        "schema_version": 2,
+        "requires_bootstrap": dict.fromkeys(
+            ["dispatcher", "apigateway", "stravapipe"], True
+        ),
+        "writer_protocol": 1,
+        "required_writer_protocol": 0,
+    } | {field: invalid}
+    path = tmp_path / "identity-rollout.json"
+    path.write_text(json.dumps(data))
+    with pytest.raises(ValueError, match="writer protocol"):
+        release.identity_requirements(release.load_catalog(), path)
+
+
+@pytest.mark.parametrize(
+    ("writer", "required", "bootstrap"), [(0, 1, True), (1, 0, False)]
+)
+def test_writer_protocol_requires_compatible_code_and_bootstrap(
+    tmp_path: Path, writer: int, required: int, bootstrap: bool
+) -> None:
+    path = tmp_path / "identity-rollout.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "requires_bootstrap": {
+                    "dispatcher": True,
+                    "apigateway": True,
+                    "stravapipe": bootstrap,
+                },
+                "writer_protocol": writer,
+                "required_writer_protocol": required,
+            }
+        )
+    )
+    with pytest.raises(ValueError, match="writer protocol"):
+        release.identity_requirements(release.load_catalog(), path)
