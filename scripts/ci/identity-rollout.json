@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "requires_bootstrap": {
-    "dispatcher": false,
+    "dispatcher": true,
     "apigateway": true,
     "stravapipe": false
   }

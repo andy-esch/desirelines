@@ -22,12 +22,12 @@ func TestMockTokenStore_UnversionedRecordsACopy(t *testing.T) {
 	store := &portstest.MockTokenStore{}
 	tokens := refreshed("a")
 
-	version, err := store.WriteTokensIfUnmodified(context.Background(), athleteID, tokens, time.Unix(99, 0))
+	version, err := store.WriteTokensIfUnmodified(context.Background(), portstest.LegacyOwner(athleteID), tokens, time.Unix(99, 0))
 	if err != nil || !version.IsZero() {
 		t.Fatalf("WriteTokensIfUnmodified() = %v, %v; want zero version, nil", version, err)
 	}
 	tokens.AccessToken = "changed after the write"
-	if got := store.WrittenTokens[athleteID].AccessToken; got != "a" {
+	if got := store.WrittenTokens[portstest.LegacyOwner(athleteID)].AccessToken; got != "a" {
 		t.Errorf("recorded access token = %q, want %q: the record must not alias the caller's struct", got, "a")
 	}
 }
@@ -40,26 +40,26 @@ func TestMockTokenStore_VersionedEnforcesTheVersion(t *testing.T) {
 	seeded := time.Unix(2, 0).UTC()
 	store := &portstest.MockTokenStore{
 		Versioned: true,
-		Tokens: map[int64]*stravatoken.Data{
-			athleteID: {AccessToken: "old", Scopes: "read", ConnectedAt: connectedAt, LastRefreshed: seeded},
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(athleteID): {AccessToken: "old", Scopes: "read", ConnectedAt: connectedAt, LastRefreshed: seeded},
 		},
 	}
 
-	if _, err := store.WriteTokensIfUnmodified(ctx, 7, refreshed("x"), time.Time{}); !errors.Is(err, ports.ErrTokenNotFound) {
+	if _, err := store.WriteTokensIfUnmodified(ctx, portstest.LegacyOwner(7), refreshed("x"), time.Time{}); !errors.Is(err, ports.ErrTokenNotFound) {
 		t.Errorf("write for a missing athlete: error = %v, want ErrTokenNotFound", err)
 	}
-	if _, err := store.WriteTokensIfUnmodified(ctx, athleteID, refreshed("x"), time.Time{}); !errors.Is(err, ports.ErrTokenConflict) {
+	if _, err := store.WriteTokensIfUnmodified(ctx, portstest.LegacyOwner(athleteID), refreshed("x"), time.Time{}); !errors.Is(err, ports.ErrTokenConflict) {
 		t.Errorf("write with a stale version: error = %v, want ErrTokenConflict", err)
 	}
 
-	first, err := store.WriteTokensIfUnmodified(ctx, athleteID, refreshed("first"), seeded)
+	first, err := store.WriteTokensIfUnmodified(ctx, portstest.LegacyOwner(athleteID), refreshed("first"), seeded)
 	if err != nil {
 		t.Fatalf("write with the stored version: %v", err)
 	}
 	if !first.After(seeded) {
 		t.Errorf("new version %v is not after the seeded %v", first, seeded)
 	}
-	stored := store.Tokens[athleteID]
+	stored := store.Tokens[portstest.LegacyOwner(athleteID)]
 	if stored.AccessToken != "first" || stored.RefreshToken != "first-refresh" || stored.ExpiresAt != 100 || !stored.LastRefreshed.Equal(first) {
 		t.Errorf("stored tokens = %+v, want the refreshed fields and version %v", stored, first)
 	}
@@ -67,10 +67,10 @@ func TestMockTokenStore_VersionedEnforcesTheVersion(t *testing.T) {
 		t.Errorf("stored Scopes/ConnectedAt = %q/%v, want them preserved like the real store", stored.Scopes, stored.ConnectedAt)
 	}
 
-	if _, lateErr := store.WriteTokensIfUnmodified(ctx, athleteID, refreshed("late"), seeded); !errors.Is(lateErr, ports.ErrTokenConflict) {
+	if _, lateErr := store.WriteTokensIfUnmodified(ctx, portstest.LegacyOwner(athleteID), refreshed("late"), seeded); !errors.Is(lateErr, ports.ErrTokenConflict) {
 		t.Errorf("second writer holding the seeded version: error = %v, want ErrTokenConflict", lateErr)
 	}
-	second, err := store.WriteTokensIfUnmodified(ctx, athleteID, refreshed("second"), first)
+	second, err := store.WriteTokensIfUnmodified(ctx, portstest.LegacyOwner(athleteID), refreshed("second"), first)
 	if err != nil || !second.After(first) {
 		t.Errorf("write with the returned version = %v, %v; want a later version, nil", second, err)
 	}
@@ -82,14 +82,14 @@ func TestMockTokenStore_WriteErrWins(t *testing.T) {
 	store := &portstest.MockTokenStore{
 		Versioned: true,
 		WriteErr:  writeErr,
-		Tokens:    map[int64]*stravatoken.Data{athleteID: {AccessToken: "old"}},
+		Tokens:    map[ports.CredentialOwner]*stravatoken.Data{portstest.LegacyOwner(athleteID): {AccessToken: "old"}},
 	}
 
-	version, err := store.WriteTokensIfUnmodified(context.Background(), athleteID, refreshed("new"), time.Time{})
+	version, err := store.WriteTokensIfUnmodified(context.Background(), portstest.LegacyOwner(athleteID), refreshed("new"), time.Time{})
 	if !errors.Is(err, writeErr) || !version.IsZero() {
 		t.Errorf("WriteTokensIfUnmodified() = %v, %v; want zero version, WriteErr", version, err)
 	}
-	if store.Tokens[athleteID].AccessToken != "old" || store.WrittenTokens != nil {
-		t.Errorf("a failed write changed the store: tokens %+v, written %v", store.Tokens[athleteID], store.WrittenTokens)
+	if store.Tokens[portstest.LegacyOwner(athleteID)].AccessToken != "old" || store.WrittenTokens != nil {
+		t.Errorf("a failed write changed the store: tokens %+v, written %v", store.Tokens[portstest.LegacyOwner(athleteID)], store.WrittenTokens)
 	}
 }

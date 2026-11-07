@@ -16,34 +16,18 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// DefaultTokenCacheMaxEntries bounds memory. Keyed by athlete ID, so cardinality
+// DefaultTokenCacheMaxEntries bounds memory. Keyed by UID/subject pair, so cardinality
 // is the user count. A ceiling, not a tuning knob.
 const DefaultTokenCacheMaxEntries = 10_000
 
-// TokenStore decorates a ports.TokenStore with a bounded TTL cache, removing the
-// Firestore GetTokens round-trip (~42ms) from the webhook hot path.
-//
-// Tokens are sensitive, rotated data, so this caches on invalidation rather than
-// on hope: every write path drops the entry, whatever its outcome. The cache is
-// never the source of truth for a write — WriteTokensIfUnmodified's optimistic
-// concurrency still runs against Firestore, so a stale cached LastRefreshed
-// produces a conflict (which invalidates and re-reads), never a lost update.
-//
-// The TTL (config.DefaultTokenCacheTTL when unset) is a backstop, not the primary
-// consistency mechanism: local mutations invalidate directly, and the Strava
-// client invalidates on a rejected refresh. The one case none of those covers is a
-// write to the same Firestore doc by a DIFFERENT process — the apigateway's OAuth
-// callback on re-auth, which this in-process cache cannot see — and the TTL bounds
-// how long such a write can be shadowed.
-//
-// NOTE (concurrency): the read-through is safe under concurrency: GetTokens samples the cache
-// generation before consulting Firestore and fills via PutIfUnchanged, so a Put
-// that would land after a concurrent mutation's Invalidate is refused rather
-// than re-caching a stale value for a full TTL. This used to be the reason
-// max_instance_request_concurrency was pinned to 1; it no longer is.
+// TokenStore caches credential values by their captured owner pair. Every hit
+// revalidates live ownership; misses read the pair and credentials together.
+// Writes invalidate on every outcome, including ambiguous failures and conflicts.
+// Generation-checked fills cannot restore an entry invalidated during a read.
+// TTL bounds out-of-process credential changes, such as gateway reauthorization.
 type TokenStore struct {
 	inner ports.TokenStore
-	cache *ttlcache.Cache[int64, stravatoken.Data]
+	cache *ttlcache.Cache[ports.CredentialOwner, stravatoken.Data]
 }
 
 // Errors from the inner store are returned VERBATIM, never wrapped. Callers match
@@ -72,11 +56,17 @@ func NewTokenStore(inner ports.TokenStore, ttl time.Duration, maxEntries int) *T
 	}
 	return &TokenStore{
 		inner: inner,
-		cache: ttlcache.New[int64, stravatoken.Data](ttlcache.Config{TTL: ttl, MaxEntries: maxEntries}),
+		cache: ttlcache.New[ports.CredentialOwner, stravatoken.Data](ttlcache.Config{TTL: ttl, MaxEntries: maxEntries}),
 	}
 }
 
-// GetTokens returns cached tokens when fresh, otherwise reads through.
+// ValidateOwner always reads through; ownership is never cached.
+func (s *TokenStore) ValidateOwner(ctx context.Context, owner ports.CredentialOwner) error {
+	//nolint:wrapcheck // Transparent decorator.
+	return s.inner.ValidateOwner(ctx, owner)
+}
+
+// GetTokens revalidates ownership on hits; misses read both in one snapshot.
 //
 // The cache stores stravatoken.Data by VALUE and hands out a pointer to a fresh
 // copy. Data is flat (no reference fields), so this is a full copy — a caller
@@ -84,10 +74,15 @@ func NewTokenStore(inner ports.TokenStore, ttl time.Duration, maxEntries int) *T
 // cached pointer directly would make every caller a co-owner of cache state.
 //
 // Errors are never cached: a Firestore blip must not become a TTL-long outage.
-func (s *TokenStore) GetTokens(ctx context.Context, athleteID int64) (*stravatoken.Data, error) {
+func (s *TokenStore) GetTokens(ctx context.Context, owner ports.CredentialOwner) (*stravatoken.Data, error) {
 	span := trace.SpanFromContext(ctx)
 
-	if cached, ok := s.cache.Get(athleteID); ok {
+	if cached, ok := s.cache.Get(owner); ok {
+		if err := s.inner.ValidateOwner(ctx, owner); err != nil {
+			s.cache.Invalidate(owner)
+			//nolint:wrapcheck // Transparent decorator.
+			return nil, err
+		}
 		stampCache(span, "strava_tokens", true)
 		out := cached // copy out of the cache
 		return &out, nil
@@ -99,14 +94,14 @@ func (s *TokenStore) GetTokens(ctx context.Context, athleteID int64) (*stravatok
 	// race-free at request concurrency 1.
 	gen := s.cache.Generation()
 
-	tokens, err := s.inner.GetTokens(ctx, athleteID)
+	tokens, err := s.inner.GetTokens(ctx, owner)
 	stampCache(span, "strava_tokens", false)
 	if err != nil {
 		//nolint:wrapcheck // Transparent decorator — see the note on the type.
 		return nil, err
 	}
 	if tokens != nil {
-		s.cache.PutIfUnchanged(athleteID, *tokens, gen) // copy into the cache
+		s.cache.PutIfUnchanged(owner, *tokens, gen) // copy into the cache
 	}
 	return tokens, nil
 }
@@ -124,28 +119,28 @@ func (s *TokenStore) GetTokens(ctx context.Context, athleteID int64) (*stravatok
 //   - ErrTokenNotFound — the tokens were deleted mid-refresh (deauth race).
 //   - transient failure — the write may or may not have landed. Unknown state is
 //     a reason to forget, not to keep.
-func (s *TokenStore) WriteTokensIfUnmodified(ctx context.Context, athleteID int64, tokens *stravatoken.Data, expectedLastRefreshed time.Time) (time.Time, error) {
-	defer s.cache.Invalidate(athleteID)
+func (s *TokenStore) WriteTokensIfUnmodified(ctx context.Context, owner ports.CredentialOwner, tokens *stravatoken.Data, expectedLastRefreshed time.Time) (time.Time, error) {
+	defer s.cache.Invalidate(owner)
 	//nolint:wrapcheck // Transparent decorator — see the note on the type.
-	return s.inner.WriteTokensIfUnmodified(ctx, athleteID, tokens, expectedLastRefreshed)
+	return s.inner.WriteTokensIfUnmodified(ctx, owner, tokens, expectedLastRefreshed)
 }
 
 // DeleteTokens delegates and drops the cached entry, whatever happens. A deauth
 // that deleted the tokens but left them cached would keep the athlete's webhooks
 // succeeding against a dead grant for a full TTL.
-func (s *TokenStore) DeleteTokens(ctx context.Context, athleteID int64) error {
-	defer s.cache.Invalidate(athleteID)
+func (s *TokenStore) DeleteTokens(ctx context.Context, owner ports.CredentialOwner) error {
+	defer s.cache.Invalidate(owner)
 	//nolint:wrapcheck // Transparent decorator — see the note on the type.
-	return s.inner.DeleteTokens(ctx, athleteID)
+	return s.inner.DeleteTokens(ctx, owner)
 }
 
-// Invalidate drops the cached tokens for athleteID. Implements
+// Invalidate drops the cached tokens for owner. Implements
 // ports.TokenInvalidator. The Strava client calls this when a refresh is rejected:
 // the cached tokens are known-bad, and Firestore may already hold fresh ones
 // (apigateway re-auth writes the same doc from another process, invisible to this
 // cache), so the next read must go through.
-func (s *TokenStore) Invalidate(athleteID int64) {
-	s.cache.Invalidate(athleteID)
+func (s *TokenStore) Invalidate(owner ports.CredentialOwner) {
+	s.cache.Invalidate(owner)
 }
 
 // stampCache records the cache outcome on the active span, so a hit is visible in

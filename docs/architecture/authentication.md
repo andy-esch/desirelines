@@ -105,6 +105,15 @@ outside Firestore transaction retries. Rollback must retain registry-aware
 admission/deletion and the current reviewed rules; never remove sealed mappings.
 See the [registry contract and rollout](../guides/activity-connection-registry.md).
 
+**Webhook ownership**: the [dispatcher](../../packages/dispatcher/README.md#architecture)
+resolves the provider subject before app UID admission and credential access. Its
+cache rechecks ownership on hits; refresh/deletion transactions retain the captured
+UID/subject pair across retries. Missing/conflicting mappings remain retryable
+errors, distinct from missing credential documents. Deauthorization confirms the
+grant, publishes durable cleanup, then best-effort deletes bound credentials,
+without requiring app admission. Event payloads retain Strava IDs; persistence and
+backfill routing remain separate stages.
+
 **Whose config**: the web client holds one session's config in one store
 (`UserConfigProvider`), with one cache entry for the whole document and one listener.
 Components read and save it through the section hooks (`usePreferences`, `useGoals`,

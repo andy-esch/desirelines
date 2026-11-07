@@ -52,7 +52,7 @@ func TestIntegration_ConcurrentRequests(t *testing.T) {
 	}
 	log := gcplog.NewNoOpLogger()
 
-	handler := NewHandler(mockPub, mockDeauthPub, mockSecrets, mockStrava, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, testHandlerConfig())
+	handler := NewHandler(mockPub, mockDeauthPub, mockSecrets, mockStrava, &portstest.MockTokenStore{}, &portstest.MockConnectionResolver{}, portstest.NewAllowAllMockAllowlist(), log, testHandlerConfig())
 	router := handler.RegisterRoutes()
 
 	const numRequests = 100
@@ -119,7 +119,7 @@ func TestIntegration_SecretReload(t *testing.T) {
 	}
 	log := gcplog.NewNoOpLogger()
 
-	handler := NewHandler(mockPub, &portstest.MockPublisher{}, mockSecrets, mockStrava, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, testHandlerConfig())
+	handler := NewHandler(mockPub, &portstest.MockPublisher{}, mockSecrets, mockStrava, &portstest.MockTokenStore{}, &portstest.MockConnectionResolver{}, portstest.NewAllowAllMockAllowlist(), log, testHandlerConfig())
 	router := handler.RegisterRoutes()
 
 	mustMarshal := func(v any) []byte {
@@ -196,7 +196,7 @@ func TestIntegration_ConcurrentVerification(t *testing.T) {
 	}
 	log := gcplog.NewNoOpLogger()
 
-	handler := NewHandler(&portstest.MockPublisher{}, &portstest.MockPublisher{}, mockSecrets, &portstest.MockStravaClient{}, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, testHandlerConfig())
+	handler := NewHandler(&portstest.MockPublisher{}, &portstest.MockPublisher{}, mockSecrets, &portstest.MockStravaClient{}, &portstest.MockTokenStore{}, &portstest.MockConnectionResolver{}, portstest.NewAllowAllMockAllowlist(), log, testHandlerConfig())
 	router := handler.RegisterRoutes()
 
 	const numRequests = 50

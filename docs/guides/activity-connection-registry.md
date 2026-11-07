@@ -48,9 +48,11 @@ keep external OAuth/Auth calls outside retryable callbacks.
 
 These readers do not establish app admission, verify a provider grant or prove
 rollout readiness. Callers enforce those boundaries separately. The gateway
-adopts these readers for sign-in and credential writes; ingestion
-consumers remain separate stages. Gateway releases require the bootstrap,
-verification and sealing steps below. See the
+adopts these readers for sign-in and credential writes; the
+[dispatcher](../../packages/dispatcher/README.md#architecture) uses them for
+admission, credential/cache reads, refresh and token deletion. Persistence and
+backfill consumers remain separate stages. Gateway and dispatcher releases require
+the bootstrap, verification and sealing steps below. See the
 [authentication flow](../architecture/authentication.md).
 
 [The release declaration](../../scripts/ci/identity-rollout.json) records which

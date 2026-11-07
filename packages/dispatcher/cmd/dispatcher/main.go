@@ -27,6 +27,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/dispatcher/adapters/strava"
 	"github.com/andy-esch/desirelines/packages/dispatcher/config"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
+	"github.com/andy-esch/desirelines/packages/shared/activityconnection"
 	"github.com/andy-esch/desirelines/packages/shared/allowlist"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/andy-esch/desirelines/packages/shared/otel"
@@ -323,14 +324,12 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 	deps.firestoreClient = firestoreClient
 	log.Info("Firestore client initialized", "database", cfg.FirestoreDatabase)
 
-	// Both lookups below sit on the SYNCHRONOUS webhook path, strictly serial
-	// before Strava can be called (~45ms allowlist + ~42ms tokens), and both read
-	// data that changes rarely. Cache them to widen the margin against Strava's
-	// ~2s webhook timeout and cut Firestore read volume.
+	// Cache UID admission and credentials on the synchronous webhook path.
+	// Ownership itself is never cached: even credential hits recheck the pair.
 	//
 	// Each cache can be disabled independently by setting its TTL env var to "0",
 	// so a suspected staleness bug is one redeploy away from being ruled out.
-	var tokenStore ports.TokenStore = firestoreadapter.NewTokenStore(firestoreClient, log, firestoreHist, tracer)
+	var tokenStore ports.TokenStore = firestoreadapter.NewTokenStore(firestoreClient, firestoreHist, tracer)
 	if cfg.TokenCacheTTL > 0 {
 		// IMPORTANT: one instance, shared by the Strava client (which reads and
 		// refreshes tokens) and the HTTP handler (which deletes them on deauth).
@@ -399,7 +398,7 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 		},
 	}, log)
 
-	handler := httpadapter.NewHandler(publisher, deauthPublisher, secretProvider, stravaClient, tokenStore, allowChecker, log, &httpadapter.HandlerConfig{
+	handler := httpadapter.NewHandler(publisher, deauthPublisher, secretProvider, stravaClient, tokenStore, activityconnection.Store{Client: firestoreClient}, allowChecker, log, &httpadapter.HandlerConfig{
 		MaxRequestBodySize:        cfg.MaxRequestBodySize,
 		RateLimiter:               rateLimiter,
 		WebhookCounter:            webhookCounter,
