@@ -161,6 +161,13 @@ Tests run the real V0015 migration, verify metadata preservation and refusal
 when adopted IDs remain, and cover the final-schema writer plus idempotent seeds.
 Transactional changes are rolled back within each isolated historical database.
 
+### Owner-scoped activity fences
+
+V0018 adds an empty fence table keyed by app UID and provider identity, leaving
+historical tombstones untouched. Application writes to it remain disabled until
+a later gated activation migration. Follow the [fence rollout sequence](../../docs/guides/activity-ownership-fences.md)
+for the compatible writer, drainage checkpoint and supported rollback boundary.
+
 ## Creating New Migrations
 
 **Naming**: `V{NNNN}__{description}.sql` (e.g., `V0003__add_goals_table.sql`)

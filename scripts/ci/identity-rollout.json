@@ -1,8 +1,10 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "requires_bootstrap": {
     "dispatcher": true,
     "apigateway": true,
     "stravapipe": true
-  }
+  },
+  "writer_protocol": 0,
+  "required_writer_protocol": 0
 }

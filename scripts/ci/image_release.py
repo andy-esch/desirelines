@@ -21,6 +21,7 @@ from typing import Any
 CATALOG = Path(__file__).with_name("image-build-inputs.json")
 IDENTITY_CONTRACT = Path(__file__).with_name("identity-rollout.json")
 IDENTITY_MAX_BYTES = 4096
+WRITER_PROTOCOL_SCHEMA_VERSION = 2
 FULL_SHA = re.compile(r"[0-9a-f]{40}")
 DIGEST = re.compile(r"sha256:[0-9a-f]{64}")
 ZERO_SHA = "0" * 40
@@ -297,16 +298,29 @@ def identity_requirements(
     ):
         raise ValueError("Identity rollout declaration must be a small regular file")
     data = json.loads(path.read_text())
+    version = data.get("schema_version") if isinstance(data, dict) else None
+    keys = {"schema_version", "requires_bootstrap"}
+    if version == WRITER_PROTOCOL_SCHEMA_VERSION:
+        keys |= {"writer_protocol", "required_writer_protocol"}
     if (
         not isinstance(data, dict)
-        or set(data) != {"schema_version", "requires_bootstrap"}
-        or type(data["schema_version"]) is not int
-        or data["schema_version"] != 1
+        or set(data) != keys
+        or type(version) is not int
+        or version not in {1, WRITER_PROTOCOL_SCHEMA_VERSION}
         or not isinstance(data["requires_bootstrap"], dict)
         or set(data["requires_bootstrap"]) != {image.name for image in images}
         or any(type(value) is not bool for value in data["requires_bootstrap"].values())
     ):
         raise ValueError("Unsupported identity rollout declaration")
+    if version == WRITER_PROTOCOL_SCHEMA_VERSION and (
+        any(
+            type(data[key]) is not int or data[key] not in {0, 1}
+            for key in ("writer_protocol", "required_writer_protocol")
+        )
+        or data["required_writer_protocol"] > data["writer_protocol"]
+        or (data["writer_protocol"] and not data["requires_bootstrap"]["stravapipe"])
+    ):
+        raise ValueError("Unsupported identity rollout writer protocol")
     return data["requires_bootstrap"]
 
 

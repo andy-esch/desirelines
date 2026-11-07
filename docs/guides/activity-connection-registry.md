@@ -202,3 +202,9 @@ For a frontend rollback, use the supported `deploy-web.sh ENV --hosting-only`
 route, retaining hardened rules. Do not run an older combined Hosting/rules
 script. Once resolvers depend on mappings, fix forward and preserve the registry;
 the bootstrap rollback command refuses after sealing.
+
+## Activity writer compatibility
+
+The separate [activity fence rollout](activity-ownership-fences.md) prepares
+owner-scoped PostgreSQL deletion markers and an earlier writer rollback minimum.
+Its checkpoint does not replace or change the sealed bootstrap evidence above.
