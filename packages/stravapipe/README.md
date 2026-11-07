@@ -123,7 +123,20 @@ Each service has its own config class in `config/`:
 
 The event-driven services (postgres-writer, deletion-service) load from environment variables with Secret Manager integration. Strava API credentials are **not** needed by these services — the dispatcher enriches events with activity data before publishing to PubSub.
 
-The backfill job loads Strava client credentials from secret volume mounts and fetches per-user OAuth tokens from Firestore at runtime.
+The backfill job loads client credentials from secret mounts. `ATHLETE_ID` stays
+a Strava subject; the [registry](../../docs/guides/activity-connection-registry.md)
+selects the app UID for token access. In-memory token use rechecks the captured
+ownership pair; [refresh writes](src/stravapipe/adapters/firestore/token_store.py)
+revalidate that pair and compare `last_refreshed` before committing [rotation](https://developers.strava.com/docs/authentication/);
+an ownership or persistence failure aborts remaining work; earlier committed
+years remain intact. Optional token
+timestamps decode to Go's zero time. The existing named-database configuration
+and backfill `roles/datastore.user` permission support these transactions.
+
+Until [activity persistence](src/stravapipe/domain/activity.py) is migrated,
+[the job](src/stravapipe/cloudrun/backfill_job.py) rejects UID/subject pairs that
+differ before fetching or writing activities. Independent enrollment remains
+disabled; this release requires the verified, sealed bootstrap.
 
 ### PostgreSQL Connection Pooling
 

@@ -1,8 +1,8 @@
 // Parity guard for the Firestore strava_tokens document.
 //
-// The document at users/{athleteID}/private/strava_tokens is a three-service
+// The document at users/{uid}/private/strava_tokens is a three-service
 // contract: apigateway writes it on the OAuth callback, dispatcher reads and
-// rewrites it on every refresh, and stravapipe reads it for backfill. Two of
+// rewrites it on every refresh, and stravapipe reads and conditionally refreshes it for backfill. Two of
 // those are Go and one is Python, so the shape is only type-checked on one
 // edge — a field rename on either side would otherwise surface as a runtime
 // decode failure in production rather than a red test.

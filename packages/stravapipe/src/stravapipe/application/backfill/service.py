@@ -30,6 +30,7 @@ from stravapipe.domain import (
     is_non_geographic_activity,
 )
 from stravapipe.domain.geometry import decode_polyline_to_geojson
+from stravapipe.exceptions import CredentialStateError
 from stravapipe.ports.out.postgres import ActivityRepository, BackfillUpsertResult
 from stravapipe.ports.out.read import ReadDetailedActivities
 from stravapipe.ports.out.unit_of_work import AbstractUnitOfWork
@@ -433,6 +434,10 @@ class BackfillService:
                     parent_context=Context(),
                 ):
                     year_stats = self._backfill_year(year, watermark)
+            except CredentialStateError:
+                # Reload the captured owner/credentials in a new job execution.
+                # Continuing with this execution's token state is unsafe.
+                raise
             except Exception:
                 log_best_effort(
                     partial(
@@ -563,6 +568,8 @@ class BackfillService:
         )
         try:
             activities = self._strava_reader.read_activities_by_year(year)
+        except CredentialStateError:
+            raise
         except Exception:
             log_best_effort(
                 partial(

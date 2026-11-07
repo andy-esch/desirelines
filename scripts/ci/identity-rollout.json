@@ -3,6 +3,6 @@
   "requires_bootstrap": {
     "dispatcher": true,
     "apigateway": true,
-    "stravapipe": false
+    "stravapipe": true
   }
 }

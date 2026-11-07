@@ -1,9 +1,11 @@
 """Unit tests for the backfill Cloud Run Job composition root and summary."""
 
+from dataclasses import replace
 from unittest.mock import DEFAULT, MagicMock, patch
 
 import pytest
 
+from stravapipe.adapters.firestore.activity_connection import ConnectionRecord
 from stravapipe.application.backfill import BackfillResult
 from stravapipe.cloudrun.backfill_job import _cleanup_resources, _log_result, main
 
@@ -17,6 +19,7 @@ def backfill_main_mocks():
         "load_backfill_config",
         "FirestoreClient",
         "FirestoreTokenStore",
+        "ConnectionResolver",
         "create_strava_activities_repo",
         "create_session_factory",
         "instrument_sqlalchemy_engine",
@@ -46,9 +49,15 @@ def backfill_main_mocks():
         config.batch_size = 100
         mocks["load_backfill_config"].return_value = config
 
+        owner = ConnectionRecord(
+            1, config.athlete_id, "strava", config.athlete_id, [], "active", "oauth", ""
+        )
+        mocks["ConnectionResolver"].return_value.resolve.return_value = owner
+        mocks["owner"] = owner
         token_data = MagicMock(
             access_token="access-token",
             refresh_token="refresh-token",
+            expires_at=2000000000,
         )
         mocks["FirestoreTokenStore"].return_value.get_tokens.return_value = token_data
 
@@ -241,3 +250,80 @@ def test_main_flushes_tracing_when_backfill_raises(backfill_main_mocks):
     mocks["engine"].dispose.assert_called_once_with()
     mocks["shutdown_tracing"].assert_called_once_with()
     mocks["sys_exit"].assert_not_called()
+
+
+def test_backfill_rejects_unmigrated_persistence_before_any_provider_or_database_work(
+    backfill_main_mocks,
+):
+    from stravapipe.adapters.firestore.activity_connection import (
+        ConnectionConflictError,
+    )
+
+    mocks = backfill_main_mocks
+    mocks["ConnectionResolver"].return_value.resolve.return_value = replace(
+        mocks["owner"], uid="independent-uid"
+    )
+    with pytest.raises(ConnectionConflictError, match="legacy UID"):
+        main()
+    mocks["FirestoreTokenStore"].return_value.get_tokens.assert_not_called()
+    mocks["create_strava_activities_repo"].assert_not_called()
+    mocks["create_session_factory"].assert_not_called()
+    mocks["make_write_activities"].assert_not_called()
+
+
+def test_backfill_callback_keeps_owner_and_advances_persisted_version(
+    backfill_main_mocks,
+):
+    from stravapipe.domain import StravaTokenSet
+
+    mocks = backfill_main_mocks
+    mocks["BackfillService"].return_value.backfill_user.return_value = BackfillResult(
+        athlete_id="15339103"
+    )
+    main()
+    resolver = mocks["ConnectionResolver"].return_value
+    resolver.resolve.assert_called_once_with(mocks["config"].athlete_id)
+    store = mocks["FirestoreTokenStore"].return_value
+    store.get_tokens.assert_called_once_with(mocks["owner"])
+    mocks["FirestoreClient"].assert_called_once_with(
+        project="desirelines-dev", database="desirelines"
+    )
+    callback = mocks["create_strava_activities_repo"].call_args.kwargs[
+        "persist_refreshed"
+    ]
+    first = StravaTokenSet(123, "secret", "first", "refresh-first", 2000000000)
+    second = StravaTokenSet(123, "secret", "second", "refresh-second", 2100000000)
+    before = store.get_tokens.return_value
+    after = MagicMock()
+    store.write_tokens_if_unmodified.return_value = after
+    callback(first)
+    callback(second)
+    assert store.write_tokens_if_unmodified.call_args_list[0].args == (
+        mocks["owner"],
+        first,
+        before,
+    )
+    assert store.write_tokens_if_unmodified.call_args_list[1].args == (
+        mocks["owner"],
+        second,
+        after,
+    )
+
+
+def test_backfill_owner_recheck_never_adopts_a_remapping(backfill_main_mocks):
+    from stravapipe.adapters.firestore.activity_connection import (
+        ConnectionConflictError,
+    )
+
+    mocks = backfill_main_mocks
+    mocks["BackfillService"].return_value.backfill_user.return_value = BackfillResult(
+        athlete_id="15339103"
+    )
+    main()
+    validate = mocks["create_strava_activities_repo"].call_args.kwargs["validate_owner"]
+    validate()
+    mocks["ConnectionResolver"].return_value.resolve.return_value = replace(
+        mocks["owner"], uid="other-owner"
+    )
+    with pytest.raises(ConnectionConflictError, match="ownership changed"):
+        validate()

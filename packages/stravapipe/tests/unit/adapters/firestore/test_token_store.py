@@ -1,7 +1,7 @@
 """Unit tests for FirestoreTokenStore."""
 
 from datetime import UTC, datetime
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -25,7 +25,14 @@ def mock_firestore_client():
 
 @pytest.fixture
 def store(mock_firestore_client):
-    return FirestoreTokenStore(mock_firestore_client)
+    with patch(
+        "stravapipe.adapters.firestore.token_store.transactional",
+        side_effect=lambda f: f,
+    ):
+        result = FirestoreTokenStore(mock_firestore_client)
+        result._resolver = MagicMock()
+        result._resolver.resolve_in_transaction.return_value.uid = "12345"
+        yield result
 
 
 def _make_doc_snapshot(data: dict | None, *, exists: bool = True) -> MagicMock:
@@ -95,12 +102,12 @@ class TestTokenDataFromDoc:
 
 
 class TestGetTokens:
-    def test_returns_tokens_for_existing_athlete(self, store, mock_firestore_client):
+    def test_returns_tokens_for_resolved_owner(self, store, mock_firestore_client):
         data = _sample_token_data()
         doc = _make_doc_snapshot(data)
         _ref_mock(mock_firestore_client).get.return_value = doc
 
-        result = store.get_tokens("12345")
+        result = store.get_tokens(MagicMock(uid="12345", subject="222"))
 
         assert result.access_token == "access_abc"
         assert result.refresh_token == "refresh_xyz"
@@ -112,14 +119,15 @@ class TestGetTokens:
         _ref_mock(mock_firestore_client).get.return_value = doc
 
         with pytest.raises(TokenNotFoundError, match="12345"):
-            store.get_tokens("12345")
+            store.get_tokens(MagicMock(uid="12345", subject="222"))
 
     def test_uses_correct_firestore_path(self, store, mock_firestore_client):
         data = _sample_token_data()
         doc = _make_doc_snapshot(data)
         _ref_mock(mock_firestore_client).get.return_value = doc
 
-        store.get_tokens("67890")
+        store._resolver.resolve_in_transaction.return_value.uid = "67890"
+        store.get_tokens(MagicMock(uid="67890", subject="222"))
 
         mock_firestore_client.collection.assert_called_with(USERS_COLLECTION)
         mock_firestore_client.collection.return_value.document.assert_called_with(
@@ -172,7 +180,7 @@ class TestDeleteTokens:
 
 
 class TestTokenNotFoundError:
-    def test_includes_athlete_id_in_message(self):
+    def test_includes_app_uid_in_message(self):
         err = TokenNotFoundError("42")
         assert "42" in str(err)
-        assert err.athlete_id == "42"
+        assert err.uid == "42"
