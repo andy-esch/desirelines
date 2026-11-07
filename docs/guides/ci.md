@@ -201,6 +201,14 @@ npm 12 Renovate's npm PRs fail with `EALLOWREMOTE` and leave the lockfile stale
 ([npm/cli#9800](https://github.com/npm/cli/issues/9800)). Raise the constraint once an npm 12
 release fixes that bug, or when the project moves to npm 12.
 
+Renovate also bumps the `overrides` in `packages/web/package.json` (for example
+`@grpc/grpc-js`, which `@firebase/firestore` would otherwise hold at `~1.9.0`) instead of
+updating only the lockfile. For an in-range update Renovate runs
+`npm install --package-lock-only <name>@<version>`, and npm rejects that for an overridden
+package with `EOVERRIDE` ("conflicts with direct dependency"), leaving the lockfile stale so the
+PR fails `npm ci`. The `overrides` rule in `renovate.json` makes Renovate raise the override's
+range instead, which a plain `npm install` resolves.
+
 #### Generated protobuf code
 
 The job regenerates the protobuf TypeScript with `just proto-check-web` and fails if the result
