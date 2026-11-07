@@ -67,7 +67,7 @@ func newSecurityRig(t *testing.T, allowed bool) *securityRig {
 	}
 	h := NewHandler(rig.primary, rig.deauth,
 		&portstest.MockSecretProvider{VerifyToken: "correct-verify-token", SubscriptionID: testSubscriptionID},
-		rig.strava, rig.tokens, rig.allow, gcplog.NewNoOpLogger(), &HandlerConfig{
+		rig.strava, rig.tokens, &portstest.MockConnectionResolver{}, rig.allow, gcplog.NewNoOpLogger(), &HandlerConfig{
 			WebhookCallbackCapability: testWebhookCapability,
 			DeauthCleanupCounter:      deauthCounter,
 		})
@@ -197,7 +197,7 @@ func strconvItoa(i int) string { return fmt.Sprintf("%d", i) }
 func TestSecurity_VerificationRequiresNonEmptyToken(t *testing.T) {
 	h := NewHandler(&portstest.MockPublisher{}, &portstest.MockPublisher{},
 		&portstest.MockSecretProvider{VerifyToken: "", SubscriptionID: testSubscriptionID},
-		&portstest.MockStravaClient{}, &portstest.MockTokenStore{},
+		&portstest.MockStravaClient{}, &portstest.MockTokenStore{}, &portstest.MockConnectionResolver{},
 		portstest.NewAllowAllMockAllowlist(), gcplog.NewNoOpLogger(), nil)
 	router := h.RegisterRoutes()
 
@@ -362,7 +362,7 @@ func TestSecurity_ForgedDeauthWithActiveGrantIsRejected(t *testing.T) {
 			}
 			// The gate must actually have run (not been skipped by some earlier
 			// short-circuit): the grant was checked exactly once for the victim.
-			if got := rig.strava.VerifyCalledOwnerIDs; len(got) != 1 || got[0] != victimOwnerID {
+			if got := rig.strava.VerifiedOwners; len(got) != 1 || got[0] != portstest.LegacyOwner(victimOwnerID) {
 				t.Errorf("VerifyGrant calls = %v, want [%d]", got, victimOwnerID)
 			}
 		})
@@ -379,7 +379,7 @@ func TestSecurity_GenuineDeauthWithRevokedGrantIsProcessed(t *testing.T) {
 	if w := rig.post(deauthBody(testSubscriptionID)); w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
 	}
-	if got := rig.tokens.DeletedAthleteIDs; len(got) != 1 || got[0] != victimOwnerID {
+	if got := rig.tokens.DeletedOwners; len(got) != 1 || got[0] != portstest.LegacyOwner(victimOwnerID) {
 		t.Errorf("DeleteTokens called with %v, want [%d]", got, victimOwnerID)
 	}
 	if got := len(rig.deauth.Published); got != 1 {
@@ -440,7 +440,7 @@ func TestSecurity_DeauthConfirmationErrorFailsClosed(t *testing.T) {
 func newStatefulDeauthRig(t *testing.T) *securityRig {
 	t.Helper()
 	tokens := &portstest.MockTokenStore{
-		Tokens:        map[int64]*stravatoken.Data{victimOwnerID: {AccessToken: "a", RefreshToken: "r"}},
+		Tokens:        map[ports.CredentialOwner]*stravatoken.Data{portstest.LegacyOwner(victimOwnerID): {AccessToken: "a", RefreshToken: "r"}},
 		DeleteRemoves: true,
 	}
 	rig := &securityRig{
@@ -448,7 +448,7 @@ func newStatefulDeauthRig(t *testing.T) *securityRig {
 		deauth:  &portstest.MockPublisher{},
 		primary: &portstest.MockPublisher{},
 		strava: &portstest.MockStravaClient{
-			VerifyFunc: func(ctx context.Context, ownerID int64) (ports.GrantStatus, error) {
+			VerifyFunc: func(ctx context.Context, ownerID ports.CredentialOwner) (ports.GrantStatus, error) {
 				if _, err := tokens.GetTokens(ctx, ownerID); err != nil {
 					// %w keeps ErrTokenNotFound matchable once the token is deleted.
 					return ports.GrantUnknown, fmt.Errorf("verify grant: %w", err)
@@ -460,7 +460,7 @@ func newStatefulDeauthRig(t *testing.T) *securityRig {
 	}
 	h := NewHandler(rig.primary, rig.deauth,
 		&portstest.MockSecretProvider{VerifyToken: "correct-verify-token", SubscriptionID: testSubscriptionID},
-		rig.strava, rig.tokens, rig.allow, gcplog.NewNoOpLogger(), &HandlerConfig{
+		rig.strava, rig.tokens, &portstest.MockConnectionResolver{}, rig.allow, gcplog.NewNoOpLogger(), &HandlerConfig{
 			WebhookCallbackCapability: testWebhookCapability,
 		})
 	rig.router = h.RegisterRoutes()
@@ -536,7 +536,7 @@ func TestSecurity_SubscriptionIDEnumerationRequiresCallbackCapability(t *testing
 	rig := newSecurityRig(t, false)
 	h := NewHandler(rig.primary, rig.deauth,
 		&portstest.MockSecretProvider{VerifyToken: "correct-verify-token", SubscriptionID: testSubscriptionID},
-		rig.strava, rig.tokens, rig.allow, gcplog.NewNoOpLogger(), &HandlerConfig{
+		rig.strava, rig.tokens, &portstest.MockConnectionResolver{}, rig.allow, gcplog.NewNoOpLogger(), &HandlerConfig{
 			WebhookCallbackCapability: testWebhookCapability,
 		})
 	rig.router = h.RegisterRoutes()
@@ -596,8 +596,8 @@ func TestSecurity_DeauthDetectionToleratesSpellingVariants(t *testing.T) {
 			// Grant genuinely revoked, so a detected deauth passes confirmation
 			// and deletes. That makes deletion the observable proof of detection.
 			rig.strava.VerifyStatus = ports.GrantRevoked
-			rig.tokens.Tokens = map[int64]*stravatoken.Data{
-				victimOwnerID: {AccessToken: "a", RefreshToken: "r"},
+			rig.tokens.Tokens = map[ports.CredentialOwner]*stravatoken.Data{
+				portstest.LegacyOwner(victimOwnerID): {AccessToken: "a", RefreshToken: "r"},
 			}
 
 			w := rig.post(fmt.Sprintf(
@@ -771,7 +771,7 @@ func TestSecurity_CrossOwnerEventIsScopedToTheClaimedOwner(t *testing.T) {
 
 	// The fetch is attempted with the claimed owner's credentials against the
 	// named object — never the object owner's credentials.
-	if got := rig.strava.FetchedOwnerIDs; len(got) != 1 || got[0] != attackerOwnerID {
+	if got := rig.strava.FetchedOwners; len(got) != 1 || got[0] != portstest.LegacyOwner(attackerOwnerID) {
 		t.Errorf("fetched with owner IDs %v, want exactly [%d]", got, attackerOwnerID)
 	}
 	if got := rig.strava.FetchedIDs; len(got) != 1 || got[0] != victimOwnerID {

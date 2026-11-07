@@ -991,8 +991,8 @@ resource "google_monitoring_alert_policy" "webhook_owner_check_orphan" {
     content = <<-EOT
       **Runbook**: docs/runbooks/webhook-owner-check-orphan.md
 
-      **HIGH**: Dispatcher received a webhook for an athlete who IS on the
-      allowlist but has no Firestore tokens. The event was acked (Strava will
+      **HIGH**: Dispatcher resolved an admitted app UID but found no tokens
+      under its active ownership pair. The event was acked (Strava will
       not retry) but nothing else happened. Possible causes:
 
       1. **Firestore tokens were deleted** — accidental delete, partial
@@ -1007,8 +1007,8 @@ resource "google_monitoring_alert_policy" "webhook_owner_check_orphan" {
       **Action**:
       1. Identify the affected athlete from the dispatcher log line:
          `Orphan tokens — allowlisted athlete has no tokens`.
-      2. Check Firestore at `users/{athleteID}/private/strava_tokens` —
-         is the document missing or stale?
+      2. Resolve `provider_accounts/strava:{athleteID}` to its app UID, then
+         inspect `users/{uid}/private/strava_tokens` for missing/stale tokens.
       3. If genuinely missing, ask the user to re-authorize via the app's
          OAuth flow. Webhooks resume on the next event.
       4. If it recurs without an obvious cause, suspect a deletion bug
@@ -1058,23 +1058,21 @@ resource "google_monitoring_alert_policy" "webhook_owner_check_orphan" {
   }
 }
 
-# MEDIUM: The allowlist read itself is failing. Dispatcher fail-closes with
+# MEDIUM: Ownership or admission validation is failing. Dispatcher fail-closes with
 # 500 in this case so Strava retries up to 3× — bounded blast radius — but a
-# sustained allowlist outage means legitimate webhooks are getting dropped
-# after Strava gives up. This catches Firestore-side trouble that's specific
-# to the allowlist read path (the broader firestore/operation.duration alert
-# would also fire, but only on latency, not hard errors).
+# sustained outage means legitimate webhooks are dropped after Strava gives up.
+# This catches failed owner checks, including hard errors rather than only latency.
 resource "google_monitoring_alert_policy" "webhook_owner_check_error" {
   count = var.enable_application_metric_alerts ? 1 : 0
 
-  display_name = "⚠️ Allowlist read errors elevated"
+  display_name = "⚠️ Ownership or admission checks failing"
   combiner     = "OR"
 
   documentation {
     content = <<-EOT
       **Runbook**: docs/runbooks/webhook-owner-check-error.md
 
-      **MEDIUM**: Dispatcher's allowlist check is returning errors at >1/min
+      **MEDIUM**: Dispatcher's ownership/admission checks fail at >1/min
       sustained. The handler fail-closes with 500 (Strava retries up to 3×),
       but past the retry cap legitimate events are dropped.
 
@@ -1082,8 +1080,11 @@ resource "google_monitoring_alert_policy" "webhook_owner_check_error" {
       1. Check Firestore status (https://status.cloud.google.com).
       2. Verify the dispatcher's service account still has
          `roles/datastore.user` on the user-configs database.
-      3. Inspect dispatcher logs for the `ALLOWLIST_CHECK_FAILED` error code —
-         the wrapped error names the specific Firestore failure.
+      3. Inspect dispatcher logs for `OWNERSHIP_CHECK_FAILED` or
+         `ALLOWLIST_CHECK_FAILED`; the wrapped error identifies the failure.
+      4. For ownership failures, inspect both registry directions using
+         docs/guides/activity-connection-registry.md. Token paths use the
+         resolved app UID, never an inferred athlete-shaped UID.
     EOT
   }
 

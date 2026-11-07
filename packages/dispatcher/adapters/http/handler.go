@@ -14,7 +14,6 @@ import (
 	"net/http"
 	"net/netip"
 	"path"
-	"strconv"
 	"strings"
 	"time"
 
@@ -24,6 +23,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/dispatcher/config"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
 	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
+	"github.com/andy-esch/desirelines/packages/shared/activityconnection"
 	"github.com/andy-esch/desirelines/packages/shared/allowlist"
 	"github.com/andy-esch/desirelines/packages/shared/apierrors"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
@@ -57,9 +57,10 @@ const (
 	ErrCodeInvalidChallenge      = "INVALID_CHALLENGE"
 	ErrCodeDeauthFailed          = "DEAUTH_FAILED"
 	ErrCodeAllowlistCheckFailed  = "ALLOWLIST_CHECK_FAILED"
+	ErrCodeOwnershipCheckFailed  = "OWNERSHIP_CHECK_FAILED"
 )
 
-// Owner-allowlist check outcomes (label values for the owner_check counter).
+// Ownership/admission outcomes (label values for the owner_check counter).
 const (
 	ownerCheckAllowed = "allowed"
 	ownerCheckStray   = "stray"
@@ -219,6 +220,7 @@ type Handler struct {
 	rowPublisher         ports.RawPublisher
 	stravaClient         ports.StravaClient
 	tokenStore           ports.TokenStore
+	connections          ports.ConnectionResolver
 	allowlist            allowlist.Checker
 	logger               *slog.Logger
 	rateLimiter          *ratelimit.Limiter
@@ -285,7 +287,7 @@ type HandlerConfig struct {
 }
 
 // NewHandler creates a new webhook handler with injected dependencies.
-func NewHandler(publisher, deauthPublisher ports.Publisher, secretProvider ports.SecretProvider, stravaClient ports.StravaClient, tokenStore ports.TokenStore, allowChecker allowlist.Checker, logger *slog.Logger, cfg *HandlerConfig) *Handler {
+func NewHandler(publisher, deauthPublisher ports.Publisher, secretProvider ports.SecretProvider, stravaClient ports.StravaClient, tokenStore ports.TokenStore, connections ports.ConnectionResolver, allowChecker allowlist.Checker, logger *slog.Logger, cfg *HandlerConfig) *Handler {
 	if cfg == nil {
 		cfg = &HandlerConfig{}
 	}
@@ -325,6 +327,7 @@ func NewHandler(publisher, deauthPublisher ports.Publisher, secretProvider ports
 		rowPublisher:         cfg.RowPublisher,
 		stravaClient:         stravaClient,
 		tokenStore:           tokenStore,
+		connections:          connections,
 		allowlist:            allowChecker,
 		logger:               logger,
 		rateLimiter:          cfg.RateLimiter,
@@ -808,7 +811,7 @@ func (h *Handler) recordWebhookMetric(ctx context.Context, webhook *generated.We
 	)
 }
 
-// recordOwnerCheck increments the owner-allowlist-check counter labeled by
+// recordOwnerCheck increments the ownership/admission counter labeled by
 // the outcome (allowed / stray / orphan / error). No-op when no counter is
 // configured. Used to drive a dashboard tile and the orphan-rate alert.
 func (h *Handler) recordOwnerCheck(ctx context.Context, webhook *generated.WebhookEvent, result string) {
@@ -900,14 +903,19 @@ func (h *Handler) handleActivityEvent(ctx context.Context, w http.ResponseWriter
 	result := ownerCheckAllowed
 	defer func() { h.recordOwnerCheck(ctx, webhook, result) }()
 
-	ownerIDStr := strconv.FormatInt(webhook.OwnerId, 10)
+	owner, resolveErr := ports.ResolveOwner(ctx, h.connections, webhook.OwnerId)
+	if resolveErr != nil {
+		result = ownerCheckError
+		h.writeError(w, r, http.StatusInternalServerError, ErrCodeOwnershipCheckFailed, "Ownership check failed", fmt.Sprintf("Activity owner resolution failed: %v", resolveErr))
+		return
+	}
 	// Span makes the allowlist read self-documenting in traces. Without it,
 	// the underlying firestore.DocumentRef.Get span is visible but its
 	// purpose ("guard non-allowlisted owners") is not.
 	allowCtx, allowSpanDone := sharedotel.StartSpan(ctx, h.tracer, "dispatcher.allowlist_check",
 		attribute.Int64("owner_id", webhook.OwnerId),
 	)
-	allowed, allowErr := h.allowlist.IsAllowed(allowCtx, ownerIDStr)
+	allowed, allowErr := h.allowlist.IsAllowed(allowCtx, owner.UID)
 	allowSpanDone(allowErr)
 	switch {
 	case allowErr != nil:
@@ -934,7 +942,7 @@ func (h *Handler) handleActivityEvent(ctx context.Context, w http.ResponseWriter
 	}
 
 	if shouldFetchActivity(webhook) {
-		rawActivity, fetchErr := h.stravaClient.FetchActivity(ctx, webhook.OwnerId, webhook.ObjectId)
+		rawActivity, fetchErr := h.stravaClient.FetchActivity(ctx, owner, webhook.ObjectId)
 		switch {
 		case fetchErr == nil:
 			enriched.RawActivity = rawActivity
@@ -958,6 +966,13 @@ func (h *Handler) handleActivityEvent(ctx context.Context, w http.ResponseWriter
 			)
 			h.writeAcknowledged(w)
 			return
+		case errors.Is(fetchErr, activityconnection.ErrNotFound), errors.Is(fetchErr, activityconnection.ErrConflict):
+			// The pair changed after admission, during credential validation or
+			// refresh. Keep both the retry response and ownership-error signal.
+			result = ownerCheckError
+			h.writeError(w, r, http.StatusInternalServerError, ErrCodeOwnershipCheckFailed,
+				"Ownership check failed", fmt.Sprintf("Credential ownership check failed: %v", fetchErr))
+			return
 		default:
 			// Other Strava errors — return 500 so Strava retries (up to 3
 			// total attempts per spec).
@@ -977,7 +992,7 @@ func (h *Handler) handleActivityEvent(ctx context.Context, w http.ResponseWriter
 
 	// Strictly after the primary publish has succeeded, and strictly unable to
 	// change what happens next: see publishActivityRow.
-	h.publishActivityRow(ctx, enriched, correlationID)
+	h.publishActivityRow(ctx, owner, enriched, correlationID)
 
 	h.writeSuccess(w)
 }
@@ -1002,7 +1017,7 @@ func (h *Handler) handleActivityEvent(ctx context.Context, w http.ResponseWriter
 // handleEventDeadline. That fits inside Strava's 2s expectation with room to
 // spare, and buys ordering that a detached goroutine would not — the row
 // cannot overtake the primary event it followed.
-func (h *Handler) publishActivityRow(ctx context.Context, enriched *generated.EnrichedEvent, correlationID string) {
+func (h *Handler) publishActivityRow(ctx context.Context, owner ports.CredentialOwner, enriched *generated.EnrichedEvent, correlationID string) {
 	if h.rowPublisher == nil {
 		return
 	}
@@ -1022,7 +1037,7 @@ func (h *Handler) publishActivityRow(ctx context.Context, enriched *generated.En
 		}
 	}()
 
-	body, changeType, skipReason, errDetail := h.buildActivityRow(ctx, enriched, correlationID)
+	body, changeType, skipReason, errDetail := h.buildActivityRow(ctx, owner, enriched, correlationID)
 	if skipReason != "" {
 		h.recordRowPublish(ctx, webhook, rowPublishSkipped, skipReason)
 		h.logger.Info("Skipping activity-row publish",
@@ -1060,7 +1075,7 @@ func (h *Handler) publishActivityRow(ctx context.Context, enriched *generated.En
 // is returned: a body with its change type, a skip reason for an event that
 // legitimately produces no row, or an error detail naming what failed. Failures
 // are logged here and counted by the caller.
-func (h *Handler) buildActivityRow(ctx context.Context, enriched *generated.EnrichedEvent, correlationID string) (body []byte, changeType, skipReason, errDetail string) {
+func (h *Handler) buildActivityRow(ctx context.Context, owner ports.CredentialOwner, enriched *generated.EnrichedEvent, correlationID string) (body []byte, changeType, skipReason, errDetail string) {
 	webhook := enriched.Event
 	// Read once for the whole build: the sequence number's tiebreak orders
 	// events Strava stamped in the same second, and now() is the closest thing
@@ -1093,7 +1108,7 @@ func (h *Handler) buildActivityRow(ctx context.Context, enriched *generated.Enri
 			// retag. Keeping the extra call inside the best-effort block means
 			// this feature cannot change what the source of truth receives.
 			var fetchErr error
-			rawActivity, fetchErr = h.fetchActivityForRow(ctx, webhook, correlationID)
+			rawActivity, fetchErr = h.fetchActivityForRow(ctx, owner, webhook, correlationID)
 			if fetchErr != nil {
 				if skip := rowSkipReasonFor(fetchErr); skip != "" {
 					return nil, "", skip, ""
@@ -1157,11 +1172,11 @@ func rowSkipReasonFor(err error) string {
 // (the feature is failing). Logged at Warn either way — this runs after the
 // webhook is already handled, and a missed row self-corrects on the next event
 // carrying a payload.
-func (h *Handler) fetchActivityForRow(ctx context.Context, webhook *generated.WebhookEvent, correlationID string) ([]byte, error) {
+func (h *Handler) fetchActivityForRow(ctx context.Context, owner ports.CredentialOwner, webhook *generated.WebhookEvent, correlationID string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, h.rowRefetchTimeout)
 	defer cancel()
 
-	rawActivity, err := h.stravaClient.FetchActivity(ctx, webhook.OwnerId, webhook.ObjectId)
+	rawActivity, err := h.stravaClient.FetchActivity(ctx, owner, webhook.ObjectId)
 	if err != nil {
 		h.logger.Warn("Activity re-fetch for row publish failed, skipping row",
 			"correlation_id", correlationID,
@@ -1331,7 +1346,13 @@ func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter,
 	// IsAllowed check on purpose — confirmation, not allowlist membership,
 	// authorizes cleanup (see the function doc comment). Returns false when the
 	// event was handled (rejected/unconfirmed) and the caller must stop.
-	if !h.verifyDeauthorization(ctx, w, r, webhook, correlationID) {
+	owner, resolveErr := ports.ResolveOwner(ctx, h.connections, webhook.OwnerId)
+	if resolveErr != nil {
+		h.recordDeauthCleanup(ctx, deauthUnconfirmedError)
+		h.writeError(w, r, http.StatusInternalServerError, ErrCodeOwnershipCheckFailed, "Ownership check failed", fmt.Sprintf("Deauth owner resolution failed: %v", resolveErr))
+		return
+	}
+	if !h.verifyDeauthorization(ctx, owner, w, r, webhook, correlationID) {
 		return
 	}
 
@@ -1353,7 +1374,7 @@ func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter,
 	// fails, retaining the token lets Strava's retry re-confirm and retry the
 	// handoff. After publish succeeds, downstream cleanup owns eventual deletion,
 	// so this local delete is best effort and only shortens exposure.
-	if deleteErr := h.tokenStore.DeleteTokens(ctx, webhook.OwnerId); deleteErr != nil {
+	if deleteErr := h.tokenStore.DeleteTokens(ctx, owner); deleteErr != nil {
 		h.recordDeauthCleanup(ctx, deauthDeleteFailed)
 		h.logger.Warn("Failed to delete tokens during deauth (will be cleaned up by deletion job)",
 			"correlation_id", correlationID,
@@ -1370,7 +1391,7 @@ func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter,
 	// window would read a stale allowed=true, find tokens gone, and trip the HIGH
 	// orphan alert. No-ops when the checker isn't a caching one.
 	if inv, ok := h.allowlist.(allowlist.Invalidator); ok {
-		inv.Invalidate(strconv.FormatInt(webhook.OwnerId, 10))
+		inv.Invalidate(owner.UID)
 	}
 
 	h.writeAcknowledged(w)
@@ -1392,14 +1413,14 @@ func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter,
 //     Strava redelivers (bounded by its 3-attempt cap); a genuine deauth confirms
 //     on a later attempt, while a forgery cannot force deletion by inducing an
 //     error.
-func (h *Handler) verifyDeauthorization(ctx context.Context, w http.ResponseWriter, r *http.Request, webhook *generated.WebhookEvent, correlationID string) bool {
+func (h *Handler) verifyDeauthorization(ctx context.Context, owner ports.CredentialOwner, w http.ResponseWriter, r *http.Request, webhook *generated.WebhookEvent, correlationID string) bool {
 	ctx, spanDone := sharedotel.StartSpan(ctx, h.tracer, "dispatcher.webhook.verify_deauth")
 	var spanErr error
 	defer func() { spanDone(spanErr) }()
 
 	verifyCtx, cancel := context.WithTimeout(ctx, deauthVerificationTimeout)
 	defer cancel()
-	status, err := h.stravaClient.VerifyGrant(verifyCtx, webhook.OwnerId)
+	status, err := h.stravaClient.VerifyGrant(verifyCtx, owner)
 	switch {
 	case errors.Is(err, ports.ErrTokenNotFound):
 		h.recordDeauthCleanup(ctx, deauthUnconfirmedNoTokens)

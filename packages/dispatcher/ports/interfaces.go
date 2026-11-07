@@ -13,10 +13,10 @@ import (
 var (
 	// ErrActivityNotFound is returned when a Strava activity does not exist.
 	ErrActivityNotFound = errors.New("activity not found")
-	// ErrTokenNotFound is returned when no Strava tokens exist for an athlete.
+	// ErrTokenNotFound is returned when no Strava tokens exist for a resolved owner.
 	ErrTokenNotFound = errors.New("token not found")
 	// ErrStravaAuthFailed is returned when Strava permanently rejected the
-	// athlete's credentials — a revoked, rotated or otherwise dead refresh
+	// owner's credentials — a revoked, rotated or otherwise dead refresh
 	// token. Deliberately distinct from a transient Strava failure: retrying
 	// cannot resolve it, only the athlete re-authorizing can.
 	ErrStravaAuthFailed = errors.New("strava authentication failed")
@@ -61,16 +61,19 @@ type SecretProvider interface {
 
 // TokenStore defines the outbound port for reading and writing per-user Strava tokens.
 type TokenStore interface {
-	GetTokens(ctx context.Context, athleteID int64) (*stravatoken.Data, error)
+	// ValidateOwner rechecks authoritative ownership even when credentials are cached.
+	// Registry failures must remain distinct from ErrTokenNotFound.
+	ValidateOwner(context.Context, CredentialOwner) error
+	GetTokens(ctx context.Context, owner CredentialOwner) (*stravatoken.Data, error)
 	// WriteTokensIfUnmodified atomically writes tokens only if last_refreshed
 	// matches expectedLastRefreshed, and returns the last_refreshed it stored:
 	// the version a later write of these tokens must pass. Returns
 	// ErrTokenConflict if another goroutine has already refreshed the tokens
 	// (optimistic concurrency).
-	WriteTokensIfUnmodified(ctx context.Context, athleteID int64, tokens *stravatoken.Data, expectedLastRefreshed time.Time) (time.Time, error)
-	// DeleteTokens removes all stored tokens for the given athlete.
+	WriteTokensIfUnmodified(ctx context.Context, owner CredentialOwner, tokens *stravatoken.Data, expectedLastRefreshed time.Time) (time.Time, error)
+	// DeleteTokens removes all stored tokens for the captured owner.
 	// Returns nil if the tokens do not exist (idempotent).
-	DeleteTokens(ctx context.Context, athleteID int64) error
+	DeleteTokens(ctx context.Context, owner CredentialOwner) error
 }
 
 // TokenInvalidator is optionally implemented by a TokenStore that caches reads.
@@ -81,7 +84,7 @@ type TokenStore interface {
 // re-auth, which this in-process cache cannot see). A non-caching TokenStore does
 // not implement this, so callers type-assert and no-op when it's absent.
 type TokenInvalidator interface {
-	Invalidate(athleteID int64)
+	Invalidate(owner CredentialOwner)
 }
 
 // GrantStatus is the outcome of confirming an athlete's Strava authorization.
@@ -117,8 +120,8 @@ func (s GrantStatus) String() string {
 // StravaClient defines the outbound port for fetching activity data from the Strava API.
 type StravaClient interface {
 	// FetchActivity retrieves the raw JSON for a Strava activity by ID,
-	// using tokens for the given owner (athlete).
-	FetchActivity(ctx context.Context, ownerID, activityID int64) ([]byte, error)
+	// using tokens for the captured owner pair.
+	FetchActivity(ctx context.Context, owner CredentialOwner, activityID int64) ([]byte, error)
 	// VerifyGrant reports whether the athlete's Strava authorization is still
 	// active, positively revoked, or unconfirmable, by exercising their stored
 	// credentials against Strava. It lets the webhook handler confirm an unsigned,
@@ -134,5 +137,5 @@ type StravaClient interface {
 	//   - GrantRevoked                   authorization is confirmed dead.
 	//   - GrantUnknown + ErrTokenNotFound no stored tokens to confirm against.
 	//   - GrantUnknown + other error      a transient/ambiguous failure.
-	VerifyGrant(ctx context.Context, ownerID int64) (GrantStatus, error)
+	VerifyGrant(ctx context.Context, owner CredentialOwner) (GrantStatus, error)
 }

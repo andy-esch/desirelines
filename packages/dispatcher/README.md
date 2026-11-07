@@ -1,16 +1,16 @@
 # Dispatcher (Go)
 
-Receives Strava webhook events, enriches CREATE events with activity data from the Strava API, and publishes enriched events to PubSub for downstream processing. It also handles Strava athlete **deauthorization**: deleting the athlete's stored OAuth tokens from Firestore and publishing to a dedicated deauth topic (see [Deauthorization](#deauthorization)).
+Receives Strava webhook events, enriches activity events that need a payload with data from the Strava API, and publishes enriched events to PubSub for downstream processing. It also handles Strava athlete **deauthorization**: deleting the athlete's stored OAuth tokens from Firestore and publishing to a dedicated deauth topic (see [Deauthorization](#deauthorization)).
 
 ## Architecture
 
 ```
 Strava Webhook → Dispatcher (Cloud Run) → [enrich with Strava API] → PubSub Topic → Eventarc → downstream services
                                          ↘ [best-effort, when enabled] → activity-row topic → BigQuery CDC subscription → activities_live
-                                         ↘ [athlete deauth] → delete Firestore tokens + PubSub Deauth Topic → downstream services
+                                         ↘ [athlete deauth] → confirm grant → PubSub Deauth Topic + best-effort token deletion → downstream services
 ```
 
-The dispatcher is the **only service** that calls the Strava API. Downstream consumers (postgres-writer) receive enriched events with activity data inline and do not need Strava API credentials.
+The dispatcher fetches activity payloads for webhooks. The postgres-writer receives those payloads inline and does not need Strava API credentials.
 
 **Package Structure (Hexagonal Architecture):**
 
@@ -21,7 +21,7 @@ packages/dispatcher/
 │   ├── http/handler.go            # HTTP handler (inbound adapter)
 │   ├── pubsub/publisher.go        # PubSub publishing (outbound adapter)
 │   ├── strava/client.go           # Strava API client (outbound adapter)
-│   ├── firestore/token_store.go   # Per-athlete OAuth token store (Firestore)
+│   ├── firestore/token_store.go   # UID-keyed OAuth token store (Firestore)
 │   ├── proto/webhook_adapter.go   # JSON ↔ protobuf conversion
 │   └── env/secrets.go             # Environment/secrets adapter
 ├── ports/
@@ -32,12 +32,24 @@ packages/dispatcher/
 └── Dockerfile                     # Cloud Run container
 ```
 
-The athlete-allowlist check (`packages/shared/allowlist`) is shared with the
-apigateway. On the **activity** path the dispatcher uses it to drop stray
-webhooks — events from athletes who hold a Strava OAuth grant but are not
-allowlisted in this environment — before any Strava API call. The **deauth**
-path deliberately skips this check (see [Deauthorization](#deauthorization)).
-See `webhook/owner_check` metric for outcome breakdown.
+The [handler](adapters/http/handler.go) resolves the Strava subject through the
+[connection registry](../../docs/guides/activity-connection-registry.md) before
+checking the **app UID** allowlist. [CredentialOwner](ports/ownership.go) carries
+that fixed UID/subject pair through credential reads, refresh retries, row
+re-fetches and cleanup. Webhook envelopes and Strava calls retain provider IDs;
+no UID is inferred from a subject.
+
+The [token cache](adapters/cache/token_store.go) keys by the full pair and checks
+live ownership on every hit. Misses read ownership and UID-keyed credentials in
+one Firestore transaction; refresh writes and deletion recheck the pair on every
+SDK retry. Cache TTLs bound out-of-process credential/admission changes, not
+ownership changes. Primary-path mapping failures return 500 for redelivery; only
+a missing credential document under a valid pair is a token orphan. See `webhook/owner_check`
+for activity outcomes.
+
+Gateway and dispatcher images require verified, sealed bootstrap evidence through
+[the release declaration](../../scripts/ci/identity-rollout.json). Independent
+enrollment and persistence/backfill ownership routing remain separate stages.
 
 **Type Definitions:** Webhook types are defined in `schemas/proto/desirelines/webhook/v1/webhook.proto` and shared with stravapipe (Python). Generated code lives in `types/generated/`. See `just proto-gen-backend`.
 
@@ -65,18 +77,18 @@ Strava signals athlete deauthorization with an `athlete` webhook event — eithe
 `updates={"authorized":"false"}` (handled in `adapters/http/handler.go`,
 `handleAthleteEvent`). On deauth the dispatcher:
 
-1. **Best-effort deletes** the athlete's stored OAuth tokens from Firestore
-   (database `FIRESTORE_DATABASE`); a failure is logged and left to the
-   downstream deletion job.
-2. **Publishes** the event to the dedicated deauth topic
-   (`GCP_PUBSUB_DEAUTH_TOPIC`) so downstream consumers can act on it.
+1. Resolves the active ownership pair and **confirms revocation with Strava**.
+   An active grant is acknowledged without cleanup. Missing tokens cannot confirm
+   revocation; mapping or backend failures return 500 for redelivery.
+2. **Publishes** to `GCP_PUBSUB_DEAUTH_TOPIC`. If publication fails, tokens remain
+   available so a redelivery can confirm and retry the handoff.
+3. **Best-effort deletes** tokens at `users/{uid}/private/strava_tokens`, only
+   while the original pair still matches, and invalidates the UID's admission
+   cache entry. Downstream cleanup owns eventual deletion after the handoff.
 
-Unlike the activity path, deauth **deliberately does not gate on the
-allowlist**. Deauth is cleanup, and cleanup must run regardless of *current*
-allowlist membership: an athlete who was allowlisted, is later removed, and then
-deauthorizes still has tokens and downstream data to purge — gating on
-`IsAllowed` would strand it. A true stray (never allowlisted) has no tokens or
-data, so the delete and publish are harmless, idempotent no-ops.
+Deauth deliberately bypasses app admission. Removing an app UID from the
+allowlist must not strand a formerly admitted user's data when their Strava grant
+is subsequently revoked. Grant confirmation and registry validation still apply.
 
 `FIRESTORE_DATABASE` and `GCP_PUBSUB_DEAUTH_TOPIC` are fail-fast-required at
 startup precisely because of this flow.

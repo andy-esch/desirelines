@@ -192,13 +192,13 @@ func TestFetchActivity_Success(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "test-access-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(testOwnerID): {AccessToken: "test-access-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
 		},
 	}
 	client := newTestClient(server, tokenStore)
 
-	body, err := client.FetchActivity(context.Background(), testOwnerID, 12345)
+	body, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), 12345)
 	if err != nil {
 		t.Fatalf("FetchActivity() error = %v", err)
 	}
@@ -218,13 +218,13 @@ func TestFetchActivity_NotFound(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "test-access-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(testOwnerID): {AccessToken: "test-access-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
 		},
 	}
 	client := newTestClient(server, tokenStore)
 
-	_, err := client.FetchActivity(context.Background(), testOwnerID, 99999)
+	_, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), 99999)
 	if err == nil {
 		t.Fatal("expected error for 404")
 	}
@@ -281,13 +281,13 @@ func TestFetchActivity_TokenRefreshOn401(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "old-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(testOwnerID): {AccessToken: "old-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
 		},
 	}
 	client, sr := newRecordingTestClient(server, tokenStore)
 
-	body, err := client.FetchActivity(context.Background(), testOwnerID, 12345)
+	body, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), 12345)
 	if err != nil {
 		t.Fatalf("FetchActivity() error = %v", err)
 	}
@@ -297,7 +297,7 @@ func TestFetchActivity_TokenRefreshOn401(t *testing.T) {
 	}
 
 	// Verify tokens were written back
-	written, ok := tokenStore.WrittenTokens[testOwnerID]
+	written, ok := tokenStore.WrittenTokens[portstest.LegacyOwner(testOwnerID)]
 	if !ok {
 		t.Fatal("expected tokens to be written back after refresh")
 	}
@@ -345,13 +345,13 @@ func TestFetchActivity_LazyTokenRefresh(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "", RefreshToken: "test-refresh"}, // Empty triggers lazy refresh
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(testOwnerID): {AccessToken: "", RefreshToken: "test-refresh"}, // Empty triggers lazy refresh
 		},
 	}
 	client := newTestClient(server, tokenStore)
 
-	body, err := client.FetchActivity(context.Background(), testOwnerID, 1)
+	body, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), 1)
 	if err != nil {
 		t.Fatalf("FetchActivity() error = %v", err)
 	}
@@ -373,13 +373,13 @@ func TestFetchActivity_ServerError(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "test-access-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(testOwnerID): {AccessToken: "test-access-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
 		},
 	}
 	client := newTestClient(server, tokenStore)
 
-	_, err := client.FetchActivity(context.Background(), testOwnerID, 12345)
+	_, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), 12345)
 	if err == nil {
 		t.Fatal("expected error for 500")
 	}
@@ -420,19 +420,19 @@ func TestFetchActivity_PreservesExistingRefreshToken(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "", RefreshToken: "original-refresh"},
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(testOwnerID): {AccessToken: "", RefreshToken: "original-refresh"},
 		},
 	}
 	client := newTestClient(server, tokenStore)
 
-	_, err := client.FetchActivity(context.Background(), testOwnerID, 1)
+	_, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), 1)
 	if err != nil {
 		t.Fatalf("FetchActivity() error = %v", err)
 	}
 
 	// Verify the existing refresh token was preserved when Strava didn't return one
-	written, ok := tokenStore.WrittenTokens[testOwnerID]
+	written, ok := tokenStore.WrittenTokens[portstest.LegacyOwner(testOwnerID)]
 	if !ok {
 		t.Fatal("expected tokens to be written back")
 	}
@@ -469,13 +469,13 @@ func TestFetchActivity_Repeated401StopsAfterOneRefresh(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "old-token", RefreshToken: "old-refresh", ExpiresAt: futureExpiry()},
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(testOwnerID): {AccessToken: "old-token", RefreshToken: "old-refresh", ExpiresAt: futureExpiry()},
 		},
 	}
 	client := newTestClient(server, tokenStore)
 
-	_, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+	_, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), testActivityID)
 	if err == nil {
 		t.Fatal("expected error for persistent 401")
 	}
@@ -515,13 +515,13 @@ func TestFetchActivity_RefreshTokenRejected_DoesNotRetry(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "expired", RefreshToken: "revoked", ExpiresAt: pastExpiry()},
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(testOwnerID): {AccessToken: "expired", RefreshToken: "revoked", ExpiresAt: pastExpiry()},
 		},
 	}
 	client, sr := newRecordingTestClient(server, tokenStore)
 
-	_, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+	_, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), testActivityID)
 	if err == nil {
 		t.Fatal("expected error when refresh token is rejected")
 	}
@@ -563,13 +563,13 @@ func TestFetchActivity_AmbiguousTokenRejectionRetries(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "expired", RefreshToken: "maybe-live", ExpiresAt: pastExpiry()},
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(testOwnerID): {AccessToken: "expired", RefreshToken: "maybe-live", ExpiresAt: pastExpiry()},
 		},
 	}
 	client := newTestClient(server, tokenStore)
 
-	_, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+	_, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), testActivityID)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -590,7 +590,7 @@ type conflictTokenStore struct {
 	winnerTokens *stravatoken.Data
 }
 
-func (s *conflictTokenStore) GetTokens(_ context.Context, _ int64) (*stravatoken.Data, error) {
+func (s *conflictTokenStore) GetTokens(_ context.Context, _ ports.CredentialOwner) (*stravatoken.Data, error) {
 	count := s.getCount.Add(1)
 	if count == 1 {
 		return s.oldTokens, nil
@@ -599,11 +599,11 @@ func (s *conflictTokenStore) GetTokens(_ context.Context, _ int64) (*stravatoken
 	return s.winnerTokens, nil
 }
 
-func (s *conflictTokenStore) WriteTokensIfUnmodified(_ context.Context, _ int64, _ *stravatoken.Data, _ time.Time) (time.Time, error) {
+func (s *conflictTokenStore) WriteTokensIfUnmodified(_ context.Context, _ ports.CredentialOwner, _ *stravatoken.Data, _ time.Time) (time.Time, error) {
 	return time.Time{}, ports.ErrTokenConflict
 }
 
-func (s *conflictTokenStore) DeleteTokens(_ context.Context, _ int64) error {
+func (s *conflictTokenStore) DeleteTokens(_ context.Context, _ ports.CredentialOwner) error {
 	return nil
 }
 
@@ -649,7 +649,7 @@ func TestFetchActivity_TokenRefreshConflict_UsesWinnerTokens(t *testing.T) {
 
 	client, sr := newRecordingTestClient(server, tokenStore)
 
-	body, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+	body, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), testActivityID)
 	if err != nil {
 		t.Fatalf("FetchActivity() error = %v", err)
 	}
@@ -709,7 +709,7 @@ func TestFetchActivity_TokenStoreError(t *testing.T) {
 	}
 	client := newTestClient(server, tokenStore)
 
-	_, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+	_, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), testActivityID)
 	if err == nil {
 		t.Fatal("expected error when token store returns a generic error")
 	}
@@ -741,13 +741,13 @@ func TestFetchActivity_TokenRefreshReturnsNoAccessToken(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "old-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(testOwnerID): {AccessToken: "old-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
 		},
 	}
 	client := newTestClient(server, tokenStore)
 
-	_, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+	_, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), testActivityID)
 	if err == nil {
 		t.Fatal("expected error when token response has empty access_token")
 	}
@@ -787,13 +787,13 @@ func TestFetchActivity_TokenRefreshInvalidJSON(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "old-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(testOwnerID): {AccessToken: "old-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
 		},
 	}
 	client := newTestClient(server, tokenStore)
 
-	_, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+	_, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), testActivityID)
 	if err == nil {
 		t.Fatal("expected error when token endpoint returns invalid JSON")
 	}
@@ -817,8 +817,8 @@ func TestFetchActivity_ContextCancellation(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "test-access-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(testOwnerID): {AccessToken: "test-access-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
 		},
 	}
 	client := newTestClient(server, tokenStore)
@@ -827,7 +827,7 @@ func TestFetchActivity_ContextCancellation(t *testing.T) {
 	// Cancel immediately so the first retry backoff select picks up ctx.Done().
 	cancel()
 
-	_, err := client.FetchActivity(ctx, testOwnerID, testActivityID)
+	_, err := client.FetchActivity(ctx, portstest.LegacyOwner(testOwnerID), testActivityID)
 	if err == nil {
 		t.Fatal("expected error when context is canceled")
 	}
@@ -858,14 +858,14 @@ func TestFetchActivity_WriteBackFailureReturnsError(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "old-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(testOwnerID): {AccessToken: "old-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
 		},
 		WriteErr: errors.New("firestore write failed"),
 	}
 	client := newTestClient(server, tokenStore)
 
-	_, err := client.FetchActivity(context.Background(), testOwnerID, 12345)
+	_, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), 12345)
 	if err == nil {
 		t.Fatal("expected error when token write-back fails")
 	}
@@ -909,14 +909,14 @@ func TestFetchActivity_TokensDeletedMidRefresh_SurfacesErrTokenNotFound(t *testi
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "old-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(testOwnerID): {AccessToken: "old-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
 		},
 		WriteErr: ports.ErrTokenNotFound,
 	}
 	client := newTestClient(server, tokenStore)
 
-	_, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+	_, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), testActivityID)
 	if err == nil {
 		t.Fatal("expected error when write-back hits NotFound")
 	}
@@ -976,20 +976,20 @@ func TestFetchActivity_ValidToken_NoRefresh(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "valid-access", RefreshToken: "r", ExpiresAt: futureExpiry()},
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(testOwnerID): {AccessToken: "valid-access", RefreshToken: "r", ExpiresAt: futureExpiry()},
 		},
 	}
 	client := newTestClient(server, tokenStore)
 
-	body, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+	body, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), testActivityID)
 	if err != nil {
 		t.Fatalf("FetchActivity() error = %v", err)
 	}
 	if string(body) != `{"id":12345}` {
 		t.Errorf("body = %s, want {\"id\":12345}", string(body))
 	}
-	if _, refreshed := tokenStore.WrittenTokens[testOwnerID]; refreshed {
+	if _, refreshed := tokenStore.WrittenTokens[portstest.LegacyOwner(testOwnerID)]; refreshed {
 		t.Error("token was refreshed/written for a valid stored token; expected zero refresh calls")
 	}
 }
@@ -1026,13 +1026,13 @@ func TestFetchActivity_ProactiveRefreshOnExpiry(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "stale-access", RefreshToken: "stale-refresh", ExpiresAt: pastExpiry()},
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(testOwnerID): {AccessToken: "stale-access", RefreshToken: "stale-refresh", ExpiresAt: pastExpiry()},
 		},
 	}
 	client, sr := newRecordingTestClient(server, tokenStore)
 
-	body, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+	body, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), testActivityID)
 	if err != nil {
 		t.Fatalf("FetchActivity() error = %v", err)
 	}
@@ -1042,7 +1042,7 @@ func TestFetchActivity_ProactiveRefreshOnExpiry(t *testing.T) {
 	if n := activityCalls.Load(); n != 1 {
 		t.Errorf("activity endpoint called %d times, want 1 (no doomed 401 round-trip)", n)
 	}
-	written, ok := tokenStore.WrittenTokens[testOwnerID]
+	written, ok := tokenStore.WrittenTokens[portstest.LegacyOwner(testOwnerID)]
 	if !ok || written.AccessToken != "fresh-access" {
 		t.Errorf("expected proactively refreshed token to be persisted, got %+v (ok=%v)", written, ok)
 	}
@@ -1095,13 +1095,13 @@ func TestFetchActivity_ReactiveRefreshAfterProactiveRefreshPersists(t *testing.T
 
 	tokenStore := &portstest.MockTokenStore{
 		Versioned: true,
-		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "stale-access", RefreshToken: "stale-refresh", ExpiresAt: pastExpiry()},
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(testOwnerID): {AccessToken: "stale-access", RefreshToken: "stale-refresh", ExpiresAt: pastExpiry()},
 		},
 	}
 	client := newTestClient(server, tokenStore)
 
-	body, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+	body, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), testActivityID)
 	if err != nil {
 		t.Fatalf("FetchActivity() error = %v", err)
 	}
@@ -1114,7 +1114,7 @@ func TestFetchActivity_ReactiveRefreshAfterProactiveRefreshPersists(t *testing.T
 	if got := secondRefreshToken.Load(); got != "proactive-refresh" {
 		t.Errorf("reactive refresh sent refresh_token %v, want the proactively rotated proactive-refresh", got)
 	}
-	stored, err := tokenStore.GetTokens(context.Background(), testOwnerID)
+	stored, err := tokenStore.GetTokens(context.Background(), portstest.LegacyOwner(testOwnerID))
 	if err != nil {
 		t.Fatalf("GetTokens() error = %v", err)
 	}
@@ -1148,13 +1148,13 @@ func TestFetchActivity_EmptyTokenRefreshReason(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "", RefreshToken: "test-refresh"},
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(testOwnerID): {AccessToken: "", RefreshToken: "test-refresh"},
 		},
 	}
 	client, sr := newRecordingTestClient(server, tokenStore)
 
-	if _, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID); err != nil {
+	if _, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), testActivityID); err != nil {
 		t.Fatalf("FetchActivity() error = %v", err)
 	}
 	span := spanByName(t, sr, "strava.refresh_token")
@@ -1175,13 +1175,13 @@ func TestFetchActivity_RetryEmitsSpanEvents(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "valid-access", RefreshToken: "r", ExpiresAt: futureExpiry()},
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(testOwnerID): {AccessToken: "valid-access", RefreshToken: "r", ExpiresAt: futureExpiry()},
 		},
 	}
 	client, sr := newRecordingTestClient(server, tokenStore)
 
-	if _, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID); err == nil {
+	if _, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), testActivityID); err == nil {
 		t.Fatal("expected error after exhausting retries")
 	}
 
@@ -1284,8 +1284,8 @@ func TestCircuitBreaker_EmitsStateChangeMetric(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "t", RefreshToken: "r", ExpiresAt: futureExpiry()},
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(testOwnerID): {AccessToken: "t", RefreshToken: "r", ExpiresAt: futureExpiry()},
 		},
 	}
 	client := newTestClient(server, tokenStore)
@@ -1293,7 +1293,7 @@ func TestCircuitBreaker_EmitsStateChangeMetric(t *testing.T) {
 	client.breaker = newStravaBreaker(gcplog.NewNoOpLogger(), testBreakerTimeout, counter)
 
 	for range breakerFailureThreshold {
-		if _, fetchErr := client.FetchActivity(context.Background(), testOwnerID, testActivityID); fetchErr == nil {
+		if _, fetchErr := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), testActivityID); fetchErr == nil {
 			t.Fatal("expected error while server is 500")
 		}
 	}
@@ -1350,8 +1350,8 @@ func TestCircuitBreaker_TripsAfterConsecutiveFailures(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "t", RefreshToken: "r", ExpiresAt: futureExpiry()},
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(testOwnerID): {AccessToken: "t", RefreshToken: "r", ExpiresAt: futureExpiry()},
 		},
 	}
 	client := newTestClient(server, tokenStore)
@@ -1360,7 +1360,7 @@ func TestCircuitBreaker_TripsAfterConsecutiveFailures(t *testing.T) {
 	// internal retry loop (activityRetryAttempts requests) and counts
 	// as ONE breaker operation.
 	for range breakerFailureThreshold {
-		_, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+		_, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), testActivityID)
 		if err == nil {
 			t.Fatal("expected error while server is 500")
 		}
@@ -1368,7 +1368,7 @@ func TestCircuitBreaker_TripsAfterConsecutiveFailures(t *testing.T) {
 	hitsAfterTrip := serverHits
 
 	// Next call should fail-fast with no HTTP request.
-	_, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+	_, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), testActivityID)
 	if err == nil {
 		t.Fatal("expected error on fail-fast call after breaker opens")
 	}
@@ -1396,19 +1396,19 @@ func TestCircuitBreaker_BreakerOpenStampsSpan(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "t", RefreshToken: "r", ExpiresAt: futureExpiry()},
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(testOwnerID): {AccessToken: "t", RefreshToken: "r", ExpiresAt: futureExpiry()},
 		},
 	}
 	client, sr := newRecordingTestClient(server, tokenStore)
 
 	for range breakerFailureThreshold {
-		if _, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID); err == nil {
+		if _, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), testActivityID); err == nil {
 			t.Fatal("expected error during pre-trip failures")
 		}
 	}
 	// Fail-fast call: this is the one whose span should carry the attr.
-	if _, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID); err == nil {
+	if _, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), testActivityID); err == nil {
 		t.Fatal("expected error on fail-fast call")
 	}
 
@@ -1435,8 +1435,8 @@ func TestCircuitBreaker_404DoesNotCount(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "t", RefreshToken: "r", ExpiresAt: futureExpiry()},
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(testOwnerID): {AccessToken: "t", RefreshToken: "r", ExpiresAt: futureExpiry()},
 		},
 	}
 	client := newTestClient(server, tokenStore)
@@ -1444,7 +1444,7 @@ func TestCircuitBreaker_404DoesNotCount(t *testing.T) {
 	// More attempts than the failure threshold — if 404 counted, the
 	// breaker would trip.
 	for range breakerFailureThreshold + 2 {
-		_, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+		_, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), testActivityID)
 		if !errors.Is(err, ErrActivityNotFound) {
 			t.Fatalf("expected ErrActivityNotFound, got %v", err)
 		}
@@ -1473,8 +1473,8 @@ func TestFetchActivity_CallerBudgetExhausted_DoesNotTripBreaker(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "tok", RefreshToken: "r", ExpiresAt: futureExpiry()},
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(testOwnerID): {AccessToken: "tok", RefreshToken: "r", ExpiresAt: futureExpiry()},
 		},
 	}
 	client := newTestClient(server, tokenStore)
@@ -1483,7 +1483,7 @@ func TestFetchActivity_CallerBudgetExhausted_DoesNotTripBreaker(t *testing.T) {
 	for i := 0; i < breakerFailureThreshold+3; i++ {
 		// Parent context already past its deadline before the Strava HTTP call.
 		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
-		_, err := client.FetchActivity(ctx, testOwnerID, testActivityID)
+		_, err := client.FetchActivity(ctx, portstest.LegacyOwner(testOwnerID), testActivityID)
 		cancel()
 		if err == nil {
 			t.Fatalf("call %d: expected an error from an expired-budget request", i)
@@ -1522,8 +1522,8 @@ func TestFetchActivity_FirestoreWriteBackFault_DoesNotTripBreaker(t *testing.T) 
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "old", RefreshToken: "r", ExpiresAt: futureExpiry()},
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(testOwnerID): {AccessToken: "old", RefreshToken: "r", ExpiresAt: futureExpiry()},
 		},
 		// Generic Firestore fault on write-back — NOT a known token sentinel.
 		WriteErr: errors.New("firestore: Unavailable"),
@@ -1531,7 +1531,7 @@ func TestFetchActivity_FirestoreWriteBackFault_DoesNotTripBreaker(t *testing.T) 
 	client := newTestClient(server, tokenStore)
 
 	for i := 0; i < breakerFailureThreshold+3; i++ {
-		_, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+		_, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), testActivityID)
 		if err == nil {
 			t.Fatalf("call %d: expected an error when the token write-back faults", i)
 		}
@@ -1564,8 +1564,8 @@ func TestFetchActivity_BudgetCutDuringBodyRead_IsBreakerNeutral(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "tok", RefreshToken: "r", ExpiresAt: futureExpiry()},
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(testOwnerID): {AccessToken: "tok", RefreshToken: "r", ExpiresAt: futureExpiry()},
 		},
 	}
 	client := newTestClient(server, tokenStore)
@@ -1577,7 +1577,7 @@ func TestFetchActivity_BudgetCutDuringBodyRead_IsBreakerNeutral(t *testing.T) {
 		cancel() // caller's budget ends mid body-read
 	}()
 
-	_, err := client.FetchActivity(ctx, testOwnerID, testActivityID)
+	_, err := client.FetchActivity(ctx, portstest.LegacyOwner(testOwnerID), testActivityID)
 	if err == nil {
 		t.Fatal("expected an error when the body read is cut by the caller")
 	}
@@ -1659,14 +1659,14 @@ func TestCircuitBreaker_RecoversAfterTimeout(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "t", RefreshToken: "r", ExpiresAt: futureExpiry()},
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(testOwnerID): {AccessToken: "t", RefreshToken: "r", ExpiresAt: futureExpiry()},
 		},
 	}
 	client := newTestClient(server, tokenStore)
 
 	for range breakerFailureThreshold {
-		if _, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID); err == nil {
+		if _, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), testActivityID); err == nil {
 			t.Fatal("expected error while server is down")
 		}
 	}
@@ -1681,7 +1681,7 @@ func TestCircuitBreaker_RecoversAfterTimeout(t *testing.T) {
 	serverDown.Store(false)
 	time.Sleep(testBreakerTimeout + 30*time.Millisecond)
 
-	body, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+	body, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), testActivityID)
 	if err != nil {
 		t.Fatalf("expected success after recovery, got: %v", err)
 	}
@@ -1716,14 +1716,14 @@ func TestCircuitBreaker_TokenEndpoint5xxCountsAsFailure(t *testing.T) {
 	// pastExpiry triggers proactive refresh on every FetchActivity,
 	// so each call hits the (failing) token endpoint.
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "old", RefreshToken: "r", ExpiresAt: pastExpiry()},
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(testOwnerID): {AccessToken: "old", RefreshToken: "r", ExpiresAt: pastExpiry()},
 		},
 	}
 	client := newTestClient(server, tokenStore)
 
 	for range breakerFailureThreshold {
-		_, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+		_, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), testActivityID)
 		if err == nil {
 			t.Fatal("expected error while token endpoint is 5xx")
 		}
@@ -1791,14 +1791,14 @@ func TestFetchActivity_429HonorsRetryAfter(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "test-access-token", RefreshToken: "r", ExpiresAt: futureExpiry()},
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(testOwnerID): {AccessToken: "test-access-token", RefreshToken: "r", ExpiresAt: futureExpiry()},
 		},
 	}
 	client := newTestClient(server, tokenStore)
 
 	start := time.Now()
-	body, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID)
+	body, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), testActivityID)
 	elapsed := time.Since(start)
 	if err != nil {
 		t.Fatalf("FetchActivity() error = %v", err)
@@ -1835,13 +1835,13 @@ func TestFetchActivity_429StampsSpanAttribute(t *testing.T) {
 	defer server.Close()
 
 	tokenStore := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "test-access-token", RefreshToken: "r", ExpiresAt: futureExpiry()},
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(testOwnerID): {AccessToken: "test-access-token", RefreshToken: "r", ExpiresAt: futureExpiry()},
 		},
 	}
 	client, sr := newRecordingTestClient(server, tokenStore)
 
-	if _, err := client.FetchActivity(context.Background(), testOwnerID, testActivityID); err != nil {
+	if _, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), testActivityID); err != nil {
 		t.Fatalf("FetchActivity() error = %v", err)
 	}
 
@@ -1862,18 +1862,20 @@ type flakyWriteTokenStore struct {
 	writeCount atomic.Int32
 }
 
-func (s *flakyWriteTokenStore) GetTokens(_ context.Context, _ int64) (*stravatoken.Data, error) {
+func (s *flakyWriteTokenStore) GetTokens(_ context.Context, _ ports.CredentialOwner) (*stravatoken.Data, error) {
 	return s.tokens, nil
 }
 
-func (s *flakyWriteTokenStore) WriteTokensIfUnmodified(_ context.Context, _ int64, _ *stravatoken.Data, _ time.Time) (time.Time, error) {
+func (s *flakyWriteTokenStore) WriteTokensIfUnmodified(_ context.Context, _ ports.CredentialOwner, _ *stravatoken.Data, _ time.Time) (time.Time, error) {
 	if s.writeCount.Add(1) <= s.failWrites {
 		return time.Time{}, errors.New("firestore unavailable")
 	}
 	return time.Unix(1, 0), nil
 }
 
-func (s *flakyWriteTokenStore) DeleteTokens(_ context.Context, _ int64) error { return nil }
+func (s *flakyWriteTokenStore) DeleteTokens(_ context.Context, _ ports.CredentialOwner) error {
+	return nil
+}
 
 // TestFetchActivity_WriteBackRetriedAfterTransientFault pins the write-back
 // retry. A refresh that succeeds upstream but whose persist hits one transient
@@ -1890,7 +1892,7 @@ func TestPersistRefreshedTokens_CancelledDuringBackoff(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	version, err := client.persistRefreshedTokens(ctx, testOwnerID, &stravatoken.Data{AccessToken: "a"}, time.Time{})
+	version, err := client.persistRefreshedTokens(ctx, portstest.LegacyOwner(testOwnerID), &stravatoken.Data{AccessToken: "a"}, time.Time{})
 
 	if !errors.Is(err, context.Canceled) || !strings.Contains(err.Error(), "firestore unavailable") {
 		t.Errorf("error = %v, want context.Canceled wrapping the write failure", err)
@@ -1963,7 +1965,7 @@ func TestFetchActivity_WriteBackRetriedAfterTransientFault(t *testing.T) {
 	}
 	client := newTestClient(server, store)
 
-	if _, err := client.FetchActivity(context.Background(), testOwnerID, 12345); err != nil {
+	if _, err := client.FetchActivity(context.Background(), portstest.LegacyOwner(testOwnerID), 12345); err != nil {
 		t.Fatalf("expected the retried write-back to succeed, got %v", err)
 	}
 	if got := store.writeCount.Load(); got != 2 {
@@ -2005,8 +2007,8 @@ func TestRefreshAndPersist_ConcurrentRefreshesCollapseToOneCall(t *testing.T) {
 	defer server.Close()
 
 	store := &portstest.MockTokenStore{
-		Tokens: map[int64]*stravatoken.Data{
-			testOwnerID: {AccessToken: "old-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
+		Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+			portstest.LegacyOwner(testOwnerID): {AccessToken: "old-token", RefreshToken: "test-refresh", ExpiresAt: futureExpiry()},
 		},
 	}
 	client := newTestClient(server, store)
@@ -2019,7 +2021,7 @@ func TestRefreshAndPersist_ConcurrentRefreshesCollapseToOneCall(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, errs[i] = client.refreshAndPersist(context.Background(), testOwnerID, tokens, refreshReasonReactive401)
+			_, errs[i] = client.refreshAndPersist(context.Background(), portstest.LegacyOwner(testOwnerID), tokens, refreshReasonReactive401)
 		}()
 	}
 
@@ -2057,12 +2059,12 @@ func TestVerifyGrant_RevokedGrantReturnsRevoked(t *testing.T) {
 	}))
 	defer server.Close()
 
-	tokenStore := &portstest.MockTokenStore{Tokens: map[int64]*stravatoken.Data{
-		testOwnerID: {AccessToken: "expired", RefreshToken: "revoked", ExpiresAt: pastExpiry()},
+	tokenStore := &portstest.MockTokenStore{Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+		portstest.LegacyOwner(testOwnerID): {AccessToken: "expired", RefreshToken: "revoked", ExpiresAt: pastExpiry()},
 	}}
 	client := newTestClient(server, tokenStore)
 
-	status, err := client.VerifyGrant(context.Background(), testOwnerID)
+	status, err := client.VerifyGrant(context.Background(), portstest.LegacyOwner(testOwnerID))
 	if err != nil {
 		t.Fatalf("VerifyGrant() error = %v, want nil", err)
 	}
@@ -2092,12 +2094,12 @@ func TestVerifyGrant_LiveAccessTokenIsActiveWithoutRotation(t *testing.T) {
 	}))
 	defer server.Close()
 
-	tokenStore := &portstest.MockTokenStore{Tokens: map[int64]*stravatoken.Data{
-		testOwnerID: {AccessToken: "live-access", RefreshToken: "live-refresh", ExpiresAt: futureExpiry()},
+	tokenStore := &portstest.MockTokenStore{Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+		portstest.LegacyOwner(testOwnerID): {AccessToken: "live-access", RefreshToken: "live-refresh", ExpiresAt: futureExpiry()},
 	}}
 	client := newTestClient(server, tokenStore)
 
-	status, err := client.VerifyGrant(context.Background(), testOwnerID)
+	status, err := client.VerifyGrant(context.Background(), portstest.LegacyOwner(testOwnerID))
 	if err != nil {
 		t.Fatalf("VerifyGrant() error = %v, want nil", err)
 	}
@@ -2151,13 +2153,13 @@ func TestVerifyGrant_ExpiryBoundaryReadsTheClientClock(t *testing.T) {
 			}))
 			defer server.Close()
 
-			tokenStore := &portstest.MockTokenStore{Tokens: map[int64]*stravatoken.Data{
-				testOwnerID: {AccessToken: "live-access", RefreshToken: "live-refresh", ExpiresAt: expiresAt.Unix()},
+			tokenStore := &portstest.MockTokenStore{Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+				portstest.LegacyOwner(testOwnerID): {AccessToken: "live-access", RefreshToken: "live-refresh", ExpiresAt: expiresAt.Unix()},
 			}}
 			client := newTestClient(server, tokenStore)
 			client.now = func() time.Time { return tc.now }
 
-			status, err := client.VerifyGrant(context.Background(), testOwnerID)
+			status, err := client.VerifyGrant(context.Background(), portstest.LegacyOwner(testOwnerID))
 			if err != nil || status != ports.GrantActive {
 				t.Fatalf("VerifyGrant() = (%s, %v), want (active, nil)", status, err)
 			}
@@ -2185,16 +2187,16 @@ func TestVerifyGrant_ExpiredActiveGrantRefreshes(t *testing.T) {
 	}))
 	defer server.Close()
 
-	tokenStore := &portstest.MockTokenStore{Tokens: map[int64]*stravatoken.Data{
-		testOwnerID: {AccessToken: "expired", RefreshToken: "live-refresh", ExpiresAt: pastExpiry()},
+	tokenStore := &portstest.MockTokenStore{Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+		portstest.LegacyOwner(testOwnerID): {AccessToken: "expired", RefreshToken: "live-refresh", ExpiresAt: pastExpiry()},
 	}}
 	client := newTestClient(server, tokenStore)
 
-	status, err := client.VerifyGrant(context.Background(), testOwnerID)
+	status, err := client.VerifyGrant(context.Background(), portstest.LegacyOwner(testOwnerID))
 	if err != nil || status != ports.GrantActive {
 		t.Fatalf("VerifyGrant() = (%s, %v), want (active, nil)", status, err)
 	}
-	if written := tokenStore.WrittenTokens[testOwnerID]; written == nil || written.RefreshToken != "rotated-refresh" {
+	if written := tokenStore.WrittenTokens[portstest.LegacyOwner(testOwnerID)]; written == nil || written.RefreshToken != "rotated-refresh" {
 		t.Errorf("expected rotated token persisted, got %+v", written)
 	}
 }
@@ -2208,14 +2210,14 @@ func TestVerifyGrant_ApplicationCredentialRejectionIsUnknown(t *testing.T) {
 	}))
 	defer server.Close()
 
-	tokenStore := &portstest.MockTokenStore{Tokens: map[int64]*stravatoken.Data{
-		testOwnerID: {AccessToken: "expired", RefreshToken: "still-possibly-live", ExpiresAt: pastExpiry()},
+	tokenStore := &portstest.MockTokenStore{Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+		portstest.LegacyOwner(testOwnerID): {AccessToken: "expired", RefreshToken: "still-possibly-live", ExpiresAt: pastExpiry()},
 	}}
 	client := newTestClient(server, tokenStore)
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	status, err := client.VerifyGrant(ctx, testOwnerID)
+	status, err := client.VerifyGrant(ctx, portstest.LegacyOwner(testOwnerID))
 	if err == nil {
 		t.Fatal("err = nil, want ambiguous application-credential error")
 	}
@@ -2234,7 +2236,7 @@ type staleGrantTokenStore struct {
 	invalidated bool
 }
 
-func (s *staleGrantTokenStore) GetTokens(context.Context, int64) (*stravatoken.Data, error) {
+func (s *staleGrantTokenStore) GetTokens(context.Context, ports.CredentialOwner) (*stravatoken.Data, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.invalidated {
@@ -2243,13 +2245,13 @@ func (s *staleGrantTokenStore) GetTokens(context.Context, int64) (*stravatoken.D
 	return s.stale, nil
 }
 
-func (s *staleGrantTokenStore) WriteTokensIfUnmodified(context.Context, int64, *stravatoken.Data, time.Time) (time.Time, error) {
+func (s *staleGrantTokenStore) WriteTokensIfUnmodified(context.Context, ports.CredentialOwner, *stravatoken.Data, time.Time) (time.Time, error) {
 	return time.Time{}, errors.New("unexpected token write")
 }
 
-func (s *staleGrantTokenStore) DeleteTokens(context.Context, int64) error { return nil }
+func (s *staleGrantTokenStore) DeleteTokens(context.Context, ports.CredentialOwner) error { return nil }
 
-func (s *staleGrantTokenStore) Invalidate(int64) {
+func (s *staleGrantTokenStore) Invalidate(ports.CredentialOwner) {
 	s.mu.Lock()
 	s.invalidated = true
 	s.mu.Unlock()
@@ -2294,7 +2296,7 @@ func TestVerifyGrant_StaleRejectedCacheRereadsAuthoritativeToken(t *testing.T) {
 	}
 	client := newTestClient(server, store)
 
-	status, err := client.VerifyGrant(context.Background(), testOwnerID)
+	status, err := client.VerifyGrant(context.Background(), portstest.LegacyOwner(testOwnerID))
 	if err != nil || status != ports.GrantActive {
 		t.Fatalf("VerifyGrant() = (%s, %v), want (active, nil)", status, err)
 	}
@@ -2313,7 +2315,7 @@ func TestVerifyGrant_NoTokensReturnsUnknownAndErrTokenNotFound(t *testing.T) {
 	defer server.Close()
 
 	client := newTestClient(server, &portstest.MockTokenStore{})
-	status, err := client.VerifyGrant(context.Background(), testOwnerID)
+	status, err := client.VerifyGrant(context.Background(), portstest.LegacyOwner(testOwnerID))
 	if !errors.Is(err, ports.ErrTokenNotFound) {
 		t.Fatalf("err = %v, want ErrTokenNotFound", err)
 	}
@@ -2328,18 +2330,28 @@ func TestVerifyGrant_TransientErrorIsUnknown(t *testing.T) {
 	}))
 	defer server.Close()
 
-	tokenStore := &portstest.MockTokenStore{Tokens: map[int64]*stravatoken.Data{
-		testOwnerID: {AccessToken: "expired", RefreshToken: "live-refresh", ExpiresAt: pastExpiry()},
+	tokenStore := &portstest.MockTokenStore{Tokens: map[ports.CredentialOwner]*stravatoken.Data{
+		portstest.LegacyOwner(testOwnerID): {AccessToken: "expired", RefreshToken: "live-refresh", ExpiresAt: pastExpiry()},
 	}}
 	client := newTestClient(server, tokenStore)
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	status, err := client.VerifyGrant(ctx, testOwnerID)
+	status, err := client.VerifyGrant(ctx, portstest.LegacyOwner(testOwnerID))
 	if err == nil {
 		t.Fatal("err = nil, want transient error")
 	}
 	if status != ports.GrantUnknown {
 		t.Errorf("status = %s, want unknown", status)
 	}
+}
+
+func (s *conflictTokenStore) ValidateOwner(context.Context, ports.CredentialOwner) error { return nil }
+
+func (s *flakyWriteTokenStore) ValidateOwner(context.Context, ports.CredentialOwner) error {
+	return nil
+}
+
+func (s *staleGrantTokenStore) ValidateOwner(context.Context, ports.CredentialOwner) error {
+	return nil
 }

@@ -66,7 +66,7 @@ func TestBuildDispatcherRouter_RedactsCapabilityBeforeProductionOTel(t *testing.
 		&portstest.MockPublisher{},
 		&portstest.MockSecretProvider{VerifyToken: "verify-token", SubscriptionID: 1},
 		&portstest.MockStravaClient{},
-		&portstest.MockTokenStore{},
+		&portstest.MockTokenStore{}, &portstest.MockConnectionResolver{},
 		portstest.NewAllowAllMockAllowlist(),
 		gcplog.NewNoOpLogger(),
 		&httpadapter.HandlerConfig{

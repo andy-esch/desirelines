@@ -93,8 +93,8 @@ resource "google_cloud_run_v2_service" "dispatcher" {
     #
     # Both reasons are now handled in-process, so this is a tuning knob rather
     # than a correctness constraint:
-    #   1. the Strava client collapses concurrent refreshes per athlete through
-    #      a singleflight group (adapters/strava/client.go refreshAndPersist), and
+    #   1. the Strava client collapses refreshes for the same captured UID/subject
+    #      pair (adapters/strava/client.go refreshAndPersist), and
     #   2. the caches fill via ttlcache.PutIfUnchanged, which refuses a
     #      read-through Put that raced an Invalidate.
     #

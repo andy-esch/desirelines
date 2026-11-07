@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
+	"github.com/andy-esch/desirelines/packages/shared/activityconnection"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/andy-esch/desirelines/packages/shared/otel"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
@@ -346,7 +347,8 @@ func proactiveRefreshReason(tokens *stravatoken.Data, now time.Time) string {
 // Reads the owner's tokens from the TokenStore, refreshes ahead of
 // expiry, retries on transient errors, and refreshes + persists tokens
 // reactively on 401 as a backstop.
-func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) (_ []byte, err error) {
+func (c *Client) FetchActivity(ctx context.Context, owner ports.CredentialOwner, activityID int64) (_ []byte, err error) {
+	ownerID := owner.Subject
 	ctx, spanDone := otel.StartSpan(ctx, c.tracer, "strava.fetch_activity",
 		attribute.Int64("strava.owner_id", ownerID),
 		attribute.Int64("strava.activity_id", activityID),
@@ -355,7 +357,7 @@ func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) (
 
 	// GetTokens hits Firestore, not Strava — keep it outside the breaker
 	// so a Firestore outage doesn't trip the Strava circuit.
-	tokens, err := c.tokenStore.GetTokens(ctx, ownerID)
+	tokens, err := c.tokenStore.GetTokens(ctx, owner)
 	if err != nil {
 		err = fmt.Errorf("get tokens for athlete %d: %w", ownerID, err)
 		return nil, err
@@ -365,7 +367,7 @@ func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) (
 	// exhausted *operations* as failures, not individual HTTP attempts,
 	// which is what Microsoft's combined-pattern guidance prescribes.
 	body, err := c.breaker.Execute(func() ([]byte, error) {
-		return c.fetchActivityWithTokens(ctx, ownerID, activityID, tokens)
+		return c.fetchActivityWithTokens(ctx, owner, activityID, tokens)
 	})
 	if errors.Is(err, gobreaker.ErrOpenState) || errors.Is(err, gobreaker.ErrTooManyRequests) {
 		// Fail-fast path: Strava is presumed down. Surface as ErrStravaAPI
@@ -389,20 +391,22 @@ func (c *Client) FetchActivity(ctx context.Context, ownerID, activityID int64) (
 // authoritative token-store re-read still contains the rejected credentials.
 // That second read rules out an out-of-process re-authorization hidden behind
 // this process's cache.
-func (c *Client) VerifyGrant(ctx context.Context, ownerID int64) (_ ports.GrantStatus, err error) {
+func (c *Client) VerifyGrant(ctx context.Context, owner ports.CredentialOwner) (_ ports.GrantStatus, err error) {
+	ownerID := owner.Subject
 	ctx, spanDone := otel.StartSpan(ctx, c.tracer, "strava.verify_grant",
 		attribute.Int64("strava.owner_id", ownerID),
 	)
 	defer func() { spanDone(err) }()
 
-	tokens, err := c.tokenStore.GetTokens(ctx, ownerID)
+	tokens, err := c.tokenStore.GetTokens(ctx, owner)
 	if err != nil {
 		return ports.GrantUnknown, fmt.Errorf("get tokens for athlete %d: %w", ownerID, err)
 	}
-	return c.verifyGrantWithTokens(ctx, ownerID, tokens, true)
+	return c.verifyGrantWithTokens(ctx, owner, tokens, true)
 }
 
-func (c *Client) verifyGrantWithTokens(ctx context.Context, ownerID int64, tokens *stravatoken.Data, rereadOnRejection bool) (ports.GrantStatus, error) {
+func (c *Client) verifyGrantWithTokens(ctx context.Context, owner ports.CredentialOwner, tokens *stravatoken.Data, rereadOnRejection bool) (ports.GrantStatus, error) {
+	ownerID := owner.Subject
 	// Avoid rotating a healthy token for every forged webhook. If the access
 	// token is nominally live, /athlete is a cheap, read-only proof that it still
 	// belongs to this owner. A 401 falls through to the stronger refresh check.
@@ -420,7 +424,7 @@ func (c *Client) verifyGrantWithTokens(ctx context.Context, ownerID int64, token
 		}
 	}
 
-	if _, refreshErr := c.refreshAndPersist(ctx, ownerID, tokens, refreshReasonDeauthVerify); refreshErr == nil {
+	if _, refreshErr := c.refreshAndPersist(ctx, owner, tokens, refreshReasonDeauthVerify); refreshErr == nil {
 		return ports.GrantActive, nil
 	} else if !errors.Is(refreshErr, errRefreshTokenRejected) {
 		return ports.GrantUnknown, fmt.Errorf("verify grant for athlete %d: %w", ownerID, refreshErr)
@@ -434,7 +438,7 @@ func (c *Client) verifyGrantWithTokens(ctx context.Context, ownerID int64, token
 	// refreshAndPersist invalidates caching stores on this exact rejection. The
 	// next read is therefore authoritative and catches a fresh token written by
 	// another process (for example, an API-gateway re-authorization).
-	fresh, getErr := c.tokenStore.GetTokens(ctx, ownerID)
+	fresh, getErr := c.tokenStore.GetTokens(ctx, owner)
 	if getErr != nil {
 		return ports.GrantUnknown, fmt.Errorf("re-read tokens after rejected grant check for athlete %d: %w", ownerID, getErr)
 	}
@@ -442,7 +446,7 @@ func (c *Client) verifyGrantWithTokens(ctx context.Context, ownerID int64, token
 		trace.SpanFromContext(ctx).SetAttributes(attribute.Bool("strava.grant_revoked", true))
 		return ports.GrantRevoked, nil
 	}
-	return c.verifyGrantWithTokens(ctx, ownerID, fresh, false)
+	return c.verifyGrantWithTokens(ctx, owner, fresh, false)
 }
 
 func sameGrantCredentials(a, b *stravatoken.Data) bool {
@@ -493,7 +497,8 @@ func (c *Client) doVerifyCurrentAthlete(ctx context.Context, ownerID int64, acce
 // fetchActivityWithTokens runs the proactive-refresh + retry-loop body
 // that talks to Strava. Extracted so `FetchActivity` can wrap it with
 // the circuit breaker; on its own it has no breaker awareness.
-func (c *Client) fetchActivityWithTokens(ctx context.Context, ownerID, activityID int64, tokens *stravatoken.Data) ([]byte, error) {
+func (c *Client) fetchActivityWithTokens(ctx context.Context, owner ports.CredentialOwner, activityID int64, tokens *stravatoken.Data) ([]byte, error) {
+	ownerID := owner.Subject
 	cid := gcplog.CorrelationIDFromContext(ctx)
 
 	// Refresh-ahead: refresh proactively when there is no stored token
@@ -501,7 +506,7 @@ func (c *Client) fetchActivityWithTokens(ctx context.Context, ownerID, activityI
 	// request we already know will 401. The reactive 401 path below
 	// remains a backstop for tokens revoked before nominal expiry.
 	if reason := proactiveRefreshReason(tokens, c.now()); reason != "" {
-		refreshedTokens, refreshErr := c.refreshAndPersist(ctx, ownerID, tokens, reason)
+		refreshedTokens, refreshErr := c.refreshAndPersist(ctx, owner, tokens, reason)
 		if refreshErr != nil {
 			// Only wrap as ErrStravaAuth when the underlying cause is a
 			// permanent rejection of the refresh token (revoked, rotated,
@@ -544,7 +549,7 @@ func (c *Client) fetchActivityWithTokens(ctx context.Context, ownerID, activityI
 			}
 			c.logger.Warn("Strava 401, refreshing token",
 				"correlation_id", cid, "external_id", activityID, "owner_id", ownerID)
-			refreshedTokens, refreshErr := c.refreshAndPersist(ctx, ownerID, tokens, refreshReasonReactive401)
+			refreshedTokens, refreshErr := c.refreshAndPersist(ctx, owner, tokens, refreshReasonReactive401)
 			if refreshErr != nil {
 				// Same wrapping rule as the proactive path above — see
 				// comment there for the full rationale.
@@ -624,7 +629,7 @@ func (c *Client) doFetchActivity(ctx context.Context, activityID int64, accessTo
 	}
 }
 
-// refreshAndPersist serializes refreshes per athlete, then delegates to
+// refreshAndPersist serializes refreshes per captured UID/subject pair, then delegates to
 // refreshAndPersistOnce.
 //
 // The optimistic write-back guards the *write*; it does nothing about the
@@ -645,9 +650,10 @@ func (c *Client) doFetchActivity(ctx context.Context, activityID int64, accessTo
 // cancellation. A caller whose own context is still live can therefore see the
 // winner's context error. That is preferable to the replay it prevents, and the
 // next webhook redelivery retries.
-func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *stravatoken.Data, reason string) (*stravatoken.Data, error) {
-	v, err, shared := c.refreshGroup.Do(strconv.FormatInt(ownerID, 10), func() (any, error) {
-		return c.refreshAndPersistOnce(ctx, ownerID, tokens, reason)
+func (c *Client) refreshAndPersist(ctx context.Context, owner ports.CredentialOwner, tokens *stravatoken.Data, reason string) (*stravatoken.Data, error) {
+	ownerID := owner.Subject
+	v, err, shared := c.refreshGroup.Do(owner.UID+":"+strconv.FormatInt(ownerID, 10), func() (any, error) {
+		return c.refreshAndPersistOnce(ctx, owner, tokens, reason)
 	})
 	if shared {
 		// Mirrors strava.token_conflict: makes a collapsed refresh filterable in
@@ -678,7 +684,8 @@ func (c *Client) refreshAndPersist(ctx context.Context, ownerID int64, tokens *s
 //
 // Returns an error if either the refresh or the write-back fails; callers must
 // not proceed with stale tokens if write-back fails.
-func (c *Client) refreshAndPersistOnce(ctx context.Context, ownerID int64, tokens *stravatoken.Data, reason string) (_ *stravatoken.Data, err error) {
+func (c *Client) refreshAndPersistOnce(ctx context.Context, owner ports.CredentialOwner, tokens *stravatoken.Data, reason string) (_ *stravatoken.Data, err error) {
+	ownerID := owner.Subject
 	ctx, spanDone := otel.StartSpan(ctx, c.tracer, "strava.refresh_token",
 		attribute.Int64("strava.owner_id", ownerID),
 		attribute.String("strava.refresh_reason", reason),
@@ -703,7 +710,7 @@ func (c *Client) refreshAndPersistOnce(ctx context.Context, ownerID int64, token
 			}
 
 			// Optimistic write: only succeeds if no concurrent refresh happened.
-			persisted, writeErr := c.persistRefreshedTokens(ctx, ownerID, newTokens, versionBefore)
+			persisted, writeErr := c.persistRefreshedTokens(ctx, owner, newTokens, versionBefore)
 			if writeErr != nil {
 				if errors.Is(writeErr, ports.ErrTokenConflict) {
 					// Another goroutine won the race. Re-read their tokens.
@@ -713,7 +720,7 @@ func (c *Client) refreshAndPersistOnce(ctx context.Context, ownerID int64, token
 					trace.SpanFromContext(ctx).SetAttributes(attribute.Bool("strava.token_conflict", true))
 					c.logger.Warn("Token refresh race detected, using competing thread's tokens",
 						"correlation_id", cid, "owner_id", ownerID)
-					winner, getErr := c.tokenStore.GetTokens(ctx, ownerID)
+					winner, getErr := c.tokenStore.GetTokens(ctx, owner)
 					if getErr != nil {
 						// Firestore fault (not Strava) — tag so the breaker stays
 						// neutral. An inner ErrTokenNotFound still matches via %w.
@@ -728,6 +735,12 @@ func (c *Client) refreshAndPersistOnce(ctx context.Context, ownerID int64, token
 					// orphan (ack 200) instead of looping through Strava
 					// retries.
 					err = writeErr
+					return nil, err
+				}
+				if errors.Is(writeErr, activityconnection.ErrNotFound) || errors.Is(writeErr, activityconnection.ErrConflict) {
+					// Ownership changed after refresh. Stop without adopting a new
+					// owner or classifying this as a lost write-back/orphan token.
+					err = fmt.Errorf("%w: refresh ownership changed: %w", errTokenStoreUnavailable, writeErr)
 					return nil, err
 				}
 				// Generic/transient Firestore fault on write-back, still failing
@@ -777,7 +790,7 @@ func (c *Client) refreshAndPersistOnce(ctx context.Context, ownerID int64, token
 			// apigateway may already have written fresh tokens on re-auth (a write
 			// this in-process cache can't see). No-op on a non-caching store.
 			if inv, ok := c.tokenStore.(ports.TokenInvalidator); ok {
-				inv.Invalidate(ownerID)
+				inv.Invalidate(owner)
 			}
 			return nil, err
 		}
@@ -822,18 +835,20 @@ func (c *Client) refreshAndPersistOnce(ctx context.Context, ownerID int64, token
 // Returns the version the store persisted.
 func (c *Client) persistRefreshedTokens(
 	ctx context.Context,
-	ownerID int64,
+	owner ports.CredentialOwner,
 	newTokens *stravatoken.Data,
 	versionBefore time.Time,
 ) (time.Time, error) {
+	ownerID := owner.Subject
 	var writeErr error
 	for attempt := range tokenRetryAttempts {
 		var persisted time.Time
-		persisted, writeErr = c.tokenStore.WriteTokensIfUnmodified(ctx, ownerID, newTokens, versionBefore)
+		persisted, writeErr = c.tokenStore.WriteTokensIfUnmodified(ctx, owner, newTokens, versionBefore)
 		if writeErr == nil {
 			return persisted, nil
 		}
-		if errors.Is(writeErr, ports.ErrTokenConflict) || errors.Is(writeErr, ports.ErrTokenNotFound) {
+		if errors.Is(writeErr, ports.ErrTokenConflict) || errors.Is(writeErr, ports.ErrTokenNotFound) ||
+			errors.Is(writeErr, activityconnection.ErrNotFound) || errors.Is(writeErr, activityconnection.ErrConflict) {
 			// %w, not a bare return: the caller branches on both sentinels with
 			// errors.Is, so the chain has to survive the wrap.
 			return time.Time{}, fmt.Errorf("write tokens: %w", writeErr)

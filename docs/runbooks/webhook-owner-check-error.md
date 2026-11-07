@@ -1,6 +1,6 @@
-# Alert: Allowlist read errors elevated
+# Alert: Ownership or admission checks failing
 
-**Symptom**: the dispatcher's allowlist check is returning errors at >1/min
+**Symptom**: the dispatcher's ownership/admission checks are returning errors at >1/min
 sustained. Fires as MEDIUM to email + Slack. The handler fail-closes with 500
 (so Strava retries up to 3×), but past the retry cap legitimate events are
 dropped.
@@ -13,7 +13,7 @@ dropped.
   ```
   resource.type="cloud_run_revision"
   resource.labels.service_name="desirelines-dispatcher"
-  jsonPayload.error_code="ALLOWLIST_CHECK_FAILED"
+  jsonPayload.error_code=("OWNERSHIP_CHECK_FAILED" OR "ALLOWLIST_CHECK_FAILED")
   ```
 
   The wrapped error names the specific Firestore failure.
@@ -24,6 +24,12 @@ dropped.
 2. IAM drift — the dispatcher's service account lost `roles/datastore.user` on
    the user-configs database.
 3. Sustained Firestore latency manifesting as timeouts.
+4. Missing, inactive or conflicting ownership records. Inspect both directions
+   using the [registry guide](../guides/activity-connection-registry.md); the
+   [handler](../../packages/dispatcher/adapters/http/handler.go) never falls back
+   to an athlete-shaped UID. A known missing/conflicting pair during enrichment
+   also returns `OWNERSHIP_CHECK_FAILED`; other credential backend failures can
+   surface as `STRAVA_FETCH_FAILED`.
 
 **Quick mitigations**:
 

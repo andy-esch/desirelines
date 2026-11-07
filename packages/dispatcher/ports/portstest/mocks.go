@@ -11,11 +11,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
 	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
+	"github.com/andy-esch/desirelines/packages/shared/activityconnection"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 )
 
@@ -159,8 +161,8 @@ type MockStravaClient struct {
 	FetchDelay time.Duration
 	// FetchedIDs tracks which activity IDs were fetched.
 	FetchedIDs []int64
-	// FetchedOwnerIDs tracks which owner IDs were passed.
-	FetchedOwnerIDs []int64
+	// FetchedOwners tracks captured UID/subject pairs.
+	FetchedOwners []ports.CredentialOwner
 	// FetchDeadlines records the deadline on each call's context, so a test can
 	// assert the caller bounded the fetch rather than handing over its own
 	// budget. Zero time means the context carried no deadline.
@@ -172,21 +174,21 @@ type MockStravaClient struct {
 	VerifyErr error
 	// VerifyDelay simulates a slow verification and respects context expiry.
 	VerifyDelay time.Duration
-	// VerifyCalledOwnerIDs records the owner IDs VerifyGrant was called with.
-	VerifyCalledOwnerIDs []int64
+	// VerifiedOwners records the UID/subject pairs VerifyGrant was called with.
+	VerifiedOwners []ports.CredentialOwner
 	// VerifyDeadlines records the deadline on each verification context.
 	VerifyDeadlines []time.Time
 	// VerifyFunc, when set, computes the result dynamically (overriding
 	// VerifyStatus/VerifyErr). Use it to model a grant whose status tracks live
 	// state — e.g. reading a token store so a deleted token reports as
 	// GrantUnknown/ErrTokenNotFound, the way the real client does.
-	VerifyFunc func(context.Context, int64) (ports.GrantStatus, error)
+	VerifyFunc func(context.Context, ports.CredentialOwner) (ports.GrantStatus, error)
 }
 
 // VerifyGrant implements the StravaClient interface.
-func (m *MockStravaClient) VerifyGrant(ctx context.Context, ownerID int64) (ports.GrantStatus, error) {
+func (m *MockStravaClient) VerifyGrant(ctx context.Context, owner ports.CredentialOwner) (ports.GrantStatus, error) {
 	m.mu.Lock()
-	m.VerifyCalledOwnerIDs = append(m.VerifyCalledOwnerIDs, ownerID)
+	m.VerifiedOwners = append(m.VerifiedOwners, owner)
 	deadline, _ := ctx.Deadline()
 	m.VerifyDeadlines = append(m.VerifyDeadlines, deadline)
 	delay, status, err, verifyFunc := m.VerifyDelay, m.VerifyStatus, m.VerifyErr, m.VerifyFunc
@@ -200,7 +202,7 @@ func (m *MockStravaClient) VerifyGrant(ctx context.Context, ownerID int64) (port
 		}
 	}
 	if verifyFunc != nil {
-		return verifyFunc(ctx, ownerID)
+		return verifyFunc(ctx, owner)
 	}
 	return status, err
 }
@@ -209,7 +211,7 @@ func (m *MockStravaClient) VerifyGrant(ctx context.Context, ownerID int64) (port
 func (m *MockStravaClient) VerifyCalledCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return len(m.VerifyCalledOwnerIDs)
+	return len(m.VerifiedOwners)
 }
 
 // LastVerifyDeadline returns the deadline seen by the most recent verification.
@@ -224,9 +226,9 @@ func (m *MockStravaClient) LastVerifyDeadline() (time.Time, bool) {
 }
 
 // FetchActivity implements the StravaClient interface.
-func (m *MockStravaClient) FetchActivity(ctx context.Context, ownerID, activityID int64) ([]byte, error) {
+func (m *MockStravaClient) FetchActivity(ctx context.Context, owner ports.CredentialOwner, activityID int64) ([]byte, error) {
 	m.mu.Lock()
-	m.FetchedOwnerIDs = append(m.FetchedOwnerIDs, ownerID)
+	m.FetchedOwners = append(m.FetchedOwners, owner)
 	m.FetchedIDs = append(m.FetchedIDs, activityID)
 	deadline, _ := ctx.Deadline()
 	m.FetchDeadlines = append(m.FetchDeadlines, deadline)
@@ -266,18 +268,18 @@ func (m *MockStravaClient) FetchedCount() int {
 // Safe for concurrent use.
 type MockTokenStore struct {
 	mu sync.Mutex
-	// Tokens maps athlete IDs to their token data. Set during test setup.
-	Tokens map[int64]*stravatoken.Data
+	// Tokens maps captured owner pairs to their token data. Set during test setup.
+	Tokens map[ports.CredentialOwner]*stravatoken.Data
 	// GetErr is returned by GetTokens (overrides Tokens lookup). Set during test setup.
 	GetErr error
 	// WriteErr is returned by WriteTokensIfUnmodified. Set during test setup.
 	WriteErr error
 	// WrittenTokens records a copy of the tokens passed to each
-	// WriteTokensIfUnmodified call, keyed by athlete.
-	WrittenTokens map[int64]*stravatoken.Data
+	// WriteTokensIfUnmodified call, keyed by owner pair.
+	WrittenTokens map[ports.CredentialOwner]*stravatoken.Data
 	// Versioned makes WriteTokensIfUnmodified enforce optimistic concurrency
 	// like the real store: a missing entry returns ErrTokenNotFound, and an
-	// expected version that differs from Tokens[athleteID].LastRefreshed
+	// expected version that differs from Tokens[owner].LastRefreshed
 	// returns ErrTokenConflict. A successful write updates only the refreshed
 	// fields (access token, refresh token, expiry) and stamps a new version,
 	// which it returns. Versions strictly increase and never repeat a stored
@@ -293,18 +295,18 @@ type MockTokenStore struct {
 	// (delete only records the call); turn it on to model the real store's state
 	// transition, e.g. for deauth replay/retry regressions.
 	DeleteRemoves bool
-	// DeletedAthleteIDs tracks which athlete IDs had tokens deleted.
-	DeletedAthleteIDs []int64
+	// DeletedOwners tracks the owner pairs used for token deletion.
+	DeletedOwners []ports.CredentialOwner
 }
 
 // GetTokens implements the TokenStore interface.
-func (m *MockTokenStore) GetTokens(_ context.Context, athleteID int64) (*stravatoken.Data, error) {
+func (m *MockTokenStore) GetTokens(_ context.Context, owner ports.CredentialOwner) (*stravatoken.Data, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.GetErr != nil {
 		return nil, m.GetErr
 	}
-	tokens, ok := m.Tokens[athleteID]
+	tokens, ok := m.Tokens[owner]
 	if !ok {
 		return nil, ports.ErrTokenNotFound
 	}
@@ -313,7 +315,7 @@ func (m *MockTokenStore) GetTokens(_ context.Context, athleteID int64) (*stravat
 
 // WriteTokensIfUnmodified implements the TokenStore interface. It checks the
 // expected version only when Versioned is set.
-func (m *MockTokenStore) WriteTokensIfUnmodified(_ context.Context, athleteID int64, tokens *stravatoken.Data, expectedLastRefreshed time.Time) (time.Time, error) {
+func (m *MockTokenStore) WriteTokensIfUnmodified(_ context.Context, owner ports.CredentialOwner, tokens *stravatoken.Data, expectedLastRefreshed time.Time) (time.Time, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.WriteErr != nil {
@@ -321,7 +323,7 @@ func (m *MockTokenStore) WriteTokensIfUnmodified(_ context.Context, athleteID in
 	}
 	var persisted time.Time
 	if m.Versioned {
-		current, ok := m.Tokens[athleteID]
+		current, ok := m.Tokens[owner]
 		if !ok {
 			return time.Time{}, ports.ErrTokenNotFound
 		}
@@ -342,26 +344,26 @@ func (m *MockTokenStore) WriteTokensIfUnmodified(_ context.Context, athleteID in
 		stored.RefreshToken = tokens.RefreshToken
 		stored.ExpiresAt = tokens.ExpiresAt
 		stored.LastRefreshed = persisted
-		m.Tokens[athleteID] = &stored
+		m.Tokens[owner] = &stored
 	}
 	if m.WrittenTokens == nil {
-		m.WrittenTokens = make(map[int64]*stravatoken.Data)
+		m.WrittenTokens = make(map[ports.CredentialOwner]*stravatoken.Data)
 	}
 	written := *tokens
-	m.WrittenTokens[athleteID] = &written
+	m.WrittenTokens[owner] = &written
 	return persisted, nil
 }
 
 // DeleteTokens implements the TokenStore interface.
-func (m *MockTokenStore) DeleteTokens(_ context.Context, athleteID int64) error {
+func (m *MockTokenStore) DeleteTokens(_ context.Context, owner ports.CredentialOwner) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.DeletedAthleteIDs = append(m.DeletedAthleteIDs, athleteID)
+	m.DeletedOwners = append(m.DeletedOwners, owner)
 	if m.DeleteErr != nil {
 		return m.DeleteErr
 	}
 	if m.DeleteRemoves {
-		delete(m.Tokens, athleteID)
+		delete(m.Tokens, owner)
 	}
 	return nil
 }
@@ -370,7 +372,7 @@ func (m *MockTokenStore) DeleteTokens(_ context.Context, athleteID int64) error 
 func (m *MockTokenStore) DeletedCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return len(m.DeletedAthleteIDs)
+	return len(m.DeletedOwners)
 }
 
 // MockAllowlist is a mock implementation of allowlist.Checker for testing.
@@ -420,4 +422,25 @@ func (m *MockAllowlist) Invalidate(athleteID string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.InvalidatedWith = append(m.InvalidatedWith, athleteID)
+}
+
+// LegacyOwner is an explicit test fixture, never a runtime identity fallback.
+func LegacyOwner(subject int64) ports.CredentialOwner {
+	return ports.CredentialOwner{UID: strconv.FormatInt(subject, 10), Subject: subject}
+}
+
+// ValidateOwner accepts the ownership fixtures used by this token-store fake.
+func (m *MockTokenStore) ValidateOwner(context.Context, ports.CredentialOwner) error { return nil }
+
+// MockConnectionResolver supplies legacy-shaped fixtures unless a test overrides it.
+type MockConnectionResolver struct {
+	ResolveFunc func(context.Context, string) (activityconnection.Record, error)
+}
+
+// Resolve returns a fixture or delegates to the test-supplied resolver.
+func (m *MockConnectionResolver) Resolve(ctx context.Context, subject string) (activityconnection.Record, error) {
+	if m.ResolveFunc != nil {
+		return m.ResolveFunc(ctx, subject)
+	}
+	return activityconnection.Record{SchemaVersion: 1, UID: subject, Provider: activityconnection.Provider, Subject: subject, Scopes: []string{}, Status: activityconnection.Active, Provenance: activityconnection.LegacyUID, BootstrapID: "test-fixture"}, nil
 }

@@ -47,7 +47,7 @@ func newCallbackCapabilityHandler(t *testing.T, capability string, mutate func(*
 		&portstest.MockPublisher{},
 		&portstest.MockSecretProvider{VerifyToken: "verify-token", SubscriptionID: testSubscriptionID},
 		&portstest.MockStravaClient{},
-		&portstest.MockTokenStore{},
+		&portstest.MockTokenStore{}, &portstest.MockConnectionResolver{},
 		portstest.NewAllowAllMockAllowlist(),
 		gcplog.NewNoOpLogger(),
 		cfg,
@@ -214,7 +214,7 @@ func TestWebhookCallbackCapability_NonCanonicalCredentialPathsNeverExposeCredent
 		&portstest.MockPublisher{},
 		&portstest.MockSecretProvider{VerifyToken: "verify-token", SubscriptionID: testSubscriptionID},
 		&portstest.MockStravaClient{},
-		&portstest.MockTokenStore{},
+		&portstest.MockTokenStore{}, &portstest.MockConnectionResolver{},
 		portstest.NewAllowAllMockAllowlist(),
 		logger,
 		&HandlerConfig{
@@ -304,7 +304,7 @@ func TestWebhookCallbackCapability_RedactsBeforeInstrumentationAndLogs(t *testin
 		&portstest.MockPublisher{},
 		&portstest.MockSecretProvider{VerifyToken: "verify-token", SubscriptionID: testSubscriptionID},
 		&portstest.MockStravaClient{},
-		&portstest.MockTokenStore{},
+		&portstest.MockTokenStore{}, &portstest.MockConnectionResolver{},
 		portstest.NewAllowAllMockAllowlist(),
 		logger,
 		&HandlerConfig{

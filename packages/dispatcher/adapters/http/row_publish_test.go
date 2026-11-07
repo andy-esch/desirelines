@@ -64,7 +64,7 @@ func serveRowPublishWebhook(t *testing.T, setup *rowPublishSetup, payload webhoo
 		&portstest.MockPublisher{},
 		&portstest.MockSecretProvider{SubscriptionID: testSubscriptionID},
 		setup.strava,
-		&portstest.MockTokenStore{},
+		&portstest.MockTokenStore{}, &portstest.MockConnectionResolver{},
 		portstest.NewAllowAllMockAllowlist(),
 		gcplog.NewNoOpLogger(),
 		cfg,

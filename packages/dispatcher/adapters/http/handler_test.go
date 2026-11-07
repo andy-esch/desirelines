@@ -17,6 +17,7 @@ import (
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports/portstest"
 	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
+	"github.com/andy-esch/desirelines/packages/shared/activityconnection"
 	"github.com/andy-esch/desirelines/packages/shared/apierrors"
 	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"go.opentelemetry.io/otel/metric"
@@ -171,7 +172,7 @@ func TestHandler_HandleVerification(t *testing.T) {
 			mockPublisher := &portstest.MockPublisher{}
 			mockStrava := &portstest.MockStravaClient{}
 
-			handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, mockSecrets, mockStrava, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, testHandlerConfig())
+			handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, mockSecrets, mockStrava, &portstest.MockTokenStore{}, &portstest.MockConnectionResolver{}, portstest.NewAllowAllMockAllowlist(), log, testHandlerConfig())
 			router := handler.RegisterRoutes()
 
 			req := httptest.NewRequest(tt.method, testWebhookPath, nil)
@@ -512,7 +513,7 @@ func runHandleEventTest(t *testing.T, tt *handleEventTestCase) {
 		VerifyErr:    tt.stravaVerifyErr,
 	}
 
-	handler := NewHandler(mockPublisher, mockDeauthPublisher, mockSecrets, mockStrava, mockTokenStoreOrDefault(tt.mockTokenStore), allowlistOrDefault(tt.mockAllowlist), log, testHandlerConfig())
+	handler := NewHandler(mockPublisher, mockDeauthPublisher, mockSecrets, mockStrava, mockTokenStoreOrDefault(tt.mockTokenStore), &portstest.MockConnectionResolver{}, allowlistOrDefault(tt.mockAllowlist), log, testHandlerConfig())
 	router := handler.RegisterRoutes()
 
 	var body []byte
@@ -595,8 +596,8 @@ func TestHandler_AthleteDeauth(t *testing.T) { //nolint:gocyclo // Parent test g
 		}
 		runHandleEventTest(t, &tt)
 
-		if len(mockTokens.DeletedAthleteIDs) != 1 || mockTokens.DeletedAthleteIDs[0] != testOwnerID {
-			t.Errorf("expected DeleteTokens called with athlete %d, got %v", testOwnerID, mockTokens.DeletedAthleteIDs)
+		if len(mockTokens.DeletedOwners) != 1 || mockTokens.DeletedOwners[0] != portstest.LegacyOwner(testOwnerID) {
+			t.Errorf("expected DeleteTokens called with athlete %d, got %v", testOwnerID, mockTokens.DeletedOwners)
 		}
 		// Verify deauth event was published to deauth publisher, not activity publisher
 		if len(mockDeauth.Published) != 1 {
@@ -626,8 +627,8 @@ func TestHandler_AthleteDeauth(t *testing.T) { //nolint:gocyclo // Parent test g
 		}
 		runHandleEventTest(t, &tt)
 
-		if len(mockTokens.DeletedAthleteIDs) != 1 || mockTokens.DeletedAthleteIDs[0] != testOwnerID {
-			t.Errorf("expected DeleteTokens called with athlete %d, got %v", testOwnerID, mockTokens.DeletedAthleteIDs)
+		if len(mockTokens.DeletedOwners) != 1 || mockTokens.DeletedOwners[0] != portstest.LegacyOwner(testOwnerID) {
+			t.Errorf("expected DeleteTokens called with athlete %d, got %v", testOwnerID, mockTokens.DeletedOwners)
 		}
 	})
 
@@ -687,8 +688,8 @@ func TestHandler_AthleteDeauth(t *testing.T) { //nolint:gocyclo // Parent test g
 		}
 		runHandleEventTest(t, &tt)
 
-		if len(mockTokens.DeletedAthleteIDs) != 1 || mockTokens.DeletedAthleteIDs[0] != testOwnerID {
-			t.Errorf("expected DeleteTokens called with athlete %d, got %v", testOwnerID, mockTokens.DeletedAthleteIDs)
+		if len(mockTokens.DeletedOwners) != 1 || mockTokens.DeletedOwners[0] != portstest.LegacyOwner(testOwnerID) {
+			t.Errorf("expected DeleteTokens called with athlete %d, got %v", testOwnerID, mockTokens.DeletedOwners)
 		}
 	})
 
@@ -708,8 +709,8 @@ func TestHandler_AthleteDeauth(t *testing.T) { //nolint:gocyclo // Parent test g
 		}
 		runHandleEventTest(t, &tt)
 
-		if len(mockTokens.DeletedAthleteIDs) != 1 {
-			t.Errorf("expected DeleteTokens to be called, got %v", mockTokens.DeletedAthleteIDs)
+		if len(mockTokens.DeletedOwners) != 1 {
+			t.Errorf("expected DeleteTokens to be called, got %v", mockTokens.DeletedOwners)
 		}
 	})
 
@@ -744,7 +745,7 @@ func TestHandler_AthleteDeauth(t *testing.T) { //nolint:gocyclo // Parent test g
 		handler := NewHandler(
 			&portstest.MockPublisher{}, mockDeauth,
 			&portstest.MockSecretProvider{SubscriptionID: testSubscriptionID},
-			mockStrava, mockTokens, mockAllow, gcplog.NewNoOpLogger(), testHandlerConfig(),
+			mockStrava, mockTokens, &portstest.MockConnectionResolver{}, mockAllow, gcplog.NewNoOpLogger(), testHandlerConfig(),
 		)
 		router := handler.RegisterRoutes()
 		post := func() *httptest.ResponseRecorder {
@@ -794,7 +795,7 @@ func TestHandler_AthleteDeauth(t *testing.T) { //nolint:gocyclo // Parent test g
 		handler := NewHandler(
 			&portstest.MockPublisher{}, mockDeauth,
 			&portstest.MockSecretProvider{SubscriptionID: testSubscriptionID},
-			mockStrava, mockTokens, portstest.NewAllowAllMockAllowlist(), gcplog.NewNoOpLogger(), testHandlerConfig(),
+			mockStrava, mockTokens, &portstest.MockConnectionResolver{}, portstest.NewAllowAllMockAllowlist(), gcplog.NewNoOpLogger(), testHandlerConfig(),
 		)
 		req := httptest.NewRequest(http.MethodPost, testWebhookPath, bytes.NewReader(body))
 		req.Header.Set("Content-Type", contentTypeJSON)
@@ -840,8 +841,8 @@ func TestHandler_AthleteDeauth(t *testing.T) { //nolint:gocyclo // Parent test g
 		}
 		runHandleEventTest(t, &tt)
 
-		if len(mockTokens.DeletedAthleteIDs) != 0 {
-			t.Errorf("expected no DeleteTokens calls, got %v", mockTokens.DeletedAthleteIDs)
+		if len(mockTokens.DeletedOwners) != 0 {
+			t.Errorf("expected no DeleteTokens calls, got %v", mockTokens.DeletedOwners)
 		}
 	})
 }
@@ -860,7 +861,7 @@ func TestHandler_OwnerCheck_StrayDoesNotCallStrava(t *testing.T) {
 		&portstest.MockPublisher{},
 		&portstest.MockSecretProvider{SubscriptionID: testSubscriptionID},
 		mockStrava,
-		&portstest.MockTokenStore{},
+		&portstest.MockTokenStore{}, &portstest.MockConnectionResolver{},
 		mockAllowlist,
 		log,
 		testHandlerConfig(),
@@ -926,7 +927,7 @@ func TestHandler_OwnerCheck_DeauthBypassesAllowlist(t *testing.T) {
 		mockDeauth,
 		&portstest.MockSecretProvider{SubscriptionID: testSubscriptionID},
 		&portstest.MockStravaClient{VerifyStatus: ports.GrantRevoked},
-		mockTokens,
+		mockTokens, &portstest.MockConnectionResolver{},
 		denyingAllowlist,
 		log,
 		testHandlerConfig(),
@@ -979,6 +980,7 @@ func TestHandler_OwnerCheck_CounterLabels(t *testing.T) {
 		stravaErr    error
 		wantResult   string
 		wantStatus   int
+		wantCode     string
 		payloadBytes []byte
 	}
 
@@ -1028,6 +1030,33 @@ func TestHandler_OwnerCheck_CounterLabels(t *testing.T) {
 			wantStatus:   http.StatusInternalServerError,
 			payloadBytes: validBody,
 		},
+		{
+			name:         "mapping disappeared during credential use",
+			allowlist:    portstest.NewAllowAllMockAllowlist(),
+			stravaErr:    fmt.Errorf("read credentials: %w", activityconnection.ErrNotFound),
+			wantResult:   "error",
+			wantStatus:   http.StatusInternalServerError,
+			wantCode:     ErrCodeOwnershipCheckFailed,
+			payloadBytes: validBody,
+		},
+		{
+			name:         "mapping changed during refresh",
+			allowlist:    portstest.NewAllowAllMockAllowlist(),
+			stravaErr:    fmt.Errorf("refresh write: %w", activityconnection.ErrConflict),
+			wantResult:   "error",
+			wantStatus:   http.StatusInternalServerError,
+			wantCode:     ErrCodeOwnershipCheckFailed,
+			payloadBytes: validBody,
+		},
+		{
+			name:         "unrelated fetch failure stays distinct",
+			allowlist:    portstest.NewAllowAllMockAllowlist(),
+			stravaErr:    errors.New("provider unavailable"),
+			wantResult:   "allowed",
+			wantStatus:   http.StatusInternalServerError,
+			wantCode:     ErrCodeStravaFetchFailed,
+			payloadBytes: validBody,
+		},
 	}
 
 	for _, c := range cases {
@@ -1049,7 +1078,7 @@ func TestHandler_OwnerCheck_CounterLabels(t *testing.T) {
 					FetchResult: []byte(`{"id":12345}`),
 					FetchErr:    c.stravaErr,
 				},
-				&portstest.MockTokenStore{},
+				&portstest.MockTokenStore{}, &portstest.MockConnectionResolver{},
 				c.allowlist,
 				log,
 				&HandlerConfig{OwnerCheckCounter: counter, WebhookCallbackCapability: testWebhookCapability},
@@ -1063,6 +1092,12 @@ func TestHandler_OwnerCheck_CounterLabels(t *testing.T) {
 
 			if w.Code != c.wantStatus {
 				t.Errorf("status = %d, want %d (body: %s)", w.Code, c.wantStatus, w.Body.String())
+			}
+			if c.wantCode != "" {
+				response := parseErrorResponse(w.Body.String())
+				if response == nil || response.Code != c.wantCode {
+					t.Fatalf("error response = %s, want %s", w.Body.String(), c.wantCode)
+				}
 			}
 
 			var rm metricdata.ResourceMetrics
@@ -1185,7 +1220,7 @@ func TestHandler_EventAgeHistogram(t *testing.T) {
 				&portstest.MockPublisher{},
 				&portstest.MockSecretProvider{SubscriptionID: tt.secretSubID},
 				&portstest.MockStravaClient{},
-				&portstest.MockTokenStore{},
+				&portstest.MockTokenStore{}, &portstest.MockConnectionResolver{},
 				portstest.NewAllowAllMockAllowlist(),
 				gcplog.NewNoOpLogger(),
 				&HandlerConfig{
@@ -1291,7 +1326,7 @@ func TestHandler_EnrichmentBehavior_Create(t *testing.T) {
 	mockStrava := &portstest.MockStravaClient{FetchResult: rawActivity}
 	mockPublisher := &portstest.MockPublisher{}
 
-	handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, testHandlerConfig())
+	handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, &portstest.MockTokenStore{}, &portstest.MockConnectionResolver{}, portstest.NewAllowAllMockAllowlist(), log, testHandlerConfig())
 	router := handler.RegisterRoutes()
 
 	payload, marshalErr := json.Marshal(webhookproto.StravaWebhookJSON{
@@ -1340,7 +1375,7 @@ func TestHandler_EnrichmentBehavior_Update_TitleOnly(t *testing.T) {
 	mockStrava := &portstest.MockStravaClient{}
 	mockPublisher := &portstest.MockPublisher{}
 
-	handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, testHandlerConfig())
+	handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, &portstest.MockTokenStore{}, &portstest.MockConnectionResolver{}, portstest.NewAllowAllMockAllowlist(), log, testHandlerConfig())
 	router := handler.RegisterRoutes()
 
 	payload, marshalErr := json.Marshal(webhookproto.StravaWebhookJSON{
@@ -1384,7 +1419,7 @@ func TestHandler_EnrichmentBehavior_Update_TypeChange(t *testing.T) {
 	mockStrava := &portstest.MockStravaClient{FetchResult: rawActivity}
 	mockPublisher := &portstest.MockPublisher{}
 
-	handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, testHandlerConfig())
+	handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, &portstest.MockTokenStore{}, &portstest.MockConnectionResolver{}, portstest.NewAllowAllMockAllowlist(), log, testHandlerConfig())
 	router := handler.RegisterRoutes()
 
 	payload, marshalErr := json.Marshal(webhookproto.StravaWebhookJSON{
@@ -1431,7 +1466,7 @@ func TestHandler_EnrichmentBehavior_Update_TypeChange_ActivityGone(t *testing.T)
 	mockStrava := &portstest.MockStravaClient{FetchErr: ports.ErrActivityNotFound}
 	mockPublisher := &portstest.MockPublisher{}
 
-	handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, testHandlerConfig())
+	handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, &portstest.MockTokenStore{}, &portstest.MockConnectionResolver{}, portstest.NewAllowAllMockAllowlist(), log, testHandlerConfig())
 	router := handler.RegisterRoutes()
 
 	payload, marshalErr := json.Marshal(webhookproto.StravaWebhookJSON{
@@ -1522,7 +1557,7 @@ func TestHandler_EnrichmentBehavior_Delete(t *testing.T) {
 	mockStrava := &portstest.MockStravaClient{}
 	mockPublisher := &portstest.MockPublisher{}
 
-	handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, testHandlerConfig())
+	handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, &portstest.MockSecretProvider{SubscriptionID: testSubscriptionID}, mockStrava, &portstest.MockTokenStore{}, &portstest.MockConnectionResolver{}, portstest.NewAllowAllMockAllowlist(), log, testHandlerConfig())
 	router := handler.RegisterRoutes()
 
 	payload, marshalErr := json.Marshal(webhookproto.StravaWebhookJSON{
@@ -1565,7 +1600,7 @@ func TestNewHandler_WithConfig(t *testing.T) {
 
 	// Create handler with a very small MaxRequestBodySize
 	cfg := &HandlerConfig{MaxRequestBodySize: 512, WebhookCallbackCapability: testWebhookCapability}
-	handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, mockSecrets, mockStrava, mockTokens, portstest.NewAllowAllMockAllowlist(), log, cfg)
+	handler := NewHandler(mockPublisher, &portstest.MockPublisher{}, mockSecrets, mockStrava, mockTokens, &portstest.MockConnectionResolver{}, portstest.NewAllowAllMockAllowlist(), log, cfg)
 	router := handler.RegisterRoutes()
 
 	// Build a valid JSON payload that exceeds 512 bytes
@@ -1605,7 +1640,7 @@ func TestNewHandler_WithConfig(t *testing.T) {
 // Test health endpoints
 func TestHandler_Health(t *testing.T) {
 	log := gcplog.NewNoOpLogger()
-	handler := NewHandler(&portstest.MockPublisher{}, &portstest.MockPublisher{}, &portstest.MockSecretProvider{}, &portstest.MockStravaClient{}, &portstest.MockTokenStore{}, portstest.NewAllowAllMockAllowlist(), log, testHandlerConfig())
+	handler := NewHandler(&portstest.MockPublisher{}, &portstest.MockPublisher{}, &portstest.MockSecretProvider{}, &portstest.MockStravaClient{}, &portstest.MockTokenStore{}, &portstest.MockConnectionResolver{}, portstest.NewAllowAllMockAllowlist(), log, testHandlerConfig())
 	router := handler.RegisterRoutes()
 
 	tests := []struct {
@@ -1793,7 +1828,7 @@ func TestHandler_WebhookValidationSpans(t *testing.T) {
 		&portstest.MockPublisher{},
 		&portstest.MockSecretProvider{SubscriptionID: testSubscriptionID},
 		&portstest.MockStravaClient{},
-		&portstest.MockTokenStore{},
+		&portstest.MockTokenStore{}, &portstest.MockConnectionResolver{},
 		&portstest.MockAllowlist{Allowed: true},
 		gcplog.NewNoOpLogger(),
 		&HandlerConfig{Tracer: tp.Tracer("test"), WebhookCallbackCapability: testWebhookCapability},
@@ -1864,6 +1899,7 @@ func TestHandler_SubscriptionMismatchSpanCarriesAthleteID(t *testing.T) {
 		&portstest.MockSecretProvider{SubscriptionID: testSubscriptionID + 1},
 		&portstest.MockStravaClient{},
 		&portstest.MockTokenStore{},
+		&portstest.MockConnectionResolver{},
 		&portstest.MockAllowlist{Allowed: true},
 		gcplog.NewNoOpLogger(),
 		&HandlerConfig{Tracer: tracer, WebhookCallbackCapability: testWebhookCapability},

@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/andy-esch/desirelines/packages/dispatcher/ports/portstest"
+
 	"github.com/andy-esch/desirelines/packages/dispatcher/adapters/cache"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
@@ -20,9 +22,11 @@ import (
 type countingStore struct {
 	mu sync.Mutex
 
-	tokens   map[int64]*stravatoken.Data
-	getCalls int
-	getErr   error
+	tokens      map[ports.CredentialOwner]*stravatoken.Data
+	getCalls    int
+	getErr      error
+	validateErr error
+	validated   []ports.CredentialOwner
 
 	writeCalls int
 	writeErr   error
@@ -32,14 +36,14 @@ type countingStore struct {
 }
 
 func newCountingStore(d *stravatoken.Data) *countingStore {
-	s := &countingStore{tokens: map[int64]*stravatoken.Data{}}
+	s := &countingStore{tokens: map[ports.CredentialOwner]*stravatoken.Data{}}
 	if d != nil {
-		s.tokens[1] = d
+		s.tokens[portstest.LegacyOwner(1)] = d
 	}
 	return s
 }
 
-func (s *countingStore) GetTokens(_ context.Context, athleteID int64) (*stravatoken.Data, error) {
+func (s *countingStore) GetTokens(_ context.Context, athleteID ports.CredentialOwner) (*stravatoken.Data, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.getCalls++
@@ -54,7 +58,7 @@ func (s *countingStore) GetTokens(_ context.Context, athleteID int64) (*stravato
 	return &cp, nil
 }
 
-func (s *countingStore) WriteTokensIfUnmodified(_ context.Context, athleteID int64, tokens *stravatoken.Data, _ time.Time) (time.Time, error) {
+func (s *countingStore) WriteTokensIfUnmodified(_ context.Context, athleteID ports.CredentialOwner, tokens *stravatoken.Data, _ time.Time) (time.Time, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.writeCalls++
@@ -68,7 +72,7 @@ func (s *countingStore) WriteTokensIfUnmodified(_ context.Context, athleteID int
 	return version, nil
 }
 
-func (s *countingStore) DeleteTokens(_ context.Context, athleteID int64) error {
+func (s *countingStore) DeleteTokens(_ context.Context, athleteID ports.CredentialOwner) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.deleteCalls++
@@ -90,7 +94,7 @@ func (s *countingStore) counts() (get, write, del int) {
 func (s *countingStore) setTokenDirectly(d *stravatoken.Data) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.tokens[1] = d
+	s.tokens[portstest.LegacyOwner(1)] = d
 }
 
 var _ ports.TokenStore = (*countingStore)(nil)
@@ -116,11 +120,11 @@ func TestSecondGetWithinTTLSkipsTheStore(t *testing.T) {
 	s := newStore(t, inner, time.Minute)
 	ctx := context.Background()
 
-	first, err := s.GetTokens(ctx, 1)
+	first, err := s.GetTokens(ctx, portstest.LegacyOwner(1))
 	if err != nil {
 		t.Fatalf("first GetTokens: %v", err)
 	}
-	second, err := s.GetTokens(ctx, 1)
+	second, err := s.GetTokens(ctx, portstest.LegacyOwner(1))
 	if err != nil {
 		t.Fatalf("second GetTokens: %v", err)
 	}
@@ -140,13 +144,13 @@ func TestGetReturnsACopyCallerCannotCorruptTheCache(t *testing.T) {
 	s := newStore(t, inner, time.Minute)
 	ctx := context.Background()
 
-	first, err := s.GetTokens(ctx, 1)
+	first, err := s.GetTokens(ctx, portstest.LegacyOwner(1))
 	if err != nil {
 		t.Fatalf("GetTokens: %v", err)
 	}
 	first.AccessToken = "MUTATED BY CALLER"
 
-	second, err := s.GetTokens(ctx, 1)
+	second, err := s.GetTokens(ctx, portstest.LegacyOwner(1))
 	if err != nil {
 		t.Fatalf("GetTokens: %v", err)
 	}
@@ -164,15 +168,15 @@ func TestWriteInvalidatesSoNextReadSeesNewTokens(t *testing.T) {
 	s := newStore(t, inner, time.Minute)
 	ctx := context.Background()
 
-	if _, err := s.GetTokens(ctx, 1); err != nil { // populate the cache
+	if _, err := s.GetTokens(ctx, portstest.LegacyOwner(1)); err != nil { // populate the cache
 		t.Fatalf("GetTokens: %v", err)
 	}
-	version, err := s.WriteTokensIfUnmodified(ctx, 1, tokenData("new-access"), time.Time{})
+	version, err := s.WriteTokensIfUnmodified(ctx, portstest.LegacyOwner(1), tokenData("new-access"), time.Time{})
 	if err != nil {
 		t.Fatalf("WriteTokensIfUnmodified: %v", err)
 	}
 
-	got, err := s.GetTokens(ctx, 1)
+	got, err := s.GetTokens(ctx, portstest.LegacyOwner(1))
 	if err != nil {
 		t.Fatalf("GetTokens after write: %v", err)
 	}
@@ -193,7 +197,7 @@ func TestWriteConflictInvalidatesSoTheConflictRereadFindsTheWinner(t *testing.T)
 	s := newStore(t, inner, time.Minute)
 	ctx := context.Background()
 
-	if _, err := s.GetTokens(ctx, 1); err != nil { // cache "mine"
+	if _, err := s.GetTokens(ctx, portstest.LegacyOwner(1)); err != nil { // cache "mine"
 		t.Fatalf("GetTokens: %v", err)
 	}
 
@@ -204,12 +208,12 @@ func TestWriteConflictInvalidatesSoTheConflictRereadFindsTheWinner(t *testing.T)
 	inner.mu.Unlock()
 	inner.setTokenDirectly(tokenData("winner"))
 
-	_, err := s.WriteTokensIfUnmodified(ctx, 1, tokenData("mine-refreshed"), time.Time{})
+	_, err := s.WriteTokensIfUnmodified(ctx, portstest.LegacyOwner(1), tokenData("mine-refreshed"), time.Time{})
 	if !errors.Is(err, ports.ErrTokenConflict) {
 		t.Fatalf("WriteTokensIfUnmodified error = %v, want ErrTokenConflict", err)
 	}
 
-	got, err := s.GetTokens(ctx, 1)
+	got, err := s.GetTokens(ctx, portstest.LegacyOwner(1))
 	if err != nil {
 		t.Fatalf("conflict re-read: %v", err)
 	}
@@ -225,7 +229,7 @@ func TestTransientWriteFailureStillInvalidates(t *testing.T) {
 	s := newStore(t, inner, time.Minute)
 	ctx := context.Background()
 
-	if _, err := s.GetTokens(ctx, 1); err != nil {
+	if _, err := s.GetTokens(ctx, portstest.LegacyOwner(1)); err != nil {
 		t.Fatalf("GetTokens: %v", err)
 	}
 	getsBefore, _, _ := inner.counts()
@@ -233,11 +237,11 @@ func TestTransientWriteFailureStillInvalidates(t *testing.T) {
 	inner.mu.Lock()
 	inner.writeErr = errors.New("firestore unavailable")
 	inner.mu.Unlock()
-	if _, err := s.WriteTokensIfUnmodified(ctx, 1, tokenData("attempted"), time.Time{}); err == nil {
+	if _, err := s.WriteTokensIfUnmodified(ctx, portstest.LegacyOwner(1), tokenData("attempted"), time.Time{}); err == nil {
 		t.Fatal("expected the write error to propagate")
 	}
 
-	if _, err := s.GetTokens(ctx, 1); err != nil {
+	if _, err := s.GetTokens(ctx, portstest.LegacyOwner(1)); err != nil {
 		t.Fatalf("GetTokens: %v", err)
 	}
 	if getsAfter, _, _ := inner.counts(); getsAfter != getsBefore+1 {
@@ -252,14 +256,14 @@ func TestDeleteInvalidates(t *testing.T) {
 	s := newStore(t, inner, time.Minute)
 	ctx := context.Background()
 
-	if _, err := s.GetTokens(ctx, 1); err != nil {
+	if _, err := s.GetTokens(ctx, portstest.LegacyOwner(1)); err != nil {
 		t.Fatalf("GetTokens: %v", err)
 	}
-	if err := s.DeleteTokens(ctx, 1); err != nil {
+	if err := s.DeleteTokens(ctx, portstest.LegacyOwner(1)); err != nil {
 		t.Fatalf("DeleteTokens: %v", err)
 	}
 
-	if _, err := s.GetTokens(ctx, 1); !errors.Is(err, ports.ErrTokenNotFound) {
+	if _, err := s.GetTokens(ctx, portstest.LegacyOwner(1)); !errors.Is(err, ports.ErrTokenNotFound) {
 		t.Errorf("GetTokens after delete = %v, want ErrTokenNotFound — deleted tokens were served from cache", err)
 	}
 }
@@ -271,7 +275,7 @@ func TestErrorsAreNotCached(t *testing.T) {
 	s := newStore(t, inner, time.Minute)
 	ctx := context.Background()
 
-	if _, err := s.GetTokens(ctx, 1); err == nil {
+	if _, err := s.GetTokens(ctx, portstest.LegacyOwner(1)); err == nil {
 		t.Fatal("expected the read error to propagate")
 	}
 
@@ -281,7 +285,7 @@ func TestErrorsAreNotCached(t *testing.T) {
 	inner.mu.Unlock()
 	inner.setTokenDirectly(tokenData("recovered"))
 
-	got, err := s.GetTokens(ctx, 1)
+	got, err := s.GetTokens(ctx, portstest.LegacyOwner(1))
 	if err != nil {
 		t.Fatalf("GetTokens after recovery: %v", err)
 	}
@@ -297,12 +301,12 @@ func TestNotFoundIsNotCached(t *testing.T) {
 	s := newStore(t, inner, time.Minute)
 	ctx := context.Background()
 
-	if _, err := s.GetTokens(ctx, 1); !errors.Is(err, ports.ErrTokenNotFound) {
+	if _, err := s.GetTokens(ctx, portstest.LegacyOwner(1)); !errors.Is(err, ports.ErrTokenNotFound) {
 		t.Fatalf("GetTokens = %v, want ErrTokenNotFound", err)
 	}
 
 	inner.setTokenDirectly(tokenData("just-authorized"))
-	got, err := s.GetTokens(ctx, 1)
+	got, err := s.GetTokens(ctx, portstest.LegacyOwner(1))
 	if err != nil {
 		t.Fatalf("GetTokens after authorization: %v", err)
 	}
@@ -316,11 +320,11 @@ func TestEntryExpiresAfterTTL(t *testing.T) {
 	s := newStore(t, inner, 10*time.Millisecond)
 	ctx := context.Background()
 
-	if _, err := s.GetTokens(ctx, 1); err != nil {
+	if _, err := s.GetTokens(ctx, portstest.LegacyOwner(1)); err != nil {
 		t.Fatalf("GetTokens: %v", err)
 	}
 	time.Sleep(25 * time.Millisecond)
-	if _, err := s.GetTokens(ctx, 1); err != nil {
+	if _, err := s.GetTokens(ctx, portstest.LegacyOwner(1)); err != nil {
 		t.Fatalf("GetTokens: %v", err)
 	}
 
@@ -335,10 +339,10 @@ func TestWritesAndDeletesAlwaysReachTheInnerStore(t *testing.T) {
 	ctx := context.Background()
 
 	// The cache must never absorb a mutation — it is a read cache only.
-	if _, err := s.WriteTokensIfUnmodified(ctx, 1, tokenData("x"), time.Time{}); err != nil {
+	if _, err := s.WriteTokensIfUnmodified(ctx, portstest.LegacyOwner(1), tokenData("x"), time.Time{}); err != nil {
 		t.Fatalf("WriteTokensIfUnmodified: %v", err)
 	}
-	if err := s.DeleteTokens(ctx, 1); err != nil {
+	if err := s.DeleteTokens(ctx, portstest.LegacyOwner(1)); err != nil {
 		t.Fatalf("DeleteTokens: %v", err)
 	}
 
@@ -380,7 +384,7 @@ func TestCacheOutcomeIsStampedOnTheSpan(t *testing.T) {
 	// the token read in production.
 	for i := 0; i < 2; i++ {
 		ctx, span := tracer.Start(context.Background(), "test.get_tokens")
-		if _, err := s.GetTokens(ctx, 1); err != nil {
+		if _, err := s.GetTokens(ctx, portstest.LegacyOwner(1)); err != nil {
 			t.Fatalf("GetTokens: %v", err)
 		}
 		span.End()
@@ -424,18 +428,18 @@ func TestInvalidateForcesReReadAfterRejectedRefresh(t *testing.T) {
 	s := newStore(t, inner, time.Minute)
 	ctx := context.Background()
 
-	if _, err := s.GetTokens(ctx, 1); err != nil { // cache stale tokens
+	if _, err := s.GetTokens(ctx, portstest.LegacyOwner(1)); err != nil { // cache stale tokens
 		t.Fatalf("GetTokens: %v", err)
 	}
 
 	// Strava rejected the refresh; the client drops the entry via the interface.
 	var inv ports.TokenInvalidator = s
-	inv.Invalidate(1)
+	inv.Invalidate(portstest.LegacyOwner(1))
 
 	// Meanwhile apigateway re-auth wrote fresh tokens to Firestore.
 	inner.setTokenDirectly(tokenData("fresh-from-reauth"))
 
-	got, err := s.GetTokens(ctx, 1)
+	got, err := s.GetTokens(ctx, portstest.LegacyOwner(1))
 	if err != nil {
 		t.Fatalf("GetTokens after invalidate: %v", err)
 	}
@@ -452,11 +456,18 @@ func TestZeroTTLDisablesTheCache(t *testing.T) {
 	ctx := context.Background()
 
 	for i := 0; i < 3; i++ {
-		if _, err := s.GetTokens(ctx, 1); err != nil {
+		if _, err := s.GetTokens(ctx, portstest.LegacyOwner(1)); err != nil {
 			t.Fatalf("GetTokens: %v", err)
 		}
 	}
 	if got, _, _ := inner.counts(); got != 3 {
 		t.Errorf("inner GetTokens called %d times, want 3 — ttl=0 must disable the cache", got)
 	}
+}
+
+func (s *countingStore) ValidateOwner(_ context.Context, owner ports.CredentialOwner) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.validated = append(s.validated, owner)
+	return s.validateErr
 }

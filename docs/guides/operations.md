@@ -96,13 +96,13 @@ steps: [`docs/guides/strava-webhook.md`](strava-webhook.md).
 
 ### Force an OAuth token refresh
 
-When an athlete's tokens are stale or missing (see
-[`webhook-owner-check-orphan.md`](../runbooks/webhook-owner-check-orphan.md)),
-there is no admin-side refresh — refresh tokens are held per-athlete in
-Firestore and only the athlete can mint new ones.
+The dispatcher refreshes valid stored grants automatically. There is no manual
+refresh command; missing or revoked grants require the athlete to reauthorize.
+See [`webhook-owner-check-orphan.md`](../runbooks/webhook-owner-check-orphan.md).
 
-1. Confirm the token document is actually missing or stale (Firestore →
-   `users/{athleteID}/private/strava_tokens`).
+1. Resolve the athlete through `provider_accounts/strava:{athleteID}`, then
+   inspect `users/{uid}/private/strava_tokens`. See the
+   [registry contract](activity-connection-registry.md#ownership-readers).
 2. Have the athlete re-authorize through the app's sign-in-with-Strava flow.
    This writes fresh tokens.
 3. Webhooks resume on their next activity; already-acked events are not

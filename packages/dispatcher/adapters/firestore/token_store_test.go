@@ -8,9 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/andy-esch/desirelines/packages/dispatcher/ports/portstest"
+
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
 	"github.com/andy-esch/desirelines/packages/shared/firestoretest"
-	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/andy-esch/desirelines/packages/shared/otel"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 )
@@ -29,7 +30,7 @@ func newTestStore(t *testing.T) *TokenStore {
 
 	noopProviders := otel.NoopProviders()
 	noopHist, _ := noopProviders.Meter.Float64Histogram("test") //nolint:errcheck // no-op meter never fails
-	return NewTokenStore(client, gcplog.NewNoOpLogger(), noopHist, noopProviders.Tracer)
+	return NewTokenStore(client, noopHist, noopProviders.Tracer)
 }
 
 // seedTokens writes a full token document directly via Set, simulating what
@@ -38,7 +39,8 @@ func newTestStore(t *testing.T) *TokenStore {
 func seedTokens(t *testing.T, store *TokenStore, athleteID int64, tokens *stravatoken.Data) {
 	t.Helper()
 	ctx := context.Background()
-	if _, err := store.tokensRef(athleteID).Set(ctx, tokens); err != nil {
+	seedOwner(t, store, portstest.LegacyOwner(athleteID))
+	if _, err := store.tokensRef(portstest.LegacyOwner(athleteID)).Set(ctx, tokens); err != nil {
 		t.Fatalf("seedTokens() error = %v", err)
 	}
 }
@@ -47,7 +49,8 @@ func TestTokenStore_GetTokens_NotFound(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
 
-	_, err := store.GetTokens(ctx, 999999)
+	seedOwner(t, store, portstest.LegacyOwner(999999))
+	_, err := store.GetTokens(ctx, portstest.LegacyOwner(999999))
 	if err == nil {
 		t.Fatal("expected error for non-existent athlete")
 	}
@@ -80,12 +83,12 @@ func TestTokenStore_WriteIfUnmodifiedAndRead(t *testing.T) {
 		ExpiresAt:    time.Now().Add(6 * time.Hour).Unix(),
 	}
 
-	version, err := store.WriteTokensIfUnmodified(ctx, athleteID, refreshed, seedTime)
+	version, err := store.WriteTokensIfUnmodified(ctx, portstest.LegacyOwner(athleteID), refreshed, seedTime)
 	if err != nil {
 		t.Fatalf("WriteTokensIfUnmodified() error = %v", err)
 	}
 
-	got, err := store.GetTokens(ctx, athleteID)
+	got, err := store.GetTokens(ctx, portstest.LegacyOwner(athleteID))
 	if err != nil {
 		t.Fatalf("GetTokens() error = %v", err)
 	}
@@ -109,7 +112,7 @@ func TestTokenStore_WriteIfUnmodifiedAndRead(t *testing.T) {
 		RefreshToken: "second-refresh",
 		ExpiresAt:    time.Now().Add(6 * time.Hour).Unix(),
 	}
-	if _, writeErr := store.WriteTokensIfUnmodified(ctx, athleteID, again, version); writeErr != nil {
+	if _, writeErr := store.WriteTokensIfUnmodified(ctx, portstest.LegacyOwner(athleteID), again, version); writeErr != nil {
 		t.Fatalf("second write based on the returned version: %v", writeErr)
 	}
 }
@@ -123,7 +126,7 @@ func TestTokenStore_WriteIfUnmodified_FailureReturnsNoVersion(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	version, err := store.WriteTokensIfUnmodified(ctx, athleteID, &stravatoken.Data{AccessToken: "new"}, seedTime)
+	version, err := store.WriteTokensIfUnmodified(ctx, portstest.LegacyOwner(athleteID), &stravatoken.Data{AccessToken: "new", RefreshToken: "refresh", ExpiresAt: 2000000000}, seedTime)
 
 	if err == nil || errors.Is(err, ports.ErrTokenConflict) || errors.Is(err, ports.ErrTokenNotFound) {
 		t.Fatalf("error = %v, want a non-sentinel failure", err)
@@ -141,7 +144,7 @@ func TestTokenStore_WriteIfUnmodified_PreservesOAuthFields(t *testing.T) {
 	// Seed a full token document as apigateway would during OAuth.
 	connectedAt := time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC)
 	seedTime := time.Now().Add(-1 * time.Hour).Truncate(time.Millisecond)
-	initial := &stravatoken.Data{
+	initial := &stravatoken.Data{ //nolint:gosec // Synthetic emulator-only OAuth credentials.
 		AccessToken:   "oauth-access",
 		RefreshToken:  "oauth-refresh",
 		ExpiresAt:     time.Now().Add(6 * time.Hour).Unix(),
@@ -161,11 +164,11 @@ func TestTokenStore_WriteIfUnmodified_PreservesOAuthFields(t *testing.T) {
 		// simulating what the dispatcher passes after a Strava token refresh.
 	}
 
-	if _, err := store.WriteTokensIfUnmodified(ctx, athleteID, refreshed, seedTime); err != nil {
+	if _, err := store.WriteTokensIfUnmodified(ctx, portstest.LegacyOwner(athleteID), refreshed, seedTime); err != nil {
 		t.Fatalf("WriteTokensIfUnmodified() error = %v", err)
 	}
 
-	got, err := store.GetTokens(ctx, athleteID)
+	got, err := store.GetTokens(ctx, portstest.LegacyOwner(athleteID))
 	if err != nil {
 		t.Fatalf("GetTokens() error = %v", err)
 	}
@@ -203,9 +206,10 @@ func TestTokenStore_WriteTokensIfUnmodified_NotFoundReturnsErrTokenNotFound(t *t
 	store := newTestStore(t)
 	ctx := context.Background()
 	athleteID := int64(33333)
-	// No seedTokens — doc doesn't exist, simulating the racing delete.
+	// Ownership survives, but credentials were deleted mid-refresh.
+	seedOwner(t, store, portstest.LegacyOwner(athleteID))
 
-	_, err := store.WriteTokensIfUnmodified(ctx, athleteID, &stravatoken.Data{
+	_, err := store.WriteTokensIfUnmodified(ctx, portstest.LegacyOwner(athleteID), &stravatoken.Data{
 		AccessToken:   "new-access",
 		RefreshToken:  "new-refresh",
 		ExpiresAt:     time.Now().Add(6 * time.Hour).Unix(),
@@ -232,12 +236,12 @@ func TestTokenStore_DeleteTokens(t *testing.T) {
 		LastRefreshed: time.Now().Truncate(time.Millisecond),
 	})
 
-	if err := store.DeleteTokens(ctx, athleteID); err != nil {
+	if err := store.DeleteTokens(ctx, portstest.LegacyOwner(athleteID)); err != nil {
 		t.Fatalf("DeleteTokens() error = %v", err)
 	}
 
 	// Verify tokens are gone.
-	_, err := store.GetTokens(ctx, athleteID)
+	_, err := store.GetTokens(ctx, portstest.LegacyOwner(athleteID))
 	if !errors.Is(err, ports.ErrTokenNotFound) {
 		t.Errorf("expected ErrTokenNotFound after delete, got %v", err)
 	}
@@ -247,8 +251,9 @@ func TestTokenStore_DeleteTokens_NotFound(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
 
-	// Deleting non-existent tokens should not error (idempotent).
-	if err := store.DeleteTokens(ctx, 999998); err != nil {
+	// Deleting non-existent tokens with valid ownership is idempotent.
+	seedOwner(t, store, portstest.LegacyOwner(999998))
+	if err := store.DeleteTokens(ctx, portstest.LegacyOwner(999998)); err != nil {
 		t.Errorf("DeleteTokens() for non-existent athlete should return nil, got %v", err)
 	}
 }
@@ -275,7 +280,7 @@ func TestTokenStore_WriteIfUnmodified_Conflict(t *testing.T) {
 		ExpiresAt:    time.Now().Add(6 * time.Hour).Unix(),
 	}
 
-	_, err := store.WriteTokensIfUnmodified(ctx, athleteID, refreshed, staleTime)
+	_, err := store.WriteTokensIfUnmodified(ctx, portstest.LegacyOwner(athleteID), refreshed, staleTime)
 	if err == nil {
 		t.Fatal("expected ErrTokenConflict for stale version stamp")
 	}
@@ -284,7 +289,7 @@ func TestTokenStore_WriteIfUnmodified_Conflict(t *testing.T) {
 	}
 
 	// Verify original tokens are unchanged.
-	got, err := store.GetTokens(ctx, athleteID)
+	got, err := store.GetTokens(ctx, portstest.LegacyOwner(athleteID))
 	if err != nil {
 		t.Fatalf("GetTokens() error = %v", err)
 	}

@@ -5,12 +5,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strconv"
 	"time"
 
 	"cloud.google.com/go/firestore"
 	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
+	"github.com/andy-esch/desirelines/packages/shared/activityconnection"
 	"github.com/andy-esch/desirelines/packages/shared/otel"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 	"go.opentelemetry.io/otel/attribute"
@@ -20,165 +20,171 @@ import (
 	grpcstatus "google.golang.org/grpc/status"
 )
 
-// dbSystem is the OTel db.system value stamped on the Firestore
-// token-store spans. Only db.system is set: the rest of the db.*
-// triplet is SQL-shaped and has no honest Firestore mapping —
-// db.name means a SQL database/schema (Firestore has none; a
-// collection is db.collection.name, a different key) and db.operation
-// would just restate the span name. Firestore's own client libraries
-// emit gcp.firestore.* rather than db.* for the same reason. db.system
-// alone gives the cross-database "this span is a DB call" marker that
-// standardization is for; it coexists with the app-specific
-// desirelines.* / athlete_id attributes.
 const dbSystem = "firestore"
 
-// TokenStore implements ports.TokenStore using Firestore.
+// TokenStore binds credential reads and mutations to a live ownership pair.
 type TokenStore struct {
 	client    *firestore.Client
-	logger    *slog.Logger
 	histogram metric.Float64Histogram
 	tracer    trace.Tracer
 }
 
-// Compile-time check that TokenStore implements ports.TokenStore.
 var _ ports.TokenStore = (*TokenStore)(nil)
 
-// NewTokenStore creates a new Firestore-backed token store.
-func NewTokenStore(client *firestore.Client, logger *slog.Logger, histogram metric.Float64Histogram, tracer trace.Tracer) *TokenStore {
-	return &TokenStore{
-		client:    client,
-		logger:    logger,
-		histogram: histogram,
-		tracer:    tracer,
-	}
+// NewTokenStore uses the same named database as the ownership registry.
+func NewTokenStore(client *firestore.Client, histogram metric.Float64Histogram, tracer trace.Tracer) *TokenStore {
+	return &TokenStore{client: client, histogram: histogram, tracer: tracer}
 }
 
-// GetTokens reads Strava tokens for the given athlete from Firestore.
-// Returns ports.ErrTokenNotFound if no tokens exist for this athlete.
-func (s *TokenStore) GetTokens(ctx context.Context, athleteID int64) (_ *stravatoken.Data, err error) {
-	ctx, spanDone := otel.StartSpan(ctx, s.tracer, "firestore.get_tokens",
-		attribute.Int64("athlete_id", athleteID),
-		attribute.String("db.system", dbSystem))
-	defer func() { spanDone(err) }()
+// ValidateOwner is uncached. Cache hits must still prove the original binding.
+func (s *TokenStore) ValidateOwner(ctx context.Context, owner ports.CredentialOwner) error {
+	if validationErr := owner.Validate(); validationErr != nil {
+		return fmt.Errorf("credential owner: %w", validationErr)
+	}
+	if err := s.client.RunTransaction(ctx, func(_ context.Context, tx *firestore.Transaction) error {
+		return s.checkOwner(tx, owner)
+	}); err != nil {
+		return fmt.Errorf("validate credential owner: %w", err)
+	}
+	return nil
+}
 
-	// The "operation" metric label is intentionally kept even though the
-	// span name above already identifies the operation: the
-	// firestore/operation.duration alert groups P99 by it
-	// (`sum by (le, metric_operation)` in alerts.tf), so dropping it
-	// would silently collapse per-operation latency into a single figure.
-	done := otel.RecordDuration(ctx, s.histogram, attribute.String("operation", "get_tokens"))
-	doc, err := s.tokensRef(athleteID).Get(ctx)
+func (s *TokenStore) checkOwner(tx *firestore.Transaction, owner ports.CredentialOwner) error {
+	record, err := (activityconnection.Store{Client: s.client}).ResolveInTransaction(tx, strconv.FormatInt(owner.Subject, 10))
 	if err != nil {
-		done(err)
-		if grpcstatus.Code(err) == codes.NotFound {
-			err = ports.ErrTokenNotFound
-			return nil, err
-		}
-		err = fmt.Errorf("get tokens for athlete %d: %w", athleteID, err)
-		return nil, err
+		return fmt.Errorf("resolve credential owner: %w", err)
 	}
-	done(nil)
+	if record.UID != owner.UID {
+		return activityconnection.ErrConflict
+	}
+	return nil
+}
 
+// GetTokens reads the active pair and UID-keyed credentials in one snapshot.
+// Only a missing credential document is ErrTokenNotFound; registry failures retry.
+func (s *TokenStore) GetTokens(ctx context.Context, owner ports.CredentialOwner) (_ *stravatoken.Data, err error) {
+	ctx, spanDone := otel.StartSpan(ctx, s.tracer, "firestore.get_tokens", attribute.Int64("athlete_id", owner.Subject), attribute.String("db.system", dbSystem))
+	defer func() { spanDone(err) }()
+	done := otel.RecordDuration(ctx, s.histogram, attribute.String("operation", "get_tokens"))
+	defer func() { done(err) }()
+	if validationErr := owner.Validate(); validationErr != nil {
+		return nil, fmt.Errorf("credential owner: %w", validationErr)
+	}
 	var tokens stravatoken.Data
-	if decodeErr := doc.DataTo(&tokens); decodeErr != nil {
-		err = fmt.Errorf("decode tokens for athlete %d: %w", athleteID, decodeErr)
-		return nil, err
+	err = s.client.RunTransaction(ctx, func(_ context.Context, tx *firestore.Transaction) error {
+		if checkErr := s.checkOwner(tx, owner); checkErr != nil {
+			return checkErr
+		}
+		snap, getErr := tx.Get(s.tokensRef(owner))
+		if grpcstatus.Code(getErr) == codes.NotFound {
+			return ports.ErrTokenNotFound
+		}
+		if getErr != nil {
+			return fmt.Errorf("read credentials: %w", getErr)
+		}
+		// DataTo does not reset fields absent from a later snapshot. A retry
+		// must decode into a fresh value, never retain an earlier credential.
+		var attempt stravatoken.Data
+		if decodeErr := snap.DataTo(&attempt); decodeErr != nil {
+			return fmt.Errorf("decode credentials: %w", decodeErr)
+		}
+		if validateErr := attempt.Validate(); validateErr != nil {
+			return fmt.Errorf("stored credentials: %w", validateErr)
+		}
+		tokens = attempt
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get credentials: %w", err)
 	}
-	// DataTo zero-fills anything absent, so a document missing a credential
-	// decodes "successfully" into an unusable value. Reject it here rather than
-	// letting it surface later as an opaque Strava auth failure.
-	if validateErr := tokens.Validate(); validateErr != nil {
-		err = fmt.Errorf("tokens for athlete %d: %w", athleteID, validateErr)
-		return nil, err
-	}
-
 	return &tokens, nil
 }
 
-// WriteTokensIfUnmodified atomically writes tokens only if last_refreshed matches
-// the expected value (optimistic concurrency), and returns the last_refreshed it
-// wrote. Returns ports.ErrTokenConflict if another goroutine has already
-// refreshed the tokens since they were read.
-func (s *TokenStore) WriteTokensIfUnmodified(ctx context.Context, athleteID int64, tokens *stravatoken.Data, expectedLastRefreshed time.Time) (_ time.Time, err error) {
-	ctx, spanDone := otel.StartSpan(ctx, s.tracer, "firestore.write_tokens",
-		attribute.Int64("athlete_id", athleteID),
-		attribute.String("db.system", dbSystem))
+// WriteTokensIfUnmodified revalidates the captured binding on every transaction
+// attempt. Update cannot recreate a deleted credential document. External OAuth
+// refresh happens before this method, never inside the retryable callback.
+func (s *TokenStore) WriteTokensIfUnmodified(ctx context.Context, owner ports.CredentialOwner, tokens *stravatoken.Data, expectedLastRefreshed time.Time) (_ time.Time, err error) {
+	ctx, spanDone := otel.StartSpan(ctx, s.tracer, "firestore.write_tokens", attribute.Int64("athlete_id", owner.Subject), attribute.String("db.system", dbSystem))
 	defer func() { spanDone(err) }()
-
 	done := otel.RecordDuration(ctx, s.histogram, attribute.String("operation", "write_tokens"))
-	ref := s.tokensRef(athleteID)
-
-	// Capture the new version before the transaction so retries write one value.
-	// Firestore stores timestamps to the microsecond, rounding down, so truncate
-	// now: the returned version must equal what a later read decodes, or the
-	// caller's next conditional write would conflict with its own.
+	defer func() { done(err) }()
+	if validationErr := owner.Validate(); validationErr != nil {
+		return time.Time{}, fmt.Errorf("credential owner: %w", validationErr)
+	}
+	if tokens == nil {
+		return time.Time{}, stravatoken.ErrIncompleteTokens
+	}
+	// Freeze caller-owned data before any SDK retry.
+	write := *tokens
+	if err = write.Validate(); err != nil {
+		return time.Time{}, fmt.Errorf("refreshed credentials: %w", err)
+	}
 	now := time.Now().Truncate(time.Microsecond)
-
+	ref := s.tokensRef(owner)
 	err = s.client.RunTransaction(ctx, func(_ context.Context, tx *firestore.Transaction) error {
-		snap, getErr := tx.Get(ref)
-		if getErr != nil {
-			// Doc was deleted between GetTokens and this transaction —
-			// almost always the deauth/refresh race. Surface the
-			// sentinel so the handler can ack as orphan instead of
-			// looping through Strava retries.
-			if grpcstatus.Code(getErr) == codes.NotFound {
-				return ports.ErrTokenNotFound
-			}
-			return fmt.Errorf("read tokens in transaction: %w", getErr)
+		if checkErr := s.checkOwner(tx, owner); checkErr != nil {
+			return checkErr
 		}
-
+		snap, getErr := tx.Get(ref)
+		if grpcstatus.Code(getErr) == codes.NotFound {
+			return ports.ErrTokenNotFound
+		}
+		if getErr != nil {
+			return fmt.Errorf("read credentials in transaction: %w", getErr)
+		}
 		var current stravatoken.Data
 		if decodeErr := snap.DataTo(&current); decodeErr != nil {
-			return fmt.Errorf("decode tokens in transaction: %w", decodeErr)
+			return fmt.Errorf("decode credentials in transaction: %w", decodeErr)
 		}
-
-		// Check version: if last_refreshed has changed, another thread won the race.
 		if !current.LastRefreshed.Equal(expectedLastRefreshed) {
 			return ports.ErrTokenConflict
 		}
-
-		return tx.Update(ref, []firestore.Update{
-			{Path: "access_token", Value: tokens.AccessToken},
-			{Path: "refresh_token", Value: tokens.RefreshToken},
-			{Path: "expires_at", Value: tokens.ExpiresAt},
-			{Path: "last_refreshed", Value: now},
-		})
+		if updateErr := tx.Update(ref, []firestore.Update{
+			{Path: "access_token", Value: write.AccessToken}, {Path: "refresh_token", Value: write.RefreshToken},
+			{Path: "expires_at", Value: write.ExpiresAt}, {Path: "last_refreshed", Value: now},
+		}); updateErr != nil {
+			return fmt.Errorf("update credentials: %w", updateErr)
+		}
+		return nil
 	})
-
-	done(err)
 	if err != nil {
-		// Return the bare sentinels so callers classify via errors.Is; this
-		// also keeps wrapcheck satisfied (the wrapped path is the fallback).
 		if errors.Is(err, ports.ErrTokenConflict) {
 			return time.Time{}, ports.ErrTokenConflict
 		}
 		if errors.Is(err, ports.ErrTokenNotFound) {
 			return time.Time{}, ports.ErrTokenNotFound
 		}
-		return time.Time{}, fmt.Errorf("write tokens for athlete %d: %w", athleteID, err)
+		return time.Time{}, fmt.Errorf("write credentials: %w", err)
 	}
 	return now, nil
 }
 
-// DeleteTokens removes all stored tokens for the given athlete.
-// Returns nil if the tokens do not exist (Firestore Delete is idempotent).
-func (s *TokenStore) DeleteTokens(ctx context.Context, athleteID int64) (err error) {
-	ctx, spanDone := otel.StartSpan(ctx, s.tracer, "firestore.delete_tokens",
-		attribute.Int64("athlete_id", athleteID),
-		attribute.String("db.system", dbSystem))
+// DeleteTokens removes credentials only while the original pair is still active.
+// Admission is deliberately irrelevant to grant-confirmed deauthorization.
+func (s *TokenStore) DeleteTokens(ctx context.Context, owner ports.CredentialOwner) (err error) {
+	ctx, spanDone := otel.StartSpan(ctx, s.tracer, "firestore.delete_tokens", attribute.Int64("athlete_id", owner.Subject), attribute.String("db.system", dbSystem))
 	defer func() { spanDone(err) }()
-
 	done := otel.RecordDuration(ctx, s.histogram, attribute.String("operation", "delete_tokens"))
-	_, err = s.tokensRef(athleteID).Delete(ctx)
-	done(err)
+	defer func() { done(err) }()
+	if validationErr := owner.Validate(); validationErr != nil {
+		return fmt.Errorf("credential owner: %w", validationErr)
+	}
+	ref := s.tokensRef(owner)
+	err = s.client.RunTransaction(ctx, func(_ context.Context, tx *firestore.Transaction) error {
+		if checkErr := s.checkOwner(tx, owner); checkErr != nil {
+			return checkErr
+		}
+		if deleteErr := tx.Delete(ref); deleteErr != nil {
+			return fmt.Errorf("delete credentials: %w", deleteErr)
+		}
+		return nil
+	})
 	if err != nil {
-		err = fmt.Errorf("delete tokens for athlete %d: %w", athleteID, err)
-		return err
+		return fmt.Errorf("delete credentials: %w", err)
 	}
 	return nil
 }
 
-// tokensRef returns the Firestore document reference for an athlete's tokens.
-func (s *TokenStore) tokensRef(athleteID int64) *firestore.DocumentRef {
-	return s.client.Collection(stravatoken.UsersCollection).Doc(strconv.FormatInt(athleteID, 10)).Collection(stravatoken.PrivateCollection).Doc(stravatoken.TokensDocument)
+func (s *TokenStore) tokensRef(owner ports.CredentialOwner) *firestore.DocumentRef {
+	return s.client.Collection(stravatoken.UsersCollection).Doc(owner.UID).Collection(stravatoken.PrivateCollection).Doc(stravatoken.TokensDocument)
 }
