@@ -181,6 +181,15 @@
       "matchStrings": ["flyway/flyway:(?<currentValue>[^\\s\\\\]+)"],
       "depNameTemplate": "flyway/flyway",
       "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Track the Pants version in pants.toml; no manager parses pants.toml, and pantsbuild/pants tags releases with a release_ prefix.",
+      "managerFilePatterns": ["/^pants\\.toml$/"],
+      "matchStrings": ["pants_version\\s*=\\s*\"(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)\""],
+      "depNameTemplate": "pantsbuild/pants",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^release_(?<version>.*)$"
     }
   ]
 }
