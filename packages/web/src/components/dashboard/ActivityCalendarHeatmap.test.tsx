@@ -782,10 +782,12 @@ describe("ActivityCalendarHeatmap", () => {
       render(<ActivityCalendarHeatmap />);
 
       // Cell labels are the accessible surface for the count; a poisoned day
-      // must read as 0, not NaN, and so must take the dim bucket.
+      // must read as 0, not NaN, and so must take the dim bucket. Read the inline
+      // style as written: jsdom's computed `background` shorthand resolves the
+      // `var()`, so `toHaveStyle` can't match it.
       const cell = screen.getByRole("img", { name: /^2026-01-02:/ });
       expect(cell).toHaveAttribute("aria-label", "2026-01-02: 0 activities");
-      expect(cell).toHaveStyle({ background: "var(--color-intensity-0)" });
+      expect(cell.style.background).toBe("var(--color-intensity-0)");
     });
   });
 });
