@@ -194,10 +194,7 @@ class StravaTokenRepo(ReadStravaToken):
         self._tokens = tokens
         self._persist_refreshed = persist_refreshed
         self._api_config = api_config or StravaApiConfig()
-        # Default to a private breaker so a bare StravaTokenRepo (e.g. in
-        # ad-hoc scripts) is still self-contained. Production code wires
-        # the same breaker into StravaTokenRepo + StravaApiClient via the
-        # factory so they share circuit state.
+        # The factory supplies a separate breaker for each provider endpoint.
         self._breaker = breaker if breaker is not None else create_strava_breaker()
 
     def refresh(self) -> StravaTokenSet:
@@ -263,14 +260,6 @@ class StravaTokenRepo(ReadStravaToken):
             or data["expires_at"] <= 0
         ):
             raise StravaApiError("Incomplete Strava token refresh response")
-        logger.info(
-            "Received refreshed Strava tokens",
-            extra={
-                "operation": "token_refresh",
-                "status_code": resp.status_code,
-                "client_id": self._tokens.client_id,
-            },
-        )
         return StravaTokenSet(
             client_id=self._tokens.client_id,
             client_secret=self._tokens.client_secret,
@@ -383,10 +372,8 @@ class StravaApiClient:
         Args:
             token_manager: Manager for getting/refreshing access tokens
             api_config: API configuration (URLs, timeouts, retry settings)
-            breaker: Shared circuit breaker for outbound Strava calls.
-                When None, a private breaker is created — production code
-                should pass the same breaker as StravaTokenRepo so they
-                share circuit state.
+            breaker: Activities endpoint breaker; separate from OAuth refresh.
+                When None, a private breaker is created.
         """
         self._token_manager = token_manager
         self._api_config = api_config or StravaApiConfig()

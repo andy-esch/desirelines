@@ -1957,3 +1957,49 @@ class TestBackfillResult:
         """Result is not successful when there are errors."""
         result = BackfillResult(athlete_id="123", total_errors=1)
         assert result.success is False
+
+
+def test_credential_failure_aborts_before_later_years_or_sink_writes(
+    mock_strava_reader, mock_uow_factory, mock_bq_writer
+):
+    from stravapipe.exceptions import CredentialStateError
+
+    failure = CredentialStateError("ownership or persisted refresh changed")
+    mock_strava_reader.read_activities_by_year.side_effect = failure
+    service = BackfillService(
+        strava_reader=mock_strava_reader,
+        uow_factory=mock_uow_factory,
+        bq_writer=mock_bq_writer,
+    )
+
+    with pytest.raises(CredentialStateError) as caught:
+        service.backfill_user("222", [2024, 2025])
+
+    assert caught.value is failure
+    mock_strava_reader.read_activities_by_year.assert_called_once_with(2024)
+    mock_uow_factory.assert_not_called()
+    mock_bq_writer.write_activities_batch.assert_not_called()
+
+
+def test_credential_failure_preserves_committed_earlier_year(
+    mock_strava_reader, mock_uow_factory, mock_uow, mock_activity_repo
+):
+    from stravapipe.exceptions import CredentialStateError
+
+    mock_strava_reader.read_activities_by_year.side_effect = [
+        make_activities(1, year=2023),
+        CredentialStateError("refresh could not be committed"),
+    ]
+    service = BackfillService(
+        strava_reader=mock_strava_reader, uow_factory=mock_uow_factory
+    )
+
+    with pytest.raises(CredentialStateError):
+        service.backfill_user("222", [2023, 2024, 2025])
+
+    assert mock_strava_reader.read_activities_by_year.call_args_list == [
+        call(2023),
+        call(2024),
+    ]
+    mock_uow.commit.assert_called_once_with()
+    mock_activity_repo.upsert_backfill.assert_called_once()

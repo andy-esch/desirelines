@@ -1081,3 +1081,28 @@ def test_owner_check_blocks_cached_use_and_external_refresh(
             (manager.get_token if operation == "cached" else manager.refresh)()
         assert m.call_count == 0
     validate.assert_called_once_with()
+
+
+def test_refresh_logging_failure_cannot_discard_rotated_credentials(
+    tokenset_with_access, api_config
+):
+    persisted = MagicMock()
+    repo = StravaTokenRepo(
+        tokenset_with_access, api_config, persist_refreshed=persisted
+    )
+    with (
+        Mocker() as m,
+        patch("stravapipe.adapters.strava._repositories.logger") as logger,
+    ):
+        logger.info.side_effect = RuntimeError("logging unavailable")
+        m.post(
+            api_config.token_url,
+            json={
+                "access_token": "new-access",
+                "refresh_token": "new-refresh",
+                "expires_at": 2000000000,
+            },
+        )
+        refreshed = repo.refresh()
+    persisted.assert_called_once_with(refreshed)
+    assert refreshed.refresh_token == "new-refresh"

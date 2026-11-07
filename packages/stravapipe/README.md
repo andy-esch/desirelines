@@ -128,7 +128,8 @@ a Strava subject; the [registry](../../docs/guides/activity-connection-registry.
 selects the app UID for token access. In-memory token use rechecks the captured
 ownership pair; [refresh writes](src/stravapipe/adapters/firestore/token_store.py)
 revalidate that pair and compare `last_refreshed` before committing [rotation](https://developers.strava.com/docs/authentication/);
-a conflict fails the job rather than overwriting a newer grant. Optional token
+an ownership or persistence failure aborts remaining work; earlier committed
+years remain intact. Optional token
 timestamps decode to Go's zero time. The existing named-database configuration
 and backfill `roles/datastore.user` permission support these transactions.
 
