@@ -101,6 +101,12 @@
       "description": "Hold sqlalchemy below 2.1 until opentelemetry-instrumentation-sqlalchemy supports it. The instrumentor refuses sqlalchemy>=2.1.0 and only logs an error, so DB spans disappear without a failure; tests/unit/shared/test_instrumentation.py fails if the cap is lifted early. Remove this rule together with the cap in packages/stravapipe/pyproject.toml.",
       "matchDepNames": ["sqlalchemy"],
       "allowedVersions": "<2.1"
+    },
+    {
+      "description": "Bump npm overrides in package.json rather than updating only the lockfile. For an in-range update Renovate runs `npm install <name>@<version>`, and npm rejects a named override with EOVERRIDE (\"conflicts with direct dependency\"), which leaves the lockfile stale and the npm PR failing `npm ci`. Bumping the range lets the plain `npm install` resolve it. See \"Renovate's npm\" in docs/guides/ci.md.",
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["overrides"],
+      "rangeStrategy": "bump"
     }
   ],
   "customManagers": [
