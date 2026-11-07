@@ -35,13 +35,14 @@ application source. Older version-1 declarations mean protocol 0.
 1. Merge the GitOps guard support before this version-2 source declaration.
    Apply V0018 with the current writer; no activity-row rewrite or new fence is
    needed. Retain legacy tombstones.
-2. Deploy compatible writer/backfill code in both environments before the
-   activation release, checking the original owner tuple and both fence stores.
+2. Deploy compatible Python code (writer, deletion service and backfill) in
+   both environments before activation, checking the original owner tuple and
+   both fence stores.
    Production must receive this intermediate release before dev activates. Its activity and full-account DELETEs retry while the
    table is read-only. Plan a short activation window before that code reaches
    production, including supported replay if retries reach the DLQ. Do not leave
    cleanup queued across the existing 48-hour duty.
-3. Verify all traffic-serving writer revisions and backfill templates. Drain
+3. Verify all traffic-serving Python service revisions and backfill templates. Drain
    older requests, executions and workflows; never rerun a pre-guard workflow.
    Close the local saved-plan recovery binding gap before activation.
    Publish/review the separate activity-writer compatibility checkpoint through
