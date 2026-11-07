@@ -20,7 +20,7 @@ Usage (local):
 
     Strava client creds can also be loaded from secret volume mounts
     (INFISICAL_STRAVA_CLIENT_ID, INFISICAL_STRAVA_CLIENT_SECRET).
-    Per-user OAuth tokens are fetched from Firestore via ATHLETE_ID.
+    ATHLETE_ID is the provider subject; the registry selects the app UID token path.
 """
 
 from collections.abc import Callable
@@ -31,6 +31,10 @@ from google.cloud.firestore_v1 import Client as FirestoreClient
 from sqlalchemy.engine import Engine
 
 from stravapipe.adapters.firestore import FirestoreTokenStore
+from stravapipe.adapters.firestore.activity_connection import (
+    ConnectionConflictError,
+    ConnectionResolver,
+)
 from stravapipe.adapters.gcp import ActivitiesWriter, make_write_activities
 from stravapipe.adapters.postgres import SqlAlchemyUnitOfWork, create_session_factory
 from stravapipe.adapters.strava import create_strava_activities_repo
@@ -141,15 +145,36 @@ def main() -> None:
             database=config.firestore_database,
         )
         token_store = FirestoreTokenStore(firestore_client)
-        token_data = token_store.get_tokens(config.athlete_id)
+        resolver = ConnectionResolver(firestore_client)
+        owner = resolver.resolve(config.athlete_id)
+        # Remove with the persistence cutover: its current domain projection
+        # still infers user_id from athlete.id. Do not write the wrong app UID.
+        if owner.uid != owner.subject:
+            raise ConnectionConflictError(
+                "backfill persistence requires legacy UID ownership"
+            )
+        token_data = token_store.get_tokens(owner)
+
+        def validate_owner() -> None:
+            if resolver.resolve(owner.subject).uid != owner.uid:
+                raise ConnectionConflictError("backfill credential ownership changed")
+
+        def persist_refreshed(refreshed: StravaTokenSet) -> None:
+            nonlocal token_data
+            token_data = token_store.write_tokens_if_unmodified(
+                owner, refreshed, token_data
+            )
 
         tokens = StravaTokenSet(
             client_id=int(config.strava_client_id),
             client_secret=config.strava_client_secret,
             access_token=token_data.access_token,
             refresh_token=token_data.refresh_token,
+            expires_at=token_data.expires_at,
         )
-        strava_repo = create_strava_activities_repo(tokens)
+        strava_repo = create_strava_activities_repo(
+            tokens, persist_refreshed=persist_refreshed, validate_owner=validate_owner
+        )
 
         # PostgreSQL
         db_engine, session_factory = create_session_factory(

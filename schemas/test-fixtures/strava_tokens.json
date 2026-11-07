@@ -73,5 +73,21 @@
       "connected_at": "2026-01-01T00:00:00Z",
       "last_refreshed": "0001-01-01T00:00:00Z"
     }
+  },
+  {
+    "name": "optional timestamps absent decode to Go zero time",
+    "doc": {
+      "access_token": "acc-123",
+      "refresh_token": "ref-456",
+      "expires_at": 1735689600
+    },
+    "expected": {
+      "access_token": "acc-123",
+      "refresh_token": "ref-456",
+      "expires_at": 1735689600,
+      "scopes": "",
+      "connected_at": "0001-01-01T00:00:00Z",
+      "last_refreshed": "0001-01-01T00:00:00Z"
+    }
   }
 ]

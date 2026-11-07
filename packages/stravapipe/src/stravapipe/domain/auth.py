@@ -14,3 +14,4 @@ class StravaTokenSet(NamedTuple):
     client_secret: str
     access_token: str
     refresh_token: str
+    expires_at: int = 0

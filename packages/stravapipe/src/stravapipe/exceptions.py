@@ -33,6 +33,10 @@ class StravaTokenError(StravaApiError):
     """Raised when strava token refresh fails."""
 
 
+class CredentialStateError(StravaPipeError):
+    """Credential ownership or conditional persistence could not be verified."""
+
+
 class StravaRateLimitError(StravaApiError):
     """Raised when Strava rate limit is exceeded."""
 

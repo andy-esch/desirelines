@@ -45,9 +45,8 @@ var ErrIncompleteTokens = errors.New("incomplete strava_tokens document")
 // Firestore's decoder leaves absent fields at their zero value rather than
 // erroring, so a producer that stopped writing refresh_token would hand every
 // Go reader an empty string and fail later, somewhere unrelated, as a confusing
-// auth error. The Python reader already fails loudly on a missing key
-// (TokenData.from_doc indexes rather than .get()s); this brings Go into line so
-// the same corrupt document is rejected on both edges.
+// auth error. The Python reader rejects the same absent/empty required fields
+// (TokenData.from_doc); shared fixtures keep both decoders aligned.
 //
 // Deliberately NOT required:
 //

@@ -10,7 +10,7 @@ Tests the layered architecture:
 from datetime import UTC, datetime, timedelta
 import json
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
@@ -105,7 +105,14 @@ def activities_repo(api_client):
 class TestStravaTokenRepo:
     def test_refresh(self, token_repo, api_config):
         with Mocker() as m:
-            m.post(api_config.token_url, json={"access_token": "baz"})
+            m.post(
+                api_config.token_url,
+                json={
+                    "access_token": "baz",
+                    "refresh_token": "rotated",
+                    "expires_at": 2000000000,
+                },
+            )
             expected = token_repo.refresh()
             assert expected.access_token == "baz"
 
@@ -162,14 +169,28 @@ class TestStravaTokenManager:
     ):
         """If no access token, get_token refreshes automatically."""
         with Mocker() as m:
-            m.post(api_config.token_url, json={"access_token": "fresh_token"})
+            m.post(
+                api_config.token_url,
+                json={
+                    "access_token": "fresh_token",
+                    "refresh_token": "rotated",
+                    "expires_at": 2000000000,
+                },
+            )
             token = token_manager_without_token.get_token()
             assert token == "fresh_token"
 
     def test_refresh_updates_token(self, token_manager_with_token, api_config):
         """Force refresh updates the stored token."""
         with Mocker() as m:
-            m.post(api_config.token_url, json={"access_token": "new_token"})
+            m.post(
+                api_config.token_url,
+                json={
+                    "access_token": "new_token",
+                    "refresh_token": "rotated",
+                    "expires_at": 2000000000,
+                },
+            )
             new_token = token_manager_with_token.refresh()
             assert new_token == "new_token"
             # Subsequent get_token returns the new token
@@ -224,7 +245,14 @@ class TestStravaApiClient:
                     {"json": activity_json, "status_code": 200},
                 ],
             )
-            m.post(api_config.token_url, json={"access_token": "new_token"})
+            m.post(
+                api_config.token_url,
+                json={
+                    "access_token": "new_token",
+                    "refresh_token": "rotated",
+                    "expires_at": 2000000000,
+                },
+            )
 
             result = api_client.get_activity(activity_id)
 
@@ -243,7 +271,14 @@ class TestStravaApiClient:
             endpoint = f"{api_config.api_base_url}/activities/{activity_id}"
             # Both calls return 401
             m.get(endpoint, status_code=401)
-            m.post(api_config.token_url, json={"access_token": "new_token"})
+            m.post(
+                api_config.token_url,
+                json={
+                    "access_token": "new_token",
+                    "refresh_token": "rotated",
+                    "expires_at": 2000000000,
+                },
+            )
 
             with pytest.raises(StravaTokenError):
                 api_client.get_activity(activity_id)
@@ -369,7 +404,14 @@ class TestStravaActivitiesRepoIntegration:
 
         with Mocker() as m:
             # Mock token refresh
-            m.post(api_config.token_url, json={"access_token": "fresh_token"})
+            m.post(
+                api_config.token_url,
+                json={
+                    "access_token": "fresh_token",
+                    "refresh_token": "rotated",
+                    "expires_at": 2000000000,
+                },
+            )
             # Mock activity endpoint
             endpoint = f"{api_config.api_base_url}/activities/{activity_id}"
             m.get(endpoint, json=activity_json)
@@ -387,7 +429,14 @@ class TestStravaActivitiesRepoIntegration:
 
         with Mocker() as m:
             # Mock token refresh (should only be called once)
-            m.post(api_config.token_url, json={"access_token": "fresh_token"})
+            m.post(
+                api_config.token_url,
+                json={
+                    "access_token": "fresh_token",
+                    "refresh_token": "rotated",
+                    "expires_at": 2000000000,
+                },
+            )
             # Mock activity endpoint
             endpoint = f"{api_config.api_base_url}/activities/{activity_id}"
             m.get(endpoint, json=activity_json)
@@ -421,8 +470,22 @@ class TestStravaActivitiesRepoIntegration:
                 "POST",
                 token_url,
                 [
-                    {"json": {"access_token": "token_1"}, "status_code": 200},
-                    {"json": {"access_token": "token_2"}, "status_code": 200},
+                    {
+                        "json": {
+                            "access_token": "token_1",
+                            "refresh_token": "rotated",
+                            "expires_at": 2000000000,
+                        },
+                        "status_code": 200,
+                    },
+                    {
+                        "json": {
+                            "access_token": "token_2",
+                            "refresh_token": "rotated",
+                            "expires_at": 2000000000,
+                        },
+                        "status_code": 200,
+                    },
                 ],
             )
 
@@ -542,7 +605,14 @@ class TestStravaApiClientListActivities:
                     {"json": [{"id": 1}], "status_code": 200},
                 ],
             )
-            m.post(api_config.token_url, json={"access_token": "new_token"})
+            m.post(
+                api_config.token_url,
+                json={
+                    "access_token": "new_token",
+                    "refresh_token": "rotated",
+                    "expires_at": 2000000000,
+                },
+            )
 
             result = client.list_activities(before=1700000000, after=1690000000, page=1)
 
@@ -583,7 +653,14 @@ class TestStravaApiClientListActivities:
 
         with Mocker() as m:
             m.get(endpoint, status_code=401)
-            m.post(api_config.token_url, json={"access_token": "new_token"})
+            m.post(
+                api_config.token_url,
+                json={
+                    "access_token": "new_token",
+                    "refresh_token": "rotated",
+                    "expires_at": 2000000000,
+                },
+            )
 
             with pytest.raises(StravaTokenError):
                 client.list_activities(before=1700000000, after=1690000000, page=1)
@@ -902,3 +979,105 @@ class TestStravaCircuitBreaker:
         # Strava-side signals must NOT be excluded — they're the whole
         # point of the breaker.
         assert StravaApiError not in excluded
+
+
+def test_rotation_persists_before_reuse_and_uses_new_refresh_input(
+    tokenset_with_access, api_config
+):
+    persisted: list[StravaTokenSet] = []
+    repo = StravaTokenRepo(
+        tokenset_with_access, api_config, persist_refreshed=persisted.append
+    )
+    with Mocker() as m:
+        m.post(
+            api_config.token_url,
+            [
+                {
+                    "json": {
+                        "access_token": "first",
+                        "refresh_token": "first-refresh",
+                        "expires_at": 2000000000,
+                    }
+                },
+                {
+                    "json": {
+                        "access_token": "second",
+                        "refresh_token": "second-refresh",
+                        "expires_at": 2100000000,
+                    }
+                },
+            ],
+        )
+        assert repo.refresh().refresh_token == "first-refresh"
+        assert repo.refresh().expires_at == 2100000000
+        assert "refresh_token=bar" in m.request_history[0].text
+        assert "refresh_token=first-refresh" in m.request_history[1].text
+    assert [t.access_token for t in persisted] == ["first", "second"]
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        None,
+        [],
+        {},
+        {"access_token": "access"},
+        {"access_token": "access", "refresh_token": "refresh", "expires_at": True},
+        {"access_token": "", "refresh_token": "refresh", "expires_at": 2000000000},
+    ],
+)
+def test_malformed_refresh_is_not_persisted(tokenset_with_access, api_config, payload):
+    persist = MagicMock()
+    repo = StravaTokenRepo(tokenset_with_access, api_config, persist_refreshed=persist)
+    with Mocker() as m:
+        m.post(api_config.token_url, json=payload)
+        with pytest.raises(StravaApiError):
+            repo.refresh()
+    persist.assert_not_called()
+
+
+def test_persistence_failure_is_neutral_and_does_not_expose_refreshed_token(
+    tokenset_with_access, api_config
+):
+    from stravapipe.exceptions import CredentialStateError
+
+    persist = MagicMock(side_effect=RuntimeError("database unavailable"))
+    token_breaker = create_strava_breaker(fail_max=1)
+    activity_breaker = create_strava_breaker(fail_max=1)
+    repo = StravaTokenRepo(
+        tokenset_with_access, api_config, token_breaker, persist_refreshed=persist
+    )
+    manager = StravaTokenManager(repo, tokenset_with_access.access_token)
+    client = StravaApiClient(manager, api_config, activity_breaker)
+    with Mocker() as m:
+        m.get(f"{api_config.api_base_url}/activities/123", status_code=401)
+        m.post(
+            api_config.token_url,
+            json={
+                "access_token": "uncommitted",
+                "refresh_token": "rotated",
+                "expires_at": 2000000000,
+            },
+        )
+        with pytest.raises(CredentialStateError):
+            client.get_activity(123)
+    assert manager.get_token() == tokenset_with_access.access_token
+    assert token_breaker.fail_counter == activity_breaker.fail_counter == 0
+
+
+@pytest.mark.parametrize("operation", ["cached", "refresh"])
+def test_owner_check_blocks_cached_use_and_external_refresh(
+    tokenset_with_access, api_config, operation
+):
+    from stravapipe.exceptions import CredentialStateError
+
+    validate = MagicMock(side_effect=RuntimeError("ownership unavailable"))
+    repo = StravaTokenRepo(tokenset_with_access, api_config)
+    manager = StravaTokenManager(
+        repo, tokenset_with_access.access_token, validate_owner=validate
+    )
+    with Mocker() as m:
+        with pytest.raises(CredentialStateError):
+            (manager.get_token if operation == "cached" else manager.refresh)()
+        assert m.call_count == 0
+    validate.assert_called_once_with()

@@ -1,8 +1,8 @@
 """Parity guard for the Firestore strava_tokens document.
 
-The document at ``users/{athleteID}/private/strava_tokens`` is a three-service
+The document at ``users/{uid}/private/strava_tokens`` is a three-service
 contract: apigateway writes it on the OAuth callback, dispatcher reads and
-rewrites it on every refresh, and this package reads it for backfill. Two of
+rewrites it on every refresh, and this package reads and conditionally refreshes it for backfill. Two of
 those services are Go and one is Python, so the shape is only type-checked on
 one edge — a field rename on either side would otherwise surface as a runtime
 decode failure in production rather than a red test.
@@ -140,7 +140,7 @@ def test_required_fields_rejected(field: str, how: str) -> None:
         doc[field] = "" if isinstance(_COMPLETE_DOC[field], str) else 0
 
     with pytest.raises(IncompleteTokenDataError) as excinfo:
-        TokenData.from_doc(_FakeDoc(doc), athlete_id="12345")  # type: ignore[arg-type]
+        TokenData.from_doc(_FakeDoc(doc), uid="12345")  # type: ignore[arg-type]
 
     assert field in excinfo.value.missing
     # The context a bare KeyError never carried.
@@ -157,12 +157,23 @@ def test_optional_fields_tolerated(field: str) -> None:
     """
     doc = dict(_COMPLETE_DOC)
     del doc[field]
-    if field == "scopes":
-        tokens = TokenData.from_doc(_FakeDoc(doc), athlete_id="12345")  # type: ignore[arg-type]
-        assert tokens.scopes == ""
-    else:
-        # connected_at/last_refreshed are still read positionally; absence is a
-        # KeyError rather than a validation failure. Pin that they are NOT
-        # treated as required, which is the property that must match Go.
-        with pytest.raises(KeyError):
-            TokenData.from_doc(_FakeDoc(doc), athlete_id="12345")  # type: ignore[arg-type]
+    tokens = TokenData.from_doc(_FakeDoc(doc), uid="12345")  # type: ignore[arg-type]
+    expected = (
+        "" if field == "scopes" else datetime.fromisoformat("0001-01-01T00:00:00+00:00")
+    )
+    assert getattr(tokens, field) == expected
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("access_token", ["bad"]),
+        ("refresh_token", True),
+        ("expires_at", "2000000000"),
+        ("expires_at", True),
+    ],
+)
+def test_required_token_types_rejected(field: str, value: object):
+    doc = dict(_COMPLETE_DOC) | {field: value}
+    with pytest.raises(IncompleteTokenDataError):
+        TokenData.from_doc(_FakeDoc(doc))  # type: ignore[arg-type]

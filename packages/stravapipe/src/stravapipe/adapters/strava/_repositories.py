@@ -38,6 +38,7 @@ from stravapipe.domain import (
 )
 from stravapipe.exceptions import (
     ActivityNotFoundError,
+    CredentialStateError,
     StravaApiError,
     StravaRateLimitError,
     StravaTokenError,
@@ -101,6 +102,9 @@ def create_strava_breaker(
 ) -> pybreaker.CircuitBreaker:
     """Build a Strava circuit breaker.
 
+    Credential-state failures are excluded: local ownership/persistence errors
+    are not evidence that the provider endpoint is unavailable.
+
     ``fail_max`` / ``reset_timeout`` are parameterized so tests can use
     short values; production callers should rely on the defaults. ``name``
     labels the breaker in ``_BreakerLogger`` output — the factory gives the
@@ -129,7 +133,12 @@ def create_strava_breaker(
     return pybreaker.CircuitBreaker(
         fail_max=fail_max,
         reset_timeout=reset_timeout,
-        exclude=[ActivityNotFoundError, StravaTokenError, StravaRateLimitError],
+        exclude=[
+            ActivityNotFoundError,
+            StravaTokenError,
+            StravaRateLimitError,
+            CredentialStateError,
+        ],
         listeners=[_BreakerLogger()],
         name=name,
     )
@@ -170,8 +179,8 @@ def _call_through_breaker[T](
 class StravaTokenRepo(ReadStravaToken):
     """Refreshes Strava access tokens via OAuth API.
 
-    This class handles the HTTP call to Strava's token endpoint.
-    It does NOT manage token state - that's StravaTokenManager's job.
+    Retains the latest refresh input after an optional durable commit.
+    StravaTokenManager serializes refresh and access-token use.
     """
 
     def __init__(
@@ -179,8 +188,11 @@ class StravaTokenRepo(ReadStravaToken):
         tokens: StravaTokenSet,
         api_config: StravaApiConfig | None = None,
         breaker: pybreaker.CircuitBreaker | None = None,
+        *,
+        persist_refreshed: Callable[[StravaTokenSet], None] | None = None,
     ):
         self._tokens = tokens
+        self._persist_refreshed = persist_refreshed
         self._api_config = api_config or StravaApiConfig()
         # Default to a private breaker so a bare StravaTokenRepo (e.g. in
         # ad-hoc scripts) is still self-contained. Production code wires
@@ -189,7 +201,18 @@ class StravaTokenRepo(ReadStravaToken):
         self._breaker = breaker if breaker is not None else create_strava_breaker()
 
     def refresh(self) -> StravaTokenSet:
-        return _call_through_breaker(self._breaker, self._do_refresh)
+        refreshed = _call_through_breaker(self._breaker, self._do_refresh)
+        # Persistence/ownership failures are not Strava endpoint failures.
+        # Commit before exposing the token or advancing the next refresh input.
+        if self._persist_refreshed is not None:
+            try:
+                self._persist_refreshed(refreshed)
+            except Exception as exc:
+                raise CredentialStateError(
+                    "Could not persist refreshed credentials"
+                ) from exc
+        self._tokens = refreshed
+        return refreshed
 
     def _do_refresh(self) -> StravaTokenSet:
         @retry_on_failure(
@@ -226,9 +249,22 @@ class StravaTokenRepo(ReadStravaToken):
             body = exc.response.text if exc.response is not None else str(exc)
             raise StravaApiError(f"Token refresh failed: {body}", status_code) from exc
 
-        access_token = resp.json()["access_token"]
+        try:
+            data = resp.json()
+        except ValueError as exc:
+            raise StravaApiError("Invalid Strava token refresh response") from exc
+        if (
+            not isinstance(data, dict)
+            or not isinstance(data.get("access_token"), str)
+            or not data["access_token"]
+            or not isinstance(data.get("refresh_token"), str)
+            or not data["refresh_token"]
+            or type(data.get("expires_at")) is not int
+            or data["expires_at"] <= 0
+        ):
+            raise StravaApiError("Incomplete Strava token refresh response")
         logger.info(
-            "Tokens successfully updated",
+            "Received refreshed Strava tokens",
             extra={
                 "operation": "token_refresh",
                 "status_code": resp.status_code,
@@ -238,8 +274,9 @@ class StravaTokenRepo(ReadStravaToken):
         return StravaTokenSet(
             client_id=self._tokens.client_id,
             client_secret=self._tokens.client_secret,
-            access_token=access_token,
-            refresh_token=self._tokens.refresh_token,
+            access_token=data["access_token"],
+            refresh_token=data["refresh_token"],
+            expires_at=data["expires_at"],
         )
 
 
@@ -258,6 +295,8 @@ class StravaTokenManager:
         self,
         token_repo: StravaTokenRepo,
         initial_access_token: str | None = None,
+        *,
+        validate_owner: Callable[[], None] | None = None,
     ):
         """Initialize token manager.
 
@@ -267,6 +306,7 @@ class StravaTokenManager:
         """
         self._token_repo = token_repo
         self._current_access_token = initial_access_token
+        self._validate_owner = validate_owner
         self._lock = threading.Lock()
 
     def get_token(self) -> str:
@@ -278,6 +318,7 @@ class StravaTokenManager:
             Valid access token string
         """
         with self._lock:
+            self._check_owner()
             if self._current_access_token is None:
                 logger.info("No access token provided, refreshing...")
                 return self._refresh_locked()
@@ -292,8 +333,18 @@ class StravaTokenManager:
             New access token string
         """
         with self._lock:
+            self._check_owner()
             logger.info("Refreshing Strava access token...")
             return self._refresh_locked()
+
+    def _check_owner(self) -> None:
+        if self._validate_owner is not None:
+            try:
+                self._validate_owner()
+            except Exception as exc:
+                raise CredentialStateError(
+                    "Could not validate credential ownership"
+                ) from exc
 
     def _refresh_locked(self) -> str:
         """Refresh and store the access token. The caller must hold ``self._lock``."""
@@ -685,6 +736,9 @@ class StravaActivitiesRepo(ReadDetailedActivities):
 def create_strava_activities_repo(
     tokens: StravaTokenSet,
     api_config: StravaApiConfig | None = None,
+    *,
+    persist_refreshed: Callable[[StravaTokenSet], None] | None = None,
+    validate_owner: Callable[[], None] | None = None,
 ) -> StravaActivitiesRepo:
     """Create a fully-wired StravaActivitiesRepo.
 
@@ -695,6 +749,8 @@ def create_strava_activities_repo(
         tokens: Strava OAuth tokens (client_id, client_secret, refresh_token,
                 and optionally access_token)
         api_config: Optional API configuration (URLs, timeouts, retry settings)
+        persist_refreshed: Optional durable commit before rotated tokens are used.
+        validate_owner: Optional live ownership check before cached use or refresh.
 
     Returns:
         Configured StravaActivitiesRepo ready for use
@@ -709,8 +765,12 @@ def create_strava_activities_repo(
     activities_breaker = create_strava_breaker(name="strava-activities")
 
     # Build the dependency chain
-    token_repo = StravaTokenRepo(tokens, config, breaker=token_breaker)
-    token_manager = StravaTokenManager(token_repo, tokens.access_token)
+    token_repo = StravaTokenRepo(
+        tokens, config, breaker=token_breaker, persist_refreshed=persist_refreshed
+    )
+    token_manager = StravaTokenManager(
+        token_repo, tokens.access_token, validate_owner=validate_owner
+    )
     api_client = StravaApiClient(token_manager, config, breaker=activities_breaker)
 
     return StravaActivitiesRepo(api_client)
