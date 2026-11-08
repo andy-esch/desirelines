@@ -26,6 +26,63 @@ variables {
   }
 }
 
+run "writer_registry_access_is_additive_and_read_only" {
+  command = plan
+
+  override_resource {
+    target          = google_service_account.postgres_writer
+    override_during = plan
+    values = {
+      email = "writer-test@desirelines-test.iam.gserviceaccount.com"
+    }
+  }
+
+  assert {
+    condition = (
+      google_project_iam_member.postgres_writer_registry.project == var.gcp_project_id &&
+      google_project_iam_member.postgres_writer_registry.role == "roles/datastore.viewer" &&
+      google_project_iam_member.postgres_writer_registry.member == "serviceAccount:writer-test@desirelines-test.iam.gserviceaccount.com" &&
+      google_cloud_run_v2_service.postgres_writer.template[0].service_account == "writer-test@desirelines-test.iam.gserviceaccount.com" &&
+      length(google_project_iam_member.postgres_writer_registry.condition) == 1 &&
+      google_project_iam_member.postgres_writer_registry.condition[0].expression == "resource.name == \"projects/desirelines-test/databases/desirelines-user-configs\""
+    )
+    error_message = "The actual writer identity must receive read-only access limited to its named database."
+  }
+
+  assert {
+    condition     = [for env in google_cloud_run_v2_service.postgres_writer.template[0].containers[0].env : env.value if env.name == "FIRESTORE_DATABASE"] == [google_firestore_database.user_configs.name]
+    error_message = "The writer must explicitly select the server-owned named database."
+  }
+
+  assert {
+    condition     = google_cloud_run_v2_service.postgres_writer.template[0].containers[0].image == "${var.external_artifact_registry}/stravapipe@${var.image_digests.stravapipe}"
+    error_message = "Preparing registry access must preserve the selected writer image."
+  }
+}
+
+run "prod_writer_registry_scope_uses_its_own_project" {
+  command = plan
+  variables {
+    environment    = "prod"
+    gcp_project_id = "desirelines-prod-test"
+  }
+
+  assert {
+    condition = (
+      google_project_iam_member.postgres_writer_registry.project == "desirelines-prod-test" &&
+      google_project_iam_member.postgres_writer_registry.role == "roles/datastore.viewer" &&
+      length(google_project_iam_member.postgres_writer_registry.condition) == 1 &&
+      google_project_iam_member.postgres_writer_registry.condition[0].expression == "resource.name == \"projects/desirelines-prod-test/databases/desirelines-user-configs\""
+    )
+    error_message = "Production must not inherit a dev, default or project-wide database grant."
+  }
+
+  assert {
+    condition     = [for env in google_cloud_run_v2_service.postgres_writer.template[0].containers[0].env : env.value if env.name == "FIRESTORE_DATABASE"] == ["desirelines-user-configs"]
+    error_message = "Production's database setting must match its IAM scope."
+  }
+}
+
 run "default_adds_no_rollout_label" {
   command = plan
 

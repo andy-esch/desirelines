@@ -72,8 +72,8 @@ service-identity or health evidence.
 | Name | Version |
 | ---- | ------- |
 | <a name="provider_external"></a> [external](#provider\_external) | 2.4.2 |
-| <a name="provider_google"></a> [google](#provider\_google) | 8.6.0 |
-| <a name="provider_google-beta"></a> [google-beta](#provider\_google-beta) | 8.6.0 |
+| <a name="provider_google"></a> [google](#provider\_google) | 8.9.0 |
+| <a name="provider_google-beta"></a> [google-beta](#provider\_google-beta) | 8.9.0 |
 | <a name="provider_terraform"></a> [terraform](#provider\_terraform) | n/a |
 
 ## Resources
@@ -164,6 +164,7 @@ service-identity or health evidence.
 | [google_project_iam_member.infisical_secret_admin](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
 | [google_project_iam_member.infisical_service_usage_admin](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
 | [google_project_iam_member.postgres_writer_monitoring](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
+| [google_project_iam_member.postgres_writer_registry](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
 | [google_project_iam_member.postgres_writer_tracing](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
 | [google_project_service.firebase](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_service) | resource |
 | [google_project_service.firebase_hosting](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_service) | resource |

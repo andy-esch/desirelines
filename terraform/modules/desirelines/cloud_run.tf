@@ -465,6 +465,11 @@ resource "google_cloud_run_v2_service" "postgres_writer" {
       }
 
       env {
+        name  = "FIRESTORE_DATABASE"
+        value = google_firestore_database.user_configs.name
+      }
+
+      env {
         name  = "LOG_LEVEL"
         value = var.app_config.log_level
       }
