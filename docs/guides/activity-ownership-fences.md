@@ -27,9 +27,14 @@ declarations mean protocol 0. Merge guard support before this v2 declaration.
 
 Deploy compatible writer, deletion service and backfill in **both environments**
 before activating dev, so production can promote the intermediate release.
+First deploy the writer's read-only registry IAM grant and `FIRESTORE_DATABASE`
+setting from the [Terraform module](../../terraform/modules/desirelines/main.tf).
+Verify read-only transactions as the writer identity in each named database.
+Module pins advance separately from app images; co-shipping the grant with its
+first consumer does not establish readiness.
 Schedule a short window: activity/full-account DELETEs retry while DML is withheld;
-include DLQ replay within the existing 48-hour cleanup duty. Close the local
-saved-plan recovery gap and hold release submissions during drainage/checkpoint
+include DLQ replay within the existing 48-hour cleanup duty. Use the guarded local
+saved-plan recovery path and hold release submissions during drainage/checkpoint
 publication. Verify live revisions/templates and drain older requests,
 executions and **all queued/running older backend releases**, including guarded
 jobs past their last check. Never rerun a pre-guard workflow.

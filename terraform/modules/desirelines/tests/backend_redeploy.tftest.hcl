@@ -26,6 +26,37 @@ variables {
   }
 }
 
+run "writer_registry_access_is_additive_and_read_only" {
+  command = plan
+
+  override_resource {
+    target          = google_service_account.postgres_writer
+    override_during = plan
+    values = {
+      email = "writer-test@desirelines-test.iam.gserviceaccount.com"
+    }
+  }
+
+  assert {
+    condition = (
+      google_project_iam_member.postgres_writer_registry.project == var.gcp_project_id &&
+      google_project_iam_member.postgres_writer_registry.role == "roles/datastore.viewer" &&
+      google_project_iam_member.postgres_writer_registry.member == "serviceAccount:writer-test@desirelines-test.iam.gserviceaccount.com"
+    )
+    error_message = "Only read-only registry access should be granted to the PostgreSQL writer identity."
+  }
+
+  assert {
+    condition     = [for env in google_cloud_run_v2_service.postgres_writer.template[0].containers[0].env : env.value if env.name == "FIRESTORE_DATABASE"] == [google_firestore_database.user_configs.name]
+    error_message = "The writer must explicitly select the server-owned named database."
+  }
+
+  assert {
+    condition     = google_cloud_run_v2_service.postgres_writer.template[0].containers[0].image == "${var.external_artifact_registry}/stravapipe@${var.image_digests.stravapipe}"
+    error_message = "Preparing registry access must preserve the selected writer image."
+  }
+}
+
 run "default_adds_no_rollout_label" {
   command = plan
 

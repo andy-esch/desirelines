@@ -581,6 +581,13 @@ resource "google_project_iam_member" "dispatcher_monitoring" {
 }
 
 # PostgreSQL Writer needs monitoring.metricWriter for OTel metrics export
+# Read-only lookup access for the writer; runtime ownership routing ships later.
+resource "google_project_iam_member" "postgres_writer_registry" {
+  project = var.gcp_project_id
+  role    = "roles/datastore.viewer"
+  member  = "serviceAccount:${google_service_account.postgres_writer.email}"
+}
+
 resource "google_project_iam_member" "postgres_writer_monitoring" {
   project = var.gcp_project_id
   role    = "roles/monitoring.metricWriter"
