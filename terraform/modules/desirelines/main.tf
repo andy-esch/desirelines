@@ -555,11 +555,8 @@ resource "google_service_account_iam_member" "api_gateway_token_creator" {
 
 # API Gateway needs Firestore access to check the athlete allowlist and
 # store OAuth tokens/profiles during the Strava auth callback.
-# The Firebase Admin SDK bypasses Firestore Security Rules but still requires
-# IAM-level permission (Firestore uses the Datastore API under the hood).
-# Note: database-level IAM for Firestore is not supported by the google
-# provider, so this is project-scoped. Access is further restricted by
-# Firestore Security Rules (which block all client access to allowlist).
+# Server SDK authorization uses IAM and bypasses client Security Rules.
+# This existing grant spans all databases; IAM conditions can narrow it.
 resource "google_project_iam_member" "api_gateway_firestore" {
   project = var.gcp_project_id
   role    = "roles/datastore.user"
@@ -580,14 +577,20 @@ resource "google_project_iam_member" "dispatcher_monitoring" {
   member  = "serviceAccount:${google_service_account.dispatcher.email}"
 }
 
-# PostgreSQL Writer needs monitoring.metricWriter for OTel metrics export
 # Read-only lookup access for the writer; runtime ownership routing ships later.
 resource "google_project_iam_member" "postgres_writer_registry" {
   project = var.gcp_project_id
   role    = "roles/datastore.viewer"
   member  = "serviceAccount:${google_service_account.postgres_writer.email}"
+
+  condition {
+    title       = "writer-user-config-registry"
+    description = "Read only the configured user-config database."
+    expression  = "resource.name == \"projects/${var.gcp_project_id}/databases/${google_firestore_database.user_configs.name}\""
+  }
 }
 
+# PostgreSQL Writer needs monitoring.metricWriter for OTel metrics export
 resource "google_project_iam_member" "postgres_writer_monitoring" {
   project = var.gcp_project_id
   role    = "roles/monitoring.metricWriter"
@@ -699,10 +702,10 @@ resource "google_service_account_iam_member" "deletion_service_impersonation" {
 # ==============================================================================
 # Backfill Job IAM
 # ==============================================================================
-# Backfill always needs Firestore (read tokens), the PG writer secret, and
-# Strava API secrets. BigQuery access is opt-in with the optional sink.
+# Backfill needs Firestore for ownership lookups and OAuth token rotation,
+# plus PG writer and Strava API secrets. BigQuery access is opt-in.
 
-# Backfill needs Firestore access to read per-user Strava OAuth tokens
+# Backfill reads credentials and conditionally persists refreshed tokens.
 resource "google_project_iam_member" "backfill_firestore" {
   project = var.gcp_project_id
   role    = "roles/datastore.user"

@@ -29,7 +29,9 @@ Deploy compatible writer, deletion service and backfill in **both environments**
 before activating dev, so production can promote the intermediate release.
 First deploy the writer's read-only registry IAM grant and `FIRESTORE_DATABASE`
 setting from the [Terraform module](../../terraform/modules/desirelines/main.tf).
-Verify read-only transactions as the writer identity in each named database.
+The grant is limited to that database, not individual documents. Verify read-only
+transactions via SDK/REST as the writer identity in each database. Module rollbacks must
+retain this access while resolver-dependent writer images are deployed.
 Module pins advance separately from app images; co-shipping the grant with its
 first consumer does not establish readiness.
 Schedule a short window: activity/full-account DELETEs retry while DML is withheld;
