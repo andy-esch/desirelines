@@ -30,6 +30,7 @@ from stravapipe.domain import (
     is_non_geographic_activity,
 )
 from stravapipe.domain.geometry import decode_polyline_to_geojson
+from stravapipe.domain.ownership import ActivityOwner, ActivityOwnershipError
 from stravapipe.exceptions import CredentialStateError
 from stravapipe.ports.out.postgres import ActivityRepository, BackfillUpsertResult
 from stravapipe.ports.out.read import ReadDetailedActivities
@@ -95,7 +96,7 @@ def _reconcile_activity_geography(
                     "route insertion skipped before region reconciliation",
                     activity.id,
                     extra={
-                        "user_id": activity.user_id,
+                        "external_owner_id": str(activity.athlete.id),
                         "polyline_length": len(encoded_route),
                     },
                 )
@@ -364,6 +365,8 @@ class BackfillService:
         self,
         strava_reader: ReadDetailedActivities,
         uow_factory: Callable[[], AbstractUnitOfWork],
+        owner: ActivityOwner,
+        validate_owner: Callable[[], None],
         bq_writer: ActivitiesWriter | None = None,
         progress_reporter: ProgressReporter | None = None,
         batch_size: int = BATCH_SIZE,
@@ -372,6 +375,8 @@ class BackfillService:
         if batch_size <= 0:
             raise ValueError("batch_size must be greater than zero")
 
+        self._owner = owner
+        self._validate_owner = validate_owner
         self._strava_reader = strava_reader
         self._uow_factory = uow_factory
         self._bq_writer = bq_writer
@@ -394,6 +399,8 @@ class BackfillService:
         Returns:
             BackfillResult with aggregate statistics
         """
+        if athlete_id != self._owner.subject:
+            raise ActivityOwnershipError("backfill subject differs from captured owner")
         start_time = time.monotonic()
         # Run-start watermark: a single wall-clock instant (unix seconds) captured
         # once for the whole run and applied to every PostgreSQL write. A live
@@ -434,7 +441,7 @@ class BackfillService:
                     parent_context=Context(),
                 ):
                     year_stats = self._backfill_year(year, watermark)
-            except CredentialStateError:
+            except (CredentialStateError, ActivityOwnershipError):
                 # Reload the captured owner/credentials in a new job execution.
                 # Continuing with this execution's token state is unsafe.
                 raise
@@ -568,7 +575,7 @@ class BackfillService:
         )
         try:
             activities = self._strava_reader.read_activities_by_year(year)
-        except CredentialStateError:
+        except (CredentialStateError, ActivityOwnershipError):
             raise
         except Exception:
             log_best_effort(
@@ -598,6 +605,8 @@ class BackfillService:
                 duration_seconds=time.monotonic() - start_time,
             )
 
+        for activity in activities:
+            self._owner.validate_activity(activity.id, activity.athlete.id)
         stats = YearStats(year=year, activities_found=len(activities))
 
         # Upsert to PostgreSQL
@@ -662,6 +671,8 @@ class BackfillService:
                     total_batches=total_batches,
                     watermark=watermark,
                 )
+            except (CredentialStateError, ActivityOwnershipError):
+                raise
             except Exception:
                 stats.errors += len(batch)
                 _log_failed_postgres_batch(
@@ -712,12 +723,16 @@ class BackfillService:
             cleanup_error: Exception | None = None
 
             try:
+                self._validate_owner()
                 uow = self._uow_factory()
                 with uow:
                     existing_ids = uow.activities.get_existing_ids(
                         [activity.id for activity in batch]
                     )
-                    for activity in batch:
+                    # Match full-account cleanup's mapping lock order.
+                    for activity in sorted(
+                        batch, key=lambda activity: str(activity.id)
+                    ):
                         standard = StandardActivity.model_validate(
                             activity, from_attributes=True
                         )
@@ -814,6 +829,8 @@ class BackfillService:
                     total_batches,
                     rows_affected,
                 )
+            except (CredentialStateError, ActivityOwnershipError):
+                raise
             except Exception:
                 error_count += len(batch)
                 logger.exception("BQ batch %d/%d failed", batch_num, total_batches)
@@ -837,6 +854,7 @@ class BackfillService:
         assert self._bq_writer is not None  # noqa: S101 -- type-narrowing; reached only via _insert_to_bigquery under the same guard
         for attempt in range(1, _BQ_RETRY_ATTEMPTS + 1):
             try:
+                self._validate_owner()
                 return self._bq_writer.write_activities_batch(batch)
             except _BQ_RETRYABLE_EXCEPTIONS as exc:
                 if attempt == _BQ_RETRY_ATTEMPTS:

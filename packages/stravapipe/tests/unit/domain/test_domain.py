@@ -46,11 +46,11 @@ class TestStandardActivity:
         assert activity.id == 12345678987654321
         assert activity.type == "Ride"
 
-    def test_computes_user_id_sport_and_year(self, activity_json_1):
-        """user_id, sport and year are derived from the activity's own fields."""
+    def test_computes_sport_and_year_without_inferring_app_uid(self, activity_json_1):
+        """Provider payloads carry no trusted application UID."""
         activity = StandardActivity.model_validate(activity_json_1)
 
-        assert activity.user_id == str(activity.athlete.id)
+        assert not hasattr(activity, "user_id")
         assert activity.sport == activity.sport_type
         assert isinstance(activity.year, int)
 

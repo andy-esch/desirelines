@@ -17,6 +17,7 @@ from sqlalchemy.pool import NullPool, QueuePool
 
 from stravapipe.adapters.postgres._connection import PoolConfig
 from stravapipe.adapters.postgres._repository import SqlAlchemyActivityRepository
+from stravapipe.domain.ownership import ActivityOwner
 from stravapipe.ports.out.unit_of_work import AbstractUnitOfWork
 from stravapipe.shared.logging import log_best_effort
 from stravapipe.shared.tracing import record_span
@@ -215,6 +216,7 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
         session_factory: Callable[[], Session],
         *,
         tracer: Tracer | None = None,
+        owner: ActivityOwner | None = None,
     ):
         """Initialize Unit of Work with a session factory.
 
@@ -226,6 +228,7 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
                 so connection-checkout and commit latency are visible
                 independently in distributed traces.
         """
+        self._owner = owner
         self._session_factory = session_factory
         self._session: Session | None = None
         self._tracer = tracer
@@ -245,7 +248,7 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
         with record_span(self._tracer, "postgres.session.acquire"):
             self._session = self._session_factory()
         # Initialize repository with the session
-        self.activities = SqlAlchemyActivityRepository(self._session)
+        self.activities = SqlAlchemyActivityRepository(self._session, owner=self._owner)
         return self
 
     def __exit__(

@@ -15,6 +15,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from stravapipe.domain import StandardActivity
+from stravapipe.domain.ownership import ActivityOwner, ActivityOwnershipError
 from stravapipe.ports.out.postgres import (
     ActivityRepository,
     BackfillUpsertResult,
@@ -44,10 +45,9 @@ _ALLOWED_UPDATE_CLAUSES: Final[dict[str, list[str]]] = {
 # Full-write PostgreSQL column -> StandardActivity attribute mapping, in INSERT
 # order. This is the single source of truth for both SQL generation and bind
 # values, so a persisted field cannot be added to one and omitted from the
-# other. Computed StandardActivity attributes (`user_id`, `sport`, and `year`)
+# other. Computed StandardActivity attributes (`sport` and `year`)
 # are intentionally named here alongside direct model fields.
 _ACTIVITY_COLUMN_ATTRIBUTES: Final[dict[str, str]] = {
-    "user_id": "user_id",
     "name": "name",
     "type": "type",
     "sport": "sport",
@@ -66,9 +66,10 @@ _ACTIVITY_COLUMN_ATTRIBUTES: Final[dict[str, str]] = {
 }
 # Columns the writer fills itself rather than from StandardActivity: the
 # `id` from the external-ID mapping, timestamps from its clock, and `source`
-# from ACTIVITY_SOURCE. The internal ID is selected in SQL, never bound from
-# StandardActivity.id (which is the external Strava ID).
+# from ACTIVITY_SOURCE, and `user_id` from trusted ownership. The internal ID
+# is selected in SQL, never bound from StandardActivity.id (which is the external Strava ID).
 _ACTIVITY_SYSTEM_COLUMNS: Final[tuple[str, ...]] = (
+    "user_id",
     "id",
     "created_at",
     "updated_at",
@@ -121,7 +122,10 @@ _ACTIVITY_UPSERT_EVENT_TIME_GUARD: Final[str] = (
 # does. Bind `_platform_id(...)`.
 _MAPPED_ACTIVITY_ID_SQL: Final[str] = (
     "(SELECT activity_id FROM desirelines.activity_external_ids"
-    " WHERE source = :source AND external_id = :external_id)"
+    " WHERE source = :source AND external_id = :external_id"
+    " AND external_owner_id = :external_owner_id"
+    " AND EXISTS (SELECT 1 FROM desirelines.activities a"
+    " WHERE a.id = activity_id AND a.user_id = :user_id))"
 )
 
 # A platform ID's tombstone, ahead of each activity write. A live write is
@@ -132,12 +136,20 @@ _LIVE_TOMBSTONE_CTE: Final[str] = (
     "  SELECT 1 FROM desirelines.deleted_activities"
     "  WHERE source = :source AND external_id = :external_id"
     "    AND deletion_event_time >= :last_event_time"
+    "  UNION ALL SELECT 1 FROM desirelines.activity_deletion_fences"
+    "  WHERE source = :source AND external_id = :external_id"
+    "    AND user_id = :user_id AND external_owner_id = :external_owner_id"
+    "    AND deletion_event_time >= :last_event_time"
     ")"
 )
 _BACKFILL_TOMBSTONE_CTE: Final[str] = (
     "tombstone AS ("
     "  SELECT 1 FROM desirelines.deleted_activities"
     "  WHERE source = :source AND external_id = :external_id"
+    "    AND deletion_event_time > :watermark"
+    "  UNION ALL SELECT 1 FROM desirelines.activity_deletion_fences"
+    "  WHERE source = :source AND external_id = :external_id"
+    "    AND user_id = :user_id AND external_owner_id = :external_owner_id"
     "    AND deletion_event_time > :watermark"
     ")"
 )
@@ -155,7 +167,8 @@ _BACKFILL_TOMBSTONE_CTE: Final[str] = (
 # snapshot lookup could reuse the deleted activity's ID instead.
 _LOCK_MAPPING_SQL: Final[str] = (
     "SELECT activity_id FROM desirelines.activity_external_ids"
-    " WHERE source = :source AND external_id = :external_id FOR UPDATE"
+    " WHERE source = :source AND external_id = :external_id"
+    " AND external_owner_id = :external_owner_id FOR UPDATE"
 )
 # COALESCE calls nextval() only for an unseen platform ID; concurrent claims may
 # consume an unused value, but ON CONFLICT resolves to the winning mapping. Allocation
@@ -165,7 +178,7 @@ _CLAIM_MAPPING_SQL: Final[str] = (
     "INSERT INTO desirelines.activity_external_ids"  # noqa: S608 -- SQL from a constant; platform IDs are bound params
     " (source, external_id, activity_id, external_owner_id)"
     f" SELECT :source, :external_id, COALESCE(({_LOCK_MAPPING_SQL}),"
-    " nextval(pg_get_serial_sequence('desirelines.activities', 'id'))), :user_id"
+    " nextval(pg_get_serial_sequence('desirelines.activities', 'id'))), :external_owner_id"
     " WHERE NOT EXISTS (SELECT 1 FROM tombstone)"
 )
 # CREATE: a platform ID already claimed is a duplicate, and the statement stops.
@@ -180,9 +193,12 @@ _CLAIM_NEW_MAPPING_CTE: Final[str] = (
 # snapshot would miss. It locks the mapping row before the activity row, the
 # order `delete` follows too, so the two cannot deadlock.
 _CLAIM_OR_FIND_MAPPING_CTE: Final[str] = (
-    f"mapping AS ({_CLAIM_MAPPING_SQL}"
+    f"mapping AS ({_CLAIM_MAPPING_SQL}"  # noqa: S608 -- static SQL; values bound
     " ON CONFLICT (source, external_id)"
     " DO UPDATE SET activity_id = activity_external_ids.activity_id"
+    " WHERE activity_external_ids.external_owner_id = :external_owner_id"
+    " AND EXISTS (SELECT 1 FROM desirelines.activities a"
+    " WHERE a.id = activity_external_ids.activity_id AND a.user_id = :user_id)"
     " RETURNING activity_id)"
 )
 # The activity's columns as bind params, except `id`: the mapping's.
@@ -265,20 +281,20 @@ _SELECT_ACTIVITY_FENCE_FOR_UPDATE_SQL: Final[str] = (
     "WHERE id = :activity_id FOR UPDATE"
 )
 _TOMBSTONE_UPSERT_SQL: Final[str] = (
-    "INSERT INTO desirelines.deleted_activities"
-    " (source, external_id, deletion_event_time, deleted_at, deletion_correlation_id)"
-    " VALUES (:source, :external_id, :event_time, :deleted_at,"
+    "INSERT INTO desirelines.activity_deletion_fences"
+    " (source, external_id, user_id, external_owner_id, deletion_event_time, deleted_at, deletion_correlation_id)"
+    " VALUES (:source, :external_id, :user_id, :external_owner_id, :event_time, :deleted_at,"
     "  :correlation_id)"
-    " ON CONFLICT (source, external_id) DO UPDATE SET"
+    " ON CONFLICT (source, external_id, user_id, external_owner_id) DO UPDATE SET"
     "  deletion_event_time = GREATEST("
-    "    deleted_activities.deletion_event_time, EXCLUDED.deletion_event_time),"
+    "    activity_deletion_fences.deletion_event_time, EXCLUDED.deletion_event_time),"
     "  deleted_at = CASE"
-    "    WHEN EXCLUDED.deletion_event_time >= deleted_activities.deletion_event_time"
-    "    THEN EXCLUDED.deleted_at ELSE deleted_activities.deleted_at END,"
+    "    WHEN EXCLUDED.deletion_event_time >= activity_deletion_fences.deletion_event_time"
+    "    THEN EXCLUDED.deleted_at ELSE activity_deletion_fences.deleted_at END,"
     "  deletion_correlation_id = CASE"
-    "    WHEN EXCLUDED.deletion_event_time >= deleted_activities.deletion_event_time"
+    "    WHEN EXCLUDED.deletion_event_time >= activity_deletion_fences.deletion_event_time"
     "    THEN EXCLUDED.deletion_correlation_id"
-    "    ELSE deleted_activities.deletion_correlation_id END"
+    "    ELSE activity_deletion_fences.deletion_correlation_id END"
 )
 _DELETE_ACTIVITY_SQL: Final[str] = (
     "DELETE FROM desirelines.activities WHERE id = :activity_id RETURNING id"
@@ -387,19 +403,63 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             uow.commit()
     """
 
-    def __init__(self, session: Session):
+    def __init__(self, session: Session, *, owner: ActivityOwner | None = None):
         """Initialize repository with an active session.
 
         Args:
             session: SQLAlchemy Session from Unit of Work
         """
         self._session = session
+        self._owner = owner
+
+    def _platform_id(self, external_id: int) -> dict[str, str]:
+        if self._owner is None:
+            raise ActivityOwnershipError(
+                "individual activity operations require trusted ownership"
+            )
+        self._owner.validate_id(external_id)
+        params = {
+            **_platform_id(external_id),
+            "user_id": self._owner.uid,
+            "external_owner_id": self._owner.subject,
+        }
+        # Also serialize absent mappings: row locks alone cannot order a
+        # DELETE-before-CREATE against a concurrent first claim. Hash collisions
+        # only serialize unrelated IDs; they never confer ownership.
+        self._session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+            {"key": f"{ACTIVITY_SOURCE}:{external_id}"},
+        )
+        mapping = self._session.execute(
+            text("""
+            SELECT m.external_owner_id, a.user_id
+            FROM desirelines.activity_external_ids m
+            LEFT JOIN desirelines.activities a ON a.id = m.activity_id
+            WHERE m.source = :source AND m.external_id = :external_id
+        """),
+            params,
+        ).fetchone()
+        if mapping is not None and (
+            mapping.user_id != self._owner.uid
+            or mapping.external_owner_id != self._owner.subject
+        ):
+            raise ActivityOwnershipError("activity mapping belongs to another owner")
+        return params
+
+    def _write_params(self, activity: StandardActivity) -> dict[str, Any]:
+        if self._owner is None:
+            raise ActivityOwnershipError(
+                "individual activity operations require trusted ownership"
+            )
+        self._owner.validate_activity(activity.id, activity.athlete.id)
+        params = self._platform_id(activity.id)
+        return {**_activity_write_params(activity, datetime.now(UTC)), **params}
 
     def _mapped_activity_id(self, external_id: int) -> int | None:
         """The ID of the activity a Strava ID maps to, or None if it has none."""
         activity_id: int | None = self._session.execute(
             text(f"SELECT {_MAPPED_ACTIVITY_ID_SQL}"),
-            _platform_id(external_id),
+            self._platform_id(external_id),
         ).scalar_one()
         return activity_id
 
@@ -426,9 +486,8 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             An :class:`InsertResult` (``INSERTED`` / ``ALREADY_EXISTS`` /
             ``RESURRECTION_BLOCKED``).
         """
-        params = _activity_write_params(activity, datetime.now(UTC))
+        params = self._write_params(activity)
         params["last_event_time"] = event_time
-        params.update(_platform_id(activity.id))
         row = self._session.execute(
             text(_ACTIVITY_TOMBSTONED_INSERT_SQL), params
         ).fetchone()
@@ -470,9 +529,8 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             True if the row was inserted or updated; False if a stale live event
             was rejected by the fence guard or blocked by a deletion tombstone.
         """
-        params = _activity_write_params(activity, datetime.now(UTC))
+        params = self._write_params(activity)
         params["last_event_time"] = event_time
-        params.update(_platform_id(activity.id))
         result = self._session.execute(text(_ACTIVITY_UPSERT_SQL), params)
         return result.fetchone() is not None
 
@@ -503,10 +561,9 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             APPLIED if the row was inserted or updated; SKIPPED if a newer live
             event owns it.
         """
-        params = _activity_write_params(activity, datetime.now(UTC))
+        params = self._write_params(activity)
         params["last_event_time"] = None
         params["watermark"] = watermark
-        params.update(_platform_id(activity.id))
         result = self._session.execute(text(_ACTIVITY_BACKFILL_UPSERT_SQL), params)
         return (
             BackfillUpsertResult.APPLIED
@@ -536,7 +593,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
 
         result = self._session.execute(
             query,
-            {**_platform_id(external_id), "geojson": geojson},
+            {**self._platform_id(external_id), "geojson": geojson},
         )
         return result.fetchone() is not None
 
@@ -768,7 +825,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
                     "DELETE FROM desirelines.activity_regions"  # noqa: S608 -- static SQL constant; values bound via :params
                     f" WHERE activity_id = {_MAPPED_ACTIVITY_ID_SQL}"
                 ),
-                _platform_id(external_id),
+                self._platform_id(external_id),
             )
         )
 
@@ -784,7 +841,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         query = text(
             f"SELECT 1 FROM desirelines.activities WHERE id = {_MAPPED_ACTIVITY_ID_SQL}"  # noqa: S608 -- static SQL constant; values bound via :params
         )
-        result = self._session.execute(query, _platform_id(external_id))
+        result = self._session.execute(query, self._platform_id(external_id))
         return result.fetchone() is not None
 
     def get_existing_ids(self, external_ids: list[int]) -> set[int]:
@@ -798,16 +855,19 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         """
         if not external_ids:
             return set()
+        for external_id in sorted(set(external_ids), key=str):
+            params = self._platform_id(external_id)
         query = text("""
             SELECT m.external_id
             FROM desirelines.activity_external_ids m
-            JOIN desirelines.activities a ON a.id = m.activity_id
+            LEFT JOIN desirelines.activities a ON a.id = m.activity_id
             WHERE m.source = :source AND m.external_id = ANY(:external_ids)
+              AND m.external_owner_id = :external_owner_id AND a.user_id = :user_id
         """)
         result = self._session.execute(
             query,
             {
-                "source": ACTIVITY_SOURCE,
+                **params,
                 "external_ids": [str(external_id) for external_id in external_ids],
             },
         )
@@ -850,7 +910,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             )
 
         set_clauses: list[str] = []
-        params: dict[str, Any] = dict(_platform_id(external_id))
+        params: dict[str, Any] = dict(self._platform_id(external_id))
 
         if "title" in updates:
             set_clauses.extend(_ALLOWED_UPDATE_CLAUSES["title"])
@@ -926,7 +986,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         ``last_event_time``: if the row is newer than this delete's
         ``event_time`` (a reordered/stale DELETE, e.g. arriving after a genuine
         re-creation), the delete is ignored — the row stays and no tombstone is
-        written (``STALE``). Otherwise it upserts the ``deleted_activities``
+        written (``STALE``). Otherwise it upserts the exact owner-scoped ``activity_deletion_fences``
         tombstone (``GREATEST`` keeps the newest ``deletion_event_time``) and
         hard-deletes the row, and its mapping with it. The tombstone is written
         even when no live row exists (a DELETE before its CREATE), so
@@ -943,7 +1003,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         Returns:
             A :class:`DeleteResult` (``DELETED`` / ``NOT_FOUND`` / ``STALE``).
         """
-        platform_id = _platform_id(external_id)
+        platform_id = self._platform_id(external_id)
         activity_id = self._session.execute(
             text(_LOCK_MAPPING_SQL), platform_id
         ).scalar_one_or_none()
@@ -993,7 +1053,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         user's activities waits for it instead of deadlocking.
 
         Args:
-            user_id: Strava athlete ID (string)
+            user_id: trusted app UID (string)
 
         Returns:
             Count of deleted activity rows
@@ -1004,6 +1064,7 @@ class SqlAlchemyActivityRepository(ActivityRepository):
                 FROM desirelines.activity_external_ids m
                 JOIN desirelines.activities a ON a.id = m.activity_id
                 WHERE a.user_id = :user_id
+                ORDER BY m.source COLLATE "C", m.external_id COLLATE "C"
                 FOR UPDATE OF m
             """),
             {"user_id": user_id},
@@ -1012,4 +1073,11 @@ class SqlAlchemyActivityRepository(ActivityRepository):
             DELETE FROM desirelines.activities
             WHERE user_id = :user_id
         """)
-        return _rowcount(self._session.execute(query, {"user_id": user_id}))
+        deleted = _rowcount(self._session.execute(query, {"user_id": user_id}))
+        self._session.execute(
+            text(
+                "DELETE FROM desirelines.activity_deletion_fences WHERE user_id = :user_id"
+            ),
+            {"user_id": user_id},
+        )
+        return deleted

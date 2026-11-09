@@ -61,8 +61,9 @@ Representative mappings:
   `activities.id` comes from the existing mapping or the identity sequence.
 - `sport_type` becomes computed `StandardActivity.sport`, then
   `desirelines.activities.sport`.
-- `athlete.id` becomes computed `StandardActivity.user_id`, then
-  `desirelines.activities.user_id`.
+- `activities.user_id` comes from the server-owned connection registry.
+  `athlete.id` remains the provider subject in BigQuery and
+  `activity_external_ids.external_owner_id`; `StandardActivity` infers no app UID.
 - `start_date_local` writes its column and derives
   `desirelines.activities.year`.
 - `map` is not an activities-table column. It produces

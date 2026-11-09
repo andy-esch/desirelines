@@ -354,12 +354,6 @@ class StandardActivity(BaseModel):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def user_id(self) -> str:
-        """Extract user_id from athlete.id for database storage."""
-        return str(self.athlete.id)
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
     def sport(self) -> str:
         """Return raw sport_type value for sport column.
 

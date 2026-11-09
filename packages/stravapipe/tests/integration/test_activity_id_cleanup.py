@@ -14,6 +14,7 @@ from sqlalchemy.exc import DBAPIError, IntegrityError, ProgrammingError
 from stravapipe.adapters.postgres import SqlAlchemyActivityRepository
 from stravapipe.domain import StandardActivity
 from stravapipe.domain.activity import MetaAthlete
+from stravapipe.domain.ownership import ActivityOwner
 from stravapipe.ports.out.postgres import (
     BackfillUpsertResult,
     DeleteResult,
@@ -22,8 +23,10 @@ from stravapipe.ports.out.postgres import (
 from tests.integration.helpers import (
     activity_id_for,
     database_resource,
+    insert_mapped_activity,
     migrated_database,
     upsert_legacy_tombstone,
+    upsert_mapped_tombstone,
 )
 
 
@@ -57,7 +60,6 @@ class TestTombstoneCompatibility:
         self, db_session, first_writer
     ):
         db_session.execute(text("SET LOCAL ROLE desirelines_dml_grp"))
-        repo = SqlAlchemyActivityRepository(db_session)
         for event_time, writer in (
             (200, first_writer),
             (100, "current" if first_writer == "legacy" else "legacy"),
@@ -65,9 +67,8 @@ class TestTombstoneCompatibility:
             if writer == "legacy":
                 upsert_legacy_tombstone(db_session, _EXTERNAL_ID, event_time)
             else:
-                assert (
-                    repo.delete(_EXTERNAL_ID, event_time, f"current-{event_time}")
-                    is DeleteResult.NOT_FOUND
+                upsert_mapped_tombstone(
+                    db_session, _EXTERNAL_ID, event_time, f"current-{event_time}"
                 )
 
         rows = db_session.execute(
@@ -88,12 +89,15 @@ class TestTombstoneCompatibility:
             assert row.deleted_at.replace(tzinfo=UTC) == datetime(
                 2026, 10, 10, tzinfo=UTC
             )
-        assert repo.insert(_activity(), 150) is InsertResult.RESURRECTION_BLOCKED
+        insert_mapped_activity(db_session, _EXTERNAL_ID, 150)
+        assert activity_id_for(db_session, _EXTERNAL_ID) is None
 
         # A later legacy deletion still advances a tombstone a new writer wrote.
         upsert_legacy_tombstone(db_session, _EXTERNAL_ID, 300)
-        assert repo.insert(_activity(), 250) is InsertResult.RESURRECTION_BLOCKED
-        assert repo.insert(_activity(), 301) is InsertResult.INSERTED
+        insert_mapped_activity(db_session, _EXTERNAL_ID, 250)
+        assert activity_id_for(db_session, _EXTERNAL_ID) is None
+        insert_mapped_activity(db_session, _EXTERNAL_ID, 301)
+        assert activity_id_for(db_session, _EXTERNAL_ID) is not None
 
     def test_inconsistent_legacy_and_external_ids_are_rejected(self, db_session):
         with pytest.raises(IntegrityError, match="legacy_id_matches_external_id"):
@@ -147,10 +151,7 @@ class TestTombstoneCompatibility:
             ._mapping
         )
         assert dict(after) == dict(before)
-        assert (
-            SqlAlchemyActivityRepository(db_session).delete(_EXTERNAL_ID, 300)
-            is DeleteResult.NOT_FOUND
-        )
+        upsert_mapped_tombstone(db_session, _EXTERNAL_ID, 300)
 
 
 class TestWriterWithFinalIdentitySchema:
@@ -165,12 +166,31 @@ class TestWriterWithFinalIdentitySchema:
             )
         )
 
+    @pytest.fixture(autouse=True)
+    def ownership_schema(self, db_session, final_schema):
+        # Current runtime additionally requires the additive fence preparation.
+        db_session.execute(
+            text(
+                database_resource(
+                    "migrations/V0018__prepare_owned_activity_deletion_fences.sql"
+                ).read_text()
+            )
+        )
+        # Simulate activation only in this rollback-isolated test database.
+        db_session.execute(
+            text(
+                "GRANT INSERT, UPDATE, DELETE ON desirelines.activity_deletion_fences TO desirelines_dml_grp"
+            )
+        )
+
     @pytest.mark.parametrize("write", ["insert", "upsert", "backfill"])
     def test_writes_reuse_the_allocated_id_and_deletes_keep_the_external_key(
         self, db_session, write
     ):
         db_session.execute(text("SET LOCAL ROLE desirelines_dml_grp"))
-        repo = SqlAlchemyActivityRepository(db_session)
+        repo = SqlAlchemyActivityRepository(
+            db_session, owner=ActivityOwner("999", "999")
+        )
 
         def write_activity(event_time: int) -> object:
             if write == "insert":
@@ -245,8 +265,7 @@ class TestWriterWithFinalIdentitySchema:
 
 class TestFinalMigration:
     def test_preserves_existing_identity_and_tombstone_metadata(self, db_session):
-        repo = SqlAlchemyActivityRepository(db_session)
-        assert repo.insert(_activity(), 100) is InsertResult.INSERTED
+        insert_mapped_activity(db_session, _EXTERNAL_ID, 100)
         internal_id = activity_id_for(db_session, _EXTERNAL_ID)
         upsert_legacy_tombstone(db_session, _EXTERNAL_ID + 1, 200)
         before = dict(
@@ -320,7 +339,14 @@ class TestFinalMigration:
         """),
             {"external_id": str(_EXTERNAL_ID + 1)},
         )
-        assert repo.delete(_EXTERNAL_ID, 200) is DeleteResult.DELETED
+        upsert_mapped_tombstone(db_session, _EXTERNAL_ID, 200)
+        assert (
+            db_session.execute(
+                text("DELETE FROM desirelines.activities WHERE id = :id RETURNING id"),
+                {"id": internal_id},
+            ).scalar_one()
+            == internal_id
+        )
 
     def test_refuses_to_retire_the_helper_while_adopted_ids_remain(self, db_session):
         db_session.execute(

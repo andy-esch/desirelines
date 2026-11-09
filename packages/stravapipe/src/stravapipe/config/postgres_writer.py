@@ -6,6 +6,8 @@ enriches events with activity data before publishing to Pub/Sub.
 
 import logging
 
+from pydantic import Field
+
 from stravapipe.config._postgres_service import (
     PostgresServiceConfig,
     load_postgres_service_config,
@@ -26,6 +28,10 @@ class PostgresWriterConfig(PostgresServiceConfig):
     """
 
     enable_cloud_logging: bool = False
+    firestore_database: str = Field(
+        default="desirelines-user-configs",
+        description="Server-owned connection registry database",
+    )
 
 
 def load_postgres_writer_config() -> PostgresWriterConfig:

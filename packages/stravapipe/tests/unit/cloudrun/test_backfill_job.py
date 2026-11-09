@@ -8,6 +8,8 @@ import pytest
 from stravapipe.adapters.firestore.activity_connection import ConnectionRecord
 from stravapipe.application.backfill import BackfillResult
 from stravapipe.cloudrun.backfill_job import _cleanup_resources, _log_result, main
+from stravapipe.domain.ownership import ActivityOwner
+from stravapipe.exceptions import CredentialStateError
 
 
 @pytest.fixture
@@ -214,6 +216,7 @@ def test_main_threads_tracer_and_preserves_exit_during_flush_failure(
     mocks["SqlAlchemyUnitOfWork"].assert_called_once_with(
         mocks["session_factory"],
         tracer=mocks["tracer"],
+        owner=ActivityOwner(mocks["owner"].uid, mocks["owner"].subject),
     )
     assert uow is mocks["SqlAlchemyUnitOfWork"].return_value
 
@@ -252,23 +255,18 @@ def test_main_flushes_tracing_when_backfill_raises(backfill_main_mocks):
     mocks["sys_exit"].assert_not_called()
 
 
-def test_backfill_rejects_unmigrated_persistence_before_any_provider_or_database_work(
-    backfill_main_mocks,
-):
-    from stravapipe.adapters.firestore.activity_connection import (
-        ConnectionConflictError,
-    )
-
+def test_backfill_accepts_independent_uid(backfill_main_mocks):
     mocks = backfill_main_mocks
-    mocks["ConnectionResolver"].return_value.resolve.return_value = replace(
-        mocks["owner"], uid="independent-uid"
+    record = replace(mocks["owner"], uid="independent-uid")
+    mocks["ConnectionResolver"].return_value.resolve.return_value = record
+    mocks["BackfillService"].return_value.backfill_user.return_value = BackfillResult(
+        athlete_id=record.subject
     )
-    with pytest.raises(ConnectionConflictError, match="legacy UID"):
-        main()
-    mocks["FirestoreTokenStore"].return_value.get_tokens.assert_not_called()
-    mocks["create_strava_activities_repo"].assert_not_called()
-    mocks["create_session_factory"].assert_not_called()
-    mocks["make_write_activities"].assert_not_called()
+    main()
+    kwargs = mocks["BackfillService"].call_args.kwargs
+    assert kwargs["owner"] == ActivityOwner("independent-uid", record.subject)
+    kwargs["uow_factory"]()
+    assert mocks["SqlAlchemyUnitOfWork"].call_args.kwargs["owner"] == kwargs["owner"]
 
 
 def test_backfill_callback_keeps_owner_and_advances_persisted_version(
@@ -311,9 +309,6 @@ def test_backfill_callback_keeps_owner_and_advances_persisted_version(
 
 
 def test_backfill_owner_recheck_never_adopts_a_remapping(backfill_main_mocks):
-    from stravapipe.adapters.firestore.activity_connection import (
-        ConnectionConflictError,
-    )
 
     mocks = backfill_main_mocks
     mocks["BackfillService"].return_value.backfill_user.return_value = BackfillResult(
@@ -325,5 +320,21 @@ def test_backfill_owner_recheck_never_adopts_a_remapping(backfill_main_mocks):
     mocks["ConnectionResolver"].return_value.resolve.return_value = replace(
         mocks["owner"], uid="other-owner"
     )
-    with pytest.raises(ConnectionConflictError, match="ownership changed"):
+    with pytest.raises(CredentialStateError, match="ownership changed"):
+        validate()
+
+
+def test_backfill_recheck_unavailable_registry_is_a_credential_failure(
+    backfill_main_mocks,
+):
+    mocks = backfill_main_mocks
+    mocks["BackfillService"].return_value.backfill_user.return_value = BackfillResult(
+        athlete_id=mocks["owner"].subject
+    )
+    main()
+    validate = mocks["BackfillService"].call_args.kwargs["validate_owner"]
+    mocks["ConnectionResolver"].return_value.resolve.side_effect = RuntimeError(
+        "unavailable"
+    )
+    with pytest.raises(CredentialStateError, match="could not be verified"):
         validate()

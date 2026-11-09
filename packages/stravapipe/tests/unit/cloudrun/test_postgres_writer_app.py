@@ -15,6 +15,8 @@ from fastapi.testclient import TestClient
 import pytest
 
 from stravapipe.cloudrun.postgres_writer_app import app
+from stravapipe.domain import StandardActivity
+from stravapipe.domain.ownership import ActivityOwner
 from stravapipe.ports.out.postgres import (
     DeleteResult,
     InsertResult,
@@ -46,9 +48,14 @@ def client(mock_postgres_config):
     """Create a test client with mocked configuration."""
     from stravapipe.cloudrun.postgres_writer_app import app
 
-    with patch(
-        "stravapipe.cloudrun.postgres_writer_app.create_session_factory"
-    ) as mock_factory:
+    with (
+        patch("stravapipe.cloudrun.postgres_writer_app.FirestoreClient"),
+        patch("stravapipe.cloudrun.postgres_writer_app.ConnectionResolver") as resolver,
+        patch(
+            "stravapipe.cloudrun.postgres_writer_app.create_session_factory"
+        ) as mock_factory,
+    ):
+        resolver.return_value.resolve.return_value = ActivityOwner("app-test", "98765")
         mock_factory.return_value = (MagicMock(), MagicMock())
         with TestClient(app) as client:
             # Override the MagicMock timeout that lifespan picked up from the
@@ -204,7 +211,7 @@ class TestCreateEventHandling:
         """The normal webhook path retains the same UoW tracing contract."""
         mock_uow = MagicMock()
         mock_uow.activities.insert.return_value = InsertResult.INSERTED
-        mock_activity = MagicMock(map=None, user_id=999)
+        mock_activity = StandardActivity.model_validate(SAMPLE_RAW_ACTIVITY)
 
         with (
             patch(
@@ -231,13 +238,14 @@ class TestCreateEventHandling:
         uow_class.assert_called_once_with(
             app.state.session_factory,
             tracer=app.state.tracer,
+            owner=ActivityOwner("app-test", "98765"),
         )
 
     def test_create_event_success(self, client):
         """CREATE event with raw_activity writes to PostgreSQL."""
         mock_uow = MagicMock()
         mock_uow.activities.insert.return_value = InsertResult.INSERTED
-        mock_activity = MagicMock()
+        mock_activity = StandardActivity.model_validate(SAMPLE_RAW_ACTIVITY)
 
         with (
             patch(
@@ -270,7 +278,7 @@ class TestCreateEventHandling:
         """CREATE event for existing activity returns skipped."""
         mock_uow = MagicMock()
         mock_uow.activities.insert.return_value = InsertResult.ALREADY_EXISTS
-        mock_activity = MagicMock()
+        mock_activity = StandardActivity.model_validate(SAMPLE_RAW_ACTIVITY)
 
         with (
             patch(
@@ -305,7 +313,7 @@ class TestCreateEventHandling:
 
         mock_uow = MagicMock()
         mock_uow.activities.insert.return_value = InsertResult.RESURRECTION_BLOCKED
-        mock_activity = MagicMock(map=None, user_id=999)
+        mock_activity = StandardActivity.model_validate(SAMPLE_RAW_ACTIVITY)
 
         with (
             patch(
@@ -842,7 +850,7 @@ class TestErrorHandling:
             ),
             patch(
                 "stravapipe.cloudrun.postgres_writer_app.StandardActivity.model_validate",
-                return_value=MagicMock(),
+                return_value=StandardActivity.model_validate(SAMPLE_RAW_ACTIVITY),
             ),
         ):
             webhook = make_webhook_payload(
@@ -933,7 +941,7 @@ class TestFreshnessEmission:
             ),
             patch(
                 "stravapipe.cloudrun.postgres_writer_app.StandardActivity.model_validate",
-                return_value=MagicMock(map=None),
+                return_value=StandardActivity.model_validate(SAMPLE_RAW_ACTIVITY),
             ),
         ):
             webhook = make_webhook_payload(
@@ -973,7 +981,7 @@ class TestFreshnessEmission:
             ),
             patch(
                 "stravapipe.cloudrun.postgres_writer_app.StandardActivity.model_validate",
-                return_value=MagicMock(map=None),
+                return_value=StandardActivity.model_validate(SAMPLE_RAW_ACTIVITY),
             ),
         ):
             webhook = make_webhook_payload(
@@ -1006,7 +1014,7 @@ class TestFreshnessEmission:
             ),
             patch(
                 "stravapipe.cloudrun.postgres_writer_app.StandardActivity.model_validate",
-                return_value=MagicMock(map=None),
+                return_value=StandardActivity.model_validate(SAMPLE_RAW_ACTIVITY),
             ),
             patch("stravapipe.cloudrun.postgres_writer_app.logger") as mock_logger,
         ):
@@ -1139,7 +1147,7 @@ class TestFreshnessEmission:
             ),
             patch(
                 "stravapipe.cloudrun.postgres_writer_app.StandardActivity.model_validate",
-                return_value=MagicMock(map=None),
+                return_value=StandardActivity.model_validate(SAMPLE_RAW_ACTIVITY),
             ),
         ):
             webhook = make_webhook_payload(
@@ -1167,7 +1175,7 @@ class TestIdempotency:
             InsertResult.INSERTED,
             InsertResult.ALREADY_EXISTS,
         ]
-        mock_activity = MagicMock()
+        mock_activity = StandardActivity.model_validate(SAMPLE_RAW_ACTIVITY)
 
         with (
             patch(
@@ -1241,9 +1249,12 @@ class TestLifespanCleanup:
         mock_engine = MagicMock()
         mock_factory = MagicMock()
 
-        with patch(
-            "stravapipe.cloudrun.postgres_writer_app.create_session_factory",
-            return_value=(mock_engine, mock_factory),
+        with (
+            patch("stravapipe.cloudrun.postgres_writer_app.FirestoreClient"),
+            patch(
+                "stravapipe.cloudrun.postgres_writer_app.create_session_factory",
+                return_value=(mock_engine, mock_factory),
+            ),
         ):
             # TestClient context manager triggers startup and shutdown events
             with TestClient(app):
@@ -1253,3 +1264,83 @@ class TestLifespanCleanup:
 
             # Shutdown events have run
             mock_engine.dispose.assert_called_once()
+
+
+@pytest.mark.parametrize("aspect", ["create", "update", "delete"])
+@pytest.mark.parametrize("failure", ["missing", "conflict", "unavailable"])
+def test_registry_failure_retries_without_sql(client, aspect, failure):
+    from stravapipe.adapters.firestore.activity_connection import (
+        ConnectionConflictError,
+        ConnectionNotFoundError,
+    )
+
+    errors = {
+        "missing": ConnectionNotFoundError("missing or inactive"),
+        "conflict": ConnectionConflictError("inconsistent pair"),
+        "unavailable": RuntimeError("registry unavailable"),
+    }
+    app.state.connection_resolver.resolve.side_effect = errors[failure]
+    with patch("stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork") as uow:
+        response = client.post(
+            "/",
+            headers=make_cloudevent_headers(),
+            json=make_pubsub_body(
+                make_webhook_payload(
+                    aspect_type=aspect, raw_activity=SAMPLE_RAW_ACTIVITY
+                )
+            ),
+        )
+    assert response.status_code == 500
+    uow.assert_not_called()
+
+
+@pytest.mark.parametrize("aspect", ["create", "update"])
+@pytest.mark.parametrize("field", ["id", "athlete"])
+def test_payload_owner_and_id_must_match_event_before_sql(client, aspect, field):
+    raw = {
+        **SAMPLE_RAW_ACTIVITY,
+        field: 111 if field == "id" else {"id": 111, "resource_state": 1},
+    }
+    with patch("stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork") as uow:
+        response = client.post(
+            "/",
+            headers=make_cloudevent_headers(),
+            json=make_pubsub_body(
+                make_webhook_payload(aspect_type=aspect, raw_activity=raw)
+            ),
+        )
+    assert response.status_code == 500
+    uow.assert_not_called()
+
+
+@pytest.mark.parametrize("aspect", ["update", "delete"])
+def test_bare_events_capture_registry_uid(client, aspect):
+    with patch("stravapipe.cloudrun.postgres_writer_app.SqlAlchemyUnitOfWork") as uow:
+        payload = make_webhook_payload(aspect_type=aspect)
+        payload["updates"] = {"title": "Updated title"}
+        response = client.post(
+            "/", headers=make_cloudevent_headers(), json=make_pubsub_body(payload)
+        )
+    assert response.status_code == 200
+    assert uow.call_args.kwargs["owner"] == ActivityOwner("app-test", "98765")
+
+
+def test_firestore_cleanup_and_logging_failures_do_not_leak_engine(
+    mock_postgres_config,
+):
+    with (
+        patch("stravapipe.cloudrun.postgres_writer_app.FirestoreClient") as firestore,
+        patch(
+            "stravapipe.cloudrun.postgres_writer_app.create_session_factory"
+        ) as factory,
+        patch(
+            "stravapipe.cloudrun.postgres_writer_app.logger.warning",
+            side_effect=RuntimeError("logger failed"),
+        ),
+    ):
+        engine = MagicMock()
+        factory.return_value = (engine, MagicMock())
+        firestore.return_value.close.side_effect = RuntimeError("close failed")
+        with TestClient(app):
+            pass
+        engine.dispose.assert_called_once()

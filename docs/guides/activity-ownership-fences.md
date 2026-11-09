@@ -7,10 +7,13 @@ withheld until a separate activation migration. Activities, mappings and histori
 to backfill.
 
 The key is `(source, external_id, user_id, external_owner_id)`: app UID and provider
-subject are separate. Future writers must check both the historical fence and
-their exact owned tuple, preserving event-time/backfill-watermark ordering. No
+subject are separate. The [Python repository](../../packages/stravapipe/src/stravapipe/adapters/postgres/_repository.py)
+checks both the historical fence and its exact owned tuple, preserving
+event-time/backfill-watermark ordering. No
 activity/mapping FK is present because fences must survive their deletion.
-Full-account cleanup must purge UID-bound fences before activation.
+Full-account cleanup purges UID-bound fences in the same SQL transaction.
+Before activation, runtime DELETEs fail and retry because fence DML is withheld;
+activity and mapping deletions roll back together.
 
 [identity-rollout.json](../../scripts/ci/identity-rollout.json), validated by the
 [release producer](../../scripts/ci/image_release.py), declares these phases:
@@ -23,7 +26,7 @@ Full-account cleanup must purge UID-bound fences before activation.
 
 The deployment guard reads capability from each authenticated Python image's
 build source and migration requirements from the candidate source. Older v1
-declarations mean protocol 0. Merge guard support before this v2 declaration.
+declarations mean protocol 0. The compatible Python release declares `1/0`; it does not grant fence DML.
 
 Deploy compatible writer, deletion service and backfill in **both environments**
 before activating dev, so production can promote the intermediate release.

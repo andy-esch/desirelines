@@ -6,12 +6,29 @@ excludes. These unit tests exercise failure and readiness branches precisely.
 """
 
 import logging
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
 from stravapipe.adapters.postgres._repository import SqlAlchemyActivityRepository
+
+
+@pytest.fixture(autouse=True)
+def isolate_spatial_sql():
+    # Ownership and transaction ordering are exercised against real PostgreSQL.
+    # These tests isolate the spatial savepoint/recovery statements.
+    with patch.object(
+        SqlAlchemyActivityRepository,
+        "_platform_id",
+        return_value={
+            "source": "strava",
+            "external_id": "123",
+            "user_id": "app-test",
+            "external_owner_id": "999",
+        },
+    ):
+        yield
 
 
 def _session_with_savepoints() -> MagicMock:

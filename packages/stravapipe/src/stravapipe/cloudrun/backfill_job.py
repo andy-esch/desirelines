@@ -32,7 +32,6 @@ from sqlalchemy.engine import Engine
 
 from stravapipe.adapters.firestore import FirestoreTokenStore
 from stravapipe.adapters.firestore.activity_connection import (
-    ConnectionConflictError,
     ConnectionResolver,
 )
 from stravapipe.adapters.gcp import ActivitiesWriter, make_write_activities
@@ -41,6 +40,8 @@ from stravapipe.adapters.strava import create_strava_activities_repo
 from stravapipe.application.backfill import BackfillResult, BackfillService
 from stravapipe.config.backfill import load_backfill_config
 from stravapipe.domain import StravaTokenSet
+from stravapipe.domain.ownership import ActivityOwner
+from stravapipe.exceptions import CredentialStateError
 from stravapipe.shared.correlation import new_correlation_id
 from stravapipe.shared.logging import log_best_effort, setup_logging
 from stravapipe.shared.tracing import (
@@ -147,17 +148,17 @@ def main() -> None:
         token_store = FirestoreTokenStore(firestore_client)
         resolver = ConnectionResolver(firestore_client)
         owner = resolver.resolve(config.athlete_id)
-        # Remove with the persistence cutover: its current domain projection
-        # still infers user_id from athlete.id. Do not write the wrong app UID.
-        if owner.uid != owner.subject:
-            raise ConnectionConflictError(
-                "backfill persistence requires legacy UID ownership"
-            )
         token_data = token_store.get_tokens(owner)
 
         def validate_owner() -> None:
-            if resolver.resolve(owner.subject).uid != owner.uid:
-                raise ConnectionConflictError("backfill credential ownership changed")
+            try:
+                current = resolver.resolve(owner.subject)
+            except Exception as exc:
+                raise CredentialStateError(
+                    "backfill ownership could not be verified"
+                ) from exc
+            if current.uid != owner.uid:
+                raise CredentialStateError("backfill credential ownership changed")
 
         def persist_refreshed(refreshed: StravaTokenSet) -> None:
             nonlocal token_data
@@ -183,7 +184,11 @@ def main() -> None:
         instrument_sqlalchemy_engine(db_engine)
 
         def create_uow() -> SqlAlchemyUnitOfWork:
-            return SqlAlchemyUnitOfWork(session_factory, tracer=tracer)
+            return SqlAlchemyUnitOfWork(
+                session_factory,
+                tracer=tracer,
+                owner=ActivityOwner(owner.uid, owner.subject),
+            )
 
         # BigQuery (optional)
         if config.gcp_bigquery_dataset:
@@ -206,6 +211,8 @@ def main() -> None:
         service = BackfillService(
             strava_reader=strava_repo,
             uow_factory=create_uow,
+            owner=ActivityOwner(owner.uid, owner.subject),
+            validate_owner=validate_owner,
             bq_writer=bq_writer,
             batch_size=config.batch_size,
             tracer=tracer,

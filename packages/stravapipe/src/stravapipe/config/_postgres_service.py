@@ -8,8 +8,8 @@ environment). Both had their own copy; adding a third service meant a third.
 
 Only the genuinely common parts live here. Service-specific fields — the
 writer's `enable_cloud_logging`, the deletion service's
-`gcp_bigquery_dataset` / `firestore_database` — stay on their own subclass,
-because they are contract differences rather than duplication.
+`gcp_bigquery_dataset`, and each service's `firestore_database` — stay on their
+own subclass because they are contract differences rather than duplication.
 """
 
 from pydantic import Field
