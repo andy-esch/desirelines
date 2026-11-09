@@ -13,17 +13,11 @@
     "athlete": {
       "detailed": "available",
       "summary": "available",
-      "postgres": [
-        {
-          "kind": "derived_column",
-          "target": "desirelines.activities.user_id",
-          "attribute": "user_id"
-        }
-      ],
+      "postgres": [{"kind": "not_persisted"}],
       "bigquery": {"kind": "column", "target": "athlete"},
       "live": "create_write_and_enriched_pg_upsert",
       "backfill": "write",
-      "reason": "PostgreSQL stores athlete.id through the computed StandardActivity.user_id attribute."
+      "reason": "PostgreSQL binds the app UID from the server registry; athlete.id remains the provider subject in BigQuery and external-ID mappings."
     },
     "athlete_count": {
       "detailed": "available",
@@ -747,6 +741,10 @@
     }
   },
   "system_columns": {
+    "user_id": {
+      "source": "trusted_registry_owner",
+      "target": "desirelines.activities.user_id"
+    },
     "id": {
       "source": "external_id_mapping_or_identity_sequence",
       "target": "desirelines.activities.id"

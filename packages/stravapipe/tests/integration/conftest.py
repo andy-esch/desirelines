@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from stravapipe.adapters.postgres import (
     SqlAlchemyActivityRepository,
 )
+from stravapipe.domain.ownership import ActivityOwner
 from stravapipe.ports.out.unit_of_work import AbstractUnitOfWork
 
 
@@ -97,7 +98,9 @@ def uow(db_session) -> AbstractUnitOfWork:
 
         def __init__(self, session: Session):
             self._session = session
-            self.activities = SqlAlchemyActivityRepository(session)
+            self.activities = SqlAlchemyActivityRepository(
+                session, owner=ActivityOwner("999", "999")
+            )
 
         def __enter__(self):
             return self

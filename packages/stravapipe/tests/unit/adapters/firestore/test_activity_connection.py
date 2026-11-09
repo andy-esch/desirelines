@@ -76,3 +76,20 @@ def test_shared_scope_contract(case: dict) -> None:
     else:
         with pytest.raises(ValueError, match="invalid connection record"):
             ConnectionRecord.from_dict(data)
+
+
+def test_resolve_uses_a_read_only_transaction():
+    from unittest.mock import MagicMock, patch
+
+    from stravapipe.adapters.firestore.activity_connection import ConnectionResolver
+
+    client = MagicMock()
+    with patch(
+        "stravapipe.adapters.firestore.activity_connection.transactional"
+    ) as decorate:
+        record = ConnectionResolver(client).resolve("222")
+    client.transaction.assert_called_once_with(read_only=True)
+    assert record is decorate.return_value.return_value
+    decorate.return_value.assert_called_once_with(
+        client.transaction.return_value, "222"
+    )

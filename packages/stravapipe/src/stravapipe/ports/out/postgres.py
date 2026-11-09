@@ -323,7 +323,7 @@ class ActivityRepository(ABC):
         activity_routes are cascade-deleted via FK (ON DELETE CASCADE).
 
         Args:
-            user_id: Strava athlete ID (string)
+            user_id: trusted app UID (string)
 
         Returns:
             Count of deleted activity rows

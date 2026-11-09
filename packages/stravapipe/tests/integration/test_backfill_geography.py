@@ -14,6 +14,7 @@ from stravapipe.adapters.postgres import (
 from stravapipe.application.backfill import BackfillService, PostgresWriteStats
 from stravapipe.domain import StandardActivity, SummaryMap, SummaryStravaActivity
 from stravapipe.domain.activity import MetaAthlete
+from stravapipe.domain.ownership import ActivityOwner
 from stravapipe.ports.out.read import ReadDetailedActivities
 from tests.integration.helpers import activity_id_for
 
@@ -72,8 +73,12 @@ def make_summary_activity(
 def make_service(session_factory) -> BackfillService:
     """Build the real service/UoW composition against the test transaction."""
     return BackfillService(
+        owner=ActivityOwner("999", "999"),
+        validate_owner=MagicMock(),
         strava_reader=MagicMock(spec=ReadDetailedActivities),
-        uow_factory=lambda: SqlAlchemyUnitOfWork(session_factory),
+        uow_factory=lambda: SqlAlchemyUnitOfWork(
+            session_factory, owner=ActivityOwner("999", "999")
+        ),
     )
 
 

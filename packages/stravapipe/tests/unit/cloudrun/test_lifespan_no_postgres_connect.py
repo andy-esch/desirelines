@@ -68,6 +68,7 @@ def test_postgres_writer_lifespan_does_not_open_connection(fake_engine):
         patch(
             "stravapipe.cloudrun.postgres_writer_app.load_postgres_writer_config"
         ) as mock_config,
+        patch("stravapipe.cloudrun.postgres_writer_app.FirestoreClient"),
         _patch_create_engine(fake_engine),
     ):
         mock_config.return_value = MagicMock(

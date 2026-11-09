@@ -69,8 +69,15 @@ for an activity; cross-source matching/merging remains future work.
 external Strava IDs. Dispatcher/writer telemetry calls them `external_id`; read
 API telemetry uses the internal `activity_id`. Their numeric ranges can overlap,
 so resolve through the mapping rather than comparing or guessing the IDs.
-Deletion removes the activity and its mappings; a `(source, external_id)`
-tombstone retains the deletion fence independently. Re-importing a deleted
+`activities.user_id` is the captured app UID; `external_owner_id` is the Strava
+subject. Python writers require this trusted pair for every individual SQL
+operation and reject conflicting mappings, including routes and region tags.
+Provider payloads cannot choose the UID.
+
+Deletion removes the activity and its mappings. Writers check historical global
+`(source, external_id)` tombstones plus their exact owner-scoped fence; new
+fences retain both ownership identifiers. See the [rollout gates](../guides/activity-ownership-fences.md).
+Re-importing a deleted
 activity allocates a new internal ID; Neon restore preserves existing identity.
 
 ### Webhook Event

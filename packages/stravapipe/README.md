@@ -117,7 +117,7 @@ See [Docker Guide](../../docs/guides/docker.md) and [Deployment Guide](../../doc
 Each service has its own config class in `config/`:
 
 - `BQInserterConfig` - GCP project, BigQuery dataset
-- `PostgresWriterConfig` - GCP project, PostgreSQL connection string
+- `PostgresWriterConfig` - GCP project, PostgreSQL connection string, Firestore database
 - `DeletionServiceConfig` - GCP project, PG connection, BigQuery dataset, Firestore database
 - `BackfillConfig` - Athlete ID, years, PG connection, Firestore database, Strava client creds
 
@@ -164,3 +164,10 @@ POSTGRES_MAX_OVERFLOW=3     # Burst capacity (5 total max)
 
 - Switching from Neon to Cloud SQL? Set `POSTGRES_POOL_STRATEGY=internal`
 - Using PgBouncer in front of self-hosted? Set `POSTGRES_POOL_STRATEGY=external`
+
+The PostgreSQL writer resolves the event's Strava subject through the server-owned
+connection registry. Backfill captures the same UID/subject pair, revalidates it
+before each sink write, and aborts on ownership failure. PostgreSQL stores the
+app UID; BigQuery retains the source athlete ID. See the
+[ownership rollout gates](../../docs/guides/activity-ownership-fences.md) before
+deploying these changes: DELETEs retry until the separate fence activation.

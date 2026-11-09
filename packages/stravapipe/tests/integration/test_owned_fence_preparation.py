@@ -8,11 +8,14 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, ProgrammingError
 
-from stravapipe.adapters.postgres import SqlAlchemyActivityRepository
 from stravapipe.domain import StandardActivity
 from stravapipe.domain.activity import MetaAthlete
-from stravapipe.ports.out.postgres import DeleteResult, InsertResult
-from tests.integration.helpers import database_resource, migrated_database
+from tests.integration.helpers import (
+    database_resource,
+    insert_mapped_activity,
+    migrated_database,
+    upsert_mapped_tombstone,
+)
 
 FENCE = "desirelines.activity_deletion_fences"
 MIGRATION = "migrations/V0018__prepare_owned_activity_deletion_fences.sql"
@@ -48,9 +51,8 @@ def activity():
     )
 
 
-def test_migration_preserves_legacy_rows_metadata_and_current_writer(db_session):
-    repo = SqlAlchemyActivityRepository(db_session)
-    assert repo.insert(activity(), 100) is InsertResult.INSERTED
+def test_migration_preserves_legacy_rows_metadata_and_protocol_zero_writer(db_session):
+    insert_mapped_activity(db_session, activity().id, 100)
     live_before = db_session.execute(text("SELECT * FROM desirelines.activities")).all()
     links_before = db_session.execute(
         text("SELECT * FROM desirelines.activity_external_ids")
@@ -84,9 +86,22 @@ def test_migration_preserves_legacy_rows_metadata_and_current_writer(db_session)
     )
     assert db_session.execute(text(f"SELECT count(*) FROM {FENCE}")).scalar_one() == 0
     db_session.execute(text("SET LOCAL ROLE desirelines_dml_grp"))
-    assert repo.delete(activity().id, 200, "after-preparation") is DeleteResult.DELETED
-    assert repo.insert(activity(), 150) is InsertResult.RESURRECTION_BLOCKED
-    assert repo.insert(activity(), 201) is InsertResult.INSERTED
+    upsert_mapped_tombstone(db_session, activity().id, 200, "after-preparation")
+    db_session.execute(text("DELETE FROM desirelines.activities"))
+    insert_mapped_activity(db_session, activity().id, 150)
+    assert (
+        db_session.execute(
+            text("SELECT count(*) FROM desirelines.activities")
+        ).scalar_one()
+        == 0
+    )
+    insert_mapped_activity(db_session, activity().id, 201)
+    assert (
+        db_session.execute(
+            text("SELECT count(*) FROM desirelines.activities")
+        ).scalar_one()
+        == 1
+    )
 
 
 @pytest.mark.parametrize("operation", ["INSERT", "UPDATE", "DELETE"])

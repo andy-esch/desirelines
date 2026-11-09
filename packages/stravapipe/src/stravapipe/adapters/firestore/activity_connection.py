@@ -101,7 +101,9 @@ class ConnectionResolver:
         """Read both active records in one transaction; never read credentials."""
         lookup_key(subject)  # Reject invalid subjects before creating a transaction.
         read = transactional(self.resolve_in_transaction)
-        return cast(ConnectionRecord, read(self._client.transaction(), subject))
+        return cast(
+            ConnectionRecord, read(self._client.transaction(read_only=True), subject)
+        )
 
     def resolve_in_transaction(
         self, transaction: Transaction, subject: str

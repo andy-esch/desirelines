@@ -144,6 +144,7 @@ def test_manifest_shape_and_dispositions_are_valid():
     assert contract["fields"]
     assert contract["nested_differences"]
     assert set(contract["system_columns"]) == {
+        "user_id",
         "id",
         "created_at",
         "updated_at",
@@ -248,7 +249,7 @@ def test_source_availability_is_compatible_with_write_dispositions():
 def test_postgres_contract_matches_model_and_repository_mapping():
     contract = _contract()
     standard_fields = set(StandardActivity.model_fields)
-    for name in standard_fields:
+    for name in standard_fields - {"athlete"}:
         kinds = {mapping["kind"] for mapping in contract["fields"][name]["postgres"]}
         assert kinds != {"not_persisted"}, name
 
@@ -274,7 +275,9 @@ def test_postgres_contract_matches_model_and_repository_mapping():
     standard = StandardActivity.model_validate(summary, from_attributes=True)
     now = datetime(2026, 7, 24, tzinfo=UTC)
     params = _activity_write_params(standard, now)
-    assert tuple(params) == tuple(col for col in _ACTIVITY_COLUMNS if col != "id")
+    assert tuple(params) == tuple(
+        col for col in _ACTIVITY_COLUMNS if col not in {"id", "user_id"}
+    )
     assert "id" not in params  # the activity INSERT selects the mapping's ID
     assert contract["fields"]["id"]["postgres"] == [
         {

@@ -10,15 +10,19 @@ Activity data is now provided inline in the enriched event from the dispatcher
 
 from collections.abc import AsyncIterator
 from contextlib import AbstractContextManager, asynccontextmanager
+from dataclasses import dataclass
+from functools import partial
 import time
 from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from google.cloud.firestore_v1 import Client as FirestoreClient
 from opentelemetry.metrics import Counter, Histogram
 from opentelemetry.trace import Tracer
 from sqlalchemy.orm import Session, sessionmaker
 
+from stravapipe.adapters.firestore.activity_connection import ConnectionResolver
 from stravapipe.adapters.postgres import SqlAlchemyUnitOfWork
 from stravapipe.adapters.postgres._unit_of_work import create_session_factory
 from stravapipe.cloudrun._lifespan import shutdown_app_resources
@@ -30,6 +34,7 @@ from stravapipe.domain.activity import (
     is_non_geographic_activity,
 )
 from stravapipe.domain.geometry import decode_polyline_to_geojson
+from stravapipe.domain.ownership import ActivityOwner, ActivityOwnershipError
 from stravapipe.ports.out.postgres import (
     DeleteResult,
     InsertResult,
@@ -37,7 +42,7 @@ from stravapipe.ports.out.postgres import (
 )
 from stravapipe.shared.constants import ACTIVITY_SOURCE, ResponseStatus, SkipReason
 from stravapipe.shared.correlation import get_dispatcher_received_at_ms
-from stravapipe.shared.logging import setup_logging
+from stravapipe.shared.logging import log_best_effort, setup_logging
 from stravapipe.shared.metrics import record_duration, setup_metrics
 from stravapipe.shared.readiness import (
     build_ready_response,
@@ -151,6 +156,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         )
         logger.info("PostgreSQL session factory initialized")
 
+        app.state.firestore_client = FirestoreClient(
+            project=config.gcp_project_id, database=config.firestore_database
+        )
+        app.state.connection_resolver = ConnectionResolver(app.state.firestore_client)
         app.state.readiness_timeout = config.readiness_timeout
 
         # Initialize OTel metrics
@@ -219,6 +228,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.exception("Application lifecycle error")
         raise
     finally:
+        client = getattr(app.state, "firestore_client", None)
+        if client is not None:
+            try:
+                client.close()
+            except Exception:
+                log_best_effort(
+                    partial(
+                        logger.warning, "Firestore client cleanup failed", exc_info=True
+                    )
+                )
         shutdown_app_resources(app)
 
 
@@ -247,6 +266,14 @@ async def ready(request: Request) -> JSONResponse:
     return build_ready_response(checks)
 
 
+@dataclass(frozen=True)
+class WriterMetrics:
+    latency: Histogram | None
+    freshness: Histogram | None
+    stale: Counter | None
+    resurrection: Counter | None
+
+
 @app.post("/")
 async def handle_pubsub(request: Request) -> WebhookResponse:
     """Handle Pub/Sub CloudEvent from Eventarc."""
@@ -257,6 +284,18 @@ async def handle_pubsub(request: Request) -> WebhookResponse:
     stale_counter = request.app.state.stale_event_counter
     resurrection_counter = request.app.state.resurrection_counter
     tracer = request.app.state.tracer
+    metrics = WriterMetrics(
+        pg_hist, freshness_hist, stale_counter, resurrection_counter
+    )
+
+    def resolve_owner(event: pb.WebhookEvent) -> ActivityOwner:
+        if event.owner_id <= 0 or event.object_id <= 0:
+            raise ActivityOwnershipError(
+                "activity event requires positive provider IDs"
+            )
+        connection = request.app.state.connection_resolver.resolve(str(event.owner_id))
+        return ActivityOwner(connection.uid, connection.subject)
+
     return await handle_webhook_cloudevent(
         request,
         logger,
@@ -265,23 +304,21 @@ async def handle_pubsub(request: Request) -> WebhookResponse:
             event_data,
             cid,
             session_factory,
-            pg_hist,
+            metrics,
             tracer,
-            freshness_hist,
-            resurrection_counter,
+            owner=resolve_owner(event),
         ),
         on_update=lambda event, event_data, cid: _handle_update(
             event,
             event_data,
             cid,
             session_factory,
-            pg_hist,
+            metrics,
             tracer,
-            freshness_hist,
-            stale_counter,
+            owner=resolve_owner(event),
         ),
         on_delete=lambda event, event_data, cid: _handle_delete(
-            event, cid, session_factory, pg_hist, tracer, freshness_hist, stale_counter
+            event, cid, session_factory, metrics, tracer, owner=resolve_owner(event)
         ),
         webhook_counter=webhook_counter,
         tracer=tracer,
@@ -296,10 +333,10 @@ async def _handle_create(
     event_data: dict[str, Any],
     correlation_id: str,
     session_factory: sessionmaker[Session],
-    pg_histogram: Histogram | None = None,
+    metrics: WriterMetrics,
     tracer: Tracer | None = None,
-    freshness_histogram: Histogram | None = None,
-    resurrection_counter: Counter | None = None,
+    *,
+    owner: ActivityOwner,
 ) -> WebhookResponse:
     """Handle CREATE events - insert new activity to PostgreSQL.
 
@@ -326,6 +363,7 @@ async def _handle_create(
     # ValidationError → 422 so Pub/Sub acks immediately; retrying a
     # malformed payload will fail identically.
     activity = validate_or_422(StandardActivity, raw_activity, context="raw_activity")
+    owner.validate_activity(activity.id, activity.athlete.id, expected_id=external_id)
 
     # Decode the polyline BEFORE opening the transaction. It is pure CPU and
     # dominates for long routes, so doing it inside the transaction held a Neon
@@ -360,10 +398,10 @@ async def _handle_create(
     # The UoW emits postgres.session.acquire and postgres.commit sub-spans
     # internally; the call-site sub-spans below cover the work in between
     # so a trace shows insert / route-insert / commit latency separately.
-    uow = SqlAlchemyUnitOfWork(session_factory, tracer=tracer)
+    uow = SqlAlchemyUnitOfWork(session_factory, tracer=tracer, owner=owner)
     with (
         _pg_span(tracer, "postgres.insert", "INSERT", external_id),
-        record_duration(pg_histogram, {"operation": "insert"}),
+        record_duration(metrics.latency, {"operation": "insert"}),
         uow,
     ):
         # Sub-operation histogram: postgres.activities.insert is the single
@@ -373,7 +411,7 @@ async def _handle_create(
         # a sub-operation label lets the SLO task alert on it independently.
         with (
             _pg_span(tracer, "postgres.activities.insert", "INSERT", external_id),
-            record_duration(pg_histogram, {"operation": "activities_insert"}),
+            record_duration(metrics.latency, {"operation": "activities_insert"}),
         ):
             insert_result = uow.activities.insert(activity, event.event_time)
 
@@ -409,7 +447,7 @@ async def _handle_create(
                     "route + region tagging skipped (not on map)",
                     external_id,
                     extra={
-                        "user_id": activity.user_id,
+                        "user_id": owner.uid,
                         "polyline_length": len(activity.map.polyline),
                     },
                 )
@@ -417,12 +455,12 @@ async def _handle_create(
         uow.commit()
 
     if insert_result is InsertResult.INSERTED:
-        _record_freshness(freshness_histogram, "create")
+        _record_freshness(metrics.freshness, "create")
 
         logger.info(
             "Created activity %s in PostgreSQL",
             external_id,
-            extra={"user_id": activity.user_id},
+            extra={"user_id": owner.uid},
         )
         return WebhookResponse(
             status=ResponseStatus.CREATED,
@@ -431,8 +469,8 @@ async def _handle_create(
         )
 
     if insert_result is InsertResult.RESURRECTION_BLOCKED:
-        if resurrection_counter is not None:
-            resurrection_counter.add(1, {"aspect_type": "create"})
+        if metrics.resurrection is not None:
+            metrics.resurrection.add(1, {"aspect_type": "create"})
         logger.warning(
             "Blocked resurrecting deleted activity %s "
             "(CREATE event_time %s not newer than its deletion tombstone)",
@@ -461,9 +499,10 @@ def _handle_update_enriched(
     event_time: int,
     correlation_id: str,
     session_factory: sessionmaker[Session],
-    pg_histogram: Histogram | None = None,
+    metrics: WriterMetrics,
     tracer: Tracer | None = None,
-    freshness_histogram: Histogram | None = None,
+    *,
+    owner: ActivityOwner,
 ) -> WebhookResponse:
     """Refresh an existing activity from a re-fetched Strava payload.
 
@@ -476,11 +515,12 @@ def _handle_update_enriched(
     # ValidationError → 422 so Pub/Sub acks immediately; retrying a malformed
     # payload will fail identically. Mirrors the CREATE path.
     activity = validate_or_422(StandardActivity, raw_activity, context="raw_activity")
+    owner.validate_activity(activity.id, activity.athlete.id, expected_id=external_id)
 
-    uow = SqlAlchemyUnitOfWork(session_factory, tracer=tracer)
+    uow = SqlAlchemyUnitOfWork(session_factory, tracer=tracer, owner=owner)
     with (
         _pg_span(tracer, "postgres.upsert", "UPDATE", external_id),
-        record_duration(pg_histogram, {"operation": "upsert"}),
+        record_duration(metrics.latency, {"operation": "upsert"}),
         uow,
     ):
         upserted = uow.activities.upsert(activity, event_time)
@@ -525,11 +565,11 @@ def _handle_update_enriched(
             reason=SkipReason.STALE_EVENT,
         )
 
-    _record_freshness(freshness_histogram, "update")
+    _record_freshness(metrics.freshness, "update")
     logger.info(
         "Refreshed activity %s from enriched UPDATE",
         external_id,
-        extra={"user_id": activity.user_id},
+        extra={"user_id": owner.uid},
     )
     return WebhookResponse(
         status=ResponseStatus.UPDATED,
@@ -543,10 +583,10 @@ async def _handle_update(
     event_data: dict[str, Any],
     correlation_id: str,
     session_factory: sessionmaker[Session],
-    pg_histogram: Histogram | None = None,
+    metrics: WriterMetrics,
     tracer: Tracer | None = None,
-    freshness_histogram: Histogram | None = None,
-    stale_event_counter: Counter | None = None,
+    *,
+    owner: ActivityOwner,
 ) -> WebhookResponse:
     """Handle UPDATE events.
 
@@ -570,12 +610,12 @@ async def _handle_update(
             event.event_time,
             correlation_id,
             session_factory,
-            pg_histogram,
+            metrics,
             tracer,
-            freshness_histogram,
+            owner=owner,
         )
         if response.reason == SkipReason.STALE_EVENT:
-            _record_stale_drop(stale_event_counter, "update")
+            _record_stale_drop(metrics.stale, "update")
         return response
 
     updates = event.updates
@@ -603,10 +643,10 @@ async def _handle_update(
             reason=SkipReason.NO_RELEVANT_UPDATES,
         )
 
-    uow = SqlAlchemyUnitOfWork(session_factory, tracer=tracer)
+    uow = SqlAlchemyUnitOfWork(session_factory, tracer=tracer, owner=owner)
     with (
         _pg_span(tracer, "postgres.update_metadata", "UPDATE", external_id),
-        record_duration(pg_histogram, {"operation": "update_metadata"}),
+        record_duration(metrics.latency, {"operation": "update_metadata"}),
         uow,
     ):
         # relevant_updates is non-empty (early return above), so the result is
@@ -619,7 +659,7 @@ async def _handle_update(
         uow.commit()
 
     if result is MetadataUpdateResult.UPDATED:
-        _record_freshness(freshness_histogram, "update")
+        _record_freshness(metrics.freshness, "update")
 
         logger.info(
             "Updated activity %s metadata",
@@ -633,7 +673,7 @@ async def _handle_update(
         )
 
     if result is MetadataUpdateResult.STALE:
-        _record_stale_drop(stale_event_counter, "update")
+        _record_stale_drop(metrics.stale, "update")
         logger.info(
             "Dropped stale UPDATE for activity %s "
             "(event_time %s older than stored last_event_time)",
@@ -663,10 +703,10 @@ async def _handle_delete(
     event: pb.WebhookEvent,
     correlation_id: str,
     session_factory: sessionmaker[Session],
-    pg_histogram: Histogram | None = None,
+    metrics: WriterMetrics,
     tracer: Tracer | None = None,
-    freshness_histogram: Histogram | None = None,
-    stale_event_counter: Counter | None = None,
+    *,
+    owner: ActivityOwner,
 ) -> WebhookResponse:
     """Handle DELETE events - remove activity from PostgreSQL.
 
@@ -674,18 +714,18 @@ async def _handle_delete(
     is dropped rather than applied.
     """
     external_id = event.object_id
-    uow = SqlAlchemyUnitOfWork(session_factory, tracer=tracer)
+    uow = SqlAlchemyUnitOfWork(session_factory, tracer=tracer, owner=owner)
 
     with (
         _pg_span(tracer, "postgres.delete", "DELETE", external_id),
-        record_duration(pg_histogram, {"operation": "delete"}),
+        record_duration(metrics.latency, {"operation": "delete"}),
         uow,
     ):
         result = uow.activities.delete(external_id, event.event_time, correlation_id)
         uow.commit()
 
     if result is DeleteResult.DELETED:
-        _record_freshness(freshness_histogram, "delete")
+        _record_freshness(metrics.freshness, "delete")
 
         logger.info("Deleted activity %s from PostgreSQL", external_id)
         return WebhookResponse(
@@ -695,7 +735,7 @@ async def _handle_delete(
         )
 
     if result is DeleteResult.STALE:
-        _record_stale_drop(stale_event_counter, "delete")
+        _record_stale_drop(metrics.stale, "delete")
         logger.info(
             "Dropped stale DELETE for activity %s "
             "(event_time %s older than the live row's last_event_time)",

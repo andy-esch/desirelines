@@ -8,7 +8,6 @@ from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 import logging
-import time
 
 import pytest
 from sqlalchemy import Engine, event, text
@@ -18,6 +17,7 @@ from sqlalchemy.orm import Session
 from stravapipe.adapters.postgres import SqlAlchemyActivityRepository
 from stravapipe.domain import StandardActivity
 from stravapipe.domain.activity import MetaAthlete
+from stravapipe.domain.ownership import ActivityOwner
 from stravapipe.ports.out.postgres import (
     BackfillUpsertResult,
     DeleteResult,
@@ -26,8 +26,11 @@ from stravapipe.ports.out.postgres import (
 )
 from tests.integration.helpers import (
     activity_id_for,
+    insert_mapped_activity,
     migrated_database,
     upsert_legacy_tombstone,
+    upsert_mapped_tombstone,
+    wait_until_waiting_on_a_lock,
 )
 
 
@@ -437,7 +440,7 @@ class TestActivityDeletionTombstone:
         return db_session.execute(
             text(
                 "SELECT deletion_event_time, deletion_correlation_id "
-                "FROM desirelines.deleted_activities WHERE source = 'strava' AND external_id = CAST(:id AS text)"
+                "FROM desirelines.activity_deletion_fences WHERE source = 'strava' AND external_id = CAST(:id AS text)"
             ),
             {"id": activity_id},
         ).fetchone()
@@ -453,6 +456,9 @@ class TestActivityDeletionTombstone:
         )
 
     def test_delete_writes_tombstone_and_removes_row(self, uow, db_session):
+        uow.activities = SqlAlchemyActivityRepository(
+            db_session, owner=ActivityOwner(str(100040), str(100040))
+        )
         with uow:
             uow.activities.insert(
                 make_activity(activity_id=100040, user_id=100040, name="v1"), 100
@@ -471,6 +477,9 @@ class TestActivityDeletionTombstone:
         assert tomb.deletion_correlation_id == "corr-xyz"
 
     def test_late_create_after_delete_is_blocked(self, uow, db_session):
+        uow.activities = SqlAlchemyActivityRepository(
+            db_session, owner=ActivityOwner(str(100041), str(100041))
+        )
         with uow:
             uow.activities.insert(
                 make_activity(activity_id=100041, user_id=100041, name="v1"), 50
@@ -495,6 +504,9 @@ class TestActivityDeletionTombstone:
 
     def test_delete_before_create_blocks_the_create(self, uow, db_session):
         # DELETE arrives first (no live row): tombstone is still written.
+        uow.activities = SqlAlchemyActivityRepository(
+            db_session, owner=ActivityOwner(str(100042), str(100042))
+        )
         with uow:
             assert uow.activities.delete(100042, 200) is DeleteResult.NOT_FOUND
             uow.commit()
@@ -514,6 +526,9 @@ class TestActivityDeletionTombstone:
 
     def test_create_equal_to_deletion_event_time_is_blocked(self, uow, db_session):
         # Ties go to the delete (>=) — resurrection is worse than dropping a CREATE.
+        uow.activities = SqlAlchemyActivityRepository(
+            db_session, owner=ActivityOwner(str(100043), str(100043))
+        )
         with uow:
             uow.activities.delete(100043, 100)
             uow.commit()
@@ -531,6 +546,9 @@ class TestActivityDeletionTombstone:
 
     def test_newer_create_after_delete_is_allowed(self, uow, db_session):
         # A genuine re-creation strictly newer than the delete is accepted.
+        uow.activities = SqlAlchemyActivityRepository(
+            db_session, owner=ActivityOwner(str(100044), str(100044))
+        )
         with uow:
             uow.activities.delete(100044, 100)
             uow.commit()
@@ -548,6 +566,9 @@ class TestActivityDeletionTombstone:
         assert self._activity_exists(db_session, 100044)
 
     def test_repeated_delete_keeps_newest_deletion_event_time(self, uow, db_session):
+        uow.activities = SqlAlchemyActivityRepository(
+            db_session, owner=ActivityOwner(str(100045), str(100045))
+        )
         with uow:
             uow.activities.delete(100045, 100)
             uow.commit()
@@ -570,6 +591,9 @@ class TestActivityDeletionTombstone:
     def test_backfill_insert_ignores_tombstone(self, uow, db_session):
         # Backfill (event_time=None) is unfenced against the tombstone here; the
         # backfill-vs-delete watermark is a separate follow-up.
+        uow.activities = SqlAlchemyActivityRepository(
+            db_session, owner=ActivityOwner(str(100046), str(100046))
+        )
         with uow:
             uow.activities.delete(100046, 200)
             uow.commit()
@@ -587,6 +611,9 @@ class TestActivityDeletionTombstone:
 
     def test_backfill_upsert_ignores_tombstone(self, uow, db_session):
         # Same deferral as insert: backfill upsert (None) applies past a tombstone.
+        uow.activities = SqlAlchemyActivityRepository(
+            db_session, owner=ActivityOwner(str(100047), str(100047))
+        )
         with uow:
             uow.activities.delete(100047, 200)
             uow.commit()
@@ -606,6 +633,9 @@ class TestActivityDeletionTombstone:
     def test_stale_enriched_update_after_delete_is_blocked(self, uow, db_session):
         # An enriched UPDATE (upsert) older than the delete must not resurrect
         # the activity via its insert leg.
+        uow.activities = SqlAlchemyActivityRepository(
+            db_session, owner=ActivityOwner(str(100048), str(100048))
+        )
         with uow:
             uow.activities.insert(
                 make_activity(activity_id=100048, user_id=100048, name="v1"), 100
@@ -629,6 +659,9 @@ class TestActivityDeletionTombstone:
     def test_stale_delete_does_not_remove_newer_recreated_row(self, uow, db_session):
         # delete@200 -> recreate@300 -> stale delete@250: the recreated row must
         # survive and the stale delete is reported STALE.
+        uow.activities = SqlAlchemyActivityRepository(
+            db_session, owner=ActivityOwner(str(100049), str(100049))
+        )
         with uow:
             uow.activities.insert(
                 make_activity(activity_id=100049, user_id=100049, name="v1"), 100
@@ -766,6 +799,9 @@ class TestBackfillWatermarkUpsert:
     def test_backfill_skips_when_tombstone_newer_than_watermark(self, uow, db_session):
         # A live DELETE (event_time 300) landed after the run start (wm=200):
         # backfill must not resurrect the activity.
+        uow.activities = SqlAlchemyActivityRepository(
+            db_session, owner=ActivityOwner(str(100064), str(100064))
+        )
         with uow:
             uow.activities.delete(100064, 300)
             uow.commit()
@@ -917,6 +953,9 @@ class TestActivitySourceAndMapping:
         db_session.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
 
     def test_insert_records_source_and_mapping(self, uow, db_session):
+        uow.activities = SqlAlchemyActivityRepository(
+            db_session, owner=ActivityOwner(str(4242), str(4242))
+        )
         with uow:
             assert (
                 uow.activities.insert(
@@ -968,7 +1007,7 @@ class TestActivitySourceAndMapping:
 
         tombstone_source = db_session.execute(
             text(
-                "SELECT source FROM desirelines.deleted_activities WHERE source = 'strava' AND external_id = CAST(:id AS text)"
+                "SELECT source FROM desirelines.activity_deletion_fences WHERE source = 'strava' AND external_id = CAST(:id AS text)"
             ),
             {"id": 100103},
         ).scalar_one()
@@ -1004,6 +1043,9 @@ class TestActivitySourceAndMapping:
     def test_delete_by_user_removes_their_activities_and_mappings(
         self, uow, db_session
     ):
+        uow.activities = SqlAlchemyActivityRepository(
+            db_session, owner=ActivityOwner(str(4343), str(4343))
+        )
         with uow:
             uow.activities.insert(make_activity(activity_id=100110, user_id=4343), 100)
             uow.activities.insert(make_activity(activity_id=100111, user_id=4343), 100)
@@ -1076,7 +1118,7 @@ class TestActivityIdAllocation:
             text("SELECT user_id, source FROM desirelines.activities WHERE id = :id"),
             {"id": allocated},
         ).one()
-        assert tuple(row) == (activity.user_id, "strava")
+        assert tuple(row) == (str(activity.athlete.id), "strava")
         db_session.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
 
     def test_duplicate_and_rewrites_keep_the_id_without_advancing_the_sequence(
@@ -1261,7 +1303,7 @@ class TestLookupsThroughTheMapping:
         assert self._name(db_session, mapped) is None
         tombstone = db_session.execute(
             text(
-                "SELECT source, external_id FROM desirelines.deleted_activities "
+                "SELECT source, external_id FROM desirelines.activity_deletion_fences "
                 "WHERE source = 'strava' AND external_id = CAST(:id AS text)"
             ),
             {"id": 100305},
@@ -1326,12 +1368,21 @@ def _remove_concurrent_rows(engine: Engine) -> None:
                 "external_ids": [str(id_) for id_ in _CONCURRENT_IDS],
             },
         )
-        connection.execute(
-            text(
-                "DELETE FROM desirelines.deleted_activities WHERE source = 'strava' AND external_id = ANY(:ids)"
-            ),
-            {"ids": [str(id_) for id_ in _CONCURRENT_IDS]},
-        )
+        tables = ["deleted_activities"]
+        if (
+            connection.execute(
+                text("SELECT to_regclass('desirelines.activity_deletion_fences')")
+            ).scalar_one()
+            is not None
+        ):
+            tables.append("activity_deletion_fences")
+        for table in tables:
+            connection.execute(
+                text(
+                    f"DELETE FROM desirelines.{table} WHERE source = 'strava' AND external_id = ANY(:ids)"
+                ),
+                {"ids": [str(id_) for id_ in _CONCURRENT_IDS]},
+            )
 
 
 @pytest.fixture
@@ -1363,32 +1414,24 @@ def committing_session(engine: Engine) -> Iterator[Callable[[], Session]]:
     _remove_concurrent_rows(engine)
 
 
-def _wait_until_waiting_on_a_lock(engine: Engine, pid: int) -> None:
-    """Block until the backend with this pid is waiting on a lock."""
-    deadline = time.monotonic() + 10
-    while time.monotonic() < deadline:
-        with engine.connect() as connection:
-            wait = connection.execute(
-                text("SELECT wait_event_type FROM pg_stat_activity WHERE pid = :pid"),
-                {"pid": pid},
-            ).scalar_one_or_none()
-        if wait == "Lock":
-            return
-        time.sleep(0.02)
-    raise AssertionError("the racing writer never waited on the first one")
-
-
 def _race(
     engine: Engine,
     first: Session,
     second: Session,
     write: Callable[[SqlAlchemyActivityRepository], object],
+    *,
+    owner: ActivityOwner | None = None,
 ) -> object:
     # Read before the race: the worker thread owns `second` once it starts.
     pid = second.execute(text("SELECT pg_backend_pid()")).scalar_one()
     with ThreadPoolExecutor(max_workers=1) as pool:
-        racing = pool.submit(write, SqlAlchemyActivityRepository(second))
-        _wait_until_waiting_on_a_lock(engine, pid)
+        racing = pool.submit(
+            write,
+            SqlAlchemyActivityRepository(
+                second, owner=owner or ActivityOwner("999", "999")
+            ),
+        )
+        wait_until_waiting_on_a_lock(engine, pid)
         first.commit()
         outcome = racing.result(timeout=15)
     second.commit()
@@ -1427,18 +1470,15 @@ class TestConcurrentHistoricalWrites:
             legacy.commit()
 
         def current_delete():
-            result = SqlAlchemyActivityRepository(current).delete(
-                external_id, 200, "current-200"
-            )
+            upsert_mapped_tombstone(current, external_id, 200, "current-200")
             current.commit()
-            return result
 
         with ThreadPoolExecutor(max_workers=2) as pool:
             older = pool.submit(legacy_delete)
             newer = pool.submit(current_delete)
             try:
                 for pid in pids:
-                    _wait_until_waiting_on_a_lock(engine, pid)
+                    wait_until_waiting_on_a_lock(engine, pid)
                 assert (
                     observer.execute(
                         text("""
@@ -1459,15 +1499,12 @@ class TestConcurrentHistoricalWrites:
                     == 0
                 )
                 # The bridge serializes a single ID, not unrelated deletions.
-                assert (
-                    SqlAlchemyActivityRepository(observer).delete(9_600_002, 100)
-                    is DeleteResult.NOT_FOUND
-                )
+                upsert_mapped_tombstone(observer, 9_600_002, 100)
                 observer.commit()
             finally:
                 holder.rollback()
             older.result(timeout=15)
-            assert newer.result(timeout=15) is DeleteResult.NOT_FOUND
+            assert newer.result(timeout=15) is None
 
         row = observer.execute(
             text("""
@@ -1493,10 +1530,12 @@ class TestConcurrentHistoricalWrites:
                 engine,
                 first,
                 second,
-                lambda repo: repo.delete(external_id, 200, "current-200"),
+                lambda _repo: upsert_mapped_tombstone(
+                    second, external_id, 200, "current-200"
+                ),
             )
         else:
-            SqlAlchemyActivityRepository(first).delete(external_id, 100, "current-100")
+            upsert_mapped_tombstone(first, external_id, 100, "current-100")
             _race(
                 engine,
                 first,
@@ -1550,17 +1589,18 @@ class TestConcurrentHistoricalWrites:
 
         with ThreadPoolExecutor(max_workers=1) as pool:
             arriving = pool.submit(
-                SqlAlchemyActivityRepository(writer).insert,
-                make_activity(activity_id=9_600_001),
+                insert_mapped_activity,
+                writer,
+                9_600_001,
                 100,
             )
-            _wait_until_waiting_on_a_lock(engine, pid)
+            wait_until_waiting_on_a_lock(engine, pid)
             with engine.connect() as connection:
                 assert _sequence_state(connection) == sequence
             # Roll back the sweep: legacy rows in a developer's database must
             # not be renumbered by a committing test. Sequence gaps remain.
             holder.rollback()
-            assert arriving.result(timeout=15) is InsertResult.INSERTED
+            assert arriving.result(timeout=15) is None
         writer.commit()
 
         assert activity_id_for(writer, 9_600_001) == sequence[0] + 1
@@ -1575,7 +1615,9 @@ class TestConcurrentWritesThroughTheMapping:
         first, second = committing_session(), committing_session()
         activity = make_activity(activity_id=9_600_001)
         assert (
-            SqlAlchemyActivityRepository(first).insert(activity, 100)
+            SqlAlchemyActivityRepository(
+                first, owner=ActivityOwner("999", "999")
+            ).insert(activity, 100)
             is InsertResult.INSERTED
         )
 
@@ -1588,9 +1630,9 @@ class TestConcurrentWritesThroughTheMapping:
     ):
         first, second = committing_session(), committing_session()
         assert (
-            SqlAlchemyActivityRepository(first).insert(
-                make_activity(activity_id=9_600_002, name="Created"), 100
-            )
+            SqlAlchemyActivityRepository(
+                first, owner=ActivityOwner("999", "999")
+            ).insert(make_activity(activity_id=9_600_002, name="Created"), 100)
             is InsertResult.INSERTED
         )
 
@@ -1615,13 +1657,13 @@ class TestConcurrentWritesThroughTheMapping:
         self, engine, committing_session
     ):
         setup, first, second = (committing_session() for _ in range(3))
-        SqlAlchemyActivityRepository(setup).insert(
+        SqlAlchemyActivityRepository(setup, owner=ActivityOwner("999", "999")).insert(
             make_activity(activity_id=9_600_003), 100
         )
         setup.commit()
-        assert SqlAlchemyActivityRepository(first).upsert(
-            make_activity(activity_id=9_600_003, name="Enriched"), 200
-        )
+        assert SqlAlchemyActivityRepository(
+            first, owner=ActivityOwner("999", "999")
+        ).upsert(make_activity(activity_id=9_600_003, name="Enriched"), 200)
 
         outcome = _race(engine, first, second, lambda repo: repo.delete(9_600_003, 300))
 
@@ -1634,14 +1676,18 @@ class TestConcurrentWritesThroughTheMapping:
         setup, deleting, recreating = (committing_session() for _ in range(3))
         activity = make_activity(activity_id=9_600_004, user_id=9_600_004)
         assert (
-            SqlAlchemyActivityRepository(setup).insert(activity, 100)
+            SqlAlchemyActivityRepository(
+                setup, owner=ActivityOwner(str(9600004), str(9600004))
+            ).insert(activity, 100)
             is InsertResult.INSERTED
         )
         setup.commit()
         original_id = activity_id_for(setup, activity.id)
         assert original_id is not None
         assert (
-            SqlAlchemyActivityRepository(deleting).delete(activity.id, 300)
+            SqlAlchemyActivityRepository(
+                deleting, owner=ActivityOwner(str(9600004), str(9600004))
+            ).delete(activity.id, 300)
             is DeleteResult.DELETED
         )
 
@@ -1650,6 +1696,7 @@ class TestConcurrentWritesThroughTheMapping:
             deleting,
             recreating,
             lambda repo: _write_new_activity(repo, activity, write, 400),
+            owner=ActivityOwner(str(9600004), str(9600004)),
         )
 
         recreated_id = activity_id_for(recreating, activity.id)
@@ -1667,29 +1714,23 @@ class TestConcurrentWritesThroughTheMapping:
                 text(
                     "SELECT count(*) FROM desirelines.activities WHERE user_id = :user_id"
                 ),
-                {"user_id": activity.user_id},
+                {"user_id": str(activity.athlete.id)},
             ).scalar_one()
             == 1
         )
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "An older enriched UPDATE that waits on a DELETE re-creates the "
-            "activity once the DELETE commits: its tombstone check ran before "
-            "the wait. Not caused by the mapping (main behaves the same)."
-        ),
-    )
     def test_an_upsert_racing_a_delete_does_not_resurrect_it(
         self, engine, committing_session
     ):
         setup, first, second = (committing_session() for _ in range(3))
-        SqlAlchemyActivityRepository(setup).insert(
-            make_activity(activity_id=9_600_004, user_id=9_600_004), 100
-        )
+        SqlAlchemyActivityRepository(
+            setup, owner=ActivityOwner(str(9600004), str(9600004))
+        ).insert(make_activity(activity_id=9_600_004, user_id=9_600_004), 100)
         setup.commit()
         assert (
-            SqlAlchemyActivityRepository(first).delete(9_600_004, 300)
+            SqlAlchemyActivityRepository(
+                first, owner=ActivityOwner(str(9600004), str(9600004))
+            ).delete(9_600_004, 300)
             is DeleteResult.DELETED
         )
 
@@ -1700,6 +1741,7 @@ class TestConcurrentWritesThroughTheMapping:
             lambda repo: repo.upsert(
                 make_activity(activity_id=9_600_004, user_id=9_600_004), 200
             ),
+            owner=ActivityOwner("9600004", "9600004"),
         )
 
         with engine.connect() as connection:
@@ -1739,9 +1781,9 @@ class TestConcurrentWritesThroughTheMapping:
         self, engine, committing_session, write
     ):
         setup, holder, writer = (committing_session() for _ in range(3))
-        SqlAlchemyActivityRepository(setup).insert(
-            make_activity(activity_id=9_600_005, user_id=_LOCK_ORDER_USER), 100
-        )
+        SqlAlchemyActivityRepository(
+            setup, owner=ActivityOwner(str(_LOCK_ORDER_USER), str(_LOCK_ORDER_USER))
+        ).insert(make_activity(activity_id=9_600_005, user_id=_LOCK_ORDER_USER), 100)
         setup.commit()
 
         # Hold the mapping row, as another writer partway through would.
@@ -1755,8 +1797,14 @@ class TestConcurrentWritesThroughTheMapping:
         assert mapped_id is not None
         pid = writer.execute(text("SELECT pg_backend_pid()")).scalar_one()
         with ThreadPoolExecutor(max_workers=1) as pool:
-            racing = pool.submit(write, SqlAlchemyActivityRepository(writer))
-            _wait_until_waiting_on_a_lock(engine, pid)
+            racing = pool.submit(
+                write,
+                SqlAlchemyActivityRepository(
+                    writer,
+                    owner=ActivityOwner(str(_LOCK_ORDER_USER), str(_LOCK_ORDER_USER)),
+                ),
+            )
+            wait_until_waiting_on_a_lock(engine, pid)
             # The waiting writer holds no lock on the activity row yet; one
             # that locked it first could deadlock against the holder.
             holder.execute(

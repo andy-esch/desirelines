@@ -16,15 +16,17 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import ProgrammingError
 
+from stravapipe.adapters.postgres import SqlAlchemyActivityRepository
 from stravapipe.domain import StandardActivity
 from stravapipe.domain.activity import MetaAthlete
+from stravapipe.domain.ownership import ActivityOwner
 from stravapipe.ports.out.postgres import (
     BackfillUpsertResult,
     DeleteResult,
     InsertResult,
     MetadataUpdateResult,
 )
-from tests.integration.helpers import migrated_database
+from tests.integration.helpers import database_resource, migrated_database
 
 
 @pytest.fixture(scope="module")
@@ -236,9 +238,25 @@ class TestRekeyAdoptedActivities:
             text("UPDATE desirelines.activities SET user_id = '17042' WHERE id = :id"),
             {"id": _OLDEST},
         )
+        db_session.execute(
+            text(
+                "UPDATE desirelines.activity_external_ids SET external_owner_id = '17042' WHERE external_id = :id"
+            ),
+            {"id": str(_OLDEST)},
+        )
         assert _rekey(db_session) == 1
         rekeyed = _ids_by_strava_id(db_session, _OLDEST)[_OLDEST]
 
+        db_session.execute(
+            text(
+                database_resource(
+                    "migrations/V0018__prepare_owned_activity_deletion_fences.sql"
+                ).read_text()
+            )
+        )
+        uow.activities = SqlAlchemyActivityRepository(
+            db_session, owner=ActivityOwner("17042", "17042")
+        )
         with uow:
             assert uow.activities.insert(activity, 100) is InsertResult.ALREADY_EXISTS
             assert (
@@ -279,6 +297,16 @@ class TestStravaIdsInsideTheDesirelinesRange:
             elapsed_time=100,
         )
 
+        db_session.execute(
+            text(
+                database_resource(
+                    "migrations/V0018__prepare_owned_activity_deletion_fences.sql"
+                ).read_text()
+            )
+        )
+        uow.activities = SqlAlchemyActivityRepository(
+            db_session, owner=ActivityOwner("17043", "17043")
+        )
         with uow:
             if write == "insert":
                 assert uow.activities.insert(newcomer, 100) is InsertResult.INSERTED
@@ -297,5 +325,5 @@ class TestStravaIdsInsideTheDesirelinesRange:
 
         with uow:
             assert uow.activities.delete(newcomer.id, 200) is DeleteResult.DELETED
-            assert uow.activities.exists(_OLDEST)
+            assert _ids_by_strava_id(db_session, _OLDEST)[_OLDEST] != claimed
             uow.commit()
