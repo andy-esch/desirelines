@@ -2,7 +2,8 @@
 
 [V0018](../../schemas/database/migrations/V0018__prepare_owned_activity_deletion_fences.sql)
 adds an empty `activity_deletion_fences` table. Runtime roles can SELECT; DML is
-withheld until a separate activation migration. Activities, mappings and historical
+withheld until [V0019](../../schemas/database/migrations/V0019__activate_owned_activity_deletion_fences.sql)
+grants INSERT/UPDATE/DELETE to the existing writer role. Activities, mappings and historical
 `deleted_activities` remain unchanged. Historical fences have no reliable owner
 to backfill.
 
@@ -26,7 +27,9 @@ activity and mapping deletions roll back together.
 
 The deployment guard reads capability from each authenticated Python image's
 build source and migration requirements from the candidate source. Older v1
-declarations mean protocol 0. The compatible Python release declares `1/0`; it does not grant fence DML.
+declarations mean protocol 0. The intermediate Python release declares `1/0`;
+V0019's release declares `1/1`. The SQL migration does not verify the live fleet;
+the deployment guard requires the reviewed floor and receipts before Flyway.
 
 Deploy compatible writer, deletion service and backfill in **both environments**
 before activating dev, so production can promote the intermediate release.
@@ -47,9 +50,14 @@ jobs past their last check. Never rerun a pre-guard workflow.
 Before granting DML, publish the owner-reviewed writer floor and its GitOps receipt
 bound to the verified PostgreSQL target. Hosted preflight and every apply attempt
 reject incompatible Python images thereafter; retain both artifacts and use
-compatible rollback targets. The guard checks metadata, not the live fleet.
+compatible protocol-1 rollback targets. After activation, retain fence DML
+grants and both floor artifacts when rolling back images; do not restore
+protocol-0 binaries. The guard checks metadata, not the live fleet.
 Independent enrollment remains separately gated; the bootstrap seal is unchanged.
 
 [Migration tests](../../packages/stravapipe/tests/integration/test_owned_fence_preparation.py)
 cover preservation, real role privileges, independent owner tuples and the
 requirement that granting DML declares protocol 1.
+[Activation tests](../../packages/stravapipe/tests/integration/test_owned_fence_activation.py)
+cover preservation, least-privilege grants and actual runtime DELETE/full-account
+cleanup under the writer role.
