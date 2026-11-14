@@ -14,7 +14,11 @@
     "correctness": "off"
   },
   "options": {
-    "typeAware": true
+    "typeAware": true,
+    // Keep the existing `eslint-disable` comments working (oxlint's default),
+    // and warn when one no longer suppresses anything, as ESLint did by default.
+    "respectEslintDisableDirectives": true,
+    "reportUnusedDisableDirectives": "warn"
   },
   "env": {
     "builtin": true
