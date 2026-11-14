@@ -35,12 +35,29 @@ type MockPublisher struct {
 	calls      int
 	// Published tracks all successfully published events.
 	Published []*generated.EnrichedEvent
+	// DeauthOwners records the bound owner of each successful deauth handoff.
+	DeauthOwners []ports.CredentialOwner
 }
 
 // Publish implements the mock publisher.
 func (m *MockPublisher) Publish(_ context.Context, enriched *generated.EnrichedEvent, _ string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	return m.publishLocked(enriched)
+}
+
+// PublishDeauth records ownership separately from the unchanged provider body.
+func (m *MockPublisher) PublishDeauth(_ context.Context, enriched *generated.EnrichedEvent, owner ports.CredentialOwner, _ string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if err := m.publishLocked(enriched); err != nil {
+		return err
+	}
+	m.DeauthOwners = append(m.DeauthOwners, owner)
+	return nil
+}
+
+func (m *MockPublisher) publishLocked(enriched *generated.EnrichedEvent) error {
 	m.calls++
 	if m.calls <= m.FailFirstN {
 		return fmt.Errorf("mock publish failure %d/%d", m.calls, m.FailFirstN)

@@ -87,6 +87,40 @@ func TestWebhookMappingFailuresRetryWithoutOrphanAcknowledgement(t *testing.T) {
 	}
 }
 
+func TestDeauthHandoffRetainsOwnerAfterGrantConfirmation(t *testing.T) {
+	original := ports.CredentialOwner{UID: "original-app-uid", Subject: testOwnerID}
+	currentUID, resolutions := original.UID, 0
+	resolver := &portstest.MockConnectionResolver{ResolveFunc: func(ctx context.Context, subject string) (activityconnection.Record, error) {
+		resolutions++
+		record, err := (&portstest.MockConnectionResolver{}).Resolve(ctx, subject)
+		if err != nil {
+			t.Fatal(err)
+		}
+		record.UID, record.Provenance, record.BootstrapID = currentUID, "oauth", ""
+		return record, nil
+	}}
+	strava := &portstest.MockStravaClient{VerifyFunc: func(_ context.Context, owner ports.CredentialOwner) (ports.GrantStatus, error) {
+		if owner != original {
+			t.Fatalf("grant checked for replacement owner: %v", owner)
+		}
+		currentUID = "replacement-app-uid"
+		return ports.GrantRevoked, nil
+	}}
+	deauth := &portstest.MockPublisher{}
+	// The live token store refuses cleanup after the pair changes. Publication
+	// must already carry the original owner so downstream never substitutes it.
+	tokens := &portstest.MockTokenStore{DeleteErr: activityconnection.ErrConflict}
+	h := NewHandler(&portstest.MockPublisher{}, deauth, &portstest.MockSecretProvider{}, strava, tokens, resolver, portstest.NewAllowAllMockAllowlist(), gcplog.NewNoOpLogger(), nil)
+	event := &generated.WebhookEvent{OwnerId: testOwnerID, ObjectId: testOwnerID, EventTime: testEventTime, ObjectType: generated.ObjectType_OBJECT_TYPE_ATHLETE, AspectType: generated.AspectType_ASPECT_TYPE_UPDATE}
+	w := httptest.NewRecorder()
+	// Public webhook fields cannot select the app UID in the durable handoff.
+	body := []byte(`{"updates":{"authorized":"false"},"deletion_owner_uid":"attacker"}`)
+	h.handleAthleteEvent(context.Background(), w, httptest.NewRequest(http.MethodPost, "/", nil), event, body)
+	if w.Code != http.StatusOK || resolutions != 1 || len(deauth.DeauthOwners) != 1 || deauth.DeauthOwners[0] != original {
+		t.Fatalf("handoff was retargeted: status=%d resolutions=%d owners=%v", w.Code, resolutions, deauth.DeauthOwners)
+	}
+}
+
 func assertResolvedDeauthorization(t *testing.T, h *Handler, event *generated.WebhookEvent, owner ports.CredentialOwner, deauth *portstest.MockPublisher, strava *portstest.MockStravaClient, tokens *portstest.MockTokenStore, admission *portstest.MockAllowlist) {
 	t.Helper()
 	uid := owner.UID
@@ -96,6 +130,9 @@ func assertResolvedDeauthorization(t *testing.T, h *Handler, event *generated.We
 	h.handleAthleteEvent(context.Background(), w, httptest.NewRequest(http.MethodPost, "/", nil), event, nil)
 	if w.Code != http.StatusOK || deauth.PublishedCount() != 1 || len(tokens.DeletedOwners) != 1 || tokens.DeletedOwners[0] != owner || strava.VerifiedOwners[0] != owner {
 		t.Fatalf("deauth lost owner: status=%d deleted=%v verified=%v", w.Code, tokens.DeletedOwners, strava.VerifiedOwners)
+	}
+	if len(deauth.DeauthOwners) != 1 || deauth.DeauthOwners[0] != owner || deauth.Published[0].Event.OwnerId != owner.Subject {
+		t.Fatalf("deauth handoff lost original owner: %v", deauth.DeauthOwners)
 	}
 	if len(admission.CalledWith) != 1 || len(admission.InvalidatedWith) != 1 || admission.InvalidatedWith[0] != uid {
 		t.Fatalf("deauth admission calls=%v invalidated=%v", admission.CalledWith, admission.InvalidatedWith)

@@ -49,7 +49,7 @@ for activity outcomes.
 
 Gateway and dispatcher images require verified, sealed bootstrap evidence through
 [the release declaration](../../scripts/ci/identity-rollout.json). Independent
-enrollment and persistence/backfill ownership routing remain separate stages.
+enrollment remains disabled while full-account deletion ownership is migrated.
 
 **Type Definitions:** Webhook types are defined in `schemas/proto/desirelines/webhook/v1/webhook.proto` and shared with stravapipe (Python). Generated code lives in `types/generated/`. See `just proto-gen-backend`.
 
@@ -80,11 +80,17 @@ Strava signals athlete deauthorization with an `athlete` webhook event — eithe
 1. Resolves the active ownership pair and **confirms revocation with Strava**.
    An active grant is acknowledged without cleanup. Missing tokens cannot confirm
    revocation; mapping or backend failures return 500 for redelivery.
-2. **Publishes** to `GCP_PUBSUB_DEAUTH_TOPIC`. If publication fails, tokens remain
+2. **Publishes** the captured UID/subject as versioned attributes to
+   `GCP_PUBSUB_DEAUTH_TOPIC`, keeping the provider body unchanged. If publication
+   fails, tokens remain
    available so a redelivery can confirm and retry the handoff.
 3. **Best-effort deletes** tokens at `users/{uid}/private/strava_tokens`, only
    while the original pair still matches, and invalidates the UID's admission
    cache entry. Downstream cleanup owns eventual deletion after the handoff.
+
+See the [ownership handoff and deployment sequence](../../docs/guides/deauthorization-cleanup.md).
+The current deletion consumer still uses legacy numeric identity; the additive
+attributes prepare its later migration.
 
 Deauth deliberately bypasses app admission. Removing an app UID from the
 allowlist must not strand a formerly admitted user's data when their Strava grant

@@ -15,5 +15,6 @@ python_tests(
     dependencies=[
         "scripts/ops/check-strava-sports.py:ops0",
         "scripts/ops/count-unstamped-goals.py:ops0",
+        "schemas/test-fixtures:deletion_ownership_fixture",
     ],
 )

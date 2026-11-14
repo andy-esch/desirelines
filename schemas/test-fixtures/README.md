@@ -1,6 +1,11 @@
 # Shared Test Fixtures
 
-Cross-language test fixtures that ensure Go (dispatcher) and Python (stravapipe) webhook adapters produce identical results from the same inputs.
+Cross-language fixtures keep Go and Python webhook, identity and credential contracts aligned.
+
+`deletion_ownership.json` pins the additive deauthorization body/attribute
+contract. Dispatcher publication tests, the legacy Python consumer compatibility
+test and DLQ replay tests share it. See the
+[handoff guide](../../docs/guides/deauthorization-cleanup.md).
 
 ## Why
 

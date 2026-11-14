@@ -19,7 +19,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -40,12 +39,8 @@ type tokenFixture struct {
 
 func loadTokenFixtures(t *testing.T) []tokenFixture {
 	t.Helper()
-	_, filename, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("cannot determine test file location")
-	}
-	path := filepath.Join(filepath.Dir(filename), "..", "..", "..", "schemas", "test-fixtures", "strava_tokens.json")
-	data, err := os.ReadFile(path) //nolint:gosec // path is relative to this test file
+	path := filepath.Join("..", "..", "..", "schemas", "test-fixtures", "strava_tokens.json")
+	data, err := os.ReadFile(path) //nolint:gosec // Repository fixture relative to the Go package.
 	if err != nil {
 		t.Fatalf("read shared fixtures: %v", err)
 	}

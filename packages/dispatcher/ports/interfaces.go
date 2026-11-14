@@ -33,6 +33,14 @@ type Publisher interface {
 	Close(ctx context.Context) error
 }
 
+// DeauthPublisher durably binds confirmed revocation to its original owner.
+// The caller must confirm the grant before publishing; attributes are transport
+// metadata, never identity supplied by the public webhook.
+type DeauthPublisher interface {
+	PublishDeauth(ctx context.Context, enriched *generated.EnrichedEvent, owner CredentialOwner, correlationID string) error
+	Close(ctx context.Context) error
+}
+
 // RawPublisher defines the outbound port for publishing a message the caller
 // has already serialized. It exists for topics whose consumer defines the wire
 // format — currently the BigQuery subscription, which reads JSON matched

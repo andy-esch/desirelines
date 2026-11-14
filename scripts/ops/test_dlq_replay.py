@@ -137,6 +137,34 @@ def test_attributes_and_ordering_key_preserved_without_stale_validation_metadata
     ]
 
 
+def test_deletion_ownership_survives_replay_without_rebinding() -> None:
+    fixture_path = (
+        Path(__file__).parents[2] / "schemas/test-fixtures/deletion_ownership.json"
+    )
+    if not fixture_path.exists():
+        fixture_path = Path("test-fixtures/deletion_ownership.json")
+    fixture = json.loads(fixture_path.read_text())
+    # Include UID/subject inequality: replay must never reconstruct ownership
+    # from the provider's numeric ID, or refresh it from today's registry.
+    for uid in ("98765", "independent-uid", "67890"):
+        attributes = {**fixture["attributes"], "deletion_owner_uid": uid}
+        data = json.dumps(fixture["event"]).encode()
+        project, topic, subscription = dlq.destinations("deletion-service", "dev")
+        transport = Transport([received(data, attributes=attributes)])
+        assert project == "desirelines-dev"
+        assert dlq.replay(transport, topic, subscription, "JSON", dry_run=False) == 1
+        assert transport.bodies("publish") == [
+            {
+                "messages": [
+                    {
+                        "data": base64.b64encode(data).decode(),
+                        "attributes": {**attributes, "replayed_from_dlq": "true"},
+                    }
+                ]
+            }
+        ]
+
+
 def test_application_json_is_not_unwrapped_as_a_dead_letter_envelope() -> None:
     data = b'{"message":{"data":"nested application data"},"aspect_type":"create"}'
     transport = Transport([received(data)])

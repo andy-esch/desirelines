@@ -12,7 +12,9 @@ import (
 
 	"cloud.google.com/go/pubsub/v2"
 	webhookproto "github.com/andy-esch/desirelines/packages/dispatcher/adapters/proto"
+	"github.com/andy-esch/desirelines/packages/dispatcher/ports"
 	"github.com/andy-esch/desirelines/packages/dispatcher/types/generated"
+	"github.com/andy-esch/desirelines/packages/shared/activityconnection"
 	"github.com/andy-esch/desirelines/packages/shared/otel"
 	otelglobal "go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -68,7 +70,7 @@ var (
 	topicIDRegex = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9-_.~+%]{2,254}$`)
 )
 
-// Publisher is a Pub/Sub adapter that implements the repository.Publisher interface.
+// Publisher implements the activity, deauthorization and raw publishing ports.
 type Publisher struct {
 	client    *pubsub.Client
 	publisher *pubsub.Publisher
@@ -142,6 +144,32 @@ func NewPublisher(ctx context.Context, projectID, topicID string, logger *slog.L
 // Returns ErrPublisherClosed if called after Close.
 // If the context has no deadline, a default timeout of 30s is applied.
 func (p *Publisher) Publish(ctx context.Context, enriched *generated.EnrichedEvent, correlationID string) error {
+	return p.publishEnriched(ctx, enriched, correlationID, nil)
+}
+
+// PublishDeauth adds versioned ownership attributes after the caller confirms
+// revocation. The body retains provider IDs for existing deletion consumers.
+func (p *Publisher) PublishDeauth(ctx context.Context, enriched *generated.EnrichedEvent, owner ports.CredentialOwner, correlationID string) error {
+	if err := owner.Validate(); err != nil {
+		return fmt.Errorf("invalid deauth owner: %w", err)
+	}
+	if enriched == nil || enriched.Event == nil {
+		return errors.New("deauth event is required")
+	}
+	event := enriched.Event
+	if event.ObjectType != generated.ObjectType_OBJECT_TYPE_ATHLETE || event.OwnerId != owner.Subject ||
+		(event.AspectType != generated.AspectType_ASPECT_TYPE_UPDATE && event.AspectType != generated.AspectType_ASPECT_TYPE_DELETE) || enriched.RawActivity != nil {
+		return errors.New("deauth event does not match captured owner")
+	}
+	return p.publishEnriched(ctx, enriched, correlationID, map[string]string{
+		"deletion_owner_version":  "1",
+		"deletion_owner_uid":      owner.UID,
+		"deletion_owner_provider": activityconnection.Provider,
+		"deletion_owner_subject":  strconv.FormatInt(owner.Subject, 10),
+	})
+}
+
+func (p *Publisher) publishEnriched(ctx context.Context, enriched *generated.EnrichedEvent, correlationID string, attributes map[string]string) error {
 	// Use ToEnrichedJSON to serialize with string enums ("create", "activity")
 	// and include raw_activity as a nested JSON object.
 	data, err := webhookproto.ToEnrichedJSON(enriched)
@@ -149,7 +177,7 @@ func (p *Publisher) Publish(ctx context.Context, enriched *generated.EnrichedEve
 		return fmt.Errorf("failed to marshal enriched event: %w", err)
 	}
 
-	id, err := p.publishBytes(ctx, data, correlationID)
+	id, err := p.publishBytes(ctx, data, correlationID, attributes)
 	if err != nil {
 		return err
 	}
@@ -170,7 +198,7 @@ func (p *Publisher) Publish(ctx context.Context, enriched *generated.EnrichedEve
 // timeout, tracing and metrics are identical to Publish.
 // Returns ErrPublisherClosed if called after Close.
 func (p *Publisher) PublishRaw(ctx context.Context, data []byte, correlationID string) error {
-	id, err := p.publishBytes(ctx, data, correlationID)
+	id, err := p.publishBytes(ctx, data, correlationID, nil)
 	if err != nil {
 		return err
 	}
@@ -184,10 +212,10 @@ func (p *Publisher) PublishRaw(ctx context.Context, data []byte, correlationID s
 }
 
 // publishBytes publishes an already-serialized message body and returns the
-// assigned Pub/Sub message ID. It owns everything the two exported publish
-// methods share: the closed-check, the fallback deadline, the span, the
+// assigned Pub/Sub message ID. It owns everything the publish paths share:
+// the closed-check, the fallback deadline, the span, the
 // attributes, and the duration metric. Callers add only their own logging.
-func (p *Publisher) publishBytes(ctx context.Context, data []byte, correlationID string) (id string, err error) {
+func (p *Publisher) publishBytes(ctx context.Context, data []byte, correlationID string, attributes map[string]string) (id string, err error) {
 	p.mu.RLock()
 	if p.closed {
 		p.mu.RUnlock()
@@ -223,6 +251,9 @@ func (p *Publisher) publishBytes(ctx context.Context, data []byte, correlationID
 	// short duration.
 	attrs := map[string]string{
 		"correlation_id": correlationID,
+	}
+	for key, value := range attributes {
+		attrs[key] = value
 	}
 	if t, ok := webhookReceivedAt(ctx); ok {
 		attrs["dispatcher_received_at_unix_ms"] = strconv.FormatInt(t.UnixMilli(), 10)

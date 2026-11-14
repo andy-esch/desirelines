@@ -216,7 +216,7 @@ const deauthVerificationTimeout = 1 * time.Second
 type Handler struct {
 	secretProvider       ports.SecretProvider
 	publisher            ports.Publisher
-	deauthPublisher      ports.Publisher
+	deauthPublisher      ports.DeauthPublisher
 	rowPublisher         ports.RawPublisher
 	stravaClient         ports.StravaClient
 	tokenStore           ports.TokenStore
@@ -287,7 +287,7 @@ type HandlerConfig struct {
 }
 
 // NewHandler creates a new webhook handler with injected dependencies.
-func NewHandler(publisher, deauthPublisher ports.Publisher, secretProvider ports.SecretProvider, stravaClient ports.StravaClient, tokenStore ports.TokenStore, connections ports.ConnectionResolver, allowChecker allowlist.Checker, logger *slog.Logger, cfg *HandlerConfig) *Handler {
+func NewHandler(publisher ports.Publisher, deauthPublisher ports.DeauthPublisher, secretProvider ports.SecretProvider, stravaClient ports.StravaClient, tokenStore ports.TokenStore, connections ports.ConnectionResolver, allowChecker allowlist.Checker, logger *slog.Logger, cfg *HandlerConfig) *Handler {
 	if cfg == nil {
 		cfg = &HandlerConfig{}
 	}
@@ -1362,7 +1362,7 @@ func (h *Handler) handleAthleteEvent(ctx context.Context, w http.ResponseWriter,
 	// from this topic; they must not depend on inspecting the body for deauth intent (it's
 	// detected here from the raw webhook and deliberately not propagated).
 	enriched := &generated.EnrichedEvent{Event: webhook}
-	if publishErr := h.deauthPublisher.Publish(ctx, enriched, correlationID); publishErr != nil {
+	if publishErr := h.deauthPublisher.PublishDeauth(ctx, enriched, owner, correlationID); publishErr != nil {
 		h.recordDeauthCleanup(ctx, deauthPublishFailed)
 		h.writeError(w, r, http.StatusInternalServerError, ErrCodeDeauthFailed,
 			"Failed to publish deauth event",
