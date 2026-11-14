@@ -209,9 +209,9 @@ describe("API Error Utilities", () => {
 
       redactAuthorizationHeader(error);
 
-      expect((error.config?.headers as AxiosHeaders).get("authorization")).toBeFalsy();
-      expect((error.config?.headers as AxiosHeaders).get("Authorization")).toBeFalsy();
-      expect((error.config?.headers as AxiosHeaders).get("X-Other")).toBe("keep");
+      expect((error.config!.headers as AxiosHeaders).get("authorization")).toBeFalsy();
+      expect((error.config!.headers as AxiosHeaders).get("Authorization")).toBeFalsy();
+      expect((error.config!.headers as AxiosHeaders).get("X-Other")).toBe("keep");
     });
   });
 

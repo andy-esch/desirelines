@@ -2,7 +2,7 @@
 web-test:
     cd packages/web && npm test -- --coverage
 
-# Run ESLint on the React project
+# Run oxlint (including type-aware rules) on the React project
 web-lint:
     cd packages/web && npm run lint
 

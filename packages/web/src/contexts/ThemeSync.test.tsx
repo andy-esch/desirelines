@@ -251,7 +251,7 @@ describe("ThemeSync", () => {
       expect(sync.writes).toHaveBeenCalledTimes(1);
       expect(sync.writes.mock.calls[0]?.[1]).toMatchObject({ preferences: { theme: "system" } });
       expect(
-        Object.keys((sync.writes.mock.calls[0]?.[1] as { preferences: object }).preferences)
+        Object.keys((sync.writes.mock.calls[0]![1] as { preferences: object }).preferences)
       ).toEqual(["theme"]);
       expect(localStorage.getItem(THEME_STORAGE_KEYS.account)).toBe("system");
     });
