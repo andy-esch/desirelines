@@ -71,7 +71,7 @@
     "oxlint-tsgolint": "^7.0.2006",
     "prettier": "^3.6.2",
     "ts-proto": "2.18.4",
-    "typescript": "^6.0.0",
+    "typescript": "^7.0.0",
     "vite": "^8.0.0",
     "vitest": "^5.0.0"
   },
