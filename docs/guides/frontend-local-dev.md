@@ -105,7 +105,7 @@ npm run dev
 # Type checking
 npm run typecheck
 
-# Linting
+# Linting (oxlint, including type-aware rules); lint:fix applies safe fixes
 npm run lint
 
 # Unused files, exports and dependencies (knip; CI fails on any)
@@ -117,6 +117,12 @@ npm test
 # Run tests with UI
 npm run test:ui
 ```
+
+Linting is configured in `packages/web/.oxlintrc.json`. For in-editor diagnostics, install
+the Oxc extension (`oxc.oxc-vscode` for VS Code), which runs the project's own oxlint and
+picks up the type-aware setting from that file; the ESLint extension no longer applies.
+Inline `eslint-disable` comments still work, and oxlint warns when one no longer
+suppresses anything.
 
 ## Development Workflow
 

@@ -59,16 +59,16 @@ To provision it:
 
 ## Scripts
 
-| Command             | Description                 |
-| ------------------- | --------------------------- |
-| `npm run dev`       | Dev server (localhost:3000) |
-| `npm run build`     | Production build            |
-| `npm test`          | Run tests (watch mode)      |
-| `npm run test:run`  | Run tests once (CI)         |
-| `npm run typecheck` | TypeScript check            |
-| `npm run knip`      | Unused code and deps check  |
-| `npm run lint`      | Lint code                   |
-| `npm run format`    | Format code                 |
+| Command                 | Description                                     |
+| ----------------------- | ----------------------------------------------- |
+| `npm run dev`           | Dev server (localhost:3000)                     |
+| `npm run build`         | Production build                                |
+| `npm test`              | Run tests once                                  |
+| `npm run test:coverage` | Run tests with coverage (CI)                    |
+| `npm run typecheck`     | TypeScript check                                |
+| `npm run knip`          | Unused code and deps check                      |
+| `npm run lint`          | Lint with oxlint (`.oxlintrc.json`, type-aware) |
+| `npm run format`        | Format code                                     |
 
 ## Deployment
 
