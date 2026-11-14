@@ -25,7 +25,7 @@ help:
 # Run all tests across Python, Go, and Web
 test: py-test go-test web-test
 
-# Run all linters (Ruff, golangci-lint, ESLint, knip, buf, shellcheck)
+# Run all linters (Ruff, golangci-lint, oxlint, knip, buf, shellcheck)
 lint: py-lint go-lint web-lint web-knip proto-lint sh-lint planning-refs-check
 
 # Format all code (Ruff, go fmt, Prettier, buf, terraform fmt)

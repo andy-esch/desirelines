@@ -19,11 +19,12 @@ repos:
 # Local hooks for Web (React) to ensure version alignment with package.json
 - repo: local
   hooks:
-  - id: web-eslint
-    name: Web ESLint
-    # Run eslint from the project root, pointing to the local config.
-    # We use 'npm exec' to use the locally installed eslint binary.
-    entry: npm exec --prefix packages/web -- eslint --config packages/web/eslint.config.js --fix
+  - id: web-oxlint
+    name: Web oxlint
+    # Run oxlint from the project root, pointing to the local config (which
+    # turns on the type-aware rules). We use 'npm exec' to use the locally
+    # installed oxlint and oxlint-tsgolint binaries.
+    entry: npm exec --prefix packages/web -- oxlint --config packages/web/.oxlintrc.json --fix
     language: system
     files: ^packages/web/.*\.(js|ts|jsx|tsx)$
     exclude: /generated/

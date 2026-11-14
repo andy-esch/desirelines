@@ -185,7 +185,7 @@ just proto-check-web   # from the repo root; needs the pinned protoc
 **Tools:**
 
 - Vitest - Testing framework
-- ESLint - Linting
+- oxlint - Linting, including type-aware rules (`packages/web/.oxlintrc.json`)
 - Prettier - Formatting
 - TypeScript - Type checking
 - knip - Unused files, exports, types and dependencies (`packages/web/knip.json`)
@@ -444,7 +444,7 @@ pre-commit run --all-files
 **Configured hooks:**
 
 - Python: `ruff` (lint + format)
-- JavaScript: `prettier`, `eslint`
+- JavaScript: `prettier`, `oxlint`
 - Terraform: `terraform_fmt`, `terraform_validate`
 - General: trailing whitespace, YAML/JSON validation
 
