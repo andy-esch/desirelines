@@ -1,8 +1,8 @@
 // Package httpadapter handles Strava subscription verification and webhook events.
 //
 // The [composition root] supplies ownership/admission checks, topic-specific
-// publishers and the callback capability, wraps [Handler.RegisterRoutes] with
-// tracing, and coordinates graceful shutdown.
+// publishers and the callback capability, registers request tracing through
+// [Handler.RegisterRoutesInstrumented], and coordinates graceful shutdown.
 //
 // The [dispatcher README] documents supported endpoints, configuration and
 // deauthorization behavior.
