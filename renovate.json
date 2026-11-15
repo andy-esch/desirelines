@@ -15,7 +15,7 @@
   "prHourlyLimit": 2,
   "postUpdateOptions": ["gomodTidyAll", "npmDedupe"],
   "constraints": {
-    "npm": "^11"
+    "npm": "^12.0.0"
   },
   "terraform": {
     "enabled": true
