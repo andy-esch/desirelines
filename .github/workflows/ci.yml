@@ -792,7 +792,7 @@ jobs:
       - name: Setup TFLint
         uses: terraform-linters/setup-tflint@v6
         with:
-          tflint_version: v0.65.0
+          tflint_version: v0.66.0
 
       - name: Lint Terraform
         env:
