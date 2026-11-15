@@ -60,3 +60,10 @@ the sibling services if a shared dependency (Neon) is the root cause.
 deletion-service <env>` (dry run) then `--execute`. See
 [Redriving a DLQ](dlq-redrive.md) — it carries the compliance-verification step
 for this service.
+
+Preserve any `deletion_owner_*` attributes and the original body during replay;
+never replace the captured owner from today's registry. See the
+[ownership handoff](../guides/deauthorization-cleanup.md) for producer-first
+deployment and handling requirements for older unbound messages. The current
+consumer still uses legacy numeric identity; attributes alone do not enable
+ownership-aware cleanup.

@@ -525,6 +525,9 @@ func TestSecurity_DeauthPublishFailureRetainsTokenForRetry(t *testing.T) {
 	if got := rig.tokens.DeletedCount(); got != 1 {
 		t.Errorf("DeleteTokens calls = %d, want 1", got)
 	}
+	if len(rig.deauth.DeauthOwners) != 1 || rig.deauth.DeauthOwners[0] != portstest.LegacyOwner(victimOwnerID) {
+		t.Fatalf("retry lost confirmed owner: %v", rig.deauth.DeauthOwners)
+	}
 }
 
 // TestSecurity_SubscriptionIDEnumerationRequiresCallbackCapability pins the

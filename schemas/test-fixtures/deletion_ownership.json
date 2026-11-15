@@ -1,0 +1,16 @@
+{
+  "event": {
+    "aspect_type": "update",
+    "object_type": "athlete",
+    "object_id": 98765,
+    "owner_id": 98765,
+    "event_time": 1704067200,
+    "subscription_id": 123456
+  },
+  "attributes": {
+    "deletion_owner_version": "1",
+    "deletion_owner_uid": "98765",
+    "deletion_owner_provider": "strava",
+    "deletion_owner_subject": "98765"
+  }
+}

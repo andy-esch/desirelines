@@ -1,5 +1,7 @@
 """Unit tests for deletion_service_app FastAPI endpoints."""
 
+import json
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
@@ -203,7 +205,11 @@ class TestReadyEndpoint:
 
 
 class TestDeauthEndpoint:
-    def test_successful_deletion(self, client, mock_services):
+    @pytest.mark.parametrize("ownership_attributes", [False, True])
+    @pytest.mark.parametrize("aspect_type", ["update", "delete"])
+    def test_successful_deletion(
+        self, client, mock_services, ownership_attributes, aspect_type
+    ):
         """Full deletion across all stores returns 200."""
         # Mock BQ deletion
         mock_services["bq_deletion_service"].run.return_value = BQDeletionResult(
@@ -218,6 +224,18 @@ class TestDeauthEndpoint:
         mock_uow.__exit__ = MagicMock(return_value=False)
         mock_uow.activities.delete_by_user.return_value = 3
 
+        payload, attributes = _make_deauth_payload(), None
+        if ownership_attributes:
+            fixture_path = (
+                Path(__file__).parents[5]
+                / "schemas/test-fixtures/deletion_ownership.json"
+            )
+            if not fixture_path.exists():
+                fixture_path = Path("test-fixtures/deletion_ownership.json")
+            fixture = json.loads(fixture_path.read_text())
+            payload, attributes = fixture["event"], fixture["attributes"]
+        payload["aspect_type"] = aspect_type
+
         with patch(
             "stravapipe.cloudrun.deletion_service_app.SqlAlchemyUnitOfWork",
             return_value=mock_uow,
@@ -225,7 +243,7 @@ class TestDeauthEndpoint:
             response = client.post(
                 "/",
                 headers=make_cloudevent_headers(),
-                json=make_pubsub_body(_make_deauth_payload()),
+                json=make_pubsub_body(payload, attributes=attributes),
             )
 
         assert response.status_code == 200
@@ -235,6 +253,10 @@ class TestDeauthEndpoint:
         assert data["pg_deleted"] == 3
         assert data["bq_activities_deleted"] == 3
         assert data["bq_staging_deleted"] == 1
+        mock_uow.activities.delete_by_user.assert_called_once_with("98765")
+        mock_services["bq_deletion_service"].run.assert_called_once_with(
+            "98765", data["correlation_id"], payload["event_time"]
+        )
 
     def test_missing_owner_id_returns_422(self, client):
         """Event without owner_id returns 422."""

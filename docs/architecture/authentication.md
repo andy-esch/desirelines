@@ -51,8 +51,9 @@ Auth middleware (`middleware/auth.go`):
 **Identity model**: the Firebase UID identifies app data and PostgreSQL `user_id`.
 The registry maps a Strava subject to that UID; existing users retain their
 numeric UIDs. The callback never derives a UID from an athlete ID or falls back
-when ownership is absent, inactive or inconsistent. Activity persistence and
-full-deletion consumers remain on the legacy numeric model until their routing stages.
+when ownership is absent, inactive or inconsistent. Persistence and backfill use
+resolved app UIDs; the full-account deletion consumer still uses legacy numeric
+identity pending its separate migration.
 
 **User States**:
 
@@ -111,12 +112,14 @@ cache rechecks ownership on hits; refresh/deletion transactions retain the captu
 UID/subject pair across retries. Missing/conflicting mappings remain retryable
 errors, distinct from missing credential documents. Deauthorization confirms the
 grant, publishes durable cleanup, then best-effort deletes bound credentials,
-without requiring app admission. Event payloads retain Strava IDs; persistence and
-full-deletion routing remain separate stages. Python
+without requiring app admission. Its [ownership handoff](../guides/deauthorization-cleanup.md)
+adds captured UID/subject attributes while event bodies retain Strava IDs.
+The full-account deletion consumer remains on legacy numeric identity pending
+its separate migration. Python
 [backfill credentials](../../packages/stravapipe/src/stravapipe/adapters/firestore/token_store.py)
-now use the resolved UID and conditional rotation writes, with external OAuth
-outside transactions. Backfill rejects UID/subject pairs that differ until its
-activity persistence is migrated.
+use the resolved UID and conditional rotation writes, with external OAuth
+outside transactions. Persistence and backfill also use resolved app UIDs;
+provider IDs remain separate external mappings.
 
 **Whose config**: the web client holds one session's config in one store
 (`UserConfigProvider`), with one cache entry for the whole document and one listener.
