@@ -206,7 +206,10 @@ class TestReadyEndpoint:
 
 class TestDeauthEndpoint:
     @pytest.mark.parametrize("ownership_attributes", [False, True])
-    def test_successful_deletion(self, client, mock_services, ownership_attributes):
+    @pytest.mark.parametrize("aspect_type", ["update", "delete"])
+    def test_successful_deletion(
+        self, client, mock_services, ownership_attributes, aspect_type
+    ):
         """Full deletion across all stores returns 200."""
         # Mock BQ deletion
         mock_services["bq_deletion_service"].run.return_value = BQDeletionResult(
@@ -231,6 +234,7 @@ class TestDeauthEndpoint:
                 fixture_path = Path("test-fixtures/deletion_ownership.json")
             fixture = json.loads(fixture_path.read_text())
             payload, attributes = fixture["event"], fixture["attributes"]
+        payload["aspect_type"] = aspect_type
 
         with patch(
             "stravapipe.cloudrun.deletion_service_app.SqlAlchemyUnitOfWork",

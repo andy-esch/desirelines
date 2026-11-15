@@ -43,11 +43,22 @@ func TestPublishDeauthBindsOwnerWithoutChangingBody(t *testing.T) {
 	if parseErr != nil {
 		t.Fatal(parseErr)
 	}
-	for _, uid := range []string{fixture.Attributes["deletion_owner_uid"], "independent-uid", "67890"} {
-		t.Run(uid, func(t *testing.T) {
+	for _, test := range []struct {
+		uid    string
+		aspect generated.AspectType
+	}{
+		{fixture.Attributes["deletion_owner_uid"], generated.AspectType_ASPECT_TYPE_UPDATE},
+		{"independent-uid", generated.AspectType_ASPECT_TYPE_UPDATE},
+		{"67890", generated.AspectType_ASPECT_TYPE_UPDATE},
+		{fixture.Attributes["deletion_owner_uid"], generated.AspectType_ASPECT_TYPE_DELETE},
+		{"independent-uid", generated.AspectType_ASPECT_TYPE_DELETE},
+		{"67890", generated.AspectType_ASPECT_TYPE_DELETE},
+	} {
+		t.Run(test.uid+"/"+test.aspect.String(), func(t *testing.T) {
 			p, server := newTestPublisher(t)
 			ctx := WithWebhookReceivedAt(context.Background(), time.UnixMilli(1234))
-			owner := ports.CredentialOwner{UID: uid, Subject: event.OwnerId}
+			event.AspectType = test.aspect
+			owner := ports.CredentialOwner{UID: test.uid, Subject: event.OwnerId}
 			enriched := &generated.EnrichedEvent{Event: event}
 			if err := p.PublishDeauth(ctx, enriched, owner, "confirmed-grant"); err != nil {
 				t.Fatal(err)
@@ -73,11 +84,12 @@ func TestPublishDeauthBindsOwnerWithoutChangingBody(t *testing.T) {
 			if err := json.Unmarshal(fixture.Event, &expectedBody); err != nil {
 				t.Fatal(err)
 			}
+			expectedBody["aspect_type"] = webhookproto.AspectTypeToString(test.aspect)
 			if !maps.Equal(published, expectedBody) {
 				t.Fatalf("provider payload changed: %v", published)
 			}
 			want := maps.Clone(fixture.Attributes)
-			want["deletion_owner_uid"] = uid
+			want["deletion_owner_uid"] = test.uid
 			want["correlation_id"], want["dispatcher_received_at_unix_ms"] = "confirmed-grant", "1234"
 			if !maps.Equal(messages[0].Attributes, want) {
 				t.Fatalf("attributes = %v, want %v", messages[0].Attributes, want)
