@@ -1,7 +1,7 @@
 # ============================================================================
 # Hourly Readiness Probes (Cloud Scheduler → /ready)
 # ============================================================================
-# DB-touching readiness probes for apigateway + three Python Cloud Run
+# DB-touching readiness probes for apigateway + Python Cloud Run
 # services. Cloud Scheduler (single region, hourly) is used instead of
 # uptime checks because uptime checks fan out across ~6 probe regions at
 # a 15-min minimum cadence, which would keep Neon's compute awake
@@ -145,7 +145,7 @@ resource "google_monitoring_alert_policy" "apigateway_readiness_failing" {
 # ============================================================================
 # Hourly readiness checks for Python Cloud Run services
 # ============================================================================
-# Three private (INGRESS_TRAFFIC_INTERNAL_ONLY) Python services expose
+# The private (INGRESS_TRAFFIC_INTERNAL_ONLY) Python services expose
 # /ready endpoints with dependency probes. Cloud Scheduler hits each one on
 # the same hourly cadence as apigateway_readiness, sharing
 # var.readiness_probe_schedule so the postgres-writer probe lands inside
@@ -154,9 +154,9 @@ resource "google_monitoring_alert_policy" "apigateway_readiness_failing" {
 #
 # Auth differs from apigateway: those services aren't fronted by Firebase
 # Hosting, so the scheduler must present an OIDC token signed by a
-# dedicated SA that holds roles/run.invoker on each target.
+# dedicated SA whose roles/run.invoker grant is limited to /ready.
 #
-# Adding a fourth Python service later: add one entry to
+# Adding a Python service later: add one entry to
 # local.python_readiness_targets and re-apply — the for_each on IAM and
 # scheduler resources, plus the keys()-interpolated regex on the shared
 # metric, all derive from that single map. No new alert resource. The only
@@ -173,8 +173,7 @@ resource "google_service_account" "scheduler" {
 locals {
   # Single source of truth for Python readiness targets — store the full
   # service objects so downstream resources can derive both `.name` (for IAM)
-  # and `.uri` (for scheduler target + OIDC audience) from one entry. Adding
-  # a fourth Python service really is one new line here, no other edits.
+  # and `.uri` (for scheduler target + OIDC audience) from one entry.
   #
   # Keys use dashes (matching the URL-safe Cloud Run service names that land
   # in scheduler `name` and the `service` metric label); the right-hand-side
@@ -186,7 +185,10 @@ locals {
   }
 }
 
-# Allow the scheduler SA to invoke each Python Cloud Run service.
+# Keep the scheduler out of ingestion/deletion routes. Cloud Run evaluates
+# request.path before forwarding to the app; the OIDC audience stays the
+# service URI. Other invokers (including Pub/Sub push) keep their own grants.
+# https://docs.cloud.google.com/run/docs/securing/managing-access#use_iam_conditions
 resource "google_cloud_run_v2_service_iam_member" "scheduler_python_invoker" {
   for_each = local.python_readiness_targets
 
@@ -195,6 +197,12 @@ resource "google_cloud_run_v2_service_iam_member" "scheduler_python_invoker" {
   name     = each.value.name
   role     = "roles/run.invoker"
   member   = "serviceAccount:${google_service_account.scheduler.email}"
+
+  condition {
+    title       = "readiness-only"
+    description = "Scheduler may invoke only the readiness endpoint."
+    expression  = "request.path == \"/ready\""
+  }
 }
 
 resource "google_cloud_scheduler_job" "python_readiness" {
@@ -237,8 +245,8 @@ resource "google_cloud_scheduler_job" "python_readiness" {
   ]
 }
 
-# Single log-based metric covering all three Python readiness jobs. The
-# `service` label is extracted from job_id so the alert can group per
+# Single log-based metric covering the configured Python readiness jobs. The
+# `service` label is extracted from service_name so the alert can group per
 # service without spawning one metric per job.
 resource "google_logging_metric" "python_readiness_failures" {
   name        = "${var.project_name}_${var.environment}_python_readiness_failures"
@@ -283,7 +291,7 @@ resource "google_logging_metric" "python_readiness_failures" {
   }
 }
 
-# Single alert with per-service grouping — three alert series, one policy.
+# Single alert with per-service grouping, one policy.
 resource "google_monitoring_alert_policy" "python_readiness_failing" {
   display_name = "🚨 Python service /ready failing"
   combiner     = "OR"

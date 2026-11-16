@@ -27,6 +27,9 @@ alert's `service` label names which service.
 **Quick mitigations**:
 
 - Test the endpoint directly via the scheduler's **Run now** button.
+- For `403`, check the [scheduler invoker grant](../../terraform/modules/desirelines/readiness_probes.tf):
+  it permits exactly `/ready`. The job URL must include `/ready`, while its OIDC
+  audience remains the service URI. Check for IAM errors before investigating DB health.
 - Check the dependency named above for the specific failing service.
 
 **If still stuck**: cross-check `apigateway-readiness-failing.md`. Concurrent
