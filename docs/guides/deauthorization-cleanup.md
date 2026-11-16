@@ -27,10 +27,12 @@ publish access. Inherited project roles can also authorize publishing; privilege
 deployment/replay principals are part of the trust boundary.
 [The push subscription](../../terraform/modules/desirelines/pubsub_subscriptions.tf)
 uses OIDC and [Cloud Run IAM](../../terraform/modules/desirelines/cloud_run.tf)
-restricts invocation. Authorized invokers, including the readiness scheduler,
-remain trusted: push authentication does not attest the original publisher.
-Review inherited project grants as well as resource policies before the
-ownership-aware consumer rollout.
+restricts invocation. The [scheduler's grant](../../terraform/modules/desirelines/readiness_probes.tf)
+is limited to `/ready`; it must not authorize deletion requests. Other authorized
+invokers remain trusted: push authentication does not attest the original publisher.
+Before the ownership-aware consumer rollout, verify that the path restriction
+is deployed without leftover unconditional scheduler grants, and review inherited
+project privileges as well as resource policies.
 See Google's [Pub/Sub access control](https://docs.cloud.google.com/pubsub/docs/access-control)
 and [push authentication](https://docs.cloud.google.com/pubsub/docs/authenticate-push-subscriptions).
 
