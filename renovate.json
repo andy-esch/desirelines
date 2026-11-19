@@ -15,7 +15,7 @@
   "prHourlyLimit": 2,
   "postUpdateOptions": ["gomodTidyAll", "npmDedupe"],
   "constraints": {
-    "npm": "^12.0.0"
+    "npm": "^11"
   },
   "terraform": {
     "enabled": true
@@ -101,6 +101,13 @@
       "description": "Hold sqlalchemy below 2.1 until opentelemetry-instrumentation-sqlalchemy supports it. The instrumentor refuses sqlalchemy>=2.1.0 and only logs an error, so DB spans disappear without a failure; tests/unit/shared/test_instrumentation.py fails if the cap is lifted early. Remove this rule together with the cap in packages/stravapipe/pyproject.toml.",
       "matchDepNames": ["sqlalchemy"],
       "allowedVersions": "<2.1"
+    },
+    {
+      "description": "Hold Renovate's own npm (constraints.npm above) below 12 until npm/cli#9800 is fixed. npm 12 refuses to fetch a bundleDependencies tarball (@tailwindcss/oxide-wasm32-wasi, under Tailwind) during a lockfile-only update, so every npm update touching Tailwind fails with EALLOWREMOTE: a stale lockfile on the PR, or no branch at all. Lift this rule together with the constraint; see \"Renovate's npm\" in docs/guides/ci.md.",
+      "matchManagers": ["renovate-config"],
+      "matchDepTypes": ["tool-constraint"],
+      "matchDepNames": ["npm"],
+      "allowedVersions": "<12"
     },
     {
       "description": "Bump npm overrides in package.json rather than updating only the lockfile. For an in-range update Renovate runs `npm install <name>@<version>`, and npm rejects a named override with EOVERRIDE (\"conflicts with direct dependency\"), which leaves the lockfile stale and the npm PR failing `npm ci`. Bumping the range lets the plain `npm install` resolve it. See \"Renovate's npm\" in docs/guides/ci.md.",
