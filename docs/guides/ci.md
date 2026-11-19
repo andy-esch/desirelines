@@ -197,9 +197,11 @@ just proto-check-web   # from the repo root; needs the pinned protoc
 `packages/web/package-lock.json` with npm 11, the major CI's Node and Node 24 ship. npm 12
 refuses to fetch the tarball of a package with `bundleDependencies` (here
 `@tailwindcss/oxide-wasm32-wasi`, under Tailwind) during a lockfile-only update, so with
-npm 12 Renovate's npm PRs fail with `EALLOWREMOTE` and leave the lockfile stale
-([npm/cli#9800](https://github.com/npm/cli/issues/9800)). Raise the constraint once an npm 12
-release fixes that bug, or when the project moves to npm 12.
+npm 12 Renovate's npm updates fail with `EALLOWREMOTE`: the PR gets a stale lockfile, or the
+branch isn't created at all ([npm/cli#9800](https://github.com/npm/cli/issues/9800)). A
+`packageRule` holds the constraint below 12, so Renovate doesn't offer the npm 12 bump again.
+Raise the constraint and remove that rule together once an npm 12 release fixes the bug, or
+when the project moves to npm 12.
 
 Renovate also bumps the `overrides` in `packages/web/package.json` (for example
 `@grpc/grpc-js`, which `@firebase/firestore` would otherwise hold at `~1.9.0`) instead of
