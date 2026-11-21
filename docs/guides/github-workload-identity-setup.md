@@ -14,8 +14,8 @@ keys are not required.
 The deploy workflows select the target GitHub Environment and its
 `WIF_PROVIDER` / `WIF_SERVICE_ACCOUNT` secrets. The public image workflow uses
 repository secrets for its separate build identity. Configure each repository's
-intended identity; copying deploy credentials into the build route grants the
-wrong authority.
+intended identity. Each identifier pair must match the caller's repository trust
+and intended permissions; the identifiers alone confer no access.
 
 [The WIF module](../../terraform/modules/github-actions-wif/main.tf) owns provider
 conditions, repository bindings and account roles. Build-only invocations set
