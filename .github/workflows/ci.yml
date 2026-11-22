@@ -348,7 +348,7 @@ jobs:
       # soon as they are published.
       - name: Check for known Go vulnerabilities (govulncheck)
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
+          go install golang.org/x/vuln/cmd/govulncheck@v1.10.0
           cd packages/${{ matrix.package }}
           govulncheck ./...
 
