@@ -201,19 +201,22 @@ type Dependencies struct {
 func (d *Dependencies) Close() {
 	closeCtx, cancel := context.WithTimeout(context.Background(), closeTimeout)
 	defer cancel()
-	if d.publisher != nil {
-		if err := d.publisher.Close(closeCtx); err != nil {
-			d.logger.Error("Failed to close publisher", "error", err)
-		}
+	// Close order is a priority order under the shared closeTimeout budget: the
+	// activity publisher carries webhook events, so it drains first.
+	publishers := []struct {
+		pub  *pubsub.Publisher
+		name string
+	}{
+		{d.publisher, "publisher"},
+		{d.deauthPublisher, "deauth publisher"},
+		{d.rowPublisher, "activity-row publisher"},
 	}
-	if d.deauthPublisher != nil {
-		if err := d.deauthPublisher.Close(closeCtx); err != nil {
-			d.logger.Error("Failed to close deauth publisher", "error", err)
+	for _, p := range publishers {
+		if p.pub == nil {
+			continue
 		}
-	}
-	if d.rowPublisher != nil {
-		if err := d.rowPublisher.Close(closeCtx); err != nil {
-			d.logger.Error("Failed to close activity-row publisher", "error", err)
+		if err := p.pub.Close(closeCtx); err != nil {
+			d.logger.Error("Failed to close "+p.name, "error", err)
 		}
 	}
 	if d.firestoreClient != nil {
