@@ -673,11 +673,19 @@ class TestStravaApiClientListActivities:
 
 class TestStravaActivitiesRepoByYear:
     LIST_PATH = "/athlete/activities"
+    # read_activities_by_year asks for pages of this size; a shorter page is
+    # the last one.
+    PAGE_SIZE = 100
+
+    def _full_page(self, summary_activity_json, start_id):
+        return [
+            {**summary_activity_json, "id": start_id + i} for i in range(self.PAGE_SIZE)
+        ]
 
     def test_read_activities_by_year_single_page(
         self, activities_repo, api_config, summary_activity_json
     ):
-        """Single page of results followed by empty page."""
+        """A short first page is the last page: no second Strava call."""
         endpoint = f"{api_config.api_base_url}{self.LIST_PATH}"
 
         with Mocker() as m:
@@ -689,6 +697,9 @@ class TestStravaActivitiesRepoByYear:
                 ],
             )
             result = activities_repo.read_activities_by_year(2025)
+
+            assert m.call_count == 1
+            assert m.request_history[0].qs["per_page"] == [str(self.PAGE_SIZE)]
 
         assert len(result) == 1
         assert isinstance(result[0], SummaryStravaActivity)
@@ -697,34 +708,83 @@ class TestStravaActivitiesRepoByYear:
     def test_read_activities_by_year_multi_page(
         self, activities_repo, api_config, summary_activity_json
     ):
-        """Multiple pages paginated until empty response."""
+        """A full page is followed by another request; a short one ends the year."""
         endpoint = f"{api_config.api_base_url}{self.LIST_PATH}"
-        page2_activity = {**summary_activity_json, "id": 88888}
+        last_page_activity = {**summary_activity_json, "id": 88888}
 
         with Mocker() as m:
             m.get(
                 endpoint,
                 [
-                    {"json": [summary_activity_json], "status_code": 200},
-                    {"json": [page2_activity], "status_code": 200},
+                    {
+                        "json": self._full_page(summary_activity_json, 1),
+                        "status_code": 200,
+                    },
+                    {"json": [last_page_activity], "status_code": 200},
                     {"json": [], "status_code": 200},
                 ],
             )
             result = activities_repo.read_activities_by_year(2025)
 
-        assert len(result) == 2
-        assert result[0].id == 77777
-        assert result[1].id == 88888
+            assert m.call_count == 2
+
+        assert len(result) == self.PAGE_SIZE + 1
+        assert result[0].id == 1
+        assert result[-1].id == 88888
+
+    def test_read_activities_by_year_exactly_full_last_page(
+        self, activities_repo, api_config, summary_activity_json
+    ):
+        """A full last page can't be told apart from a middle one, so the
+        year still ends on the empty page after it."""
+        endpoint = f"{api_config.api_base_url}{self.LIST_PATH}"
+
+        with Mocker() as m:
+            m.get(
+                endpoint,
+                [
+                    {
+                        "json": self._full_page(summary_activity_json, 1),
+                        "status_code": 200,
+                    },
+                    {"json": [], "status_code": 200},
+                ],
+            )
+            result = activities_repo.read_activities_by_year(2025)
+
+            assert m.call_count == 2
+
+        assert len(result) == self.PAGE_SIZE
 
     def test_read_activities_by_year_empty(self, activities_repo, api_config):
-        """Year with no activities returns empty list."""
+        """Year with no activities costs one call and returns an empty list."""
         endpoint = f"{api_config.api_base_url}{self.LIST_PATH}"
 
         with Mocker() as m:
             m.get(endpoint, json=[])
             result = activities_repo.read_activities_by_year(2020)
 
+            assert m.call_count == 1
+
         assert result == []
+
+    def test_read_activities_by_year_raises_past_the_page_ceiling(
+        self, activities_repo, api_config, summary_activity_json, monkeypatch
+    ):
+        """If Strava never returns a short page, stop at the ceiling and raise
+        instead of returning a truncated year as if it were complete."""
+        monkeypatch.setattr(
+            "stravapipe.adapters.strava._repositories._MAX_LIST_PAGES_PER_YEAR", 3
+        )
+        endpoint = f"{api_config.api_base_url}{self.LIST_PATH}"
+
+        with Mocker() as m:
+            m.get(endpoint, json=self._full_page(summary_activity_json, 1))
+
+            with pytest.raises(StravaApiError, match="full pages after 3 pages"):
+                activities_repo.read_activities_by_year(2025)
+
+            assert m.call_count == 3
 
     def test_read_activities_by_year_500_retries_then_raises(
         self, activities_repo, api_config
