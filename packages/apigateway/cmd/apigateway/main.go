@@ -568,7 +568,7 @@ func initFirebaseAuth(ctx context.Context, cfg *config.Config, deps *Dependencie
 	deps.firestoreClient = firestoreClient
 	log.Info("Firestore client initialized", "database", cfg.FirestoreDatabase)
 
-	var allowChecker allowlist.Checker = allowlist.NewFirestoreChecker(firestoreClient, log)
+	var allowChecker allowlist.Checker = allowlist.NewFirestoreChecker(firestoreClient)
 	if cfg.AllowlistCacheTTL > 0 {
 		allowChecker = allowlist.NewCachingChecker(allowChecker, cfg.AllowlistCacheTTL, 0)
 	}

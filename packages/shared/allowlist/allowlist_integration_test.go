@@ -9,7 +9,6 @@ import (
 
 	"cloud.google.com/go/firestore"
 	"github.com/andy-esch/desirelines/packages/shared/firestoretest"
-	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
 )
 
@@ -25,7 +24,7 @@ func newTestChecker(t *testing.T) (*FirestoreChecker, *firestore.Client) {
 
 	client := firestoretest.NewClient(t)
 
-	return NewFirestoreChecker(client, gcplog.NewNoOpLogger()), client
+	return NewFirestoreChecker(client), client
 }
 
 func seedAllowlist(t *testing.T, client *firestore.Client, athleteID string) {

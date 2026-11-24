@@ -342,7 +342,7 @@ func initDependencies(cfg *config.Config, log *slog.Logger, meter metric.Meter, 
 		tokenStore = cacheadapter.NewTokenStore(tokenStore, cfg.TokenCacheTTL, 0)
 	}
 
-	var allowChecker allowlist.Checker = allowlist.NewFirestoreChecker(firestoreClient, log)
+	var allowChecker allowlist.Checker = allowlist.NewFirestoreChecker(firestoreClient)
 	if cfg.AllowlistCacheTTL > 0 {
 		allowChecker = allowlist.NewCachingChecker(allowChecker, cfg.AllowlistCacheTTL, 0)
 	}
