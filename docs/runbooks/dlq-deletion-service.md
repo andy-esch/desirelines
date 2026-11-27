@@ -6,18 +6,18 @@ retries. Fires as CRITICAL to email + Slack.
 
 This is the most compliance-sensitive DLQ in the system — the deletion service
 implements the Strava API Agreement §5.4 requirement to delete a deauthorized
-user's data. A message here means that deletion did **not** complete.
+user's data. A message here means Pub/Sub could not confirm cleanup completion.
 
 **First place to look**:
 
-- Each dead-lettered message carries a
-  `CloudPubSubDeadLetterSourceDeliveryErrorMessage` attribute naming why
-  delivery failed, and the payload names the athlete whose deletion failed:
+- Use the message's original publish time and payload to identify the delivery.
+  Check the service logs for the failure. Inspect the captured ownership
+  attributes alongside the body:
 
   ```bash
   gcloud pubsub subscriptions pull desirelines-deletion-service-dlq-monitoring-<env> \
     --project=<project> --limit=5 \
-    --format="value(message.attributes.CloudPubSubDeadLetterSourceDeliveryErrorMessage,message.data)"
+    --format="table(message.attributes.CloudPubSubDeadLetterSourceTopicPublishTime,message.attributes.deletion_owner_version,message.attributes.deletion_owner_uid,message.attributes.deletion_owner_subject,message.data)"
   ```
 
   Pulling without `--auto-ack` leaves the messages in place. Acking is what
@@ -40,7 +40,8 @@ user's data. A message here means that deletion did **not** complete.
    BigQuery permissions drift, or Firestore unreachable.
 2. A partial delete: one store succeeded and another failed, so the message
    retried and eventually exhausted attempts.
-3. Malformed or unexpected payload shape from the deauth publisher.
+3. Missing, invalid or conflicting captured ownership, including older messages
+   published before the V1 producer.
 
 **Quick mitigations**:
 
@@ -56,14 +57,14 @@ escalate rather than let it sit. Cross-reference `python-readiness-failing.md`
 (the deletion service may also be failing readiness) and the DLQ runbooks for
 the sibling services if a shared dependency (Neon) is the root cause.
 
-**Redrive**: once the failing store is healthy, replay with `just dlq-replay
-deletion-service <env>` (dry run) then `--execute`. See
+**Redrive**: inspect ownership and store failures before replay. Use `just dlq-replay
+deletion-service <env>` (dry run) and use `--execute` only when all queued
+messages are eligible for replay. See
 [Redriving a DLQ](dlq-redrive.md) — it carries the compliance-verification step
 for this service.
 
-Preserve any `deletion_owner_*` attributes and the original body during replay;
-never replace the captured owner from today's registry. See the
-[ownership handoff](../guides/deauthorization-cleanup.md) for producer-first
-deployment and handling requirements for older unbound messages. The current
-consumer still uses legacy numeric identity; attributes alone do not enable
-ownership-aware cleanup.
+Preserve the original body and `deletion_owner_*` attributes. Leave unbound or
+conflicting messages on the DLQ for prompt owner review using original event
+and publication evidence. The bulk command republishes and acknowledges the
+original, so mixed queues require review before execution. See the
+[ownership handoff](../guides/deauthorization-cleanup.md).

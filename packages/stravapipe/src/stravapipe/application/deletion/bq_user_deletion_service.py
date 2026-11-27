@@ -52,14 +52,14 @@ class BQUserDeletionService:
         return f"`{self._client.project_id}.{self._dataset_id}.{name}`"
 
     def run(
-        self, user_id: str, correlation_id: str, event_time: int
+        self, subject: str, correlation_id: str, event_time: int
     ) -> BQDeletionResult:
         """Delete all BigQuery data for a user.
 
         All operations are idempotent — safe to retry on partial failure.
 
         Args:
-            user_id: Strava athlete ID (string)
+            subject: Strava athlete ID (string)
             correlation_id: Request correlation ID for tracing
             event_time: Strava webhook event_time (Unix timestamp)
 
@@ -69,16 +69,16 @@ class BQUserDeletionService:
         Raises:
             BigQueryError: If any BQ operation fails (triggers Pub/Sub retry)
         """
-        user_id_param = ScalarQueryParameter("user_id", "STRING", user_id)
+        subject_param = ScalarQueryParameter("subject", "STRING", subject)
 
         def purge(table: str) -> int:
             """Delete the athlete's rows from one table."""
             return self._client.execute_dml_query(
                 f"""
                 DELETE FROM {self._table(table)}
-                WHERE CAST(athlete.id AS STRING) = @user_id
-                """,  # noqa: S608 -- table name from hardcoded purge() args; user_id bound via @user_id
-                [user_id_param],
+                WHERE CAST(athlete.id AS STRING) = @subject
+                """,  # noqa: S608 -- table name from hardcoded purge() args; subject is bound
+                [subject_param],
             )
 
         activities_deleted = purge("activities")
@@ -88,8 +88,8 @@ class BQUserDeletionService:
         # The deletion record: who, when, how much — and none of what was
         # deleted. Retained in Cloud Logging.
         logger.info(
-            "Deleted BigQuery data for user %s: activities=%d staging=%d live=%d",
-            user_id,
+            "Deleted BigQuery data for athlete %s: activities=%d staging=%d live=%d",
+            subject,
             activities_deleted,
             staging_deleted,
             live_deleted,

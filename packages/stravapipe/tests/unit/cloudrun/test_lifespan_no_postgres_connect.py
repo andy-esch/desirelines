@@ -100,7 +100,6 @@ def test_deletion_service_lifespan_does_not_open_connection(fake_engine):
         patch("stravapipe.cloudrun.deletion_service_app.BigQueryClientWrapper"),
         patch("stravapipe.cloudrun.deletion_service_app.FirestoreClient"),
         patch("stravapipe.cloudrun.deletion_service_app.BQUserDeletionService"),
-        patch("stravapipe.cloudrun.deletion_service_app.FirestoreTokenStore"),
         _patch_create_engine(fake_engine),
     ):
         mock_config.return_value = MagicMock(

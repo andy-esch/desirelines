@@ -6,6 +6,7 @@ from typing import Any, cast
 from unicodedata import category
 
 from google.cloud.firestore_v1 import Client, Transaction, transactional
+from google.cloud.firestore_v1.document import DocumentReference
 
 from stravapipe.exceptions import StravaPipeError
 
@@ -15,6 +16,18 @@ PROVIDER = "strava"
 MAX_UID_LENGTH = 128
 MAX_STRAVA_SUBJECT_LENGTH = 19
 MAX_STRAVA_ID = 2**63 - 1
+
+
+def validate_uid(uid: str) -> None:
+    """Validate an opaque Firebase UID used as a Firestore document key."""
+    if (
+        not isinstance(uid, str)
+        or not 1 <= len(uid) <= MAX_UID_LENGTH
+        or uid in {".", ".."}
+        or "/" in uid
+        or any(category(c) in {"Cc", "Cs"} for c in uid)
+    ):
+        raise ValueError("invalid Firebase UID document key")
 
 
 def lookup_key(subject: str) -> str:
@@ -54,13 +67,9 @@ class ConnectionRecord:
             raise ValueError("invalid connection string fields")
         record = cls(**data)
         lookup_key(record.subject)
+        validate_uid(record.uid)
         if (
-            not isinstance(record.uid, str)
-            or not 1 <= len(record.uid) <= MAX_UID_LENGTH
-            or record.uid in {".", ".."}
-            or "/" in record.uid
-            or any(category(c) == "Cc" for c in record.uid)
-            or type(record.schema_version) is not int
+            type(record.schema_version) is not int
             or record.schema_version != 1
             or record.provider != PROVIDER
             or record.status not in {"active", "disconnected"}
@@ -91,6 +100,13 @@ class ConnectionConflictError(StravaPipeError):
     """The persisted ownership pair is incomplete, malformed or inconsistent."""
 
 
+def _decode_record(data: dict[str, Any]) -> ConnectionRecord:
+    try:
+        return ConnectionRecord.from_dict(data)
+    except (TypeError, ValueError) as exc:
+        raise ConnectionConflictError("malformed activity connection") from exc
+
+
 class ConnectionResolver:
     """Read server-owned Strava ownership without inferring a UID from a subject."""
 
@@ -119,7 +135,7 @@ class ConnectionResolver:
         snapshot = lookup.get(transaction=transaction)
         if not snapshot.exists:
             raise ConnectionNotFoundError("active activity connection not found")
-        record = self._decode(snapshot.to_dict() or {})
+        record = _decode_record(snapshot.to_dict() or {})
         if record.status != "active":
             raise ConnectionNotFoundError("active activity connection not found")
         connection = (
@@ -130,50 +146,58 @@ class ConnectionResolver:
         ).get(transaction=transaction)
         if (
             not connection.exists
-            or self._decode(connection.to_dict() or {}) != record
+            or _decode_record(connection.to_dict() or {}) != record
             or record.subject != subject
         ):
             raise ConnectionConflictError("activity connection ownership conflict")
         return record
 
-    @staticmethod
-    def _decode(data: dict[str, Any]) -> ConnectionRecord:
-        try:
-            return ConnectionRecord.from_dict(data)
-        except (TypeError, ValueError) as exc:
-            raise ConnectionConflictError("malformed activity connection") from exc
+
+def _owned_registry_refs(
+    transaction: Transaction,
+    client: Client,
+    uid: str,
+    subject: str,
+) -> list[DocumentReference]:
+    lookup = client.collection(LOOKUPS_COLLECTION).document(lookup_key(subject))
+    connection = client.document(f"users/{uid}/{CONNECTIONS_COLLECTION}/{PROVIDER}")
+    refs = []
+    for ref in (lookup, connection):
+        snapshot = ref.get(transaction=transaction)
+        if snapshot.exists:
+            record = _decode_record(snapshot.to_dict() or {})
+            if (record.uid, record.subject) != (uid, subject):
+                raise ConnectionConflictError(
+                    "deletion conflicts with registry ownership"
+                )
+            refs.append(ref)
+    return refs
 
 
-def delete_legacy_user_documents(client: Client, user_id: str) -> int:
-    """Delete legacy user docs, admission and registry together.
+def verify_deletion_owner(client: Client, uid: str, subject: str) -> None:
+    """Check for a conflicting owner before starting cross-store cleanup."""
+    validate_uid(uid)
+    check = transactional(_owned_registry_refs)
+    check(client.transaction(read_only=True), client, uid, subject)
 
-    Bootstrap reads the admission in its transaction; deleting it in this same
-    commit prevents a concurrent bootstrap from resurrecting the mapping. Token
-    deletion is repeated here to fence a login racing the earlier token step.
-    This retains legacy full-deletion semantics, not future disconnect policy.
+
+def delete_user_documents(client: Client, uid: str, subject: str) -> int:
+    """Purge app documents and matching registry records in one transaction.
+
+    Admission is deleted in the same commit to fence concurrent bootstrap.
+    An absent record is expected on retries after a successful Firestore purge.
     """
-    key = lookup_key(user_id)
-    user = client.collection("users").document(user_id)
-    lookup = client.collection(LOOKUPS_COLLECTION).document(key)
-    connection = user.collection(CONNECTIONS_COLLECTION).document(PROVIDER)
+    validate_uid(uid)
+    user = client.collection("users").document(uid)
 
     @transactional
     def purge(transaction: Transaction) -> int:
-        registry_refs = []
-        for ref in (lookup, connection):
-            snapshot = ref.get(transaction=transaction)
-            if snapshot.exists:
-                record = ConnectionRecord.from_dict(snapshot.to_dict() or {})
-                if record.uid != user_id or record.subject != user_id:
-                    raise ValueError(
-                        "legacy deletion conflicts with registry ownership"
-                    )
-                registry_refs.append(ref)
+        registry_refs = _owned_registry_refs(transaction, client, uid, subject)
         refs = [
             user.collection("private").document("profile"),
             user.collection("private").document("strava_tokens"),
             user.collection("config").document("v1"),
-            client.collection("allowlist").document(user_id),
+            client.collection("allowlist").document(uid),
             *registry_refs,
         ]
         for ref in refs:

@@ -36,24 +36,29 @@ project privileges as well as resource policies.
 See Google's [Pub/Sub access control](https://docs.cloud.google.com/pubsub/docs/access-control)
 and [push authentication](https://docs.cloud.google.com/pubsub/docs/authenticate-push-subscriptions).
 
-## Deployment sequence
+## Consumer behavior
 
-1. Deploy this additive producer in dev and prod. The
-   [current deletion consumer](../../packages/stravapipe/src/stravapipe/cloudrun/deletion_service_app.py)
-   still uses the legacy numeric identity and ignores these attributes.
-   Independent enrollment remains disabled.
-2. Before deploying ownership-aware cleanup, verify producer revisions and
-   inspect the source subscription and DLQ for older messages. Account for
-   in-flight deliveries and replay; a quiet queue sample alone is insufficient.
-3. The later consumer must validate the complete versioned binding before any
-   destructive work, retain the captured UID for app data and subject for the
-   archive, and conditionally purge Firestore without removing a replacement
-   owner's records. Missing or conflicting evidence must remain retryable/DLQ,
-   without guessing a UID or silently acknowledging unfinished cleanup.
+The [deletion consumer](../../packages/stravapipe/src/stravapipe/cloudrun/deletion_service_app.py)
+requires the V1 binding and a matching athlete event before writes. PostgreSQL
+and Firestore use the captured UID. BigQuery uses the captured Strava subject.
+The [Firestore adapter](../../packages/stravapipe/src/stravapipe/adapters/firestore/activity_connection.py)
+checks both registry records before cleanup and rechecks them in the transaction
+that deletes the tokens, user documents, admission and matching registry records.
 
-[`dlq_replay.py`](../../scripts/ops/dlq_replay.py) preserves the ownership attributes
-and body. Never rewrite them using today's registry. An older producer can still
-feed the current consumer, but rollback after consumer migration must preserve
-the binding or quarantine unbound messages. Full-account deletion remains the
-current policy; provider-only disconnect and same-pair reauthorization/ABA
-protection require the later lifecycle design.
+Known conflicts and unbound events retry and can reach the DLQ. A valid captured
+binding remains usable after the registry records are deleted, including when
+another store failed or an ACK was lost. Each store gets a cleanup attempt and
+the consumer acknowledges success only after every store succeeds.
+
+## Deployment and rollback
+
+Verify the V1 producer in each environment before deploying the consumer.
+Review source and DLQ age, backlog and in-flight delivery evidence. Handle
+unresolved messages using the [deletion DLQ runbook](../runbooks/dlq-deletion-service.md).
+Replay preserves the original body and attributes.
+
+After cutover, keep a V1 producer and roll back only to a consumer that validates
+the captured binding. If no such rollback is available, fix forward and preserve
+the retry/DLQ path. Keep independent enrollment gated until lifecycle work fences
+same-pair reauthorization and accounts for the old consumer's in-flight execution
+and access. The current stage retains full-account cleanup for Strava deauthorization.

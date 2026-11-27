@@ -2,14 +2,24 @@
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 from fastapi.testclient import TestClient
 import pytest
 
+from stravapipe.adapters.firestore.activity_connection import ConnectionConflictError
 from stravapipe.application.deletion.bq_user_deletion_service import BQDeletionResult
 
 from .conftest import make_cloudevent_headers, make_pubsub_body
+
+
+def _ownership(uid: str = "app-user", subject: str = "98765") -> dict[str, str]:
+    return {
+        "deletion_owner_uid": uid,
+        "deletion_owner_subject": subject,
+        "deletion_owner_version": "1",
+        "deletion_owner_provider": "strava",
+    }
 
 
 def _make_deauth_payload(owner_id: int = 98765) -> dict:
@@ -40,7 +50,6 @@ def mock_services():
     return {
         "session_factory": MagicMock(),
         "bq_deletion_service": MagicMock(),
-        "token_store": MagicMock(),
         "firestore_client": MagicMock(),
     }
 
@@ -54,19 +63,19 @@ def client(mock_deletion_config, mock_services):
         patch("stravapipe.cloudrun.deletion_service_app.BigQueryClientWrapper"),
         patch("stravapipe.cloudrun.deletion_service_app.FirestoreClient"),
         patch(
-            "stravapipe.cloudrun.deletion_service_app.delete_legacy_user_documents",
+            "stravapipe.cloudrun.deletion_service_app.verify_deletion_owner"
+        ) as verify_owner,
+        patch(
+            "stravapipe.cloudrun.deletion_service_app.delete_user_documents",
             return_value=4,
-        ),
+        ) as purge,
         patch(
             "stravapipe.cloudrun.deletion_service_app.BQUserDeletionService"
         ) as mock_bq_svc,
-        patch(
-            "stravapipe.cloudrun.deletion_service_app.FirestoreTokenStore"
-        ) as mock_ts,
     ):
         mock_factory.return_value = (MagicMock(), mock_services["session_factory"])
         mock_bq_svc.return_value = mock_services["bq_deletion_service"]
-        mock_ts.return_value = mock_services["token_store"]
+        mock_services.update(verify_owner=verify_owner, purge=purge)
 
         from stravapipe.cloudrun.deletion_service_app import app
 
@@ -81,7 +90,6 @@ def client(mock_deletion_config, mock_services):
             # Override app state with our mocks
             app.state.session_factory = mock_services["session_factory"]
             app.state.bq_deletion_service = mock_services["bq_deletion_service"]
-            app.state.token_store = mock_services["token_store"]
             app.state.firestore_client = mock_services["firestore_client"]
             # Override the MagicMock timeout that lifespan picked up from the
             # mocked config — asyncio.wait_for needs a real number.
@@ -205,11 +213,9 @@ class TestReadyEndpoint:
 
 
 class TestDeauthEndpoint:
-    @pytest.mark.parametrize("ownership_attributes", [False, True])
     @pytest.mark.parametrize("aspect_type", ["update", "delete"])
-    def test_successful_deletion(
-        self, client, mock_services, ownership_attributes, aspect_type
-    ):
+    @pytest.mark.parametrize("uid", ["98765", "app-user"])
+    def test_successful_deletion(self, client, mock_services, uid, aspect_type):
         """Full deletion across all stores returns 200."""
         # Mock BQ deletion
         mock_services["bq_deletion_service"].run.return_value = BQDeletionResult(
@@ -224,17 +230,15 @@ class TestDeauthEndpoint:
         mock_uow.__exit__ = MagicMock(return_value=False)
         mock_uow.activities.delete_by_user.return_value = 3
 
-        payload, attributes = _make_deauth_payload(), None
-        if ownership_attributes:
-            fixture_path = (
-                Path(__file__).parents[5]
-                / "schemas/test-fixtures/deletion_ownership.json"
-            )
-            if not fixture_path.exists():
-                fixture_path = Path("test-fixtures/deletion_ownership.json")
-            fixture = json.loads(fixture_path.read_text())
-            payload, attributes = fixture["event"], fixture["attributes"]
+        fixture_path = (
+            Path(__file__).parents[5] / "schemas/test-fixtures/deletion_ownership.json"
+        )
+        if not fixture_path.exists():
+            fixture_path = Path("test-fixtures/deletion_ownership.json")
+        fixture = json.loads(fixture_path.read_text())
+        payload, attributes = fixture["event"], fixture["attributes"]
         payload["aspect_type"] = aspect_type
+        attributes["deletion_owner_uid"] = uid
 
         with patch(
             "stravapipe.cloudrun.deletion_service_app.SqlAlchemyUnitOfWork",
@@ -249,13 +253,19 @@ class TestDeauthEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "deleted"
-        assert data["user_id"] == "98765"
+        assert data["user_id"] == uid
         assert data["pg_deleted"] == 3
         assert data["bq_activities_deleted"] == 3
         assert data["bq_staging_deleted"] == 1
-        mock_uow.activities.delete_by_user.assert_called_once_with("98765")
+        mock_uow.activities.delete_by_user.assert_called_once_with(uid)
         mock_services["bq_deletion_service"].run.assert_called_once_with(
             "98765", data["correlation_id"], payload["event_time"]
+        )
+        mock_services["verify_owner"].assert_called_once_with(
+            mock_services["firestore_client"], uid, "98765"
+        )
+        mock_services["purge"].assert_called_once_with(
+            mock_services["firestore_client"], uid, "98765"
         )
 
     def test_missing_owner_id_returns_422(self, client):
@@ -266,11 +276,47 @@ class TestDeauthEndpoint:
         response = client.post(
             "/",
             headers=make_cloudevent_headers(),
-            json=make_pubsub_body(payload),
+            json=make_pubsub_body(payload, attributes=_ownership()),
         )
 
         assert response.status_code == 422
         assert "owner_id" in response.json()["detail"]
+
+    @pytest.mark.parametrize(
+        "attributes",
+        [
+            None,
+            {"deletion_owner_uid": "app-user"},
+            _ownership(uid="invalid/path"),
+            _ownership(subject="098765"),
+            _ownership(subject="98766"),
+            {**_ownership(), "deletion_owner_version": "2"},
+            {**_ownership(), "deletion_owner_provider": "other"},
+        ],
+    )
+    def test_invalid_binding_skips_all_stores(self, client, mock_services, attributes):
+        response = client.post(
+            "/",
+            headers=make_cloudevent_headers(),
+            json=make_pubsub_body(_make_deauth_payload(), attributes=attributes),
+        )
+        assert response.status_code == 422
+        mock_services["verify_owner"].assert_not_called()
+        mock_services["session_factory"].assert_not_called()
+        mock_services["bq_deletion_service"].run.assert_not_called()
+        mock_services["purge"].assert_not_called()
+
+    def test_remapped_owner_skips_all_writes(self, client, mock_services):
+        mock_services["verify_owner"].side_effect = ConnectionConflictError("remapped")
+        response = client.post(
+            "/",
+            headers=make_cloudevent_headers(),
+            json=make_pubsub_body(_make_deauth_payload(), attributes=_ownership()),
+        )
+        assert response.status_code == 409
+        mock_services["session_factory"].assert_not_called()
+        mock_services["bq_deletion_service"].run.assert_not_called()
+        mock_services["purge"].assert_not_called()
 
     def test_missing_cloudevent_headers_returns_400(self, client):
         response = client.post(
@@ -279,27 +325,44 @@ class TestDeauthEndpoint:
         )
         assert response.status_code == 400
 
-    def test_partial_failure_returns_500(self, client, mock_services):
-        """If one store fails, returns 500 for Pub/Sub retry."""
-        mock_services["bq_deletion_service"].run.side_effect = Exception("BQ down")
-
+    @pytest.mark.parametrize("failed_store", ["postgres", "bigquery", "firestore_docs"])
+    def test_partial_failure_retries_the_captured_owner(
+        self, client, mock_services, failed_store
+    ):
+        """Every retry uses the same pair, even when Firestore already completed."""
         mock_uow = MagicMock()
         mock_uow.__enter__ = MagicMock(return_value=mock_uow)
         mock_uow.__exit__ = MagicMock(return_value=False)
         mock_uow.activities.delete_by_user.return_value = 0
+        bq = mock_services["bq_deletion_service"].run
+        bq.return_value = BQDeletionResult(0, 0, 0)
+        failed = {
+            "postgres": mock_uow.activities.delete_by_user,
+            "bigquery": bq,
+            "firestore_docs": mock_services["purge"],
+        }[failed_store]
+        failed.side_effect = RuntimeError("store unavailable")
+        body = make_pubsub_body(_make_deauth_payload(), attributes=_ownership())
 
         with patch(
             "stravapipe.cloudrun.deletion_service_app.SqlAlchemyUnitOfWork",
             return_value=mock_uow,
         ):
-            response = client.post(
-                "/",
-                headers=make_cloudevent_headers(),
-                json=make_pubsub_body(_make_deauth_payload()),
-            )
+            response = client.post("/", headers=make_cloudevent_headers(), json=body)
+            failed.side_effect = None
+            retry = client.post("/", headers=make_cloudevent_headers(), json=body)
 
         assert response.status_code == 500
-        assert "bigquery" in response.json()["detail"]
+        assert failed_store in response.json()["detail"]
+        assert retry.status_code == 200
+        assert (
+            mock_uow.activities.delete_by_user.call_args_list == [call("app-user")] * 2
+        )
+        assert [c.args[0] for c in bq.call_args_list] == ["98765"] * 2
+        assert (
+            mock_services["purge"].call_args_list
+            == [call(mock_services["firestore_client"], "app-user", "98765")] * 2
+        )
 
 
 class TestIdempotency:
@@ -308,7 +371,7 @@ class TestIdempotency:
     def test_deletion_idempotent_on_redelivery(self, client, mock_services):
         """Second delivery returns 200 with zero counts — nothing left to delete.
 
-        All four stores' delete operations are idempotent: PG/BQ DELETEs of
+        Store delete operations are idempotent: PG/BQ DELETEs of
         already-deleted rows return 0 rows affected; Firestore .delete() is
         a no-op on missing documents.
         """
@@ -327,7 +390,7 @@ class TestIdempotency:
             "stravapipe.cloudrun.deletion_service_app.SqlAlchemyUnitOfWork",
             return_value=mock_uow,
         ):
-            body = make_pubsub_body(_make_deauth_payload())
+            body = make_pubsub_body(_make_deauth_payload(), attributes=_ownership())
             headers = make_cloudevent_headers()
 
             r1 = client.post("/", headers=headers, json=body)
@@ -366,11 +429,6 @@ class TestLifespanCleanup:
             ),
             patch("stravapipe.cloudrun.deletion_service_app.BigQueryClientWrapper"),
             patch("stravapipe.cloudrun.deletion_service_app.FirestoreClient"),
-            patch(
-                "stravapipe.cloudrun.deletion_service_app.delete_legacy_user_documents",
-                return_value=4,
-            ),
-            patch("stravapipe.cloudrun.deletion_service_app.FirestoreTokenStore"),
             patch("stravapipe.cloudrun.deletion_service_app.BQUserDeletionService"),
         ):
             # TestClient context manager triggers startup and shutdown events
