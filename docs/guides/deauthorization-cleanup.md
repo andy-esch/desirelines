@@ -16,25 +16,18 @@ tokens. A publish failure retains tokens so redelivery can confirm and retry.
 
 The subject must match the athlete event's `owner_id`. The JSON body retains
 provider IDs and the existing envelope. Public webhook fields cannot supply the
-app UID. [Shared fixtures](../../schemas/test-fixtures/deletion_ownership.json)
-exercise publication, the current consumer and replay.
+app UID. Publication, consumption and replay share a
+[contract fixture](../../schemas/test-fixtures/deletion_ownership.json).
 
 ## Trust boundary
 
-Attributes are publisher-controlled data, not a signature or publisher identity.
 [Topic IAM](../../terraform/modules/desirelines/main.tf) grants the dispatcher
-publish access. Inherited project roles can also authorize publishing; privileged
-deployment/replay principals are part of the trust boundary.
-[The push subscription](../../terraform/modules/desirelines/pubsub_subscriptions.tf)
-uses OIDC and [Cloud Run IAM](../../terraform/modules/desirelines/cloud_run.tf)
-restricts invocation. The [scheduler's grant](../../terraform/modules/desirelines/readiness_probes.tf)
-is limited to `/ready`; it must not authorize deletion requests. Other authorized
-invokers remain trusted: push authentication does not attest the original publisher.
-Before the ownership-aware consumer rollout, verify that the path restriction
-is deployed without leftover unconditional scheduler grants, and review inherited
-project privileges as well as resource policies.
-See Google's [Pub/Sub access control](https://docs.cloud.google.com/pubsub/docs/access-control)
-and [push authentication](https://docs.cloud.google.com/pubsub/docs/authenticate-push-subscriptions).
+publish access. Inherited project grants and replay operators are trusted too.
+[Push OIDC](../../terraform/modules/desirelines/pubsub_subscriptions.tf)
+authenticates delivery to the [internal Cloud Run service](../../terraform/modules/desirelines/cloud_run.tf).
+Publisher identity is outside that OIDC assertion. Review resource and inherited
+grants before rollout, including the
+[`/ready`-only scheduler grant](../../terraform/modules/desirelines/readiness_probes.tf).
 
 ## Consumer behavior
 
@@ -42,8 +35,9 @@ The [deletion consumer](../../packages/stravapipe/src/stravapipe/cloudrun/deleti
 requires the V1 binding and a matching athlete event before writes. PostgreSQL
 and Firestore use the captured UID. BigQuery uses the captured Strava subject.
 The [Firestore adapter](../../packages/stravapipe/src/stravapipe/adapters/firestore/activity_connection.py)
-checks both registry records before cleanup and rechecks them in the transaction
-that deletes the tokens, user documents, admission and matching registry records.
+checks for conflicts before cleanup. If both registry records exist, they must
+agree. The transaction rechecks ownership before deleting tokens, user
+documents, admission and matching registry records.
 
 Known conflicts and unbound events retry and can reach the DLQ. A valid captured
 binding remains usable after the registry records are deleted, including when
@@ -52,13 +46,13 @@ the consumer acknowledges success only after every store succeeds.
 
 ## Deployment and rollback
 
-Verify the V1 producer in each environment before deploying the consumer.
-Review source and DLQ age, backlog and in-flight delivery evidence. Handle
-unresolved messages using the [deletion DLQ runbook](../runbooks/dlq-deletion-service.md).
-Replay preserves the original body and attributes.
+Verify the V1 producer in each environment before deploying the consumer. Review
+source and DLQ age, backlog and in-flight delivery evidence. Triage unresolved
+messages within the existing 48-hour cleanup window.
+See the [deletion DLQ runbook](../runbooks/dlq-deletion-service.md).
 
 After cutover, keep a V1 producer and roll back only to a consumer that validates
 the captured binding. If no such rollback is available, fix forward and preserve
 the retry/DLQ path. Keep independent enrollment gated until lifecycle work fences
 same-pair reauthorization and accounts for the old consumer's in-flight execution
-and access. The current stage retains full-account cleanup for Strava deauthorization.
+and access. Strava deauthorization still triggers full-account cleanup.

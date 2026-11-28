@@ -1,5 +1,6 @@
 """Unit tests for deletion_service_app FastAPI endpoints."""
 
+import base64
 import json
 from pathlib import Path
 from unittest.mock import MagicMock, call, patch
@@ -317,6 +318,13 @@ class TestDeauthEndpoint:
         mock_services["session_factory"].assert_not_called()
         mock_services["bq_deletion_service"].run.assert_not_called()
         mock_services["purge"].assert_not_called()
+
+    def test_non_object_payload_returns_422(self, client, mock_services):
+        body = make_pubsub_body(_make_deauth_payload(), attributes=_ownership())
+        body["message"]["data"] = base64.b64encode(b"[]").decode()
+        response = client.post("/", headers=make_cloudevent_headers(), json=body)
+        assert response.status_code == 422
+        mock_services["verify_owner"].assert_not_called()
 
     def test_missing_cloudevent_headers_returns_400(self, client):
         response = client.post(

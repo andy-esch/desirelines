@@ -24,13 +24,14 @@ is an inspection result, not proof that the backlog is empty.
 
 ## Before you replay
 
-**Fix the failure first.** A message that still fails burns its five delivery
-attempts and lands straight back in the DLQ. Confirm the service is healthy —
-the DLQ runbook's Cloud Logging filter is the fastest check — before redriving.
+**Fix the failure first.** Check the service logs and confirm recovery before
+redriving. A persistent failure can return to the DLQ.
 
-**Read the failure reason before draining.** Acking is what silences the alert,
-and `CloudPubSubDeadLetterSourceDeliveryErrorMessage` is the only record of why
-delivery failed. The runbooks show how to pull it without acking.
+**Find the failure before draining.** Use consumer logs for push failures and
+broker diagnostics for export subscriptions. The delivery error attribute is
+specific to export subscriptions. See [Pub/Sub dead-letter attributes](https://docs.cloud.google.com/pubsub/docs/dead-letter-topics#track_delivery_attempts).
+For account cleanup, follow the [deletion DLQ runbook](dlq-deletion-service.md)
+before executing a replay.
 
 **Check the topic's fan-out.** Republishing re-delivers to *every* subscription
 on the source topic, not just the one that dead-lettered. Confirm the current
@@ -67,10 +68,5 @@ gcloud logging read 'resource.labels.service_name="desirelines-<service>"' \
   --limit=20 --freshness=10m
 ```
 
-For `deletion-service`, verify the deletion actually completed across
-PostgreSQL, BigQuery, and Firestore — it is a compliance obligation, not a
-routine write.
-
-If the underlying data is recoverable from Strava, the `desirelines-backfill`
-job is the alternative to message surgery: heavier, but self-healing and it
-needs no DLQ contents.
+For activity ingestion failures, `desirelines-backfill` can recover data still
+available from Strava.

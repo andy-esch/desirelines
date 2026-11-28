@@ -177,6 +177,8 @@ def _delete_all_stores(
 
 def _captured_owner(req: PubSubRequestContext) -> tuple[str, str]:
     event = req.event_data
+    if not isinstance(event, dict):
+        raise HTTPException(422, "Expected a deauthorization event object")
     attrs = req.message_attributes
     uid = attrs.get("deletion_owner_uid", "")
     subject = attrs.get("deletion_owner_subject", "")

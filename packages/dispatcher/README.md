@@ -48,8 +48,9 @@ a missing credential document under a valid pair is a token orphan. See `webhook
 for activity outcomes.
 
 Gateway and dispatcher images require verified, sealed bootstrap evidence through
-[the release declaration](../../scripts/ci/identity-rollout.json). Independent
-enrollment remains disabled while full-account deletion ownership is migrated.
+[the release declaration](../../scripts/ci/identity-rollout.json). See
+[deauthorization rollout](../../docs/guides/deauthorization-cleanup.md#deployment-and-rollback)
+for the consumer and independent enrollment checkpoints.
 
 **Type Definitions:** Webhook types are defined in `schemas/proto/desirelines/webhook/v1/webhook.proto` and shared with stravapipe (Python). Generated code lives in `types/generated/`. See `just proto-gen-backend`.
 
@@ -88,9 +89,8 @@ Strava signals athlete deauthorization with an `athlete` webhook event — eithe
    while the original pair still matches, and invalidates the UID's admission
    cache entry. Downstream cleanup owns eventual deletion after the handoff.
 
-See the [ownership handoff and deployment sequence](../../docs/guides/deauthorization-cleanup.md).
-The current deletion consumer still uses legacy numeric identity; the additive
-attributes prepare its later migration.
+See the [ownership handoff](../../docs/guides/deauthorization-cleanup.md) for
+consumer validation, retries and rollback.
 
 Deauth deliberately bypasses app admission. Removing an app UID from the
 allowlist must not strand a formerly admitted user's data when their Strava grant

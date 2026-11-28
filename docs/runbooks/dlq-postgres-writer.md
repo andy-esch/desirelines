@@ -12,19 +12,16 @@ product-affecting: reads come from PostgreSQL. Repair PG and reconcile via the b
 
 **First place to look**:
 
-- Each dead-lettered message carries a
-  `CloudPubSubDeadLetterSourceDeliveryErrorMessage` attribute naming why
-  delivery failed. Read it before anything else:
+- Inspect the message and original publish time without acknowledging it:
 
   ```bash
   gcloud pubsub subscriptions pull desirelines-postgres-writer-dlq-monitoring-<env> \
     --project=<project> --limit=5 \
-    --format="value(message.attributes.CloudPubSubDeadLetterSourceDeliveryErrorMessage)"
+    --format='yaml(message.attributes,message.data)'
   ```
 
-  Pulling without `--auto-ack` leaves the messages in place. Acking is what
-  silences the alert, so inspect before you drain — the attribute is the only
-  record of the cause.
+  Use the source publish time to find the failure in the writer logs. See
+  [DLQ diagnostics](dlq-redrive.md#before-you-replay).
 
 - Or Console → Pub/Sub → Subscriptions →
   `desirelines-postgres-writer-dlq-monitoring-<env>` → **View messages**.

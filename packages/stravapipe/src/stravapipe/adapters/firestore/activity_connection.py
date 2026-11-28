@@ -162,14 +162,18 @@ def _owned_registry_refs(
     lookup = client.collection(LOOKUPS_COLLECTION).document(lookup_key(subject))
     connection = client.document(f"users/{uid}/{CONNECTIONS_COLLECTION}/{PROVIDER}")
     refs = []
+    matched: ConnectionRecord | None = None
     for ref in (lookup, connection):
         snapshot = ref.get(transaction=transaction)
         if snapshot.exists:
             record = _decode_record(snapshot.to_dict() or {})
-            if (record.uid, record.subject) != (uid, subject):
+            if (record.uid, record.subject) != (uid, subject) or (
+                matched is not None and record != matched
+            ):
                 raise ConnectionConflictError(
                     "deletion conflicts with registry ownership"
                 )
+            matched = record
             refs.append(ref)
     return refs
 

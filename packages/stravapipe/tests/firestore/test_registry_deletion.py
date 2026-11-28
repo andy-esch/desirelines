@@ -62,6 +62,7 @@ def test_deletion_is_idempotent_and_preserves_other_owner(client: Client) -> Non
         ("provider_accounts/strava:111", {"uid": "other"}),
         ("users/app-user/connections/strava", {"subject": "222"}),
         ("provider_accounts/strava:111", {"schema_version": 999}),
+        ("users/app-user/connections/strava", {"status": "disconnected"}),
     ],
 )
 def test_conflict_aborts_all_firestore_deletes_and_can_retry(

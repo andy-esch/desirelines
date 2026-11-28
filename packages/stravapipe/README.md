@@ -4,7 +4,7 @@ Strava data pipeline - processes webhook events and syncs to BigQuery and Postgr
 
 ## Services
 
-This package provides three Cloud Run services and one Cloud Run job:
+This package provides two Cloud Run services and one Cloud Run job:
 
 | Service | Type | Description | Trigger |
 |---------|------|-------------|---------|
@@ -12,7 +12,8 @@ This package provides three Cloud Run services and one Cloud Run job:
 | `deletion-service` | Service | Deletes all user data on Strava deauthorization | Pub/Sub push (`deauth_events`) |
 | `backfill` | Job | Backfills historical activities to PG + BQ | Manual (`gcloud run jobs execute`) |
 
-The deletion service implements user data deletion required by the [Strava API Agreement (Section 5.4)](https://www.strava.com/legal/api). When a user disconnects the app from Strava, it deletes their data from PostgreSQL, BigQuery, and Firestore within 48 hours.
+See the [deauthorization handoff](../../docs/guides/deauthorization-cleanup.md)
+for ownership validation, cleanup and rollback.
 
 ## Architecture
 
