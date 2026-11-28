@@ -69,6 +69,15 @@ HTTP_SERVICE_UNAVAILABLE = 503
 _BREAKER_FAILURE_THRESHOLD = 5
 _BREAKER_RESET_TIMEOUT_SECONDS = 30
 
+# Page size for the backfill year fetch. A page shorter than this is the last
+# one, so the loop stops there instead of spending a Strava call on an empty page.
+_LIST_PAGE_SIZE = 100
+# Ceiling on pages per year: 50 x 100 = 5,000 activities, about 14 a day, far
+# above any real athlete's year. Still getting full pages here means the list
+# endpoint is not running dry, so raise rather than keep drawing on the read
+# budget that live webhooks share.
+_MAX_LIST_PAGES_PER_YEAR = 50
+
 
 class _BreakerLogger(pybreaker.CircuitBreakerListener):
     """Logs Strava circuit breaker state transitions at WARNING.
@@ -695,24 +704,29 @@ class StravaActivitiesRepo(ReadDetailedActivities):
         date_start = int(datetime(year, 1, 1, tzinfo=UTC).timestamp())
         date_end = int(datetime(year + 1, 1, 1, tzinfo=UTC).timestamp())
 
-        page = 1
         activities: list[SummaryStravaActivity] = []
-        while True:
+        for page in range(1, _MAX_LIST_PAGES_PER_YEAR + 1):
             raw_activities = self._client.list_activities(
                 after=date_start,
                 before=date_end,
                 page=page,
+                per_page=_LIST_PAGE_SIZE,
             )
-            if len(raw_activities) == 0:
-                break
+            if raw_activities:
+                activities.extend(
+                    SummaryStravaActivity(**activity) for activity in raw_activities
+                )
+                logger.info("Page %s successfully fetched", page)
+            # A short page, including an empty one, is the last page.
+            if len(raw_activities) < _LIST_PAGE_SIZE:
+                return activities
 
-            activities.extend(
-                SummaryStravaActivity(**activity) for activity in raw_activities
-            )
-            logger.info("Page %s successfully fetched", page)
-            page += 1
-
-        return activities
+        # Raise rather than return what was read: a truncated list would make
+        # the backfill treat a partial year as complete.
+        raise StravaApiError(
+            f"Strava list endpoint still returned full pages after "
+            f"{_MAX_LIST_PAGES_PER_YEAR} pages for {year}; stopping pagination"
+        )
 
 
 # =============================================================================

@@ -161,7 +161,9 @@ type athleteResponse struct {
 // Stateless wrt per-user tokens (read from the TokenStore on each call),
 // but holds a *shared* circuit breaker whose state is process-wide for
 // the service instance — so a Strava outage trips once and fails-fast
-// for every concurrent caller until the dependency recovers.
+// for every concurrent FetchActivity caller until the dependency recovers.
+// VerifyGrant is not covered: its /athlete check and any token refresh it
+// triggers call Strava directly, outside the breaker (see VerifyGrant).
 type Client struct {
 	httpClient   *http.Client
 	clientID     string
@@ -391,6 +393,10 @@ func (c *Client) FetchActivity(ctx context.Context, owner ports.CredentialOwner,
 // authoritative token-store re-read still contains the rejected credentials.
 // That second read rules out an out-of-process re-authorization hidden behind
 // this process's cache.
+//
+// Unlike FetchActivity, VerifyGrant does not run inside the circuit breaker:
+// an open breaker does not short-circuit a deauthorization confirmation, and
+// its Strava failures do not count toward tripping the breaker.
 func (c *Client) VerifyGrant(ctx context.Context, owner ports.CredentialOwner) (_ ports.GrantStatus, err error) {
 	ownerID := owner.Subject
 	ctx, spanDone := otel.StartSpan(ctx, c.tracer, "strava.verify_grant",

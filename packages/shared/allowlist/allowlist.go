@@ -11,7 +11,6 @@ package allowlist
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	"cloud.google.com/go/firestore"
 	"github.com/andy-esch/desirelines/packages/shared/stravatoken"
@@ -37,14 +36,13 @@ type docGetter func(ctx context.Context, athleteID string) error
 // It looks up documents in stravatoken.AllowlistCollection by athlete ID.
 type FirestoreChecker struct {
 	getDoc docGetter
-	logger *slog.Logger
 }
 
 // Compile-time check.
 var _ Checker = (*FirestoreChecker)(nil)
 
 // NewFirestoreChecker creates a new Firestore-backed allowlist checker.
-func NewFirestoreChecker(client *firestore.Client, logger *slog.Logger) *FirestoreChecker {
+func NewFirestoreChecker(client *firestore.Client) *FirestoreChecker {
 	return &FirestoreChecker{
 		getDoc: func(ctx context.Context, athleteID string) error {
 			_, err := client.Collection(stravatoken.AllowlistCollection).Doc(athleteID).Get(ctx)
@@ -53,7 +51,6 @@ func NewFirestoreChecker(client *firestore.Client, logger *slog.Logger) *Firesto
 			}
 			return nil
 		},
-		logger: logger,
 	}
 }
 

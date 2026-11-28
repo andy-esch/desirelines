@@ -24,7 +24,7 @@ const defaultOpts = { metric: "distance_meters", now: FIXTURE_NOW };
 describe("calculateDesireLine", () => {
   it("generates straight line from 0 to target", () => {
     // 365 miles over 365 days = 1 mile per day
-    const line = calculateDesireLine(365, 2025, new Date(2025, 0, 3));
+    const line = calculateDesireLine(365, 2025, new Date(Date.UTC(2025, 0, 3)));
 
     expect(line).toHaveLength(3);
     expect(line[0]!.x).toBe("2025-01-01");
@@ -34,20 +34,20 @@ describe("calculateDesireLine", () => {
   });
 
   it("stops at maxDate", () => {
-    const line = calculateDesireLine(3650, 2025, new Date(2025, 0, 5));
+    const line = calculateDesireLine(3650, 2025, new Date(Date.UTC(2025, 0, 5)));
     expect(line).toHaveLength(5);
     expect(line[4]!.x).toBe("2025-01-05");
   });
 
   it("scales proportionally for full year", () => {
-    const line = calculateDesireLine(1000, 2025, new Date(2025, 11, 31));
+    const line = calculateDesireLine(1000, 2025, new Date(Date.UTC(2025, 11, 31)));
     const lastEntry = line.at(-1)!;
     // Last day should be close to 1000 miles
     expect(lastEntry.y).toBeCloseTo(1000, 0);
   });
 
   it("handles 0 target distance", () => {
-    const line = calculateDesireLine(0, 2025, new Date(2025, 0, 10));
+    const line = calculateDesireLine(0, 2025, new Date(Date.UTC(2025, 0, 10)));
     expect(line).toHaveLength(10);
     expect(line[0]!.y).toBe(0);
     expect(line[9]!.y).toBe(0);
@@ -68,7 +68,11 @@ describe("calculateCurrentAverageLine", () => {
     // Average: 10 miles/day (20 miles in 2 days)
     // Projected: 10 * 365 = 3650 miles
 
-    const line = calculateCurrentAverageLine(distanceTraveled, 2025, new Date(2025, 0, 2));
+    const line = calculateCurrentAverageLine(
+      distanceTraveled,
+      2025,
+      new Date(Date.UTC(2025, 0, 2))
+    );
 
     expect(line.length).toBeGreaterThan(0);
     // Day 1 should be (3650 * 1 / 365) ≈ 10 miles
@@ -82,7 +86,11 @@ describe("calculateCurrentAverageLine", () => {
     // 15 miles in 1 day = 15 miles/day
     // Projected: 15 * 365 = 5475 miles
 
-    const line = calculateCurrentAverageLine(distanceTraveled, 2025, new Date(2025, 0, 1));
+    const line = calculateCurrentAverageLine(
+      distanceTraveled,
+      2025,
+      new Date(Date.UTC(2025, 0, 1))
+    );
 
     expect(line).toHaveLength(1);
     expect(line[0]!.y).toBeCloseTo(15, 0);
@@ -322,7 +330,7 @@ describe("calculateActualPacing", () => {
       { x: "2024-01-03", y: 45 }, // Day 3: 45 miles, pace = 45/3 = 15
     ];
 
-    const pacing = calculateActualPacing(distanceData, new Date(2024, 0, 3));
+    const pacing = calculateActualPacing(distanceData, new Date(Date.UTC(2024, 0, 3)));
 
     expect(pacing).toHaveLength(3);
     expect(pacing[0]).toEqual({ x: "2024-01-01", y: 10 });
@@ -337,13 +345,13 @@ describe("calculateActualPacing", () => {
       { x: "2024-01-03", y: 45 },
     ];
 
-    const pacing = calculateActualPacing(distanceData, new Date(2024, 0, 2));
+    const pacing = calculateActualPacing(distanceData, new Date(Date.UTC(2024, 0, 2)));
 
     expect(pacing).toHaveLength(2);
   });
 
   it("handles empty distance data", () => {
-    const pacing = calculateActualPacing([], new Date(2024, 11, 31));
+    const pacing = calculateActualPacing([], new Date(Date.UTC(2024, 11, 31)));
     expect(pacing).toEqual([]);
   });
 });
@@ -355,7 +363,12 @@ describe("calculateDynamicPacingGoal", () => {
       { x: "2024-01-02", y: 20 }, // 364 days remain, need 2480 more
     ];
 
-    const pacing = calculateDynamicPacingGoal(distanceData, 2500, 2024, new Date(2024, 0, 2));
+    const pacing = calculateDynamicPacingGoal(
+      distanceData,
+      2500,
+      2024,
+      new Date(Date.UTC(2024, 0, 2))
+    );
 
     expect(pacing).toHaveLength(2);
     // Day 1: (2500 - 10) / (366 - 1) = 2490 / 365 ≈ 6.82
@@ -370,7 +383,12 @@ describe("calculateDynamicPacingGoal", () => {
       { x: "2024-01-02", y: 2600 }, // Exceeded goal
     ];
 
-    const pacing = calculateDynamicPacingGoal(distanceData, 2500, 2024, new Date(2024, 0, 2));
+    const pacing = calculateDynamicPacingGoal(
+      distanceData,
+      2500,
+      2024,
+      new Date(Date.UTC(2024, 0, 2))
+    );
 
     expect(pacing[0]?.y).toBe(0);
     expect(pacing[1]?.y).toBe(0);
@@ -379,7 +397,12 @@ describe("calculateDynamicPacingGoal", () => {
   it("handles near end of year", () => {
     const distanceData: DistanceEntry[] = [{ x: "2024-12-31", y: 2000 }];
 
-    const pacing = calculateDynamicPacingGoal(distanceData, 2500, 2024, new Date(2024, 11, 31));
+    const pacing = calculateDynamicPacingGoal(
+      distanceData,
+      2500,
+      2024,
+      new Date(Date.UTC(2024, 11, 31))
+    );
 
     expect(pacing[0]?.y).toBeGreaterThan(0);
   });
@@ -387,7 +410,12 @@ describe("calculateDynamicPacingGoal", () => {
   it("handles leap year", () => {
     const distanceData: DistanceEntry[] = [{ x: "2024-01-01", y: 0 }];
 
-    const pacing = calculateDynamicPacingGoal(distanceData, 3660, 2024, new Date(2024, 0, 1));
+    const pacing = calculateDynamicPacingGoal(
+      distanceData,
+      3660,
+      2024,
+      new Date(Date.UTC(2024, 0, 1))
+    );
 
     // 2024 is leap year (366 days), need 3660 miles
     // Day 1: (3660 - 0) / (366 - 1) = 3660 / 365 ≈ 10.027
@@ -395,8 +423,47 @@ describe("calculateDynamicPacingGoal", () => {
   });
 
   it("handles empty distance data", () => {
-    const pacing = calculateDynamicPacingGoal([], 2500, 2024, new Date(2024, 11, 31));
+    const pacing = calculateDynamicPacingGoal([], 2500, 2024, new Date(Date.UTC(2024, 11, 31)));
     expect(pacing).toEqual([]);
+  });
+});
+
+// The chart hooks (useCumulativeChartData, usePacingChartData) pass maxDate
+// UTC-anchored: `Date.UTC(year, 11, 31)` for the full-year view and
+// `new Date("YYYY-MM-DD")` for the latest data day. West of UTC (the suite's
+// default America/New_York zone), that instant is the previous evening locally,
+// so a local-date cutoff dropped the final day.
+describe("maxDate cutoff with UTC-anchored dates", () => {
+  it("calculateDesireLine reaches Dec 31 in the full-year view", () => {
+    const line = calculateDesireLine(1000, 2025, new Date(Date.UTC(2025, 11, 31)));
+    expect(line).toHaveLength(365);
+    expect(line.at(-1)).toEqual({ x: "2025-12-31", y: 1000 });
+  });
+
+  it("calculateDesireLine includes the latest data day", () => {
+    const line = calculateDesireLine(365, 2025, new Date("2025-03-10"));
+    expect(line.at(-1)!.x).toBe("2025-03-10");
+  });
+
+  it("calculateActualPacing includes the latest data day", () => {
+    const distanceData: DistanceEntry[] = [
+      { x: "2024-01-01", y: 10 },
+      { x: "2024-01-02", y: 25 },
+      { x: "2024-01-03", y: 45 },
+    ];
+    const pacing = calculateActualPacing(distanceData, new Date("2024-01-03"));
+    expect(pacing.at(-1)).toEqual({ x: "2024-01-03", y: 15 });
+  });
+
+  it("calculateDynamicPacingGoal includes Dec 31 in the full-year view", () => {
+    const distanceData: DistanceEntry[] = [{ x: "2024-12-31", y: 2000 }];
+    const pacing = calculateDynamicPacingGoal(
+      distanceData,
+      2500,
+      2024,
+      new Date(Date.UTC(2024, 11, 31))
+    );
+    expect(pacing.at(-1)!.x).toBe("2024-12-31");
   });
 });
 

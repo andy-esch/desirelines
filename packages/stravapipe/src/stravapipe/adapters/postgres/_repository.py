@@ -855,8 +855,18 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         """
         if not external_ids:
             return set()
+        if self._owner is None:
+            raise ActivityOwnershipError(
+                "individual activity operations require trusted ownership"
+            )
+        owner = self._owner
+        # This loop is load-bearing, not leftover code: for each ID,
+        # _platform_id validates it against the trusted owner, takes the
+        # per-ID advisory lock that serializes this read with a concurrent
+        # first claim or delete, and raises if the mapping belongs to another
+        # owner. Its returned params are not needed here.
         for external_id in sorted(set(external_ids), key=str):
-            params = self._platform_id(external_id)
+            self._platform_id(external_id)
         query = text("""
             SELECT m.external_id
             FROM desirelines.activity_external_ids m
@@ -867,7 +877,9 @@ class SqlAlchemyActivityRepository(ActivityRepository):
         result = self._session.execute(
             query,
             {
-                **params,
+                "source": ACTIVITY_SOURCE,
+                "user_id": owner.uid,
+                "external_owner_id": owner.subject,
                 "external_ids": [str(external_id) for external_id in external_ids],
             },
         )

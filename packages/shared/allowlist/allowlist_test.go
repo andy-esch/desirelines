@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/andy-esch/desirelines/packages/shared/gcplog"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )
@@ -15,7 +14,7 @@ import (
 // without an emulator. The Firestore-emulator-backed integration test in
 // allowlist_integration_test.go covers the real client wiring.
 func newCheckerWithStub(stub docGetter) *FirestoreChecker {
-	return &FirestoreChecker{getDoc: stub, logger: gcplog.NewNoOpLogger()}
+	return &FirestoreChecker{getDoc: stub}
 }
 
 func TestNewFirestoreChecker_ConstructorWiresGetter(t *testing.T) {
@@ -24,15 +23,12 @@ func TestNewFirestoreChecker_ConstructorWiresGetter(t *testing.T) {
 	// only dereferences `client` when IsAllowed is called, so construction
 	// is safe. Without this test, NewFirestoreChecker is uncovered (its
 	// real-client path is integration-only).
-	checker := NewFirestoreChecker(nil, gcplog.NewNoOpLogger())
+	checker := NewFirestoreChecker(nil)
 	if checker == nil {
 		t.Fatal("NewFirestoreChecker returned nil")
 	}
 	if checker.getDoc == nil {
 		t.Error("checker.getDoc is nil; constructor failed to wire the closure")
-	}
-	if checker.logger == nil {
-		t.Error("checker.logger is nil")
 	}
 }
 

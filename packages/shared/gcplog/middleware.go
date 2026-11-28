@@ -192,11 +192,7 @@ func extractTraceContext(r *http.Request, projectID string) *TraceContext {
 		spanID := sc.SpanID().String()
 		traceSampled := sc.IsSampled()
 
-		return &TraceContext{
-			TraceID:      formatTraceID(traceID, projectID),
-			SpanID:       spanID,
-			TraceSampled: traceSampled,
-		}
+		return newTraceContext(traceID, spanID, traceSampled, projectID)
 	}
 
 	// 2. Fall back to manual header extraction if no OTel span exists
@@ -243,11 +239,7 @@ func parseCloudTraceContext(header, projectID string) *TraceContext {
 		spanID = idParts[1]
 	}
 
-	return &TraceContext{
-		TraceID:      formatTraceID(traceID, projectID),
-		SpanID:       spanID,
-		TraceSampled: traceSampled,
-	}
+	return newTraceContext(traceID, spanID, traceSampled, projectID)
 }
 
 // parseTraceparent parses W3C's traceparent header.
@@ -265,10 +257,18 @@ func parseTraceparent(header, projectID string) *TraceContext {
 	// Check if sampled (last bit of flags)
 	traceSampled := flags != "" && (flags[len(flags)-1] == '1')
 
+	return newTraceContext(traceID, spanID, traceSampled, projectID)
+}
+
+// newTraceContext builds a TraceContext, applying the GCP resource-name
+// formatting to the trace ID that Cloud Logging's trace field requires. All
+// three trace sources (active span, X-Cloud-Trace-Context, traceparent) build
+// their result here, so the formatTraceID invariant lives in one place.
+func newTraceContext(traceID, spanID string, sampled bool, projectID string) *TraceContext {
 	return &TraceContext{
 		TraceID:      formatTraceID(traceID, projectID),
 		SpanID:       spanID,
-		TraceSampled: traceSampled,
+		TraceSampled: sampled,
 	}
 }
 

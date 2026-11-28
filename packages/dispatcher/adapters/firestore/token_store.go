@@ -63,10 +63,8 @@ func (s *TokenStore) checkOwner(tx *firestore.Transaction, owner ports.Credentia
 // GetTokens reads the active pair and UID-keyed credentials in one snapshot.
 // Only a missing credential document is ErrTokenNotFound; registry failures retry.
 func (s *TokenStore) GetTokens(ctx context.Context, owner ports.CredentialOwner) (_ *stravatoken.Data, err error) {
-	ctx, spanDone := otel.StartSpan(ctx, s.tracer, "firestore.get_tokens", attribute.Int64("athlete_id", owner.Subject), attribute.String("db.system", dbSystem))
-	defer func() { spanDone(err) }()
-	done := otel.RecordDuration(ctx, s.histogram, attribute.String("operation", "get_tokens"))
-	defer func() { done(err) }()
+	ctx, finish := s.observe(ctx, "get_tokens", owner.Subject)
+	defer func() { finish(err) }()
 	if validationErr := owner.Validate(); validationErr != nil {
 		return nil, fmt.Errorf("credential owner: %w", validationErr)
 	}
@@ -104,10 +102,8 @@ func (s *TokenStore) GetTokens(ctx context.Context, owner ports.CredentialOwner)
 // attempt. Update cannot recreate a deleted credential document. External OAuth
 // refresh happens before this method, never inside the retryable callback.
 func (s *TokenStore) WriteTokensIfUnmodified(ctx context.Context, owner ports.CredentialOwner, tokens *stravatoken.Data, expectedLastRefreshed time.Time) (_ time.Time, err error) {
-	ctx, spanDone := otel.StartSpan(ctx, s.tracer, "firestore.write_tokens", attribute.Int64("athlete_id", owner.Subject), attribute.String("db.system", dbSystem))
-	defer func() { spanDone(err) }()
-	done := otel.RecordDuration(ctx, s.histogram, attribute.String("operation", "write_tokens"))
-	defer func() { done(err) }()
+	ctx, finish := s.observe(ctx, "write_tokens", owner.Subject)
+	defer func() { finish(err) }()
 	if validationErr := owner.Validate(); validationErr != nil {
 		return time.Time{}, fmt.Errorf("credential owner: %w", validationErr)
 	}
@@ -162,10 +158,8 @@ func (s *TokenStore) WriteTokensIfUnmodified(ctx context.Context, owner ports.Cr
 // DeleteTokens removes credentials only while the original pair is still active.
 // Admission is deliberately irrelevant to grant-confirmed deauthorization.
 func (s *TokenStore) DeleteTokens(ctx context.Context, owner ports.CredentialOwner) (err error) {
-	ctx, spanDone := otel.StartSpan(ctx, s.tracer, "firestore.delete_tokens", attribute.Int64("athlete_id", owner.Subject), attribute.String("db.system", dbSystem))
-	defer func() { spanDone(err) }()
-	done := otel.RecordDuration(ctx, s.histogram, attribute.String("operation", "delete_tokens"))
-	defer func() { done(err) }()
+	ctx, finish := s.observe(ctx, "delete_tokens", owner.Subject)
+	defer func() { finish(err) }()
 	if validationErr := owner.Validate(); validationErr != nil {
 		return fmt.Errorf("credential owner: %w", validationErr)
 	}
@@ -183,6 +177,20 @@ func (s *TokenStore) DeleteTokens(ctx context.Context, owner ports.CredentialOwn
 		return fmt.Errorf("delete credentials: %w", err)
 	}
 	return nil
+}
+
+// observe starts the "firestore."+op span and the operation-duration
+// measurement that every instrumented method shares, and returns the span's
+// context. Defer the returned finalizer: it records the duration and then ends
+// the span, the same order the two separate defers produced.
+func (s *TokenStore) observe(ctx context.Context, op string, subject int64) (context.Context, func(error)) {
+	ctx, spanDone := otel.StartSpan(ctx, s.tracer, "firestore."+op,
+		attribute.Int64("athlete_id", subject), attribute.String("db.system", dbSystem))
+	done := otel.RecordDuration(ctx, s.histogram, attribute.String("operation", op))
+	return ctx, func(err error) {
+		done(err)
+		spanDone(err)
+	}
 }
 
 func (s *TokenStore) tokensRef(owner ports.CredentialOwner) *firestore.DocumentRef {

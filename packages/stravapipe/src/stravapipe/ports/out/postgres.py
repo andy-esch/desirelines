@@ -190,7 +190,10 @@ class ActivityRepository(ABC):
     def get_existing_ids(self, external_ids: list[int]) -> set[int]:
         """Filter Strava IDs down to those of activities that already exist.
 
-        Used in batch processing to separate inserts and updates efficiently.
+        Used in batch processing to separate inserts and updates. One query
+        returns the existing IDs, but the PostgreSQL adapter first takes an
+        advisory lock and runs an ownership check for each ID, so the cost
+        grows with the batch size.
 
         Args:
             external_ids: Strava IDs of the activities to check

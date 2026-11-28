@@ -1,5 +1,4 @@
 import type { DistanceEntry, PacingEntry } from "../types/activity";
-import { toLocalDateString } from "./dateUtils";
 import {
   goalDisplayToMeters,
   goalMetersToDisplay,
@@ -99,13 +98,23 @@ export function toStoredGoals<T extends { id: string; value: number }>(
 }
 
 /**
+ * Format a UTC-anchored Date as its UTC calendar day, YYYY-MM-DD.
+ *
+ * The chart pipeline's day strings are UTC: series dates parse as UTC midnight and
+ * the chart hooks build `maxDate` with `Date.UTC(...)` or `new Date("YYYY-MM-DD")`.
+ * Formatting such a Date with `toLocalDateString` returns the previous day west of
+ * UTC, which used to drop the final point from every pacing line.
+ */
+function utcDateString(date: Date): string {
+  return date.toISOString().split("T")[0] ?? "";
+}
+
+/**
  * Create a UTC date for a specific day of the year and return as YYYY-MM-DD string
  * Uses UTC throughout to avoid timezone-related off-by-one errors
  */
 function dayOfYearToDateString(year: number, dayOfYear: number): string {
-  // Create date in UTC to avoid local timezone issues
-  const utcDate = new Date(Date.UTC(year, 0, dayOfYear));
-  return utcDate.toISOString().split("T")[0] ?? "";
+  return utcDateString(new Date(Date.UTC(year, 0, dayOfYear)));
 }
 
 /**
@@ -211,7 +220,7 @@ export function calculateDesireLine(
   const daysInYear = getDaysInYear(year);
   const line: DistanceTimeseries = [];
 
-  const maxDateStr = toLocalDateString(maxDate);
+  const maxDateStr = utcDateString(maxDate);
 
   for (let dayOfYear = 1; dayOfYear <= daysInYear; dayOfYear++) {
     const dateStr = dayOfYearToDateString(year, dayOfYear);
@@ -410,7 +419,7 @@ export function calculateActualPacing(
   maxDate: Date
 ): PacingTimeseries {
   const pacing: PacingTimeseries = [];
-  const maxDateStr = toLocalDateString(maxDate);
+  const maxDateStr = utcDateString(maxDate);
 
   for (let i = 0; i < distanceTraveled.length; i++) {
     const entry = distanceTraveled[i];
@@ -450,7 +459,7 @@ export function calculateDynamicPacingGoal(
 ): PacingTimeseries {
   const daysInYear = getDaysInYear(year);
   const pacing: PacingTimeseries = [];
-  const maxDateStr = toLocalDateString(maxDate);
+  const maxDateStr = utcDateString(maxDate);
 
   for (let i = 0; i < distanceTraveled.length; i++) {
     const entry = distanceTraveled[i];
