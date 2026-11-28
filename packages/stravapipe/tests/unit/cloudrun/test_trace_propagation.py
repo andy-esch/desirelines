@@ -107,7 +107,7 @@ def deletion_client():
 
     The deletion service's stores (Postgres / BigQuery / Firestore) are
     patched at their import sites, so the lifespan populates
-    `app.state.{session_factory, bq_deletion_service, token_store, ...}`
+    `app.state.{session_factory, bq_deletion_service, firestore_client}`
     with harmless MagicMocks on its own — no manual assignment needed.
     This test only cares that the `deletion.process` span is parented
     correctly, which happens before any store work.
@@ -126,7 +126,6 @@ def deletion_client():
         patch("stravapipe.cloudrun.deletion_service_app.BigQueryClientWrapper"),
         patch("stravapipe.cloudrun.deletion_service_app.FirestoreClient"),
         patch("stravapipe.cloudrun.deletion_service_app.BQUserDeletionService"),
-        patch("stravapipe.cloudrun.deletion_service_app.FirestoreTokenStore"),
     ):
         mock_factory.return_value = (MagicMock(), MagicMock())
 

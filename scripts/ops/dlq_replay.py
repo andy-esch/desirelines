@@ -14,6 +14,8 @@ from typing import Any
 import urllib.error
 import urllib.request
 
+DEAUTH_TOPIC = "desirelines_deauth_events"
+
 
 class ReplayError(Exception):
     """An operation failed without exposing credentials or message contents."""
@@ -38,7 +40,7 @@ def destinations(service: str, environment: str) -> tuple[str, str, str]:
         raise ReplayError("Environment must be dev or prod")
     topics = {
         "postgres-writer": "desirelines_activity_events",
-        "deletion-service": "desirelines_deauth_events",
+        "deletion-service": DEAUTH_TOPIC,
         "activity-rows": f"desirelines-activity-rows-{environment}",
     }
     if service not in topics:
@@ -244,6 +246,17 @@ def replay(
         if message_id in seen:
             return False
         message = replay_message(original)
+        if topic.endswith(f"/{DEAUTH_TOPIC}"):
+            attrs = message["attributes"]
+            if (
+                attrs.get("deletion_owner_version") != "1"
+                or attrs.get("deletion_owner_provider") != "strava"
+                or not attrs.get("deletion_owner_uid")
+                or not attrs.get("deletion_owner_subject")
+            ):
+                raise ReplayError(
+                    "Deletion replay requires V1 ownership attributes. Review the deletion DLQ before retrying."
+                )
         if not dry_run:
             client.publish(topic, message)
         seen.add(message_id)

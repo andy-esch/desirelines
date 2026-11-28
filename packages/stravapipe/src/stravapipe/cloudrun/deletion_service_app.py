@@ -11,14 +11,14 @@ stores:
 - PostgreSQL: activities + routes (CASCADE)
 - BigQuery: delete from activities, activities_staging and activities_live.
   The deletion record is the log line, not a retained copy of the data.
-- Firestore: OAuth tokens, user profile, config, allowlist entry
+- Firestore: OAuth tokens, user profile, config, admission and registry records
 
 All deletions are idempotent. On partial failure, returns 500 to trigger
 Pub/Sub retry via dead-letter redelivery.
 
 Does NOT use handle_webhook_cloudevent() since that function hardcodes
 object_type == ACTIVITY routing. This service handles athlete deauth events
-with a simpler flow: parse event → extract owner_id → delete from all stores.
+with a simpler flow: validate the captured owner → delete from all stores.
 """
 
 from collections.abc import AsyncIterator, Callable
@@ -32,16 +32,23 @@ from opentelemetry.metrics import Histogram
 from opentelemetry.trace import Tracer, get_current_span
 from sqlalchemy.orm import Session, sessionmaker
 
-from stravapipe.adapters.firestore import FirestoreTokenStore
 from stravapipe.adapters.firestore.activity_connection import (
-    delete_legacy_user_documents,
+    PROVIDER,
+    ConnectionConflictError,
+    delete_user_documents,
+    lookup_key,
+    validate_uid,
+    verify_deletion_owner,
 )
 from stravapipe.adapters.gcp import BigQueryClientWrapper
 from stravapipe.adapters.postgres import SqlAlchemyUnitOfWork
 from stravapipe.adapters.postgres._unit_of_work import create_session_factory
 from stravapipe.application.deletion import BQUserDeletionService
 from stravapipe.cloudrun._lifespan import shutdown_app_resources
-from stravapipe.cloudrun._request_context import bootstrap_pubsub_request
+from stravapipe.cloudrun._request_context import (
+    PubSubRequestContext,
+    bootstrap_pubsub_request,
+)
 from stravapipe.config import load_deletion_service_config
 from stravapipe.shared.constants import ResponseStatus
 from stravapipe.shared.logging import setup_logging
@@ -73,7 +80,6 @@ class DeletionResult:
     bq_activities_deleted: int = 0
     bq_staging_deleted: int = 0
     bq_live_deleted: int = 0
-    firestore_tokens_deleted: bool = False
     firestore_user_docs_deleted: int = 0
     errors: list[str] = field(default_factory=list)
 
@@ -121,7 +127,6 @@ class _DeletionDeps:
 
     session_factory: sessionmaker[Session]
     bq_service: BQUserDeletionService
-    token_store: FirestoreTokenStore
     firestore_client: FirestoreClient
     tracer: Tracer | None
     deletion_hist: Histogram | None
@@ -130,17 +135,11 @@ class _DeletionDeps:
 def _delete_all_stores(
     result: DeletionResult,
     deps: _DeletionDeps,
+    subject: str,
     correlation_id: str,
     event_time: int,
 ) -> None:
-    """Run the four per-store deletion steps in order, mutating `result`.
-
-    Each step is independent and idempotent — failures are recorded on
-    `result.errors` and the next step still runs. Splitting this out of
-    handle_deauth_event keeps the orchestrator under ruff's PLR0915 cap
-    while leaving the operational sequence (postgres → bigquery → tokens →
-    docs) plainly visible.
-    """
+    """Run each idempotent deletion step and collect failures for retry."""
     user_id = result.user_id
 
     def _do_postgres() -> None:
@@ -155,18 +154,14 @@ def _delete_all_stores(
         )
 
     def _do_bigquery() -> None:
-        bq_result = deps.bq_service.run(user_id, correlation_id, event_time)
+        bq_result = deps.bq_service.run(subject, correlation_id, event_time)
         result.bq_activities_deleted = bq_result.activities_deleted
         result.bq_staging_deleted = bq_result.staging_deleted
         result.bq_live_deleted = bq_result.live_deleted
 
-    def _do_firestore_tokens() -> None:
-        deps.token_store.delete_tokens(user_id)
-        result.firestore_tokens_deleted = True
-
     def _do_firestore_docs() -> None:
-        result.firestore_user_docs_deleted = delete_legacy_user_documents(
-            deps.firestore_client, user_id
+        result.firestore_user_docs_deleted = delete_user_documents(
+            deps.firestore_client, user_id, subject
         )
 
     _try_delete_step(result, deps.tracer, deps.deletion_hist, "postgres", _do_postgres)
@@ -175,16 +170,42 @@ def _delete_all_stores(
         result,
         deps.tracer,
         deps.deletion_hist,
-        "firestore_tokens",
-        _do_firestore_tokens,
-    )
-    _try_delete_step(
-        result,
-        deps.tracer,
-        deps.deletion_hist,
         "firestore_docs",
         _do_firestore_docs,
     )
+
+
+def _captured_owner(req: PubSubRequestContext) -> tuple[str, str]:
+    event = req.event_data
+    if not isinstance(event, dict):
+        raise HTTPException(422, "Expected a deauthorization event object")
+    attrs = req.message_attributes
+    uid = attrs.get("deletion_owner_uid", "")
+    subject = attrs.get("deletion_owner_subject", "")
+    try:
+        validate_uid(uid)
+        lookup_key(subject)
+    except ValueError as error:
+        raise HTTPException(
+            422, "Missing or invalid deauthorization ownership"
+        ) from error
+    if (
+        attrs.get("deletion_owner_version") != "1"
+        or attrs.get("deletion_owner_provider") != PROVIDER
+    ):
+        raise HTTPException(422, "Unsupported deauthorization ownership")
+    owner_id = event.get("owner_id")
+    if (
+        type(owner_id) is not int
+        or str(owner_id) != subject
+        or event.get("object_type") != "athlete"
+        or event.get("aspect_type") not in ("update", "delete")
+        or event.get("raw_activity") is not None
+    ):
+        raise HTTPException(
+            422, "Deauthorization event does not match captured owner_id"
+        )
+    return uid, subject
 
 
 @asynccontextmanager
@@ -215,7 +236,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             database=config.firestore_database,
         )
         app.state.firestore_client = firestore_client
-        app.state.token_store = FirestoreTokenStore(firestore_client)
         logger.info("Firestore client initialized")
 
         app.state.readiness_timeout = config.readiness_timeout
@@ -317,14 +337,8 @@ async def handle_deauth_event(request: Request) -> UserDeletionResponse:
                 },
             )
 
-            owner_id = event_data.get("owner_id")
-            if not owner_id:
-                raise HTTPException(  # noqa: TRY301 — FastAPI idiom; `except HTTPException: raise` passthrough below preserves status code
-                    status_code=422,
-                    detail="Missing owner_id in deauth event",
-                )
-
-            user_id = str(owner_id)
+            user_id, subject = _captured_owner(req)
+            verify_deletion_owner(request.app.state.firestore_client, user_id, subject)
             event_time = event_data.get("event_time", 0)
             result = DeletionResult(user_id=user_id)
 
@@ -334,12 +348,11 @@ async def handle_deauth_event(request: Request) -> UserDeletionResponse:
             deps = _DeletionDeps(
                 session_factory=request.app.state.session_factory,
                 bq_service=request.app.state.bq_deletion_service,
-                token_store=request.app.state.token_store,
                 firestore_client=request.app.state.firestore_client,
                 tracer=tracer,
                 deletion_hist=request.app.state.deletion_histogram,
             )
-            _delete_all_stores(result, deps, correlation_id, event_time)
+            _delete_all_stores(result, deps, subject, correlation_id, event_time)
 
             # Record metric
             if request.app.state.deletion_counter:
@@ -385,6 +398,9 @@ async def handle_deauth_event(request: Request) -> UserDeletionResponse:
 
     except HTTPException:
         raise
+    except ConnectionConflictError as err:
+        logger.warning("Deauthorization ownership conflicts with the registry")
+        raise HTTPException(409, "Deauthorization ownership conflict") from err
     except Exception as err:
         logger.exception("Unexpected error")
         raise HTTPException(

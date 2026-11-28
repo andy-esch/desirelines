@@ -165,6 +165,30 @@ def test_deletion_ownership_survives_replay_without_rebinding() -> None:
         ]
 
 
+@pytest.mark.parametrize("dry_run", [True, False])
+@pytest.mark.parametrize("version", [None, "2"])
+def test_unbound_deletion_stays_on_the_dlq(dry_run: bool, version: str | None) -> None:
+    _, topic, subscription = dlq.destinations("deletion-service", "dev")
+    attrs = (
+        {}
+        if version is None
+        else {
+            "deletion_owner_version": version,
+            "deletion_owner_provider": "strava",
+            "deletion_owner_uid": "captured-uid",
+            "deletion_owner_subject": "98765",
+        }
+    )
+    transport = Transport([received(b'{"owner_id":98765}', attributes=attrs)])
+    with pytest.raises(dlq.ReplayError, match="requires V1 ownership"):
+        dlq.replay(transport, topic, subscription, "JSON", dry_run=dry_run)
+    assert not transport.bodies("publish")
+    assert not transport.bodies("acknowledge")
+    assert transport.bodies("modifyAckDeadline") == [
+        {"ackIds": ["ack-1"], "ackDeadlineSeconds": 0}
+    ]
+
+
 def test_application_json_is_not_unwrapped_as_a_dead_letter_envelope() -> None:
     data = b'{"message":{"data":"nested application data"},"aspect_type":"create"}'
     transport = Transport([received(data)])

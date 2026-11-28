@@ -52,8 +52,8 @@ Auth middleware (`middleware/auth.go`):
 The registry maps a Strava subject to that UID; existing users retain their
 numeric UIDs. The callback never derives a UID from an athlete ID or falls back
 when ownership is absent, inactive or inconsistent. Persistence and backfill use
-resolved app UIDs; the full-account deletion consumer still uses legacy numeric
-identity pending its separate migration.
+resolved app UIDs. Deauthorization cleanup uses the captured binding described
+in the [ownership handoff](../guides/deauthorization-cleanup.md).
 
 **User States**:
 
@@ -110,12 +110,7 @@ See the [registry contract and rollout](../guides/activity-connection-registry.m
 resolves the provider subject before app UID admission and credential access. Its
 cache rechecks ownership on hits; refresh/deletion transactions retain the captured
 UID/subject pair across retries. Missing/conflicting mappings remain retryable
-errors, distinct from missing credential documents. Deauthorization confirms the
-grant, publishes durable cleanup, then best-effort deletes bound credentials,
-without requiring app admission. Its [ownership handoff](../guides/deauthorization-cleanup.md)
-adds captured UID/subject attributes while event bodies retain Strava IDs.
-The full-account deletion consumer remains on legacy numeric identity pending
-its separate migration. Python
+errors, distinct from missing credential documents. Python
 [backfill credentials](../../packages/stravapipe/src/stravapipe/adapters/firestore/token_store.py)
 use the resolved UID and conditional rotation writes, with external OAuth
 outside transactions. Persistence and backfill also use resolved app UIDs;

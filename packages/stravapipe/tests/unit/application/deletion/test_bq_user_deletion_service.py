@@ -69,7 +69,7 @@ class TestBQUserDeletionService:
 
         for call in mock_client.execute_dml_query.call_args_list:
             query, params = call.args
-            assert [p.name for p in params] == ["user_id"]
+            assert [(p.name, p.value) for p in params] == [("subject", "12345")]
             assert "12345" not in query
 
     def test_raises_on_bq_failure(self, service, mock_client):
